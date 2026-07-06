@@ -121,9 +121,18 @@ extension MonitorInfo {
         }
         // What if monitor configuration changed? (frame.origin is changed)
         rearrangeWorkspacesOnMonitors()
-        // Normally, recursion should happen only once more because we must take the value from the cache
-        // (Unless, monitor configuration data race happens)
-        return self.activeWorkspace
+        // Normally, the lookup must succeed this time because rearrangeWorkspacesOnMonitors assigns
+        // a workspace to every current monitor
+        if let existing = screenPointToVisibleWorkspace[rect.topLeftCorner] {
+            return existing
+        }
+        // Monitor configuration data race: self is a stale snapshot, and its rect doesn't match any
+        // current monitor (may happen during display sleep/wake reconfiguration). Recursing doesn't
+        // converge in this case (it overflows the stack). Fall back to the closest current monitor
+        return screenPointToVisibleWorkspace
+            .minBy { (rect.topLeftCorner - $0.key).vectorLength }?
+            .value
+            ?? focus.workspace
     }
 
     @MainActor
