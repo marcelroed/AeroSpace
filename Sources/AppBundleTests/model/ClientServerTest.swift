@@ -54,6 +54,54 @@ struct ClientServerTest: AeroSpaceTestSuite {
     }
 
     @Test
+    func testClientRequestJson_decodingMissingVsNull() {
+        let data1 = #"{ "args": [], "stdin": "", "windowId": null }"#.data(using: .utf8)!
+        assertSucc(ClientRequest.decodeJson(data1), ClientRequest(args: [], stdin: "", windowId: nil, workspace: nil).copy(\.workspace, nil))
+        let data2 = #"{ "args": [], "stdin": "", "workspace": "w" }"#.data(using: .utf8)!
+        assertSucc(ClientRequest.decodeJson(data2), ClientRequest(args: [], stdin: "", windowId: nil, workspace: "w").copy(\.windowId, nil))
+    }
+
+    @Test
+    func testClientRequestJson_decodingErrors() {
+        let wrongFormat = "The data couldn’t be read because it isn’t in the correct format."
+        let missing = "The data couldn’t be read because it is missing."
+        let testData: [(json: String, kind: String, localizedDescription: String)] = [
+            (#"{ "args": ["foo"], "stdin": "", "windowId": "x" }"#, #"typeMismatch ["windowId"]"#, wrongFormat),
+            (#"{ "args": ["foo"], "stdin": "", "windowId": -1 }"#, "dataCorrupted []", wrongFormat),
+            (#"{ "args": ["foo"], "stdin": "", "windowId": 1.5 }"#, "dataCorrupted []", wrongFormat),
+            (#"{ "args": ["foo"], "stdin": "", "workspace": 1 }"#, #"typeMismatch ["workspace"]"#, wrongFormat),
+            (#"{ "args": ["foo"], "stdin": "", "windowId": "x", "workspace": 1 }"#, #"typeMismatch ["windowId"]"#, wrongFormat),
+            (#"{ "args": ["foo"], "windowId": "x" }"#, "keyNotFound stdin []", missing),
+            (#"{ "stdin": "" }"#, "keyNotFound args []", missing),
+            (#"{ "args": null, "stdin": "" }"#, #"valueNotFound ["args"]"#, missing),
+            (#"{ "args": [1], "stdin": "" }"#, #"typeMismatch ["args", "Index 0"]"#, wrongFormat),
+            (#"{ "args": [], "stdin": null }"#, #"valueNotFound ["stdin"]"#, missing),
+            ("[]", "typeMismatch []", wrongFormat),
+            ("not json", "dataCorrupted []", wrongFormat),
+        ]
+        for (json, expectedKind, expectedDescription) in testData {
+            let data = json.data(using: .utf8)!
+            assertFail(ClientRequest.decodeJson(data), expectedDescription)
+            let kind: String
+            do {
+                _ = try JSONDecoder().decode(ClientRequest.self, from: data)
+                kind = "success"
+            } catch DecodingError.typeMismatch(_, let context) {
+                kind = "typeMismatch \(context.codingPath.map(\.stringValue))"
+            } catch DecodingError.valueNotFound(_, let context) {
+                kind = "valueNotFound \(context.codingPath.map(\.stringValue))"
+            } catch DecodingError.keyNotFound(let key, let context) {
+                kind = "keyNotFound \(key.stringValue) \(context.codingPath.map(\.stringValue))"
+            } catch DecodingError.dataCorrupted(let context) {
+                kind = "dataCorrupted \(context.codingPath.map(\.stringValue))"
+            } catch {
+                kind = "\(error)"
+            }
+            assertEquals(kind, expectedKind, additionalMsg: json)
+        }
+    }
+
+    @Test
     func testClientRequestJsonCompatibility_encoding() {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
