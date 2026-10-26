@@ -1,17 +1,18 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
 @MainActor
-final class FullscreenCommandTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
-
+@Suite(.aeroSpaceGlobalState)
+struct FullscreenCommandTest: AeroSpaceTestSuite {
+    @Test
     func testParse() {
         assertEquals(parseCommand("fullscreen off --no-outer-gaps").errorOrNil, "--no-outer-gaps is incompatible with 'off' argument")
         assertEquals(parseCommand("fullscreen --fail-if-noop").errorOrNil, "--fail-if-noop requires 'on' or 'off' argument")
         assertEquals(parseCommand("fullscreen foo").errorOrNil, "ERROR: Can't parse 'foo'. Possible values: on|off")
     }
 
+    @Test
     func testToggle() async {
         let window = TestWindow.new(id: 1, parent: Workspace.get(byName: name).rootTilingContainer)
         assertTrue(window.focusWindow())
@@ -32,6 +33,7 @@ final class FullscreenCommandTest: XCTestCase {
         assertTrue(window.noOuterGapsInFullscreen)
     }
 
+    @Test
     func testNoop() async {
         let window = TestWindow.new(id: 1, parent: Workspace.get(byName: name).rootTilingContainer)
         assertTrue(window.focusWindow())
@@ -55,6 +57,7 @@ final class FullscreenCommandTest: XCTestCase {
         assertTrue(window.isFullscreen)
     }
 
+    @Test
     func testNoWindowIsFocused() async {
         let result = await parseCommand("fullscreen").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 2)
