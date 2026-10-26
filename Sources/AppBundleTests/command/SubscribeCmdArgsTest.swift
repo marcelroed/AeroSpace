@@ -42,6 +42,23 @@ struct SubscribeCmdArgsTest: AeroSpaceTestSuite {
     }
 
     @Test
+    func testParseUnknownEventAfterDuplicateEventIsReportedOnce() {
+        // The parser used to advance by the number of distinct events, so it read 'bogus' again
+        // and added a bogus "Unknown argument" error (RB-14)
+        let result = parseSubscribeCmdArgs(["focus-changed", "focus-changed", "bogus"].slice)
+        switch result {
+            case .cmd, .help:
+                fail("Expected failure")
+            case .failure(let err):
+                let expectedMsg = """
+                    ERROR: Can't parse 'bogus'.
+                           Possible values: (focus-changed|focused-monitor-changed|focused-workspace-changed|mode-changed|window-detected|binding-triggered)
+                    """
+                assertEquals(err, .init(expectedMsg, 2))
+        }
+    }
+
+    @Test
     func testParseDuplicateEvent() {
         let result = parseSubscribeCmdArgs(["focus-changed", "focus-changed"].slice)
         switch result {

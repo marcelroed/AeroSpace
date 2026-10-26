@@ -35,7 +35,7 @@ private func parseEventTypes(_ input: PosArgParserInput) -> ParsedCliArgs<Set<Se
     let args = input.nonFlagArgs()
     var events: Set<ServerEventType> = []
     var errorMsg: String? = nil
-    for arg in args {
+    for (i, arg) in args.enumerated() {
         switch parseEnum(arg, ServerEventType.self) {
             case .success(let event):
                 if events.contains(event) {
@@ -43,7 +43,7 @@ private func parseEventTypes(_ input: PosArgParserInput) -> ParsedCliArgs<Set<Se
                 }
                 events.insert(event)
             case .failure(let errorMsg):
-                return .fail(errorMsg, advanceBy: events.count + 1)
+                return .fail(errorMsg, advanceBy: i + 1)
         }
     }
     if let errorMsg {
