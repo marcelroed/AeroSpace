@@ -50,37 +50,29 @@ struct MoveCommand: Command {
     _ direction: CardinalDirection,
     _ env: CmdEnv,
 ) -> BinaryExitCode {
-    switch args.boundaries {
-        case .workspace:
-            return applyBoundariesAction(window, workspace, args, direction)
-        case .allMonitorsOuterFrame:
-            guard let (monitors, index) = window.nodeMonitor?.findRelativeMonitor(inDirection: direction) else {
-                return .fail(io.err("Should never happen. Can't find the current monitor"))
-            }
+    if args.boundaries == .allMonitorsOuterFrame {
+        guard let (monitors, index) = window.nodeMonitor?.findRelativeMonitor(inDirection: direction) else {
+            return .fail(io.err("Should never happen. Can't find the current monitor"))
+        }
+        if monitors.indices.contains(index) {
+            let moveNodeToMonitorArgs = MoveNodeToMonitorCmdArgs(target: .direction(direction))
+                .copy(\.windowId, window.windowId)
+                .copy(\.focusFollowsWindow, focus.windowOrNil == window)
 
-            if monitors.indices.contains(index) {
-                let moveNodeToMonitorArgs = MoveNodeToMonitorCmdArgs(target: .direction(direction))
-                    .copy(\.windowId, window.windowId)
-                    .copy(\.focusFollowsWindow, focus.windowOrNil == window)
-
-                return MoveNodeToMonitorCommand(args: moveNodeToMonitorArgs).run(env, io)
-            } else {
-                return applyBoundariesAction(window, workspace, args, direction)
-            }
+            return MoveNodeToMonitorCommand(args: moveNodeToMonitorArgs).run(env, io)
+        }
     }
-}
-
-@MainActor private func applyBoundariesAction(
-    _ window: Window,
-    _ workspace: Workspace,
-    _ args: MoveCmdArgs,
-    _ direction: CardinalDirection,
-) -> BinaryExitCode {
     switch args.boundariesAction {
         case .stop: return .succ
         case .fail: return .fail
         case .createImplicitContainer:
-            createImplicitContainerAndMoveWindow(window, workspace, direction)
+            let prevRoot = workspace.rootTilingContainer
+            prevRoot.unbindFromParent()
+            // Force tiles layout
+            _ = TilingContainer(parent: workspace, adaptiveWeight: WEIGHT_AUTO, direction.orientation, .tiles, index: 0)
+            check(prevRoot != workspace.rootTilingContainer)
+            prevRoot.bind(to: workspace.rootTilingContainer, adaptiveWeight: WEIGHT_AUTO, index: 0)
+            window.bind(to: workspace.rootTilingContainer, adaptiveWeight: WEIGHT_AUTO, index: direction.insertionOffset)
             return .succ
     }
 }
@@ -116,46 +108,20 @@ private let moveOutMacosUnconventionalWindow = "moving macOS fullscreen, minimiz
     }
 }
 
-@MainActor private func createImplicitContainerAndMoveWindow(
-    _ window: Window,
-    _ workspace: Workspace,
-    _ direction: CardinalDirection,
-) {
-    let prevRoot = workspace.rootTilingContainer
-    prevRoot.unbindFromParent()
-    // Force tiles layout
-    _ = TilingContainer(parent: workspace, adaptiveWeight: WEIGHT_AUTO, direction.orientation, .tiles, index: 0)
-    check(prevRoot != workspace.rootTilingContainer)
-    prevRoot.bind(to: workspace.rootTilingContainer, adaptiveWeight: WEIGHT_AUTO, index: 0)
-    window.bind(to: workspace.rootTilingContainer, adaptiveWeight: WEIGHT_AUTO, index: direction.insertionOffset)
-}
-
 @MainActor private func deepMoveIn(window: Window, into container: TilingContainer, moveDirection: CardinalDirection, _ io: CmdIo) -> BinaryExitCode {
-    let deepTarget = container.tilingTreeNodeCasesOrDie().findDeepMoveInTargetRecursive(moveDirection.orientation)
-    switch deepTarget {
-        case .tilingContainer(let deepTarget):
-            window.bind(to: deepTarget, adaptiveWeight: WEIGHT_AUTO, index: 0)
-        case .window(let deepTarget):
-            guard let parent = deepTarget.parent as? TilingContainer else { return .fail(io.err(bugPrompt())) }
-            guard let deepTargetIndex = deepTarget.ownIndex else { return .fail(io.err(bugPrompt())) }
-            window.bind(to: parent, adaptiveWeight: WEIGHT_AUTO, index: deepTargetIndex + 1)
+    // Descend through the most recent children to a container with the move orientation or to a window
+    var deepTarget: TreeNode = container
+    while let tilingContainer = deepTarget as? TilingContainer, tilingContainer.orientation != moveDirection.orientation {
+        deepTarget = tilingContainer.mostRecentChild.orDie("Empty containers must be detached during normalization")
+    }
+    if let deepTarget = deepTarget as? TilingContainer {
+        window.bind(to: deepTarget, adaptiveWeight: WEIGHT_AUTO, index: 0)
+    } else {
+        guard let parent = deepTarget.parent as? TilingContainer else { return .fail(io.err(bugPrompt())) }
+        guard let deepTargetIndex = deepTarget.ownIndex else { return .fail(io.err(bugPrompt())) }
+        window.bind(to: parent, adaptiveWeight: WEIGHT_AUTO, index: deepTargetIndex + 1)
     }
     return .succ
-}
-
-extension TilingTreeNodeCases {
-    @MainActor fileprivate func findDeepMoveInTargetRecursive(_ orientation: Orientation) -> TilingTreeNodeCases {
-        switch self {
-            case .window:
-                self
-            case .tilingContainer(let container) where container.orientation == orientation:
-                .tilingContainer(container)
-            case .tilingContainer(let container):
-                container.mostRecentChild.orDie("Empty containers must be detached during normalization")
-                    .tilingTreeNodeCasesOrDie()
-                    .findDeepMoveInTargetRecursive(orientation)
-        }
-    }
 }
 
 @MainActor func shouldFailBecauseFullscreen_nonCancellable(
@@ -163,13 +129,7 @@ extension TilingTreeNodeCases {
     failIfFullscreen: Bool,
     failIfMacosNativeFullscreen: Bool,
 ) async -> Bool {
-    if failIfFullscreen && window.isFullscreen {
-        return true
-    }
-    if failIfMacosNativeFullscreen {
-        if true == (try? await window.isMacosFullscreen(.nonCancellable)) {
-            return true
-        }
-    }
-    return false
+    if failIfFullscreen && window.isFullscreen { return true }
+    guard failIfMacosNativeFullscreen else { return false }
+    return true == (try? await window.isMacosFullscreen(.nonCancellable))
 }
