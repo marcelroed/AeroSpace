@@ -1,8 +1,11 @@
 @testable import AppBundle
+import AppKit
 import Common
-import XCTest
+import Testing
 
-final class AxUiElementWindowTypeTest: XCTestCase {
+@Suite
+struct AxUiElementWindowTypeTest: AeroSpaceTestSuite {
+    @Test
     func test() throws {
         let checkedDumps = try checkAxDumpsRecursive(projectRoot.appending(path: "./axDumps"))
         assertTrue(checkedDumps > 0)
