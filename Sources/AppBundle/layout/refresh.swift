@@ -195,6 +195,8 @@ private func layoutWorkspaces() async throws {
 
     // to reduce flicker, first unhide visible workspaces, then hide invisible ones
     for monitor in monitors {
+        // The screens may also disappear at the suspension points below. Then workspaceMonitor is the fake mainMonitorInfo
+        if !hasScreens { return }
         let workspace = monitor.activeWorkspace
         workspace.allLeafWindowsRecursive.forEach { ($0 as! MacWindow).unhideFromCorner() } // todo as!
         try await workspace.layoutWorkspace()
@@ -202,6 +204,8 @@ private func layoutWorkspaces() async throws {
     for workspace in Workspace.all where !workspace.isVisible {
         let corner = monitorToOptimalHideCorner[workspace.workspaceMonitor.rect.topLeftCorner] ?? .bottomRightCorner
         for window in workspace.allLeafWindowsRecursive {
+            // Same. hideInCorner would also remember the window position relative to the fake monitor
+            if !hasScreens { return }
             try await (window as! MacWindow).hideInCorner(corner) // todo as!
         }
     }
