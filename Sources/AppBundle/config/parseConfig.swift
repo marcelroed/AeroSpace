@@ -200,18 +200,36 @@ func parseCommandForConfig(
         .getOrNil(appendErrorTo: &c.errors) ?? .empty
 }
 
-func tomlAnyToOrderedJsonRecursive(
+private func parseTomlRootTable(_ rawToml: String, _ errors: inout [ConfigParseDiagnostic]) -> OrderedJson.JsonDict {
+    do {
+        let dict: [String: Any] = try .init(try TOMLTable(source: rawToml))
+        return tomlTableToJsonDict(dict, .emptyRoot, &errors)
+    } catch {
+        errors.append(.init(.emptyRoot, error.description, preventConfigReload: true))
+        return [:]
+    }
+}
+
+private func tomlTableToJsonDict(
+    _ dict: [String: Any],
+    _ backtrace: ConfigBacktrace,
+    _ errors: inout [ConfigParseDiagnostic],
+) -> OrderedJson.JsonDict {
+    var json = OrderedJson.JsonDict()
+    for (key, tomlValue) in dict.sortedEntries {
+        json[key] = tomlAnyToOrderedJsonRecursive(any: tomlValue, backtrace + .key(key), &errors)
+    }
+    return json
+}
+
+private func tomlAnyToOrderedJsonRecursive(
     any: Any,
     _ backtrace: ConfigBacktrace,
     _ errors: inout [ConfigParseDiagnostic],
 ) -> OrderedJson? {
     switch any {
         case let dict as [String: Any]:
-            var json = OrderedJson.JsonDict()
-            for (key, tomlValue) in dict.sortedEntries {
-                json[key] = tomlAnyToOrderedJsonRecursive(any: tomlValue, backtrace + .key(key), &errors)
-            }
-            return .dict(json)
+            return .dict(tomlTableToJsonDict(dict, backtrace, &errors))
         case let array as [Any]:
             var json = OrderedJson.JsonArray()
             for (index, tomlValue) in array.enumerated() {
@@ -237,22 +255,7 @@ struct ParseConfigResult {
 
 @MainActor func parseConfig(_ rawToml: String) -> ParseConfigResult {
     var errors = NonCopyable([ConfigParseDiagnostic]())
-
-    let rawTable: OrderedJson.JsonDict
-    do {
-        let dict: [String: Any] = try .init(try TOMLTable(source: rawToml))
-        let json = tomlAnyToOrderedJsonRecursive(any: dict, .emptyRoot, &errors.value)
-        switch json {
-            case .dict(let dict): rawTable = dict
-            default: // dead code
-                let msg = "Config parsing error: the top level type must be a TOML Table. But got: \((json ?? .null).tomlType)"
-                errors.value.append(.init(.emptyRoot, msg, preventConfigReload: true))
-                rawTable = [:]
-        }
-    } catch {
-        errors.value.append(.init(.emptyRoot, error.description, preventConfigReload: true))
-        rawTable = [:]
-    }
+    let rawTable = parseTomlRootTable(rawToml, &errors.value)
 
     let configVersion: ConfigVersion = rawTable[configVersionConfigRootKey]
         .flatMap { parseConfigVersion($0, .rootKey(configVersionConfigRootKey)).getOrNil(appendErrorTo: &errors.value) }
@@ -276,42 +279,57 @@ struct ParseConfigResult {
         if rawTable.keys.contains(persistentWorkspacesKey) {
             c.errors.append(.init(.rootKey(persistentWorkspacesKey), "This config option is only available since 'config-version = 2'"))
         }
-        config.persistentWorkspaces = (config.modes.values.lazy
-            .flatMap { (mode: Mode) -> [HotkeyBinding] in Array(mode.bindings.values) }
-            .flatMap { (binding: HotkeyBinding) -> [String] in
-                let commands = binding.commands.flatten()
-                return commands.filterIsInstance(of: WorkspaceCommand.self).compactMap { $0.args.target.val.workspaceNameOrNil()?.raw } +
-                    commands.filterIsInstance(of: MoveNodeToWorkspaceCommand.self).compactMap { $0.args.target.val.workspaceNameOrNil()?.raw }
-            }
-            + (config.workspaceToMonitorForceAssignment).keys)
-            .toOrderedSet()
+        config.persistentWorkspaces = implicitPersistentWorkspaces(config)
     }
 
-    if config.enableNormalizationFlattenContainers {
-        let containsSplitCommand = config.modes.values.lazy.flatMap { $0.bindings.values }
-            .flatMap { $0.commands.flatten() }
-            .contains { $0 is SplitCommand }
-        if containsSplitCommand {
-            c.errors.append(.init(
-                .emptyRoot, // todo Make 'split' + flatten normalization prettier
-                """
-                The config contains:
-                1. usage of 'split' command
-                2. enable-normalization-flatten-containers = true
-                These two settings don't play nicely together. 'split' command has no effect when enable-normalization-flatten-containers is disabled.
-
-                My recommendation: keep the normalizations enabled, and prefer 'join-with' over 'split'.
-                """,
-            ))
-        }
+    if let error = splitAndFlattenConflictError(config) {
+        c.errors.append(error)
     }
-    if config.configVersion < .max {
-        let msg = "The current 'config-version = \(config.configVersion)' is outdated. " +
-            "Please consider migrating to 'config-version = \(ConfigVersion.max)'. " +
-            "See https://nikitabobko.github.io/AeroSpace/guide#config-version for the migration guide."
-        c.warnings.append(.init(.emptyRoot, msg))
+    if let warning = outdatedConfigVersionWarning(config.configVersion) {
+        c.warnings.append(warning)
     }
     return ParseConfigResult(config: config, errors: c.errors, warnings: c.warnings)
+}
+
+/// Before 'config-version = 2', the workspaces mentioned in bindings and in the force assignment are persistent
+private func implicitPersistentWorkspaces(_ config: Config) -> OrderedSet<String> {
+    var result: OrderedSet<String> = []
+    for mode in config.modes.values {
+        for binding in mode.bindings.values {
+            let commands = binding.commands.flatten()
+            result.append(contentsOf: commands.filterIsInstance(of: WorkspaceCommand.self).compactMap { $0.args.target.val.workspaceNameOrNil()?.raw })
+            result.append(contentsOf: commands.filterIsInstance(of: MoveNodeToWorkspaceCommand.self).compactMap { $0.args.target.val.workspaceNameOrNil()?.raw })
+        }
+    }
+    result.append(contentsOf: config.workspaceToMonitorForceAssignment.keys)
+    return result
+}
+
+private func splitAndFlattenConflictError(_ config: Config) -> ConfigParseDiagnostic? {
+    guard config.enableNormalizationFlattenContainers else { return nil }
+    let containsSplitCommand = config.modes.values.lazy.flatMap { $0.bindings.values }
+        .flatMap { $0.commands.flatten() }
+        .contains { $0 is SplitCommand }
+    guard containsSplitCommand else { return nil }
+    return .init(
+        .emptyRoot, // todo Make 'split' + flatten normalization prettier
+        """
+        The config contains:
+        1. usage of 'split' command
+        2. enable-normalization-flatten-containers = true
+        These two settings don't play nicely together. 'split' command has no effect when enable-normalization-flatten-containers is disabled.
+
+        My recommendation: keep the normalizations enabled, and prefer 'join-with' over 'split'.
+        """,
+    )
+}
+
+private func outdatedConfigVersionWarning(_ configVersion: ConfigVersion) -> ConfigParseDiagnostic? {
+    guard configVersion < .max else { return nil }
+    let msg = "The current 'config-version = \(configVersion)' is outdated. " +
+        "Please consider migrating to 'config-version = \(ConfigVersion.max)'. " +
+        "See https://nikitabobko.github.io/AeroSpace/guide#config-version for the migration guide."
+    return .init(.emptyRoot, msg)
 }
 
 func parseIndentForNestedContainersWithTheSameOrientation(_ _: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<Void> {
