@@ -101,11 +101,21 @@ enum ChildParentRelation: Equatable {
     case shimContainerRelation
 }
 
+/// The legal edges of the tree. Any other child-parent pair is illegal
 @MainActor func getChildParentRelation(child: TreeNode, parent: NonLeafTreeNodeObject) -> ChildParentRelation {
-    if let relation = getChildParentRelationOrNil(child: child, parent: parent) {
-        return relation
+    switch (child.nodeCases, parent.cases) {
+        case (.window, .tilingContainer(let container)), (.tilingContainer, .tilingContainer(let container)): .tiling(parent: container)
+        case (.tilingContainer, .workspace): .rootTilingContainer
+        case (.floatingWindowsContainer, .workspace),
+             (.macosFullscreenWindowsContainer, .workspace),
+             (.macosHiddenAppsWindowsContainer, .workspace): .shimContainerRelation
+        case (.window, .floatingWindowsContainer): .floatingWindow
+        case (.window, .macosFullscreenWindowsContainer): .macosNativeFullscreenWindow
+        case (.window, .macosHiddenAppsWindowsContainer): .macosNativeHiddenAppWindow
+        case (.window, .macosMinimizedWindowsContainer): .macosNativeMinimizedWindow
+        case (.window, .macosPopupWindowsContainer): .macosPopupWindow
+        default: illegalChildParentRelation(child: child, parent: parent)
     }
-    illegalChildParentRelation(child: child, parent: parent)
 }
 
 @MainActor func illegalChildParentRelation(
@@ -118,38 +128,4 @@ enum ChildParentRelation: Equatable {
 ) -> Never {
     let msg = "Illegal child-parent relation. Child: \(child), Parent: \((parent ?? child.parent).prettyDescription)"
     die(msg, file: file, line: line, column: column, function: function)
-}
-
-@MainActor func getChildParentRelationOrNil(child: TreeNode, parent: NonLeafTreeNodeObject) -> ChildParentRelation? {
-    return switch (child.nodeCases, parent.cases) {
-        case (.workspace, _): nil
-        case (.window, .workspace): nil
-
-        case (.window, .macosPopupWindowsContainer): .macosPopupWindow
-        case (_, .macosPopupWindowsContainer): nil
-        case (.macosPopupWindowsContainer, _): nil
-
-        case (.window, .macosMinimizedWindowsContainer): .macosNativeMinimizedWindow
-        case (_, .macosMinimizedWindowsContainer): nil
-        case (.macosMinimizedWindowsContainer, _): nil
-
-        case (.tilingContainer, .tilingContainer(let container)),
-             (.window, .tilingContainer(let container)): .tiling(parent: container)
-        case (.tilingContainer, .workspace): .rootTilingContainer
-
-        case (.floatingWindowsContainer, .workspace): .shimContainerRelation
-        case (.window, .floatingWindowsContainer): .floatingWindow
-        case (.floatingWindowsContainer, _): nil
-        case (_, .floatingWindowsContainer): nil
-
-        case (.macosFullscreenWindowsContainer, .workspace): .shimContainerRelation
-        case (.window, .macosFullscreenWindowsContainer): .macosNativeFullscreenWindow
-        case (.macosFullscreenWindowsContainer, _): nil
-        case (_, .macosFullscreenWindowsContainer): nil
-
-        case (.macosHiddenAppsWindowsContainer, .workspace): .shimContainerRelation
-        case (.window, .macosHiddenAppsWindowsContainer): .macosNativeHiddenAppWindow
-        case (.macosHiddenAppsWindowsContainer, _): nil
-        case (_, .macosHiddenAppsWindowsContainer): nil
-    }
 }
