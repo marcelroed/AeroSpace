@@ -1,12 +1,13 @@
 @testable import AppBundle
+import AppKit
 import Common
-import XCTest
+import Testing
 
 // Characterization tests for layoutRecursive.swift. The test monitor is 1920x1080 at (0, 0)
 @MainActor
-final class LayoutTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
-
+@Suite(.aeroSpaceGlobalState)
+struct LayoutTest: AeroSpaceTestSuite {
+    @Test
     func testTilesHorizontal() async throws {
         let workspace = Workspace.get(byName: name)
         let root = workspace.rootTilingContainer
@@ -24,6 +25,7 @@ final class LayoutTest: XCTestCase {
         }
     }
 
+    @Test
     func testTilesNestedWithGaps() async throws {
         config.gaps = Gaps(inner: .init(vertical: 10, horizontal: 20), outer: .init(left: 10, bottom: 19, top: 20, right: 10))
         let workspace = Workspace.get(byName: name)
@@ -54,6 +56,7 @@ final class LayoutTest: XCTestCase {
         assertEquals(w3.vWeight, 521)
     }
 
+    @Test
     func testTilesPerMonitorGaps() async throws {
         let main = [PerMonitorValue(description: .main, value: 100)]
         let secondary = [PerMonitorValue(description: .secondary, value: 100)]
@@ -73,6 +76,7 @@ final class LayoutTest: XCTestCase {
         assertRects(w2, physical: rect(1020, 0, 880, 1079), virtual: rect(1000, 0, 900, 1079))
     }
 
+    @Test
     func testAccordionHorizontal() async throws {
         config.accordionPadding = 30
         let workspace = Workspace.get(byName: name)
@@ -115,6 +119,7 @@ final class LayoutTest: XCTestCase {
         assertRects(windows[1], physical: rect(0, 0, 1860, 1079), virtual: rect(0, 0, 1920, 1080))
     }
 
+    @Test
     func testAccordionVertical() async throws {
         config.accordionPadding = 30
         let workspace = Workspace.get(byName: name)
@@ -134,6 +139,7 @@ final class LayoutTest: XCTestCase {
         ])
     }
 
+    @Test
     func testAccordionSingleChild() async throws {
         config.accordionPadding = 30
         let workspace = Workspace.get(byName: name)
@@ -145,6 +151,7 @@ final class LayoutTest: XCTestCase {
         assertEquals(window.setAxFrameHistory, [frame(0, 0, 1920, 1079)])
     }
 
+    @Test
     func testAccordionInsideTiles() async throws {
         config.accordionPadding = 10
         let workspace = Workspace.get(byName: name)
@@ -163,6 +170,7 @@ final class LayoutTest: XCTestCase {
         assertRects(w3, physical: rect(960, 10, 960, 1069), virtual: rect(960, 0, 960, 1079))
     }
 
+    @Test
     func testFullscreenTilingWindow() async throws {
         config.gaps = Gaps(inner: .zero, outer: .init(left: 5, bottom: 5, top: 5, right: 5))
         let workspace = Workspace.get(byName: name)
@@ -190,6 +198,7 @@ final class LayoutTest: XCTestCase {
         assertRects(w1, physical: rect(5, 5, 955, 1069), virtual: rect(5, 5, 955, 1069))
     }
 
+    @Test
     func testFloatingWindows() async throws {
         let workspace = Workspace.get(byName: name) // Not the active workspace of the monitor
         let floating = workspace.floatingWindowsContainer
@@ -219,6 +228,7 @@ final class LayoutTest: XCTestCase {
         assertEquals(fullscreen.setAxFrameHistory.count, 1)
     }
 
+    @Test
     func testWindowManipulatedWithMouseIsSkipped() async throws {
         let workspace = Workspace.get(byName: name)
         let w1 = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
@@ -235,6 +245,7 @@ final class LayoutTest: XCTestCase {
         assertEquals(w2.setAxFrameHistory, [frame(960, 0, 960, 1079)])
     }
 
+    @Test
     func testEmptyWorkspaceIsNotLaidOut() async throws {
         let workspace = Workspace.get(byName: name)
         _ = TilingContainer.newVTiles(parent: workspace.rootTilingContainer, adaptiveWeight: 1)
