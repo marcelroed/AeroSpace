@@ -6,17 +6,7 @@ public struct WorkspaceName: Equatable, Sendable {
     }
 
     public static func parse(_ raw: String) -> ResOrStr<WorkspaceName> {
-        // reserved names
-        if raw == "focused" || raw == "non-focused" ||
-            raw == "visible" || raw == "invisible" || raw == "non-visible" ||
-            raw == "active" || raw == "non-active" || raw == "inactive" ||
-            raw == "back-and-forth" || raw == "back_and_forth" || raw == "previous" ||
-            raw == "prev" || raw == "next" ||
-            raw == "monitor" || raw == "workspace" ||
-            raw == "monitors" || raw == "workspaces" ||
-            raw == "all" || raw == "none" ||
-            raw == "mouse" || raw == "target"
-        {
+        if reservedWorkspaceNames.contains(raw) {
             return .failure("'\(raw)' is a reserved workspace name")
         }
         if raw.isEmpty {
@@ -38,3 +28,9 @@ public struct WorkspaceName: Equatable, Sendable {
         return .success(WorkspaceName(raw))
     }
 }
+
+private let reservedWorkspaceNames: Set<String> = [
+    "focused", "non-focused", "visible", "invisible", "non-visible", "active", "non-active", "inactive",
+    "back-and-forth", "back_and_forth", "previous", "prev", "next",
+    "monitor", "workspace", "monitors", "workspaces", "all", "none", "mouse", "target",
+]
