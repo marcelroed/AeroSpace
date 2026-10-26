@@ -5,10 +5,8 @@ import Common
 /// so a member that must not be isolated has to be marked `nonisolated`
 @MainActor
 open class TreeNode: Equatable, AeroAny {
-    private var _children: [TreeNode] = []
-    var children: [TreeNode] { _children }
-    fileprivate final weak var _parent: NonLeafTreeNodeObject? = nil
-    final var parent: NonLeafTreeNodeObject? { _parent }
+    private(set) final var children: [TreeNode] = []
+    fileprivate(set) final weak var parent: NonLeafTreeNodeObject? = nil
     private var adaptiveWeight: CGFloat
     private let _mruChildren: MruStack<TreeNode> = MruStack()
     // Usages:
@@ -84,8 +82,8 @@ open class TreeNode: Equatable, AeroAny {
         } else {
             self.adaptiveWeight = adaptiveWeight
         }
-        newParent._children.insert(self, at: index != INDEX_BIND_LAST ? index : newParent._children.count)
-        _parent = newParent
+        newParent.children.insert(self, at: index != INDEX_BIND_LAST ? index : newParent.children.count)
+        parent = newParent
         unboundStacktrace = nil
         // todo consider disabling automatic mru propogation
         // 1. "floating windows" in FocusCommand break the MRU because of that :(
@@ -96,22 +94,22 @@ open class TreeNode: Equatable, AeroAny {
     }
 
     private func unbindIfBound(recordStacktrace: Bool) -> BindingData? {
-        guard let _parent else { return nil }
+        guard let parent else { return nil }
 
-        let index = _parent._children.remove(element: self) ?? dieT("Can't find child in its parent")
-        check(_parent._mruChildren.remove(self))
-        self._parent = nil
+        let index = parent.children.remove(element: self) ?? dieT("Can't find child in its parent")
+        check(parent._mruChildren.remove(self))
+        self.parent = nil
         if recordStacktrace {
             unboundStacktrace = getStringStacktrace()
         }
 
-        return BindingData(parent: _parent, adaptiveWeight: adaptiveWeight, index: index)
+        return BindingData(parent: parent, adaptiveWeight: adaptiveWeight, index: index)
     }
 
     func markAsMostRecentChild() {
-        guard let _parent else { return }
-        _parent._mruChildren.pushOrRaise(self)
-        _parent.markAsMostRecentChild()
+        guard let parent else { return }
+        parent._mruChildren.pushOrRaise(self)
+        parent.markAsMostRecentChild()
     }
 
     var mostRecentChild: TreeNode? { _mruChildren.mostRecent ?? children.last }
