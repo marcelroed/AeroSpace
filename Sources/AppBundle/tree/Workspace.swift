@@ -123,11 +123,13 @@ extension MonitorInfo {
         }
         // Monitor configuration data race: self is a stale snapshot, and its rect doesn't match any
         // current monitor (may happen during display sleep/wake reconfiguration). Recursing doesn't
-        // converge in this case (it overflows the stack). Fall back to the closest current monitor
+        // converge in this case (it overflows the stack). Fall back to the closest current monitor.
+        // The map is empty only if no screen was seen yet (AeroSpace started while there were no screens). Don't read
+        // focus then: the lazy initializer of _focus gets here, and reading focus would re-enter it (crash)
         return screenPointToVisibleWorkspace
             .minBy { (rect.topLeftCorner - $0.key).vectorLength }?
             .value
-            ?? focus.workspace
+            ?? getStubWorkspace(for: self)
     }
 
     @MainActor
