@@ -13,7 +13,7 @@ func parseSpecificCmdArgs<T: CmdArgs>(_ raw: T, _ args: StrArrSlice) -> ParsedCm
         switch (positionalOnly, arg) {
             case (false, "-h"), (false, "--help"):
                 return .help(T.info.help)
-            case (false, _) where arg.isCliDashFlag && !isResizeNegativeUnitsArg(raw, arg: arg):
+            case (false, _) where arg.isCliDashFlag && !(T.parser.negativeNumbersArePositional && isNegativeNumber(arg)):
                 if let optionParser = T.parser.flags[arg] {
                     index += 1
                     if !options.insert(arg).inserted {
@@ -77,7 +77,7 @@ extension ArgParserProtocol where Root: ConvenienceMutable {
     }
 }
 
-private func isResizeNegativeUnitsArg(_ raw: any CmdArgs, arg: String) -> Bool {
+private func isNegativeNumber(_ arg: String) -> Bool {
     var iter = arg.makeIterator()
-    return raw is ResizeCmdArgs && iter.next() == "-" && iter.next()?.isNumber == true
+    return iter.next() == "-" && iter.next()?.isNumber == true
 }

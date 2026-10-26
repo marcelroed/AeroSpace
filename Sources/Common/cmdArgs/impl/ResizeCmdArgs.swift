@@ -11,6 +11,7 @@ public struct ResizeCmdArgs: CmdArgs {
             newMandatoryPosArgParser(\.dimension, enumPosArg(Dimension.self), placeholder: "(smart|smart-opposite|width|height)"),
             newMandatoryPosArgParser(\.units, parseUnits, placeholder: "[+|-]<number>"),
         ],
+        negativeNumbersArePositional: true,
     )
 
     public var dimension: Lateinit<ResizeCmdArgs.Dimension> = .uninitialized

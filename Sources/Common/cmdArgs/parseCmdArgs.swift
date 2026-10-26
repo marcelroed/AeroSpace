@@ -65,6 +65,8 @@ public struct CmdParser<Root>: Sendable {
     let flags: [String: any ArgParserProtocol<SubArgParserInput, Root, ()>]
     let positionalArgs: [any ArgParserProtocol<PosArgParserInput, Root, PosArgParserContext>]
     let conflictingOptions: [Set<String>]
+    /// Whether args like `-10` are positional arguments rather than unknown flags
+    let negativeNumbersArePositional: Bool
 
     init(
         kind: CmdKind,
@@ -72,11 +74,13 @@ public struct CmdParser<Root>: Sendable {
         flags: [String: any ArgParserProtocol<SubArgParserInput, Root, ()>],
         posArgs: [any ArgParserProtocol<PosArgParserInput, Root, PosArgParserContext>],
         conflictingOptions: [Set<String>] = [],
+        negativeNumbersArePositional: Bool = false,
     ) {
         self.info = CmdStaticInfo(help: help, kind: kind)
         self.flags = flags
         self.positionalArgs = posArgs
         self.conflictingOptions = conflictingOptions
+        self.negativeNumbersArePositional = negativeNumbersArePositional
     }
 }
 
