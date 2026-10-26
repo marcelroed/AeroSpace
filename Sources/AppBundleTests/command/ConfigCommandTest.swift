@@ -1,12 +1,13 @@
 @testable import AppBundle
 import Common
+import Foundation
 import HotKey
-import XCTest
+import Testing
 
 @MainActor
-final class ConfigCommandTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
-
+@Suite(.aeroSpaceGlobalState)
+struct ConfigCommandTest: AeroSpaceTestSuite {
+    @Test
     func testParse() {
         assertNil(parseCommand("config --major-keys").errorOrNil)
         assertNil(parseCommand("config --all-keys").errorOrNil)
@@ -41,6 +42,7 @@ final class ConfigCommandTest: XCTestCase {
         assertTrue(conflictErr?.contains("--all-keys") == true)
     }
 
+    @Test
     func testConfigPath() async {
         let result = await parseCommand("config --config-path").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 0)
@@ -48,6 +50,7 @@ final class ConfigCommandTest: XCTestCase {
         assertEquals(result.stdout, [configUrl.absoluteURL.path])
     }
 
+    @Test
     func testMajorKeys() async {
         config.modes = [
             "main": Mode(bindings: [:]),
@@ -62,6 +65,7 @@ final class ConfigCommandTest: XCTestCase {
         assertEquals(lines, [".", "mode", "mode.main.binding", "mode.service.binding"])
     }
 
+    @Test
     func testAllKeys() async {
         let command = parseCommand("focus left").cmdOrDie
         let binding = HotkeyBinding(.option, .h, command)
@@ -77,6 +81,7 @@ final class ConfigCommandTest: XCTestCase {
         )
     }
 
+    @Test
     func testGetRoot_complexObject_fails() async {
         let result = await parseCommand("config --get .").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 2)
@@ -87,6 +92,7 @@ final class ConfigCommandTest: XCTestCase {
         )
     }
 
+    @Test
     func testGetRoot_keys() async {
         config.modes = ["main": Mode(bindings: [:])]
         let result = await parseCommand("config --get . --keys").cmdOrDie.run(.defaultEnv, .emptyStdin)
@@ -95,6 +101,7 @@ final class ConfigCommandTest: XCTestCase {
         assertEquals(result.stdout, ["mode"])
     }
 
+    @Test
     func testGetRoot_json() async {
         config.modes = ["main": Mode(bindings: [:])]
         let expectedMap: ConfigMapValue = .map(["mode": .map(["main": .map(["binding": .map([:])])])])
@@ -106,6 +113,7 @@ final class ConfigCommandTest: XCTestCase {
         assertEquals(result.stdout, [expectedJson])
     }
 
+    @Test
     func testGetRoot_keysJson() async {
         config.modes = ["main": Mode(bindings: [:])]
         // --keys converts the map into an array of string-scalar keys, which is then JSON-encoded.
@@ -119,6 +127,7 @@ final class ConfigCommandTest: XCTestCase {
         assertEquals(result.stdout, [expected])
     }
 
+    @Test
     func testGetMode_keys_sortedOutput() async {
         config.modes = [
             "main": Mode(bindings: [:]),
@@ -131,6 +140,7 @@ final class ConfigCommandTest: XCTestCase {
         assertEquals(result.stdout, ["main\nservice"])
     }
 
+    @Test
     func testGetScalar() async {
         let command = parseCommand("focus left").cmdOrDie
         let binding = HotkeyBinding(.option, .h, command)
@@ -142,6 +152,7 @@ final class ConfigCommandTest: XCTestCase {
         assertEquals(result.stdout, [command.shellOfCommandsDescription])
     }
 
+    @Test
     func testGetScalar_keys_fails() async {
         let command = parseCommand("focus left").cmdOrDie
         let binding = HotkeyBinding(.option, .h, command)
@@ -154,6 +165,7 @@ final class ConfigCommandTest: XCTestCase {
         assertEquals(result.stderr, ["--keys flag cannot be applied to scalar object 'string(\"\(command.shellOfCommandsDescription)\")'"])
     }
 
+    @Test
     func testGetScalar_dereference_fails() async {
         let command = parseCommand("focus left").cmdOrDie
         let binding = HotkeyBinding(.option, .h, command)
@@ -165,6 +177,7 @@ final class ConfigCommandTest: XCTestCase {
         assertEquals(result.stderr, ["Can't dereference scalar value '\(command.shellOfCommandsDescription)'"])
     }
 
+    @Test
     func testGetMissingKey_fails() async {
         let result = await parseCommand("config --get nonExistent").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 2)
@@ -172,6 +185,7 @@ final class ConfigCommandTest: XCTestCase {
         assertEquals(result.stderr, ["No value at key token 'nonExistent'"])
     }
 
+    @Test
     func testGetInvalidPath_emptyKey() async {
         let result = await parseCommand("config --get ''").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 2)
@@ -179,6 +193,7 @@ final class ConfigCommandTest: XCTestCase {
         assertEquals(result.stderr, ["Invalid empty key"])
     }
 
+    @Test
     func testGetInvalidPath_doubleDot() async {
         let result = await parseCommand("config --get a..b").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 2)
@@ -186,6 +201,7 @@ final class ConfigCommandTest: XCTestCase {
         assertEquals(result.stderr, ["Invalid key 'a..b'"])
     }
 
+    @Test
     func testGetInvalidPath_trailingDot() async {
         let result = await parseCommand("config --get a.").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 2)
@@ -195,24 +211,28 @@ final class ConfigCommandTest: XCTestCase {
 
     // The naturally-built configMap (buildConfigMap) never produces arrays, so the array branches
     // of ConfigMapValue.find/dumpAllKeysRecursive are exercised directly here.
+    @Test
     func testFindArrayIndex_success() {
         let arr: ConfigMapValue = .array([.scalar(.string("a")), .scalar(.string("b"))])
         switch arr.find(keyPath: ["1"].slice) {
             case .success(.scalar(.string(let s))): assertEquals(s, "b")
-            default: XCTFail("expected .scalar(.string(\"b\"))")
+            default: fail("expected .scalar(.string(\"b\"))")
         }
     }
 
+    @Test
     func testFindArrayIndex_outOfBounds() {
         let arr: ConfigMapValue = .array([.scalar(.string("a"))])
         assertFail(arr.find(keyPath: ["5"].slice), "Index out of bounds. Index: 5, Size: 1")
     }
 
+    @Test
     func testFindArrayIndex_notInt() {
         let arr: ConfigMapValue = .array([.scalar(.string("a"))])
         assertFail(arr.find(keyPath: ["foo"].slice), "Can't convert key token 'foo' to Int")
     }
 
+    @Test
     func testDumpAllKeys_array() {
         let value: ConfigMapValue = .array([.scalar(.string("a")), .map(["k": .scalar(.int(1))])])
         var result: [String] = []
