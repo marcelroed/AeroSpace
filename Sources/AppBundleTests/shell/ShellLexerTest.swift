@@ -126,13 +126,13 @@ struct ShellLexerTest: AeroSpaceTestSuite {
 }
 
 extension LexerToken {
-    public static func word(l: Int, c: Int, _ str: String) -> Self { .init(Location(line: l, column: c), .word(str)) }
-    public static func and(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .and) }
-    public static func or(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .or) }
-    public static func pipe(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .pipe) }
-    public static func lParen(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .lParen) }
-    public static func rParen(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .rParen) }
-    public static func semicolon(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .semicolon) }
-    public static func end(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .end) }
-    public static func newline(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .newline) }
+    static func word(l: Int, c: Int, _ str: String) -> Self { .init(Location(line: l, column: c), .word(str)) }
+    static func and(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .and) }
+    static func or(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .or) }
+    static func pipe(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .pipe) }
+    static func lParen(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .lParen) }
+    static func rParen(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .rParen) }
+    static func semicolon(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .semicolon) }
+    static func end(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .end) }
+    static func newline(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .newline) }
 }
