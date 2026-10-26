@@ -1,8 +1,10 @@
 @testable import AppBundle
-import XCTest
+import Testing
 
 @MainActor
-final class LatestTaskSlotTest: XCTestCase {
+@Suite
+struct LatestTaskSlotTest: AeroSpaceTestSuite {
+    @Test
     func testReplaceCancelsThePreviousTask() async {
         let slot = LatestTaskSlot()
         let (events, continuation) = AsyncStream.makeStream(of: String.self)
@@ -13,6 +15,7 @@ final class LatestTaskSlotTest: XCTestCase {
         assertEquals(result.sorted(), ["first isCancelled: true", "second isCancelled: false"])
     }
 
+    @Test
     func testCancel() async {
         let slot = LatestTaskSlot()
         let (events, continuation) = AsyncStream.makeStream(of: String.self)
