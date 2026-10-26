@@ -82,11 +82,13 @@ final class Workspace: TreeNode, NonLeafTreeNodeObject, Hashable, Comparable {
         for name in config.persistentWorkspaces {
             _ = get(byName: name) // Make sure that all persistent workspaces are "cached"
         }
-        workspaceNameToWorkspace = workspaceNameToWorkspace.filter { (_, workspace: Workspace) in
-            config.persistentWorkspaces.contains(workspace.name) ||
+        // Remove in place. Reading focus can insert into workspaceNameToWorkspace, assigning a filtered copy would drop it
+        for (name, workspace) in workspaceNameToWorkspace {
+            let isUsed = config.persistentWorkspaces.contains(workspace.name) ||
                 !workspace.isEffectivelyEmpty ||
                 workspace.isVisible ||
                 workspace.name == focus.workspace.name
+            if !isUsed { workspaceNameToWorkspace.removeValue(forKey: name) }
         }
     }
 
