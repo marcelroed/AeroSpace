@@ -35,23 +35,14 @@ struct LegacyWindowDetectedCallbackMatcher: Equatable {
     var duringAeroSpaceStartup: Bool?
 
     var debugJson: Json {
-        var resultParts: [String] = []
-        if let appId {
-            resultParts.append("appId=\"\(appId)\"")
-        }
-        if let appNameRegexSubstring {
-            resultParts.append("appNameRegexSubstring=\"\(appNameRegexSubstring.origin)\"")
-        }
-        if let windowTitleRegexSubstring {
-            resultParts.append("windowTitleRegexSubstring=\"\(windowTitleRegexSubstring.origin)\"")
-        }
-        if let workspace {
-            resultParts.append("workspace=\"\(workspace)\"")
-        }
-        if let duringAeroSpaceStartup {
-            resultParts.append("duringAeroSpaceStartup=\(duringAeroSpaceStartup)")
-        }
-        return .string(resultParts.joined(separator: ", "))
+        let parts: [String?] = [
+            appId.map { "appId=\"\($0)\"" },
+            appNameRegexSubstring.map { "appNameRegexSubstring=\"\($0.origin)\"" },
+            windowTitleRegexSubstring.map { "windowTitleRegexSubstring=\"\($0.origin)\"" },
+            workspace.map { "workspace=\"\($0)\"" },
+            duringAeroSpaceStartup.map { "duringAeroSpaceStartup=\($0)" },
+        ]
+        return .string(parts.compactMap { $0 }.joined(separator: ", "))
     }
 }
 
