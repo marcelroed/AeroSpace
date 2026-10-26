@@ -24,4 +24,11 @@ struct AccessibilityTest {
         assertNil(Ax.sizeAttr.getter("100x200" as NSString))
         assertNil(Ax.topLeftCornerAttr.getter(NSNumber(value: 1)))
     }
+
+    // RB-45: values that aren't AX elements used to be force-cast to AXUIElement and passed to the AX API
+    @Test
+    func testAxElementGettersSkipValuesThatAreNotAxElements() {
+        assertNil(Ax.parentWindowRecursive.getter("not an AX element" as NSString))
+        assertEquals(Ax.windowsAttr.getter(["not an AX element" as NSString, NSNumber(value: 1)] as NSArray)?.count, 0)
+    }
 }

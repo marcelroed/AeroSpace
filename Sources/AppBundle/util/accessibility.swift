@@ -66,7 +66,7 @@ enum Ax {
 
     static let parentWindowRecursive = ReadableAttrImpl<AXUIElement>(
         key: kAXWindowAttribute,
-        getter: { ($0 as! AXUIElement) },
+        getter: { CFGetTypeID($0) == AXUIElementGetTypeID() ? ($0 as! AXUIElement) : nil },
     )
     static let titleAttr = readableString(kAXTitleAttribute)
     static let roleAttr = readableString(kAXRoleAttribute)
@@ -124,16 +124,17 @@ enum Ax {
 
 let kAXAeroSynthetic = "Aero.synthetic"
 
-private func castToAxUiElementMock(_ a: AnyObject) -> any AxUiElementMock {
-    isUnitTest ? axUiElementMockFromTestDump(a) : a as! AXUIElement
+// `as! AXUIElement` doesn't check anything at runtime (it's a CoreFoundation type). Check the type ID instead
+private func castToAxUiElementMock(_ a: AnyObject) -> (any AxUiElementMock)? {
+    if isUnitTest { return axUiElementMockFromTestDump(a) }
+    return CFGetTypeID(a) == AXUIElementGetTypeID() ? (a as! AXUIElement) : nil
 }
 
 typealias WindowIdAndAxUiElement = (windowId: UInt32, ax: AXUIElement)
 typealias WindowIdAndAxUiElementMock = (windowId: UInt32, ax: any AxUiElementMock)
 
 private func windowOrNil(_ any: Any?) -> WindowIdAndAxUiElementMock? {
-    guard let any else { return nil }
-    let potentialWindow = castToAxUiElementMock(any as AnyObject)
+    guard let any, let potentialWindow = castToAxUiElementMock(any as AnyObject) else { return nil }
     // Filter out non-window objects (e.g. Finder's desktop)
     return switch potentialWindow.containingWindowId() {
         case let windowId?: (windowId, potentialWindow)
@@ -142,7 +143,9 @@ private func windowOrNil(_ any: Any?) -> WindowIdAndAxUiElementMock? {
 }
 
 private func axWindowOrNil(_ any: Any) -> WindowIdAndAxUiElement? {
-    let potentialWindow = any as AnyObject as! AXUIElement
+    let object = any as AnyObject
+    guard CFGetTypeID(object) == AXUIElementGetTypeID() else { return nil }
+    let potentialWindow = object as! AXUIElement
     // Filter out non-window objects (e.g. Finder's desktop)
     return switch potentialWindow.containingWindowId() {
         case let windowId?: (windowId, potentialWindow)
