@@ -6,6 +6,9 @@ struct SummonWorkspaceCommand: Command {
     /*conforms*/ let shouldResetClosedWindowsCache = true
 
     func run(_ env: CmdEnv, _ io: CmdIo) -> BinaryExitCode {
+        // No screens (e.g., during display reconfiguration): the monitor of the focused workspace is the fake
+        // mainMonitorInfo, so the workspace would be moved to the main monitor (and setFocus doesn't guard this path)
+        if !hasScreens { return .fail(io.err("Can't summon workspace '\(args.target.val.raw)' while there are no screens")) }
         let workspace = Workspace.get(byName: args.target.val.raw)
         let monitor = focus.workspace.workspaceMonitor
         if monitor.activeWorkspace == workspace {

@@ -45,6 +45,20 @@ struct NoScreensTest: AeroSpaceTestSuite {
     }
 
     @Test
+    func summoningWorkspaceWhileThereAreNoScreensKeepsTheVisibleWorkspaces() async {
+        let visible = Workspace.get(byName: name)
+        #expect(visible.focusWorkspace())
+        await $noScreensForTests.withValue(true) {
+            // The monitor of the focused workspace is the fake mainMonitorInfo meanwhile, not the focused monitor
+            let result = await parseCommand("summon-workspace other").cmdOrDie.run(.defaultEnv, .emptyStdin)
+            #expect(result.exitCode.rawValue != 0)
+        }
+        #expect(visible.isVisible)
+        #expect(!Workspace.get(byName: "other").isVisible)
+        #expect(focus.workspace == visible)
+    }
+
+    @Test
     func windowsOfVisibleWorkspacesCanBeFocusedWhileThereAreNoScreens() {
         let workspace = Workspace.get(byName: name)
         let window1 = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
