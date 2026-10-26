@@ -25,49 +25,56 @@ enum AxPermissionStatus: Equatable {
 
 @MainActor func updateTrayText() {
     let sortedMonitors = sortedMonitorInfos
-    let focus = focus
-    TrayMenuModel.shared.trayText = (activeMode?.takeIf { $0 != mainModeId }?.first.map { "(\($0.uppercased())) " } ?? "") +
-        sortedMonitors
-        .map {
-            let hasFullscreenWindows = $0.activeWorkspace.allLeafWindowsRecursive.contains { $0.isFullscreen }
-            let activeWorkspaceName = hasFullscreenWindows ? "[\($0.activeWorkspace.name)]" : $0.activeWorkspace.name
-            return ($0.activeWorkspace == focus.workspace && sortedMonitors.count > 1 ? "*" : "") + activeWorkspaceName
+    let focusedWorkspace = focus.workspace
+    // activeWorkspace may rearrange workspaces on monitors. Evaluate it once per monitor, before Workspace.all
+    let activeWorkspaces = sortedMonitors.map { monitor in
+        let workspace = monitor.activeWorkspace
+        return (workspace: workspace, hasFullscreenWindows: workspace.allLeafWindowsRecursive.hasFullscreenWindows)
+    }
+    let modeLetter: String? = activeMode?.takeIf { $0 != mainModeId }?.first.map { $0.uppercased() }
+
+    let trayText = (modeLetter.map { "(\($0)) " } ?? "") +
+        activeWorkspaces
+        .map { workspace, hasFullscreenWindows in
+            let name = hasFullscreenWindows ? "[\(workspace.name)]" : workspace.name
+            return (workspace == focusedWorkspace && sortedMonitors.count > 1 ? "*" : "") + name
         }
         .joined(separator: " │ ")
-    TrayMenuModel.shared.workspaces = Workspace.all.map {
-        let apps = $0.allLeafWindowsRecursive.map { $0.app.name?.takeIf { !$0.isEmpty } }.filterNotNil().toSet()
+    let workspaces = Workspace.all.map { workspace in
+        let windows = workspace.allLeafWindowsRecursive
+        let apps = windows.compactMap { $0.app.name?.takeIf { !$0.isEmpty } }.toSet()
         let dash = " - "
         let suffix = switch true {
             case !apps.isEmpty: dash + apps.sorted().joinTruncating(separator: ", ", length: 25)
-            case $0.isVisible: dash + $0.workspaceMonitor.name
+            case workspace.isVisible: dash + workspace.workspaceMonitor.name
             default: ""
         }
-        let hasFullscreenWindows = $0.allLeafWindowsRecursive.contains { $0.isFullscreen }
         return WorkspaceViewModel(
-            name: $0.name,
+            name: workspace.name,
             suffix: suffix,
-            isFocused: focus.workspace == $0,
-            isEffectivelyEmpty: $0.isEffectivelyEmpty,
-            isVisible: $0.isVisible,
-            hasFullscreenWindows: hasFullscreenWindows,
+            isFocused: focusedWorkspace == workspace,
+            isEffectivelyEmpty: workspace.isEffectivelyEmpty,
+            isVisible: workspace.isVisible,
+            hasFullscreenWindows: windows.hasFullscreenWindows,
         )
     }
-    var items = sortedMonitors.map {
-        let hasFullscreenWindows = $0.activeWorkspace.allLeafWindowsRecursive.contains { $0.isFullscreen }
-        return TrayItem(
-            type: .workspace,
-            name: $0.activeWorkspace.name,
-            isActive: $0.activeWorkspace == focus.workspace,
-            hasFullscreenWindows: hasFullscreenWindows,
-        )
+    var trayItems = activeWorkspaces.map { workspace, hasFullscreenWindows in
+        TrayItem(type: .workspace, name: workspace.name, isActive: workspace == focusedWorkspace, hasFullscreenWindows: hasFullscreenWindows)
     }
-    let mode = activeMode?.takeIf { $0 != mainModeId }?.first.map {
-        TrayItem(type: .mode, name: $0.uppercased(), isActive: true, hasFullscreenWindows: false)
+    if let modeLetter {
+        trayItems.insert(TrayItem(type: .mode, name: modeLetter, isActive: true, hasFullscreenWindows: false), at: 0)
     }
-    if let mode {
-        items.insert(mode, at: 0)
-    }
-    TrayMenuModel.shared.trayItems = items
+
+    // Every @Published assignment invalidates SwiftUI views (and re-renders the menu bar image) even if the value
+    // didn't change. updateTrayText runs on every refresh session, so only assign the values that changed
+    let model = TrayMenuModel.shared
+    if model.trayText != trayText { model.trayText = trayText }
+    if model.workspaces != workspaces { model.workspaces = workspaces }
+    if model.trayItems != trayItems { model.trayItems = trayItems }
+}
+
+extension [Window] {
+    fileprivate var hasFullscreenWindows: Bool { contains { $0.isFullscreen } }
 }
 
 struct WorkspaceViewModel: Hashable {

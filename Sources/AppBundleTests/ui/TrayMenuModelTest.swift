@@ -1,0 +1,87 @@
+@testable import AppBundle
+import Combine
+import Common
+import XCTest
+
+@MainActor
+final class TrayMenuModelTest: XCTestCase {
+    override func setUp() async throws { setUpWorkspacesForTests() }
+
+    func testUpdateTrayText_mainMode() {
+        Workspace.get(byName: "b").rootTilingContainer.apply {
+            TestWindow.new(id: 2, parent: $0)
+        }
+        Workspace.get(byName: "a").rootTilingContainer.apply {
+            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
+        }
+
+        updateTrayText()
+
+        let model = TrayMenuModel.shared
+        assertEquals(model.trayText, "a")
+        assertEquals(model.trayItems, [
+            TrayItem(type: .workspace, name: "a", isActive: true, hasFullscreenWindows: false),
+        ])
+        assertEquals(model.workspaces, [
+            WorkspaceViewModel(name: "a", suffix: " - bobko.AeroSpace.test-app", isFocused: true, isEffectivelyEmpty: false, isVisible: true, hasFullscreenWindows: false),
+            WorkspaceViewModel(name: "b", suffix: " - bobko.AeroSpace.test-app", isFocused: false, isEffectivelyEmpty: false, isVisible: false, hasFullscreenWindows: false),
+            WorkspaceViewModel(name: "setUpWorkspacesForTests", suffix: "", isFocused: false, isEffectivelyEmpty: true, isVisible: false, hasFullscreenWindows: false),
+        ])
+    }
+
+    func testUpdateTrayText_nonMainModeAndFullscreen() {
+        activeMode = "service"
+        defer { activeMode = mainModeId }
+        Workspace.get(byName: "b").rootTilingContainer.apply {
+            TestWindow.new(id: 2, parent: $0).isFullscreen = true
+        }
+        Workspace.get(byName: "a").rootTilingContainer.apply {
+            let window = TestWindow.new(id: 1, parent: $0)
+            window.isFullscreen = true
+            assertEquals(window.focusWindow(), true)
+        }
+
+        updateTrayText()
+
+        let model = TrayMenuModel.shared
+        assertEquals(model.trayText, "(S) [a]")
+        assertEquals(model.trayItems, [
+            TrayItem(type: .mode, name: "S", isActive: true, hasFullscreenWindows: false),
+            TrayItem(type: .workspace, name: "a", isActive: true, hasFullscreenWindows: true),
+        ])
+        assertEquals(model.workspaces, [
+            WorkspaceViewModel(name: "a", suffix: " - bobko.AeroSpace.test-app", isFocused: true, isEffectivelyEmpty: false, isVisible: true, hasFullscreenWindows: true),
+            WorkspaceViewModel(name: "b", suffix: " - bobko.AeroSpace.test-app", isFocused: false, isEffectivelyEmpty: false, isVisible: false, hasFullscreenWindows: true),
+            WorkspaceViewModel(name: "setUpWorkspacesForTests", suffix: "", isFocused: false, isEffectivelyEmpty: true, isVisible: false, hasFullscreenWindows: false),
+        ])
+    }
+
+    func testUpdateTrayText_emptyFocusedWorkspace() {
+        updateTrayText()
+
+        let model = TrayMenuModel.shared
+        assertEquals(model.trayText, "setUpWorkspacesForTests")
+        assertEquals(model.trayItems, [
+            TrayItem(type: .workspace, name: "setUpWorkspacesForTests", isActive: true, hasFullscreenWindows: false),
+        ])
+        assertEquals(model.workspaces, [
+            WorkspaceViewModel(name: "setUpWorkspacesForTests", suffix: " - Test Monitor", isFocused: true, isEffectivelyEmpty: true, isVisible: true, hasFullscreenWindows: false),
+        ])
+    }
+
+    func testUpdateTrayText_publishesOnlyChangedValues() {
+        updateTrayText()
+        var publishedChanges = 0
+        let subscription = TrayMenuModel.shared.objectWillChange.sink { publishedChanges += 1 }
+        defer { subscription.cancel() }
+
+        updateTrayText()
+        assertEquals(publishedChanges, 0)
+
+        Workspace.get(byName: "a").rootTilingContainer.apply {
+            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
+        }
+        updateTrayText()
+        assertEquals(publishedChanges, 3) // trayText, workspaces, trayItems
+    }
+}
