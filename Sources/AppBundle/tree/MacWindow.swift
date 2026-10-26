@@ -6,9 +6,9 @@ final class MacWindow: Window {
     private var prevUnhiddenProportionalPositionInsideWorkspaceRect: CGPoint?
 
     @MainActor
-    private init(_ id: UInt32, _ actor: MacApp, lastFloatingSize: CGSize?, parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) {
-        self.macApp = actor
-        super.init(id: id, actor, lastFloatingSize: lastFloatingSize, parent: parent, adaptiveWeight: adaptiveWeight, index: index)
+    private init(_ id: UInt32, _ macApp: MacApp, lastFloatingSize: CGSize?, parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) {
+        self.macApp = macApp
+        super.init(id: id, macApp, lastFloatingSize: lastFloatingSize, parent: parent, adaptiveWeight: adaptiveWeight, index: index)
     }
 
     @MainActor static var allWindowsMap: [UInt32: MacWindow] = [:]
@@ -40,18 +40,6 @@ final class MacWindow: Window {
         }
         return window
     }
-
-    // var description: String {
-    //     let description = [
-    //         ("title", title),
-    //         ("role", axWindow.get(Ax.roleAttr)),
-    //         ("subrole", axWindow.get(Ax.subroleAttr)),
-    //         ("identifier", axWindow.get(Ax.identifierAttr)),
-    //         ("modal", axWindow.get(Ax.modalAttr).map { String($0) } ?? ""),
-    //         ("windowId", String(windowId)),
-    //     ].map { "\($0.0): '\(String(describing: $0.1))'" }.joined(separator: ", ")
-    //     return "Window(\(description))"
-    // }
 
     func isWindowHeuristic(_ windowLevel: MacOsWindowLevel?, _ cm: CancellationMode) async throws -> Bool { // todo cache
         try await macApp.isWindowHeuristic(windowId, windowLevel, cm)
@@ -122,7 +110,7 @@ final class MacWindow: Window {
     @MainActor
     func hideInCorner(_ corner: OptimalHideCorner) async throws {
         guard let nodeMonitor else { return }
-        // Don't accidentally override prevUnhiddenEmulationPosition in case of subsequent `hideInCorner` calls
+        // Don't accidentally override prevUnhiddenProportionalPositionInsideWorkspaceRect in case of subsequent `hideInCorner` calls
         if !isHiddenInCorner {
             guard let windowRect = try await getAxRect(.cancellable) else { return }
             // Check for isHiddenInCorner for the second time because of the suspension point above
@@ -204,7 +192,7 @@ extension Window {
     func relayoutWindow(on workspace: Workspace, _ cm: CancellationMode, forceTile: Bool = false) async throws {
         let data = forceTile
             ? unbindAndGetBindingDataForNewTilingWindow(workspace, window: self)
-            : try await unbindAndGetBindingDataForNewWindow(self.asMacWindow().windowId, self.asMacWindow().macApp, workspace, window: self, cm)
+            : try await unbindAndGetBindingDataForNewWindow(windowId, self.asMacWindow().macApp, workspace, window: self, cm)
         bind(to: data.parent, adaptiveWeight: data.adaptiveWeight, index: data.index)
     }
 }
@@ -247,17 +235,16 @@ func runOnWindowDetected(ifConventional window: Window) async {
              .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer:
             let layout = global_layoutForNextDetectedWindow
             global_layoutForNextDetectedWindow = nil
-            defer {
+            func applyLayoutForNextDetectedWindow() async {
                 if let layout {
                     await LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [layout]))
                         .run(.defaultEnv.withWindowId(window.windowId), .emptyStdin)
                 }
             }
-            if let layout {
-                await LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [layout]))
-                    .run(.defaultEnv.withWindowId(window.windowId), .emptyStdin)
-            }
+            // The layout is applied both before and after the on-window-detected callbacks on purpose
+            await applyLayoutForNextDetectedWindow()
             _ = await onWindowDetected(.defaultEnv, CmdIoImpl.emptyStdinIgnoringOut, window)
+            await applyLayoutForNextDetectedWindow()
         case .macosPopupWindowsContainer, .unbound:
             break
     }
