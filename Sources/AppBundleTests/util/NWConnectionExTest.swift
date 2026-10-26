@@ -2,6 +2,7 @@
 import Common
 import Foundation
 import Network
+import os
 import XCTest
 
 final class NWConnectionExTest: XCTestCase {
@@ -43,8 +44,7 @@ final class NWConnectionExTest: XCTestCase {
     }
 
     func testHandshakeWithoutServerFails() async {
-        let path = FileManager.default.temporaryDirectory.appending(component: "aerospace-test-absent-\(UUID().uuidString.prefix(8)).sock").path
-        let connection = NWConnection(to: .unix(path: path), using: .tcp)
+        let connection = NWConnection(to: .unix(path: testSocketPath()), using: .tcp)
         defer { connection.cancel() }
 
         switch await connection.initConnection().error {
@@ -53,6 +53,9 @@ final class NWConnectionExTest: XCTestCase {
         }
     }
 }
+
+/// $TMPDIR can be too long for a unix socket path (sun_path is capped at 104 bytes). Like the real socketPath, use /tmp
+private func testSocketPath() -> String { "/tmp/aerospace-test-\(UUID().uuidString.prefix(8)).sock" }
 
 /// Mirrors the handshake of the real server (server.swift): read client version, answer with own version, then
 /// answer each request
@@ -66,7 +69,7 @@ private final class TestSocketServer: Sendable {
     }
 
     static func start(serverVersion: UInt32) async throws -> TestSocketServer {
-        let path = FileManager.default.temporaryDirectory.appending(component: "aerospace-test-\(UUID().uuidString.prefix(8)).sock").path
+        let path = testSocketPath()
         let params = NWParameters.tcp
         params.requiredLocalEndpoint = .unix(path: path)
         let listener = try NWListener(using: params)
@@ -88,18 +91,34 @@ private final class TestSocketServer: Sendable {
                 }
             }
         }
-        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+        let timeoutSeconds = 5
+        let state: NWListener.State? = await withCheckedContinuation { cont in
+            let isDone = OSAllocatedUnfairLock(initialState: false)
+            let resume: @Sendable (NWListener.State?) -> Void = { state in
+                // Make sure to resume continuation only once
+                let wasAlreadyDone = isDone.withLock { isDone in
+                    defer { isDone = true }
+                    return isDone
+                }
+                if !wasAlreadyDone { cont.resume(returning: state) }
+            }
             listener.stateUpdateHandler = { state in
                 switch state {
                     case .ready, .failed, .cancelled:
                         listener.stateUpdateHandler = nil
-                        cont.resume()
+                        resume(state)
                     default: break
                 }
             }
             listener.start(queue: .global())
+            DispatchQueue.global().asyncAfter(deadline: .now() + .seconds(timeoutSeconds)) { resume(nil) }
         }
-        return TestSocketServer(path: path, listener: listener)
+        let server = TestSocketServer(path: path, listener: listener)
+        guard case .ready = state else {
+            server.stop()
+            throw "Test socket listener at \(path) isn't ready: \(state.map { "\($0)" } ?? "timed out after \(timeoutSeconds)s")"
+        }
+        return server
     }
 
     func stop() {
