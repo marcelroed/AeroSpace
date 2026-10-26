@@ -4,7 +4,7 @@ import SwiftUI
 @MainActor
 public func getMessageWindow(messageModel: MessageModel) -> some Scene {
     // Using SwiftUI.Window because another class in AeroSpace is already called Window
-    SwiftUI.Window(messageModel.message?.title ?? aeroSpaceAppName, id: messageWindowId) {
+    SwiftUI.Window(aeroSpaceAppName, id: messageWindowId) {
         MessageView(model: messageModel)
             .onAppear {
                 // Set activation policy; otherwise, AeroSpace windows won't be able to receive focus and accept keyboard input
@@ -37,7 +37,7 @@ struct MessageView: View {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.yellow)
                     .font(.system(size: 48))
-                Text(model.message?.description ?? "")
+                Text(verbatim: model.message == nil ? "" : "AeroSpace Config Diagnostics")
                     .padding(.horizontal)
                     .focusable()
             }
@@ -68,12 +68,9 @@ struct MessageView: View {
             .padding(.horizontal)
             HStack {
                 Spacer()
-                if let type = model.message?.type {
-                    switch type {
-                        case .config:
-                            reloadConfigButton(showShortcutGroup: true, warningsAsErrors: model.message?.containsWarnings == true)
-                            openConfigButton(showShortcutGroup: true)
-                    }
+                if let message = model.message {
+                    reloadConfigButton(showShortcutGroup: true, warningsAsErrors: message.containsWarnings)
+                    openConfigButton(showShortcutGroup: true)
                 }
                 let closeButton = Button("Close") { model.message = nil }.keyboardShortcut(.defaultAction)
                 shortcutGroup(label: Image(systemName: "return.left"), content: closeButton)
@@ -105,28 +102,8 @@ public final class MessageModel: ObservableObject {
     private init() {}
 }
 
-enum MessageType {
-    case config
-}
-
+/// A config diagnostics message
 public struct Message: Hashable {
-    let type: MessageType
-    let title: String
-    let description: String
     let body: String
     let containsWarnings: Bool
-
-    init(
-        type: MessageType = .config,
-        title: String = aeroSpaceAppName,
-        description: String = "AeroSpace Config Diagnostics",
-        body: String,
-        containsWarnings: Bool,
-    ) {
-        self.type = type
-        self.title = title
-        self.description = description
-        self.body = body
-        self.containsWarnings = containsWarnings
-    }
 }
