@@ -224,7 +224,7 @@ private func unbindAndGetBindingDataForNewTilingWindow(_ workspace: Workspace, w
 
 @MainActor
 func runOnWindowDetected(ifConventional window: Window) async {
-    switch window.windowParentCases {
+    switch window.parent?.cases {
         case .tilingContainer, .floatingWindowsContainer, .macosMinimizedWindowsContainer,
              .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer:
             let layout = global_layoutForNextDetectedWindow
@@ -239,7 +239,7 @@ func runOnWindowDetected(ifConventional window: Window) async {
             await applyLayoutForNextDetectedWindow()
             _ = await onWindowDetected(.defaultEnv, CmdIoImpl.emptyStdinIgnoringOut, window)
             await applyLayoutForNextDetectedWindow()
-        case .macosPopupWindowsContainer, .unbound:
+        case .macosPopupWindowsContainer, .workspace, nil:
             break
     }
 }

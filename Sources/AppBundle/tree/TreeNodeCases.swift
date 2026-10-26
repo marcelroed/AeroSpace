@@ -36,22 +36,6 @@ enum NonLeafTreeNodeKind: Equatable {
     case floatingWindowsContainer
 }
 
-enum WindowParentCases {
-    case unbound
-    case tilingContainer(TilingContainer)
-    case macosMinimizedWindowsContainer(MacosMinimizedWindowsContainer)
-    case macosHiddenAppsWindowsContainer(MacosHiddenAppsWindowsContainer)
-    case macosFullscreenWindowsContainer(MacosFullscreenWindowsContainer)
-    case macosPopupWindowsContainer(MacosPopupWindowsContainer)
-    case floatingWindowsContainer(FloatingWindowsContainer)
-}
-
-enum TilingContainerParentCases {
-    case unbound
-    case tilingContainer(TilingContainer)
-    case workspace(Workspace)
-}
-
 enum ConventionalWindowParentCases {
     case tilingContainer(TilingContainer)
     case floatingWindowsContainer(FloatingWindowsContainer)
@@ -72,36 +56,6 @@ enum ConventionalWindowParentCases {
 }
 
 protocol NonLeafTreeNodeObject: TreeNode {}
-
-extension Window {
-    var windowParentCases: WindowParentCases {
-        guard let parent else { return .unbound }
-        return switch parent.cases {
-            case .floatingWindowsContainer(let it): .floatingWindowsContainer(it)
-            case .macosFullscreenWindowsContainer(let it): .macosFullscreenWindowsContainer(it)
-            case .macosHiddenAppsWindowsContainer(let it): .macosHiddenAppsWindowsContainer(it)
-            case .macosMinimizedWindowsContainer(let it): .macosMinimizedWindowsContainer(it)
-            case .macosPopupWindowsContainer(let it): .macosPopupWindowsContainer(it)
-            case .tilingContainer(let it): .tilingContainer(it)
-            case .workspace: dieT("Workspace can't have direct Window children")
-        }
-    }
-}
-
-extension TilingContainer {
-    var tilingContainerParentCases: TilingContainerParentCases {
-        guard let parent else { return .unbound }
-        return switch parent.cases {
-            case .tilingContainer(let it): .tilingContainer(it)
-            case .workspace(let it): .workspace(it)
-            case .floatingWindowsContainer: dieT("floatingWindowsContainer can't be TilingContainer's parent")
-            case .macosFullscreenWindowsContainer: dieT("macosFullscreenWindowsContainer can't be TilingContainer's parent")
-            case .macosHiddenAppsWindowsContainer: dieT("macosHiddenAppsWindowsContainer can't be TilingContainer's parent")
-            case .macosMinimizedWindowsContainer: dieT("macosMinimizedWindowsContainer can't be TilingContainer's parent")
-            case .macosPopupWindowsContainer: dieT("macosPopupWindowsContainer can't be TilingContainer's parent")
-        }
-    }
-}
 
 extension TreeNode {
     var nodeCases: TreeNodeCases {

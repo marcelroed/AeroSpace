@@ -18,8 +18,8 @@ struct MoveCommand: Command {
         ) {
             return .fail
         }
-        switch currentWindow.windowParentCases {
-            case .unbound: return .fail
+        switch currentWindow.parent?.cases {
+            case nil: return .fail
             case .tilingContainer(let parent):
                 guard let indexOfCurrent = currentWindow.ownIndex else { return .fail(io.err(bugPrompt())) }
                 let indexOfSiblingTarget = indexOfCurrent + direction.focusOffset
@@ -39,7 +39,7 @@ struct MoveCommand: Command {
                 return .fail(io.err("moving floating windows isn't yet supported")) // todo
             case .macosMinimizedWindowsContainer, .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer:
                 return .fail(io.err(moveOutMacosUnconventionalWindow))
-            case .macosPopupWindowsContainer:
+            case .macosPopupWindowsContainer, .workspace:
                 return .fail(io.err(bugPrompt())) // Impossible
         }
     }
@@ -111,8 +111,8 @@ private let moveOutMacosUnconventionalWindow = "moving macOS fullscreen, minimiz
         }
     }) as? TilingContainer
     guard let innerMostTilingContainer else { return .fail(io.err(bugPrompt())) } // Impossible
-    switch innerMostTilingContainer.tilingContainerParentCases {
-        case .unbound: return .fail
+    switch innerMostTilingContainer.parent?.cases {
+        case nil: return .fail
         case .tilingContainer(let parent):
             check(parent.orientation == direction.orientation)
             guard let ownIndex = innerMostTilingContainer.ownIndex else { return .fail(io.err(bugPrompt())) }
@@ -120,6 +120,9 @@ private let moveOutMacosUnconventionalWindow = "moving macOS fullscreen, minimiz
             return .succ
         case .workspace(let parent):
             return hitWorkspaceBoundaries(window, parent, io, args, direction, env)
+        case .floatingWindowsContainer, .macosMinimizedWindowsContainer, .macosFullscreenWindowsContainer,
+             .macosHiddenAppsWindowsContainer, .macosPopupWindowsContainer:
+            illegalChildParentRelation(child: innerMostTilingContainer, parent: nil)
     }
 }
 
