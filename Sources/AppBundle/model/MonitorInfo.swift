@@ -1,29 +1,17 @@
 import AppKit
 import Common
 
-private struct MonitorInfoImpl {
+/// Use it instead of NSScreen because it can be mocked in tests
+struct MonitorInfo: AeroAny {
+    /// The index in NSScreen.screens array. 1-based index
     let monitorAppKitNsScreenScreensId: Int
     let name: String
     let rect: Rect
     let visibleRect: Rect
     let isMain: Bool
-}
 
-extension MonitorInfoImpl: MonitorInfo {
-    var height: CGFloat { rect.height }
     var width: CGFloat { rect.width }
-}
-
-/// Use it instead of NSScreen because it can be mocked in tests
-protocol MonitorInfo: AeroAny {
-    /// The index in NSScreen.screens array. 1-based index
-    var monitorAppKitNsScreenScreensId: Int { get }
-    var name: String { get }
-    var rect: Rect { get }
-    var visibleRect: Rect { get }
-    var width: CGFloat { get }
-    var height: CGFloat { get }
-    var isMain: Bool { get }
+    var height: CGFloat { rect.height }
 }
 
 // Note to myself: Don't use NSScreen.main, it's garbage
@@ -32,7 +20,7 @@ protocol MonitorInfo: AeroAny {
 //    kAXFocusedWindowChangedNotification callbacks.
 extension NSScreen {
     fileprivate func toMonitorInfo(monitorAppKitNsScreenScreensId: Int, mainMonitorHeight: CGFloat, isMain: Bool) -> MonitorInfo {
-        MonitorInfoImpl(
+        MonitorInfo(
             monitorAppKitNsScreenScreensId: monitorAppKitNsScreenScreensId,
             name: localizedName,
             rect: rect(mainMonitorHeight: mainMonitorHeight),
@@ -58,7 +46,7 @@ extension NSScreen {
 }
 
 private let testMonitorInfoRect = Rect(topLeftX: 0, topLeftY: 0, width: 1920, height: 1080)
-private let testMonitorInfo = MonitorInfoImpl(
+private let testMonitorInfo = MonitorInfo(
     monitorAppKitNsScreenScreensId: 1,
     name: "Test Monitor",
     rect: testMonitorInfoRect,

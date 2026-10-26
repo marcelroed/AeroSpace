@@ -55,7 +55,7 @@ struct ResolvedGaps {
         let right: Int
     }
 
-    @MainActor init(gaps: Gaps, monitor: any MonitorInfo) {
+    @MainActor init(gaps: Gaps, monitor: MonitorInfo) {
         // Query the monitors at most once, and only if some of the gaps are per-monitor
         lazy var sortedMonitors = sortedMonitorInfos
         inner = .init(
