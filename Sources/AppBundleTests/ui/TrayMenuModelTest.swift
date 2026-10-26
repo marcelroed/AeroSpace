@@ -84,4 +84,21 @@ final class TrayMenuModelTest: XCTestCase {
         updateTrayText()
         assertEquals(publishedChanges, 3) // trayText, workspaces, trayItems
     }
+
+    func testSystemImageName() {
+        func imageName(_ name: String, _ type: TrayItemType = .workspace, isActive: Bool = false) -> String? {
+            TrayItem(type: type, name: name, isActive: isActive, hasFullscreenWindows: false).systemImageName
+        }
+        assertEquals(imageName("0"), "0.square")
+        assertEquals(imageName("50", isActive: true), "50.square.fill")
+        assertEquals(imageName("05"), "05.square")
+        assertEquals(imageName("51"), nil)
+        assertEquals(imageName("-1"), nil)
+        assertEquals(imageName("A"), "a.square")
+        assertEquals(imageName("Z", .mode), "z.circle")
+        assertEquals(imageName("a"), nil)
+        assertEquals(imageName("AB"), nil)
+        assertEquals(imageName("1A"), nil)
+        assertEquals(imageName("é"), nil)
+    }
 }

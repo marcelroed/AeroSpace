@@ -86,7 +86,7 @@ struct WorkspaceViewModel: Hashable {
     let hasFullscreenWindows: Bool
 }
 
-enum TrayItemType: String, Hashable {
+enum TrayItemType: String {
     case mode
     case workspace
 }
@@ -100,11 +100,12 @@ struct TrayItem: Hashable, Identifiable {
     let hasFullscreenWindows: Bool
     var systemImageName: String? {
         // System image type is only valid for numbers 0 to 50 and single capital char workspace name
-        switch Int(name) {
-            case let number?: if !(0 ... 50).contains(number) { return nil }
-            case nil where name.count == 1: if !validLetters.contains(name) { return nil }
-            default: return nil
+        let isSupported = if let number = Int(name) {
+            (0 ... 50).contains(number)
+        } else {
+            name.count == 1 && validLetters.contains(name)
         }
+        guard isSupported else { return nil }
         let lowercasedName = name.lowercased()
         return switch type {
             case .mode: "\(lowercasedName).circle"

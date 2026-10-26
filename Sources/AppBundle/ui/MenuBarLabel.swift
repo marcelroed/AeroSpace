@@ -2,6 +2,11 @@ import Common
 import Foundation
 import SwiftUI
 
+private let hStackSpacing = CGFloat(6)
+private let itemSize = CGFloat(40)
+private let itemBorderSize = CGFloat(3)
+private let itemCornerRadius = CGFloat(6)
+
 @MainActor
 struct MenuBarLabel: View {
     @Environment(\.colorScheme) var menuColorScheme: ColorScheme
@@ -9,13 +14,8 @@ struct MenuBarLabel: View {
     let color: Color?
     let style: MenuBarStyle?
 
-    let hStackSpacing = CGFloat(6)
-    let itemSize = CGFloat(40)
-    let itemBorderSize = CGFloat(3)
-    let itemCornerRadius = CGFloat(6)
-
     private var finalColor: Color {
-        return color ?? (menuColorScheme == .dark ? Color.white : Color.black)
+        color ?? (menuColorScheme == .dark ? Color.white : Color.black)
     }
 
     init(style: MenuBarStyle? = nil, color: Color? = nil) {
@@ -39,7 +39,7 @@ struct MenuBarLabel: View {
     }
 
     var menuBarContent: some View {
-        return HStack(spacing: hStackSpacing) {
+        HStack(spacing: hStackSpacing) {
             let style = style ?? viewModel.experimentalUISettings.displayStyle
             switch style {
                 case .monospacedText: getText(for: .monospaced)

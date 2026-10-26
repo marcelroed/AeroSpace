@@ -3,19 +3,17 @@ import SwiftUI
 struct ExperimentalUISettings {
     var displayStyle: MenuBarStyle {
         get {
-            switch UserDefaults.standard.string(forKey: ExperimentalUISettingsItems.displayStyle.rawValue) {
-                case let value?: MenuBarStyle(rawValue: value) ?? .monospacedText
-                case nil: .monospacedText
-            }
+            UserDefaults.standard.string(forKey: ExperimentalUISettingsItems.displayStyle.rawValue)
+                .flatMap(MenuBarStyle.init(rawValue:)) ?? .monospacedText
         }
         set {
-            UserDefaults.standard.setValue(newValue.rawValue, forKey: ExperimentalUISettingsItems.displayStyle.rawValue)
+            UserDefaults.standard.set(newValue.rawValue, forKey: ExperimentalUISettingsItems.displayStyle.rawValue)
             UserDefaults.standard.synchronize()
         }
     }
 }
 
-enum MenuBarStyle: String, CaseIterable, Identifiable, Equatable, Hashable {
+enum MenuBarStyle: String, CaseIterable, Identifiable {
     case monospacedText
     case systemText
     case squares
@@ -42,7 +40,7 @@ func getExperimentalUISettingsMenu(viewModel: TrayMenuModel) -> some View {
     let color = AppearanceTheme.current == .dark ? Color.white : Color.black
     return Menu {
         Text("Menu bar style (macOS 14 or later):")
-        ForEach(MenuBarStyle.allCases, id: \.id) { style in
+        ForEach(MenuBarStyle.allCases) { style in
             MenuBarStyleButton(style: style, color: color).environmentObject(viewModel)
         }
     } label: {
