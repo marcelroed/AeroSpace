@@ -11,6 +11,19 @@ final class MoveCommandTest: XCTestCase {
         assertNil(parseCommand("move --fail-if-macos-native-fullscreen --window-id 1 right").errorOrNil)
     }
 
+    func testParseBoundaries() {
+        let args = parseMoveArgs("move --boundaries all-monitors-outer-frame --boundaries-action fail up")
+        assertEquals(args?.direction.val, .up)
+        assertEquals(args?.rawBoundaries, .allMonitorsOuterFrame)
+        assertEquals(args?.rawBoundariesAction, .fail)
+        assertEquals(parseMoveArgs("move left")?.direction.val, .left)
+
+        assertEquals(parseCommand("move --boundaries").errorOrNil, "ERROR: <boundary> is mandatory\nERROR: Argument '(left|down|up|right)' is mandatory")
+        assertEquals(parseCommand("move --boundaries-action left").errorOrNil, "ERROR: Can't parse 'left'.\n       Possible values: (stop|fail|create-implicit-container)\nERROR: Argument '(left|down|up|right)' is mandatory")
+        assertEquals(parseCommand("move --boundaries-action --boundaries workspace left").errorOrNil, "ERROR: <action> is mandatory")
+        assertEquals(parseCommand("move foo").errorOrNil, "ERROR: Can't parse 'foo'.\n       Possible values: (left|down|up|right)")
+    }
+
     func testFailIfFullscreen() async {
         let root = Workspace.get(byName: name).rootTilingContainer.apply {
             let window = TestWindow.new(id: 1, parent: $0)
@@ -359,4 +372,10 @@ enum LayoutDescription: Equatable {
     case macosMinimized
     case macosHiddeAppWindow
     case macosFullscreen
+}
+
+@MainActor
+private func parseMoveArgs(_ raw: String) -> MoveCmdArgs? {
+    guard case .cmd(.cmd(let command)) = parseCommand(raw) else { return nil }
+    return (command as? MoveCommand)?.args
 }

@@ -61,6 +61,17 @@ final class FocusCommandTest: XCTestCase {
         assertNil(parseCommand("focus --fail-if-fullscreen --fail-if-macos-native-fullscreen left").errorOrNil)
     }
 
+    func testParseBoundaries() {
+        var expected = FocusCmdArgs(rawArgs: [], cardinalOrDfsDirection: .dfsRelative(.dfsPrev))
+        expected.rawBoundariesAction = .wrapAroundTheWorkspace
+        testParseSingleCommandSucc("focus --boundaries-action wrap-around-the-workspace dfs-prev", expected)
+
+        assertEquals(parseCommand("focus --boundaries").errorOrNil, "ERROR: <boundary> is mandatory")
+        assertEquals(parseCommand("focus --boundaries-action").errorOrNil, "ERROR: <action> is mandatory")
+        assertEquals(parseCommand("focus --boundaries-action foo left").errorOrNil, "ERROR: Can't parse 'foo'.\n       Possible values: (stop|fail|wrap-around-the-workspace|wrap-around-all-monitors)")
+        assertEquals(parseCommand("focus foo").errorOrNil, "ERROR: Can't parse 'foo'.\n       Possible values: (left|down|up|right|dfs-next|dfs-prev)")
+    }
+
     func testFailIfFullscreen() async {
         Workspace.get(byName: name).rootTilingContainer.apply {
             let window = TestWindow.new(id: 1, parent: $0)
