@@ -76,4 +76,26 @@ struct RunCallbackCommandTest: AeroSpaceTestSuite {
             CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)),
         )
     }
+
+    @Test
+    func testForEveryWindowFollowsWindowDetection() async {
+        // RB-32: like the real window detection, skip popups and unbound windows. Process the windows in window-id
+        // order, and report the first failure instead of the exit code of the last window
+        let workspace = Workspace.get(byName: name)
+        assertTrue(workspace.focusWorkspace())
+        let floating = TestWindow.new(id: 1, parent: workspace.floatingWindowsContainer)
+        let popup = TestWindow.new(id: 2, parent: macosPopupWindowsContainer)
+        let tiling = TestWindow.new(id: 3, parent: workspace.rootTilingContainer)
+        let unbound = TestWindow.new(id: 4, parent: workspace.rootTilingContainer)
+        unbound.unbindFromParent()
+        config.onWindowDetected = [
+            WindowDetectedCallback(run: parseCommand("echo -- '%{window-id}'; test %{window-id} = 3").cmdOrDie),
+        ]
+
+        let io = CmdIoImpl(stdin: .emptyStdin)
+        let exitCode = await onWindowDetected(.defaultEnv, io, forEvery: [tiling, unbound, floating, popup])
+        assertEquals(io.stdout, ["1", "3"])
+        assertEquals(io.stderr, [])
+        assertEquals(exitCode.rawValue, 1) // `test 1 = 3` of the floating window
+    }
 }

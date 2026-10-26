@@ -224,23 +224,29 @@ private func unbindAndGetBindingDataForNewTilingWindow(_ workspace: Workspace, w
 
 @MainActor
 func runOnWindowDetected(ifConventional window: Window) async {
-    switch window.windowParentCases {
-        case .tilingContainer, .floatingWindowsContainer, .macosMinimizedWindowsContainer,
-             .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer:
-            let layout = global_layoutForNextDetectedWindow
-            global_layoutForNextDetectedWindow = nil
-            func applyLayoutForNextDetectedWindow() async {
-                if let layout {
-                    await LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [layout]))
-                        .run(.defaultEnv.withWindowId(window.windowId), .emptyStdin)
-                }
-            }
-            // The layout is applied both before and after the on-window-detected callbacks on purpose
-            await applyLayoutForNextDetectedWindow()
-            _ = await onWindowDetected(.defaultEnv, CmdIoImpl.emptyStdinIgnoringOut, window)
-            await applyLayoutForNextDetectedWindow()
-        case .macosPopupWindowsContainer, .unbound:
-            break
+    guard window.shouldRunOnWindowDetected else { return }
+    let layout = global_layoutForNextDetectedWindow
+    global_layoutForNextDetectedWindow = nil
+    func applyLayoutForNextDetectedWindow() async {
+        if let layout {
+            await LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [layout]))
+                .run(.defaultEnv.withWindowId(window.windowId), .emptyStdin)
+        }
+    }
+    // The layout is applied both before and after the on-window-detected callbacks on purpose
+    await applyLayoutForNextDetectedWindow()
+    _ = await onWindowDetected(.defaultEnv, CmdIoImpl.emptyStdinIgnoringOut, window)
+    await applyLayoutForNextDetectedWindow()
+}
+
+extension Window {
+    /// on-window-detected callbacks skip popups and unbound windows
+    var shouldRunOnWindowDetected: Bool {
+        switch windowParentCases {
+            case .tilingContainer, .floatingWindowsContainer, .macosMinimizedWindowsContainer,
+                 .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer: true
+            case .macosPopupWindowsContainer, .unbound: false
+        }
     }
 }
 
