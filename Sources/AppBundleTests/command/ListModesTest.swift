@@ -2,7 +2,10 @@
 import Common
 import XCTest
 
+@MainActor
 final class ListModesTest: XCTestCase {
+    override func setUp() async throws { setUpWorkspacesForTests() }
+
     func testParseListModesCommand() {
         testParseSingleCommandSucc("list-modes", ListModesCmdArgs(rawArgs: []))
         testParseSingleCommandSucc("list-modes --current", ListModesCmdArgs(rawArgs: []).copy(\.current, true))
@@ -16,7 +19,6 @@ final class ListModesTest: XCTestCase {
         assertEquals(parseCommand("list-modes --current --count").errorOrNil, "ERROR: Conflicting options: --count, --current")
     }
 
-    @MainActor
     func testListModesOutput() async {
         config.modes = [
             "main": Mode(bindings: [:]),

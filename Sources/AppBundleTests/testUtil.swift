@@ -6,7 +6,8 @@ import HotKey
 let projectRoot: URL = {
     var url = URL(filePath: #filePath).absoluteURL
     check(FileManager.default.fileExists(atPath: url.path))
-    while !FileManager.default.fileExists(atPath: url.appending(component: ".git").path) {
+    while !FileManager.default.fileExists(atPath: url.appending(component: "Package.swift").path) {
+        check(url.path != "/", "Package.swift isn't found in any parent directory of \(#filePath)")
         url.deleteLastPathComponent()
     }
     return url
@@ -29,6 +30,11 @@ func setUpWorkspacesForTests() {
             child.unbindFromParent()
         }
     }
+    for container: TreeNode in [macosMinimizedWindowsContainer, macosPopupWindowsContainer] { // Global containers, not part of any workspace
+        for child in container.children {
+            child.unbindFromParent()
+        }
+    }
     check(Workspace.get(byName: "setUpWorkspacesForTests").focusWorkspace())
     Workspace.garbageCollectUnusedWorkspaces()
     check(focus.workspace.isEffectivelyEmpty)
@@ -37,8 +43,13 @@ func setUpWorkspacesForTests() {
 
     TestApp.shared.focusedWindow = nil
     TestApp.shared.windows = []
+    appForTests = nil
 
     global_layoutForNextDetectedWindow = nil
+    _prevFocusedWorkspaceName = nil
+    activeMode = mainModeId
+    TrayMenuModel.shared.isEnabled = true
+    currentlyManipulatedWithMouseWindowId = nil
 }
 
 extension ParsedCmd {

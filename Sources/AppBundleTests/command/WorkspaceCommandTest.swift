@@ -4,10 +4,7 @@ import XCTest
 
 @MainActor
 final class WorkspaceCommandTest: XCTestCase {
-    override func setUp() async throws {
-        setUpWorkspacesForTests()
-        _prevFocusedWorkspaceName = nil
-    }
+    override func setUp() async throws { setUpWorkspacesForTests() }
 
     func testParseWorkspaceCommand() {
         testParseCommandFail("workspace my mail", msg: "ERROR: Unknown argument 'mail'", exitCode: 2)
