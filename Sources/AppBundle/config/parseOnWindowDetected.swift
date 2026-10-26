@@ -99,8 +99,8 @@ private func parseCaseInsensitiveRegex(_ raw: OrderedJson, _ backtrace: ConfigBa
 
 private func parseMatcher(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> WindowDetectedCallbackMatcher {
     switch raw {
-        case .dict(let raw):
-            return .legacy(raw.parseTable(LegacyWindowDetectedCallbackMatcher(), matcherParsers, backtrace, &c))
+        case .dict:
+            return .legacy(parseTable(raw, LegacyWindowDetectedCallbackMatcher(), matcherParsers, backtrace, &c))
         case .string(let raw):
             return .command(parseCommandForConfig(raw, allowExecAndForget: false, backtrace, &c))
         default:

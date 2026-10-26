@@ -266,7 +266,7 @@ struct ParseConfigResult {
 
     var c = ConfigParserContext(configVersion: configVersion, errors: errors.consume(), warnings: [ConfigParseDiagnostic]())
 
-    var config = rawTable.parseTable(Config(), configParser, .emptyRoot, &c)
+    var config = parseTable(.dict(rawTable), Config(), configParser, .emptyRoot, &c)
     config.configVersion = configVersion
 
     if let mapping = rawTable[keyMappingConfigRootKey].flatMap({ parseKeyMapping($0, .rootKey(keyMappingConfigRootKey), &c) }) {
@@ -391,7 +391,15 @@ func parseTable<T>(
     _ c: inout ConfigParserContext,
 ) -> T {
     guard let table = parseTomlTable(raw, backtrace).getOrNil(appendErrorTo: &c.errors) else { return initial }
-    return table.parseTable(initial, fieldsParser, backtrace, &c)
+    var result = initial
+    for (key, value) in table {
+        let backtrace: ConfigBacktrace = backtrace + .key(key)
+        switch fieldsParser[key] {
+            case let parser?: parser.parseInto(&result, value, backtrace, &c)
+            case nil: c.errors.append(unknownKeyDiagnostic(backtrace))
+        }
+    }
+    return result
 }
 
 private func parseStartupRootContainerLayout(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<Void> {
@@ -478,27 +486,6 @@ enum TomlBacktraceItem: Equatable {
             case .key: true
             case .index: false
         }
-    }
-}
-
-extension OrderedJson.JsonDict {
-    func parseTable<T>(
-        _ initial: T,
-        _ fieldsParser: [String: Parser<T>],
-        _ backtrace: ConfigBacktrace,
-        _ c: inout ConfigParserContext,
-    ) -> T {
-        var result = initial
-
-        for (key, value) in self {
-            let backtrace: ConfigBacktrace = backtrace + .key(key)
-            switch fieldsParser[key] {
-                case let parser?: parser.parseInto(&result, value, backtrace, &c)
-                case nil: c.errors.append(unknownKeyDiagnostic(backtrace))
-            }
-        }
-
-        return result
     }
 }
 
