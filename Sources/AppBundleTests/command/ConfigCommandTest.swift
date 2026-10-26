@@ -208,8 +208,7 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
         let result = await parseCommand("config --get mode.main.binding.alt-h --keys").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 2)
         assertEquals(result.stdout, [])
-        // The error message interpolates the enum directly, yielding the default Swift case repr.
-        assertEquals(result.stderr, ["--keys flag cannot be applied to scalar object 'string(\"\(command.shellOfCommandsDescription)\")'"])
+        assertEquals(result.stderr, ["--keys flag cannot be applied to scalar object '\(command.shellOfCommandsDescription)'"])
     }
 
     @Test

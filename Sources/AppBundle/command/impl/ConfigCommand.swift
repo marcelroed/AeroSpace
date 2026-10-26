@@ -43,7 +43,7 @@ extension String {
     if args.keys {
         switch configMap {
             case .scalar(let scalar):
-                return .fail(io.err("--keys flag cannot be applied to scalar object '\(scalar)'"))
+                return .fail(io.err("--keys flag cannot be applied to scalar object '\(scalar.describe)'"))
             case .map(let map):
                 configMap = .array(map.keys.sorted().map { .scalar(.string($0)) })
             case .array(let array):
