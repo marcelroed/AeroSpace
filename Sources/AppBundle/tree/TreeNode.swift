@@ -75,7 +75,7 @@ open class TreeNode: Equatable, AeroAny {
         let relation = getChildParentRelation(child: self, parent: newParent) // Side effect: verify relation
         if adaptiveWeight == WEIGHT_AUTO {
             self.adaptiveWeight = if case .tiling(let newParent) = relation {
-                CGFloat(newParent.children.sumOfDouble { $0.getWeight(newParent.orientation) }).div(newParent.children.count) ?? 1
+                newParent.children.sum { $0.getWeight(newParent.orientation) }.div(newParent.children.count) ?? 1
             } else {
                 WEIGHT_DOESNT_MATTER
             }

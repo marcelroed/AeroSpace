@@ -166,9 +166,9 @@ struct CommonUtilTest: AeroSpaceTestSuite {
 
     @Test
     func testSequenceHelpers() {
-        assertEquals([1.5, 2.5].sumOfDouble { $0 * 2 }, 8.0)
-        assertEquals([Double]().sumOfDouble { $0 }, 0.0)
-        assertEquals([1, 2, 3].sumOfInt { $0 * 10 }, 60)
+        assertEquals([1.5, 2.5].sum { $0 * 2 }, 8.0)
+        assertEquals([Double]().sum { $0 }, 0.0)
+        assertEquals([1, 2, 3].sum { $0 * 10 }, 60)
         assertEquals([1, 2, 3].singleOrNil(where: { $0 > 2 }), 3)
         assertNil([1, 2, 3].singleOrNil(where: { $0 > 1 }))
         assertNil([1, 2, 3].singleOrNil(where: { $0 > 3 }))

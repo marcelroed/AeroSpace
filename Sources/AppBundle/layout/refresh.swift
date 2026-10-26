@@ -179,8 +179,8 @@ private func layoutWorkspaces() async throws {
         let important = 10
 
         let corner: OptimalHideCorner =
-            monitors.sumOfInt { contains($0, blc1) + contains($0, blc2) + important * contains($0, blc3) } <
-            monitors.sumOfInt { contains($0, brc1) + contains($0, brc2) + important * contains($0, brc3) }
+            monitors.sum { contains($0, blc1) + contains($0, blc2) + important * contains($0, blc3) } <
+            monitors.sum { contains($0, brc1) + contains($0, brc2) + important * contains($0, brc3) }
             ? .bottomLeftCorner
             : .bottomRightCorner
         monitorToOptimalHideCorner[monitor.rect.topLeftCorner] = corner

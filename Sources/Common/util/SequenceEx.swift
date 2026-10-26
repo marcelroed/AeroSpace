@@ -69,16 +69,8 @@ extension Sequence {
         })
     }
 
-    @inlinable public func sumOfDouble(_ selector: (Self.Element) -> Double) -> Double {
-        var result: Double = 0
-        for elem in self {
-            result += selector(elem)
-        }
-        return result
-    }
-
-    @inlinable public func sumOfInt(_ selector: (Self.Element) -> Int) -> Int {
-        var result: Int = 0
+    @inlinable public func sum<N: AdditiveArithmetic>(_ selector: (Self.Element) -> N) -> N {
+        var result = N.zero
         for elem in self {
             result += selector(elem)
         }
