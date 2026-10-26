@@ -257,6 +257,21 @@ final class MacApp: AbstractApp {
         }
     }
 
+    func getMacosFullscreenAndMinimized(_ windowId: UInt32, _ cm: CancellationMode) async throws -> (isFullscreen: Bool, isMinimized: Bool)? {
+        try await withWindow(windowId, cm) { window, job in
+            var raw: CFArray?
+            // One IPC instead of two. A failed attribute comes back as an AXValue error, which the getters map to nil like a failed get
+            let error = unsafe AXUIElementCopyMultipleAttributeValues(window, [Ax.isFullscreenAttr.key, Ax.minimizedAttr.key] as CFArray, [], &raw)
+            if error == .success, let values = raw as? [AnyObject], values.count == 2 {
+                let isFullscreen = Ax.isFullscreenAttr.getter(values[0]) == true
+                return (isFullscreen, !isFullscreen && Ax.minimizedAttr.getter(values[1]) == true)
+            }
+            // After an AX timeout, treat fullscreen like a timed-out get (false) instead of waiting for it again
+            let isFullscreen = error != .cannotComplete && window.get(Ax.isFullscreenAttr) == true
+            return (isFullscreen, !isFullscreen && window.get(Ax.minimizedAttr) == true)
+        }
+    }
+
     @MainActor
     static func refreshAllAndGetAliveWindowIds(frontmostAppBundleId: String?) async throws -> [MacApp: [UInt32]] {
         for (_, app) in MacApp.allAppsMap { // gc dead apps

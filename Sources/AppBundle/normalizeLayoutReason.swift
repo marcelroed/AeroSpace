@@ -23,8 +23,7 @@ private func validateStillPopups() async throws {
 @MainActor
 private func _normalizeLayoutReason(workspace: Workspace, windows: [Window]) async throws {
     for window in windows {
-        let isMacosFullscreen = try await window.isMacosFullscreen(.cancellable)
-        let isMacosMinimized = try await (!isMacosFullscreen).andAsync { @MainActor @Sendable in try await window.isMacosMinimized(.cancellable) }
+        let (isMacosFullscreen, isMacosMinimized) = try await window.getMacosFullscreenAndMinimized(.cancellable)
         let isMacosWindowOfHiddenApp = !isMacosFullscreen && !isMacosMinimized &&
             !config.automaticallyUnhideMacosHiddenApps && window.macAppUnsafe.nsApp.isHidden
         switch window.layoutReason {
