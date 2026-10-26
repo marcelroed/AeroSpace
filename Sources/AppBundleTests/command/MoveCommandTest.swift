@@ -333,6 +333,60 @@ final class MoveCommandTest: XCTestCase {
         )
         assertEquals(focus.windowOrNil?.windowId, 1)
     }
+
+    // The test monitor is the only monitor, so there is never a monitor in the direction of the move
+    func testAllMonitorsOuterFrame_noMonitorInDirection_stop() async {
+        let workspace = Workspace.get(byName: name)
+        workspace.rootTilingContainer.apply {
+            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
+            TestWindow.new(id: 2, parent: $0)
+        }
+
+        let result = await parseCommand("move --boundaries all-monitors-outer-frame --boundaries-action stop left").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result, CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)))
+        assertEquals(workspace.layoutDescription, .workspace([.h_tiles([.window(1), .window(2)])]))
+        assertEquals(focus.windowOrNil?.windowId, 1)
+    }
+
+    func testAllMonitorsOuterFrame_noMonitorInDirection_fail() async {
+        let workspace = Workspace.get(byName: name)
+        workspace.rootTilingContainer.apply {
+            TestWindow.new(id: 1, parent: $0)
+            assertEquals(TestWindow.new(id: 2, parent: $0).focusWindow(), true)
+        }
+
+        let result = await parseCommand("move --boundaries all-monitors-outer-frame --boundaries-action fail right").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result, CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 2)))
+        assertEquals(workspace.layoutDescription, .workspace([.h_tiles([.window(1), .window(2)])]))
+        assertEquals(focus.windowOrNil?.windowId, 2)
+    }
+
+    func testAllMonitorsOuterFrame_noMonitorInDirection_createImplicitContainer() async {
+        let workspace = Workspace.get(byName: name)
+        workspace.rootTilingContainer.apply {
+            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
+            TestWindow.new(id: 2, parent: $0)
+        }
+
+        let result = await parseCommand("move --boundaries all-monitors-outer-frame --boundaries-action create-implicit-container left")
+            .cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result, CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)))
+        assertEquals(workspace.layoutDescription, .workspace([.h_tiles([.window(1), .h_tiles([.window(2)])])]))
+        assertEquals(focus.windowOrNil?.windowId, 1)
+    }
+
+    func testAllMonitorsOuterFrame_noMonitorInDirection_defaultActionAcrossOrientation() async {
+        let workspace = Workspace.get(byName: name)
+        workspace.rootTilingContainer.apply {
+            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
+            TestWindow.new(id: 2, parent: $0)
+        }
+
+        let result = await parseCommand("move --boundaries all-monitors-outer-frame down").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result, CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)))
+        assertEquals(workspace.layoutDescription, .workspace([.v_tiles([.h_tiles([.window(2)]), .window(1)])]))
+        assertEquals(focus.windowOrNil?.windowId, 1)
+    }
 }
 
 @MainActor

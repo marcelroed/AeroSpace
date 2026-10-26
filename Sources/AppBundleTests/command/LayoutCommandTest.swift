@@ -459,4 +459,54 @@ final class LayoutCommandTest: XCTestCase {
         assertEquals(result.stderr, ["Already in the requested h_tiles mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
         assertEquals(root.layoutDescription, .h_tiles([.window(1), .window(2)]))
     }
+
+    func testTilingDescriptions_allStartingStates() async {
+        let root = Workspace.get(byName: name).rootTilingContainer.apply {
+            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
+            TestWindow.new(id: 2, parent: $0)
+        }
+        for (description, layout, orientation) in tilingDescriptions {
+            for startLayout: Layout in [.tiles, .accordion] {
+                for startOrientation: Orientation in [.h, .v] {
+                    root.layout = startLayout
+                    root.changeOrientation(startOrientation)
+                    let msg = "layout \(description) on \(startLayout) \(startOrientation)"
+                    let expectedLayout = layout ?? startLayout
+                    let expectedOrientation = orientation ?? startOrientation
+                    let isNoop = expectedLayout == startLayout && expectedOrientation == startOrientation
+
+                    let result = await parseCommand("layout \(description)").cmdOrDie.run(.defaultEnv, .emptyStdin)
+                    let noopMsg = "Already in the requested \(description) mode. Tip: use --fail-if-noop to exit with non-zero exit code"
+                    assertEquals(result, CmdResult(stdout: [], stderr: isNoop ? [noopMsg] : [], exitCode: Int32ExitCode(rawValue: 0)), additionalMsg: msg)
+                    assertEquals(root.layout, expectedLayout, additionalMsg: msg)
+                    assertEquals(root.orientation, expectedOrientation, additionalMsg: msg)
+                    assertEquals(root.children.map { ($0 as? Window)?.windowId }, [1, 2], additionalMsg: msg)
+                }
+            }
+        }
+    }
+
+    func testTilingDescriptions_floatingWindow_fail() async {
+        let workspace = Workspace.get(byName: name)
+        workspace.floatingWindowsContainer.apply {
+            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
+        }
+        for (description, _, _) in tilingDescriptions {
+            let result = await parseCommand("layout \(description)").cmdOrDie.run(.defaultEnv, .emptyStdin)
+            assertEquals(result, CmdResult(stdout: [], stderr: ["The window is non-tiling"], exitCode: Int32ExitCode(rawValue: 2)), additionalMsg: description)
+            assertEquals(workspace.floatingWindows.map(\.windowId), [1])
+        }
+    }
 }
+
+/// The tiling layout descriptions, with the layout and the orientation they request (nil: keep the current one)
+private let tilingDescriptions: [(String, Layout?, Orientation?)] = [
+    ("h_accordion", .accordion, .h),
+    ("v_accordion", .accordion, .v),
+    ("h_tiles", .tiles, .h),
+    ("v_tiles", .tiles, .v),
+    ("accordion", .accordion, nil),
+    ("tiles", .tiles, nil),
+    ("horizontal", nil, .h),
+    ("vertical", nil, .v),
+]

@@ -298,4 +298,129 @@ final class FocusCommandTest: XCTestCase {
         assertEquals(await parseCommand("focus --boundaries-action wrap-around-the-workspace dfs-next").cmdOrDie.run(.defaultEnv, .emptyStdin).exitCode.rawValue, 0)
         assertEquals(focus.windowOrNil?.windowId, 1)
     }
+
+    // The test monitor is the only monitor, so the monitor in the direction wraps around to the same monitor
+    func testAllMonitorsOuterFrame_stop() async {
+        Workspace.get(byName: name).rootTilingContainer.apply {
+            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
+            TestWindow.new(id: 2, parent: $0)
+        }
+
+        let result = await parseCommand("focus --boundaries all-monitors-outer-frame --boundaries-action stop left").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result, CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)))
+        assertEquals(focus.windowOrNil?.windowId, 1)
+    }
+
+    func testAllMonitorsOuterFrame_fail() async {
+        Workspace.get(byName: name).rootTilingContainer.apply {
+            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
+            TestWindow.new(id: 2, parent: $0)
+        }
+
+        let result = await parseCommand("focus --boundaries all-monitors-outer-frame --boundaries-action fail left").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result, CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 2)))
+        assertEquals(focus.windowOrNil?.windowId, 1)
+    }
+
+    func testAllMonitorsOuterFrame_wrapAroundTheWorkspace() async {
+        Workspace.get(byName: name).rootTilingContainer.apply {
+            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
+            TestWindow.new(id: 2, parent: $0)
+        }
+
+        let result = await parseCommand("focus --boundaries all-monitors-outer-frame --boundaries-action wrap-around-the-workspace left")
+            .cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result, CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)))
+        assertEquals(focus.windowOrNil?.windowId, 2)
+    }
+
+    func testAllMonitorsOuterFrame_wrapAroundAllMonitors() async {
+        var window3: Window!
+        Workspace.get(byName: name).rootTilingContainer.apply {
+            TestWindow.new(id: 1, parent: $0)
+            assertEquals(TestWindow.new(id: 2, parent: $0).focusWindow(), true)
+            window3 = TestWindow.new(id: 3, parent: $0)
+        }
+
+        // Across the orientation, the most recent leaf of the wrapped monitor's workspace is focused
+        // (window 3: binding a window makes it the most recent child)
+        let result = await parseCommand("focus --boundaries all-monitors-outer-frame --boundaries-action wrap-around-all-monitors down")
+            .cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result, CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)))
+        assertEquals(focus.windowOrNil?.windowId, 3)
+
+        // Along the orientation, the leaf snapped to the opposite side is focused
+        assertEquals(window3.focusWindow(), true)
+        let result2 = await parseCommand("focus --boundaries all-monitors-outer-frame --boundaries-action wrap-around-all-monitors right")
+            .cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result2, CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)))
+        assertEquals(focus.windowOrNil?.windowId, 1)
+    }
+
+    func testAllMonitorsOuterFrame_wrapAroundAllMonitors_emptyWorkspace() async {
+        let result = await parseCommand("focus --boundaries all-monitors-outer-frame --boundaries-action wrap-around-all-monitors left")
+            .cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result, CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)))
+        assertEquals(focus.windowOrNil, nil)
+    }
+
+    func testWrapAroundTheWorkspace_emptyWorkspace() async {
+        for boundaries in ["workspace", "all-monitors-outer-frame"] {
+            let result = await parseCommand("focus --boundaries \(boundaries) --boundaries-action wrap-around-the-workspace left")
+                .cmdOrDie.run(.defaultEnv, .emptyStdin)
+            assertEquals(result, CmdResult(stdout: [], stderr: ["No window is focused"], exitCode: Int32ExitCode(rawValue: 2)))
+        }
+    }
+
+    // Floating windows are seen as tiling windows next to the tiling window under their center
+    func testFloatingAsTiling_tiles() async {
+        let workspace = Workspace.get(byName: name)
+        workspace.rootTilingContainer.apply {
+            TestWindow.new(id: 1, parent: $0, rect: Rect(topLeftX: 0, topLeftY: 0, width: 960, height: 1080))
+                .lastAppliedLayoutVirtualRect = Rect(topLeftX: 0, topLeftY: 0, width: 960, height: 1080)
+            TestWindow.new(id: 2, parent: $0, rect: Rect(topLeftX: 960, topLeftY: 0, width: 960, height: 1080))
+                .lastAppliedLayoutVirtualRect = Rect(topLeftX: 960, topLeftY: 0, width: 960, height: 1080)
+        }
+        // The center is to the right of window 2's center
+        let after = TestWindow.new(id: 3, parent: workspace.floatingWindowsContainer, rect: Rect(topLeftX: 1400, topLeftY: 400, width: 200, height: 200))
+        // The center is to the left of window 2's center
+        let before = TestWindow.new(id: 4, parent: workspace.floatingWindowsContainer, rect: Rect(topLeftX: 1200, topLeftY: 400, width: 200, height: 200))
+
+        assertEquals(after.focusWindow(), true)
+        await parseCommand("focus left").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(focus.windowOrNil?.windowId, 2)
+
+        assertEquals(before.focusWindow(), true)
+        await parseCommand("focus left").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(focus.windowOrNil?.windowId, 1)
+
+        assertEquals(workspace.floatingWindows.map(\.windowId).sorted(), [3, 4])
+        assertEquals(workspace.rootTilingContainer.layoutDescription, .h_tiles([.window(1), .window(2)]))
+    }
+
+    func testFloatingAsTiling_accordion() async {
+        let workspace = Workspace.get(byName: name)
+        workspace.rootTilingContainer.apply {
+            $0.layout = .accordion
+            TestWindow.new(id: 1, parent: $0, rect: Rect(topLeftX: 0, topLeftY: 0, width: 1920, height: 1080))
+            TestWindow.new(id: 2, parent: $0, rect: Rect(topLeftX: 0, topLeftY: 0, width: 1920, height: 1080))
+        }
+        // The center is to the right of the most recent window's center
+        let after = TestWindow.new(id: 3, parent: workspace.floatingWindowsContainer, rect: Rect(topLeftX: 1500, topLeftY: 400, width: 200, height: 200))
+        // The center is to the left of the most recent window's center
+        let before = TestWindow.new(id: 4, parent: workspace.floatingWindowsContainer, rect: Rect(topLeftX: 100, topLeftY: 400, width: 200, height: 200))
+
+        assertEquals(after.focusWindow(), true)
+        await parseCommand("focus --ignore-floating left").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(focus.windowOrNil?.windowId, 3) // Floating windows aren't seen as tiling
+        await parseCommand("focus left").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(focus.windowOrNil?.windowId, 2)
+
+        assertEquals(before.focusWindow(), true)
+        await parseCommand("focus right").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(focus.windowOrNil?.windowId, 1)
+
+        assertEquals(workspace.floatingWindows.map(\.windowId).sorted(), [3, 4])
+        assertEquals(workspace.rootTilingContainer.layoutDescription, .h_accordion([.window(1), .window(2)]))
+    }
 }

@@ -16,6 +16,37 @@ struct MoveWorkspaceToMonitorCommandTest: AeroSpaceTestSuite {
         assertEquals(parseMoveWorkspaceToMonitorTarget("move-workspace-to-monitor -- next"), .patterns([.pattern("next")!]))
         assertEquals(parseCommand("move-workspace-to-monitor --").errorOrNil, "ERROR: Argument \'(left|down|up|right|next|prev|<monitor-pattern>)\' is mandatory")
     }
+
+    // The test monitor is the only monitor
+    @Test
+    func testSingleMonitor_noTargetMonitor() async {
+        let workspace = Workspace.get(byName: name)
+        assertEquals(workspace.focusWorkspace(), true)
+        for (command, error) in singleMonitorErrors {
+            assertEquals(
+                await parseCommand("move-workspace-to-monitor \(command)").cmdOrDie.run(.defaultEnv, .emptyStdin),
+                CmdResult(stdout: [], stderr: [error], exitCode: Int32ExitCode(rawValue: 2)),
+                additionalMsg: command,
+            )
+            assertEquals(workspace.workspaceMonitor.monitorId_oneBased, mainMonitorInfo.monitorId_oneBased)
+            assertEquals(focus.workspace, workspace)
+        }
+    }
+
+    @Test
+    func testSingleMonitor_sameMonitor_succeedsSilently() async {
+        let workspace = Workspace.get(byName: name)
+        assertEquals(workspace.focusWorkspace(), true)
+        for command in ["--wrap-around next", "--wrap-around left", "main"] {
+            assertEquals(
+                await parseCommand("move-workspace-to-monitor \(command)").cmdOrDie.run(.defaultEnv, .emptyStdin),
+                CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)),
+                additionalMsg: command,
+            )
+            assertEquals(focus.workspace, workspace)
+            assertEquals(mainMonitorInfo.activeWorkspace, workspace)
+        }
+    }
 }
 
 private func parseMoveWorkspaceToMonitorTarget(_ raw: String) -> MonitorTarget? {

@@ -26,4 +26,43 @@ struct MoveNodeToMonitorCommandTest: AeroSpaceTestSuite {
         )
         assertEquals(parseCommand("move-node-to-monitor --").errorOrNil, "ERROR: Argument \'(left|down|up|right|next|prev|<monitor-pattern>)\' is mandatory")
     }
+
+    // The test monitor is the only monitor
+    @Test
+    func testSingleMonitor_noTargetMonitor() async {
+        let root = Workspace.get(byName: name).rootTilingContainer.apply {
+            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
+        }
+        for (command, error) in singleMonitorErrors {
+            assertEquals(
+                await parseCommand("move-node-to-monitor \(command)").cmdOrDie.run(.defaultEnv, .emptyStdin),
+                CmdResult(stdout: [], stderr: [error], exitCode: Int32ExitCode(rawValue: 2)),
+                additionalMsg: command,
+            )
+            assertEquals(root.layoutDescription, .h_tiles([.window(1)]))
+        }
+    }
+
+    @Test
+    func testSingleMonitor_sameMonitor_isNoop() async {
+        let root = Workspace.get(byName: name).rootTilingContainer.apply {
+            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
+        }
+        for command in ["--wrap-around next", "--wrap-around left", "main"] {
+            assertEquals(
+                await parseCommand("move-node-to-monitor \(command)").cmdOrDie.run(.defaultEnv, .emptyStdin),
+                CmdResult(
+                    stdout: [],
+                    stderr: ["Window '1' already belongs to workspace '\(name)'. Tip: use --fail-if-noop to exit with non-zero code"],
+                    exitCode: Int32ExitCode(rawValue: 0),
+                ),
+                additionalMsg: command,
+            )
+            assertEquals(root.layoutDescription, .h_tiles([.window(1)]))
+        }
+        assertEquals(
+            await parseCommand("move-node-to-monitor --fail-if-noop main").cmdOrDie.run(.defaultEnv, .emptyStdin),
+            CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 2)),
+        )
+    }
 }

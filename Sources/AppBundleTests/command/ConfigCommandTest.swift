@@ -239,4 +239,79 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
         value.dumpAllKeysRecursive(path: ".", result: &result)
         assertEquals(result, [".", "0", "1", "1.k"])
     }
+
+    @Test
+    func testGetMode_json_literal() async {
+        let command = parseCommand("focus left").cmdOrDie
+        let binding = HotkeyBinding(.option, .h, command)
+        let binding2 = HotkeyBinding(.option, .j, parseCommand("focus down").cmdOrDie)
+        config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding, binding2.descriptionWithKeyCode: binding2])]
+
+        let result = await parseCommand("config --get mode --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        let expected = """
+            {
+              "main" : {
+                "binding" : {
+                  "alt-h" : "focus left",
+                  "alt-j" : "focus down"
+                }
+              }
+            }
+            """
+        assertEquals(result, CmdResult(stdout: [expected], stderr: [], exitCode: Int32ExitCode(rawValue: 0)))
+    }
+
+    @Test
+    func testGetRoot_json_literal() async {
+        config.modes = ["main": Mode(bindings: [:])]
+        let result = await parseCommand("config --get . --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        let expected = """
+            {
+              "mode" : {
+                "main" : {
+                  "binding" : {
+
+                  }
+                }
+              }
+            }
+            """
+        assertEquals(result, CmdResult(stdout: [expected], stderr: [], exitCode: Int32ExitCode(rawValue: 0)))
+    }
+
+    @Test
+    func testGetMode_keysJson_literal() async {
+        config.modes = ["main": Mode(bindings: [:])]
+        let result = await parseCommand("config --get mode.main --keys --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result, CmdResult(stdout: ["[\n  \"binding\"\n]"], stderr: [], exitCode: Int32ExitCode(rawValue: 0)))
+    }
+
+    @Test
+    func testGetScalar_json_literal() async {
+        let command = parseCommand("focus left").cmdOrDie
+        let binding = HotkeyBinding(.option, .h, command)
+        config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
+        let result = await parseCommand("config --get mode.main.binding.alt-h --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result, CmdResult(stdout: ["\"focus left\""], stderr: [], exitCode: Int32ExitCode(rawValue: 0)))
+    }
+
+    @Test
+    func testEncodeArray_literal() {
+        let value: ConfigMapValue = .array([.scalar(.string("a/b")), .scalar(.int(1)), .map(["k": .array([])]), .array([.scalar(.int(0))])])
+        let expected = """
+            [
+              "a/b",
+              1,
+              {
+                "k" : [
+
+                ]
+              },
+              [
+                0
+              ]
+            ]
+            """
+        assertEquals(JSONEncoder.aeroSpaceDefault.encodeToString(value), expected)
+    }
 }
