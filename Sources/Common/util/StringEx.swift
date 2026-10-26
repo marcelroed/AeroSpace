@@ -40,16 +40,19 @@ extension [String] {
         if isEmpty {
             return ""
         }
-        var remainingLen = maxLength
-        let separatorCount = separator.count
         var result: String = first.orDie()
+        if result.count > maxLength {
+            return result.prefix(maxLength) + trailing
+        }
+        var remainingLen = maxLength - result.count
+        let separatorCount = separator.count
         for _elem in self.dropFirst() {
             let elemCount = separatorCount + _elem.count
             if remainingLen < elemCount / 2 {
                 return result + separator + trailing
             }
             let elem = separator + _elem
-            if elemCount < remainingLen {
+            if elemCount <= remainingLen {
                 result += elem
                 remainingLen -= elemCount
             } else {
