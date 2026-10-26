@@ -56,6 +56,9 @@ struct ReloadConfigResult {
         await activateMode_nonCancellable(activeMode)
         syncStartAtLogin()
         syncFocusFollowsMouse(config)
+    }
+    if !args.dryRun {
+        // Re-arm even if the reload failed. The watcher follows the file, not the path, and an atomic save replaces the file
         syncConfigFileWatcher()
     }
 
