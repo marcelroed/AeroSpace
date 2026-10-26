@@ -78,20 +78,16 @@ private let gapsParser: [String: Parser<Gaps>] = [
 ]
 
 private let innerParser: [String: Parser<Gaps.Inner>] = [
-    "vertical": Parser(\.vertical, parseIntDynamicValue),
-    "horizontal": Parser(\.horizontal, parseIntDynamicValue),
+    "vertical": Parser(\.vertical, parseDynamicValue),
+    "horizontal": Parser(\.horizontal, parseDynamicValue),
 ]
 
 private let outerParser: [String: Parser<Gaps.Outer>] = [
-    "left": Parser(\.left, parseIntDynamicValue),
-    "bottom": Parser(\.bottom, parseIntDynamicValue),
-    "top": Parser(\.top, parseIntDynamicValue),
-    "right": Parser(\.right, parseIntDynamicValue),
+    "left": Parser(\.left, parseDynamicValue),
+    "bottom": Parser(\.bottom, parseDynamicValue),
+    "top": Parser(\.top, parseDynamicValue),
+    "right": Parser(\.right, parseDynamicValue),
 ]
-
-private func parseIntDynamicValue(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> DynamicConfigValue<Int> {
-    parseDynamicValue(raw, ofType: Int.self, 0, backtrace, &c)
-}
 
 func parseGaps(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> Gaps {
     parseTable(raw, .zero, gapsParser, backtrace, &c)
