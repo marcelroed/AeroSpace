@@ -1,15 +1,18 @@
 @testable import AppBundle
 import Common
 import os
-import XCTest
+import Testing
 
-final class AwaitableOneTimeBroadcastLatchTest: XCTestCase {
+@Suite
+struct AwaitableOneTimeBroadcastLatchTest: AeroSpaceTestSuite {
+    @Test
     func testAwaitAfterSignalReturnsImmediately() async throws {
         let latch = AwaitableOneTimeBroadcastLatch()
         await latch.signalToAll()
         try await latch.await()
     }
 
+    @Test
     func testAwaitOnFreshLatchSuspendsUntilSignal() async throws {
         let latch = AwaitableOneTimeBroadcastLatch()
         let returnedCount = OSAllocatedUnfairLock(initialState: 0)
@@ -24,6 +27,7 @@ final class AwaitableOneTimeBroadcastLatchTest: XCTestCase {
         assertEquals(returnedCount.withLock { $0 }, 1)
     }
 
+    @Test
     func testSignalReleasesAllPendingAwaiters() async throws {
         let latch = AwaitableOneTimeBroadcastLatch()
         let count = 20
@@ -41,6 +45,7 @@ final class AwaitableOneTimeBroadcastLatchTest: XCTestCase {
         assertEquals(returnedCount.withLock { $0 }, count)
     }
 
+    @Test
     func testSignalIsIdempotent() async throws {
         let latch = AwaitableOneTimeBroadcastLatch()
         await latch.signalToAll()
@@ -50,12 +55,14 @@ final class AwaitableOneTimeBroadcastLatchTest: XCTestCase {
         try await latch.await()
     }
 
+    @Test
     func testSignalWithNoAwaiters() async throws {
         let latch = AwaitableOneTimeBroadcastLatch()
         await latch.signalToAll()
         try await latch.await()
     }
 
+    @Test
     func testCancellingPendingAwaiterThrows() async throws {
         let latch = AwaitableOneTimeBroadcastLatch()
         let task = Task.startUnstructured { try await latch.await() }
@@ -64,6 +71,7 @@ final class AwaitableOneTimeBroadcastLatchTest: XCTestCase {
         await assertThrowsCancellation(task)
     }
 
+    @Test
     func testCancellingOneAwaiterDoesNotAffectOthers() async throws {
         let latch = AwaitableOneTimeBroadcastLatch()
         let cancelled = Task.startUnstructured { try await latch.await() }
@@ -75,6 +83,7 @@ final class AwaitableOneTimeBroadcastLatchTest: XCTestCase {
         for task in survivors { try await task.value }
     }
 
+    @Test
     func testAwaitBailsWhenTaskIsAlreadyCancelled() async {
         let latch = AwaitableOneTimeBroadcastLatch()
         let task = Task.startUnstructured { () async throws in
@@ -85,6 +94,7 @@ final class AwaitableOneTimeBroadcastLatchTest: XCTestCase {
         await assertThrowsCancellation(task)
     }
 
+    @Test
     func testSignalAfterCancellationStillReleasesRemainingAwaiters() async throws {
         let latch = AwaitableOneTimeBroadcastLatch()
         let cancelled = Task.startUnstructured { try await latch.await() }
