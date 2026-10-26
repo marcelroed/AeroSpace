@@ -27,14 +27,7 @@ struct Rect: ConvenienceMutable, AeroAny {
 
 extension CGRect {
     func monitorFrameNormalized(mainMonitorHeight: CGFloat) -> Rect {
-        let rect = toRect()
-        return rect.copy(\.topLeftY, mainMonitorHeight - rect.topLeftY)
-    }
-}
-
-extension CGRect {
-    func toRect() -> Rect {
-        Rect(topLeftX: minX, topLeftY: maxY, width: width, height: height)
+        Rect(topLeftX: minX, topLeftY: mainMonitorHeight - maxY, width: width, height: height)
     }
 }
 
@@ -48,8 +41,6 @@ extension Rect {
     }
 
     var topLeftCorner: CGPoint { CGPoint(x: topLeftX, y: topLeftY) }
-    // periphery:ignore
-    var topRightCorner: CGPoint { CGPoint(x: maxX, y: minY) }
     var bottomRightCorner: CGPoint { CGPoint(x: maxX, y: maxY) }
     var bottomLeftCorner: CGPoint { CGPoint(x: minX, y: maxY) }
 

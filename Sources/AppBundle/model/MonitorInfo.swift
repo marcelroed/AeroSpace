@@ -19,12 +19,15 @@ struct MonitorInfo: AeroAny {
 // 2. It's inaccurate because NSScreen.main doesn't work correctly from NSWorkspace.didActivateApplicationNotification &
 //    kAXFocusedWindowChangedNotification callbacks.
 extension NSScreen {
+    /// ``frame`` and ``visibleFrame`` are crazy: (0, 0) is the main screen's bottom left corner, and the positive
+    /// y-axis goes up. ``MonitorInfo`` normalizes them to the coordinates of ``MacWindow.topLeftCorner``: (0, 0) is the
+    /// main screen's top left corner, and the positive y-axis goes down
     fileprivate func toMonitorInfo(monitorAppKitNsScreenScreensId: Int, mainMonitorHeight: CGFloat, isMain: Bool) -> MonitorInfo {
         MonitorInfo(
             monitorAppKitNsScreenScreensId: monitorAppKitNsScreenScreensId,
             name: localizedName,
-            rect: rect(mainMonitorHeight: mainMonitorHeight),
-            visibleRect: visibleRect(mainMonitorHeight: mainMonitorHeight),
+            rect: frame.monitorFrameNormalized(mainMonitorHeight: mainMonitorHeight),
+            visibleRect: visibleFrame.monitorFrameNormalized(mainMonitorHeight: mainMonitorHeight),
             isMain: isMain,
         )
     }
@@ -32,17 +35,6 @@ extension NSScreen {
     fileprivate var isMainScreen: Bool {
         frame.minX == 0 && frame.minY == 0
     }
-
-    /// The function is a replacement for Apple's crazy ``frame``
-    ///
-    /// - For ``MacWindow.topLeftCorner``, (0, 0) is main screen top left corner, and positive y-axis goes down.
-    /// - For ``frame``, (0, 0) is main screen bottom left corner, and positive y-axis goes up (which is crazy).
-    ///
-    /// The function "normalizes" ``frame``
-    fileprivate func rect(mainMonitorHeight: CGFloat) -> Rect { frame.monitorFrameNormalized(mainMonitorHeight: mainMonitorHeight) }
-
-    /// Same as ``rect(mainMonitorHeight:)`` but for ``visibleFrame``
-    fileprivate func visibleRect(mainMonitorHeight: CGFloat) -> Rect { visibleFrame.monitorFrameNormalized(mainMonitorHeight: mainMonitorHeight) }
 }
 
 private let testMonitorInfoRect = Rect(topLeftX: 0, topLeftY: 0, width: 1920, height: 1080)
