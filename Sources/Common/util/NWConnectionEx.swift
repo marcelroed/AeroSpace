@@ -1,8 +1,9 @@
 import Network
 import Foundation
+import os
 
 extension NWConnection {
-    public func writeAtomic(_ msg: Codable, _ encoder: JSONEncoder = JSONEncoder()) async -> ((), error: NWError?) {
+    public func writeAtomic(_ msg: some Encodable, _ encoder: JSONEncoder = JSONEncoder()) async -> ((), error: NWError?) {
         let payload = Result { try encoder.encode(msg) }.getOrDie()
         var data = withUnsafeBytes(of: UInt32(payload.count)) { pointer in unsafe Data.init(pointer) }
         check(data.count == 4)
@@ -16,23 +17,23 @@ extension NWConnection {
 
     public func initConnection() async -> ((), error: InitConnectionError?) {
         let error1 = await withCheckedContinuation { cont in
-            let isDone = IsDone()
+            let isDone = OSAllocatedUnfairLock(initialState: false)
             stateUpdateHandler = { state in
-                Task.startUnstructured {
-                    let error: NWError?
-                    switch state {
-                        case .cancelled, .preparing, .setup: return
-                        case .ready: error = nil
-                        case .failed(let e), .waiting(let e): error = e
-                        @unknown default: die("Unknown NWConnection.State: \(state)")
-                    }
-                    // Make sure to resume continuation only once
-                    if await isDone.markAsDone().wasAlreadyDone {
-                        return
-                    }
-                    self.stateUpdateHandler = nil
-                    cont.resume(returning: error.map(InitConnectionError.nwError))
+                let error: NWError?
+                switch state {
+                    case .cancelled, .preparing, .setup: return
+                    case .ready: error = nil
+                    case .failed(let e), .waiting(let e): error = e
+                    @unknown default: die("Unknown NWConnection.State: \(state)")
                 }
+                // Make sure to resume continuation only once
+                let wasAlreadyDone = isDone.withLock { isDone in
+                    defer { isDone = true }
+                    return isDone
+                }
+                if wasAlreadyDone { return }
+                self.stateUpdateHandler = nil
+                cont.resume(returning: error.map(InitConnectionError.nwError))
             }
             start(queue: .global())
         }
@@ -93,7 +94,7 @@ extension NWConnection {
 
     public func readUInt32() async -> Result<UInt32, NWError> {
         await read(bytes: 4).map { data in
-            unsafe data.withUnsafeBytes { pointer in unsafe pointer.load(as: UInt32.self) }
+            unsafe data.withUnsafeBytes { pointer in unsafe pointer.loadUnaligned(as: UInt32.self) }
         }
     }
 
@@ -112,15 +113,5 @@ extension NWConnection {
             case .failure(let e):
                 return .failure(e)
         }
-    }
-}
-
-private actor IsDone {
-    private var isDone: Bool = false
-
-    func markAsDone() -> (wasAlreadyDone: Bool, ()) {
-        let old = isDone
-        isDone = true
-        return (old, ())
     }
 }
