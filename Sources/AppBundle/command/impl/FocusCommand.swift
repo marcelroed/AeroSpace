@@ -113,15 +113,10 @@ struct FocusCommand: Command {
             guard let targetCenter = try? await target.getCenter(.nonCancellable) else { continue }
             guard let parent = target.parent as? TilingContainer else { continue }
             tilingParent = parent
-            index = switch tilingParent.layout {
-                case .tiles:
-                    center.getProjection(tilingParent.orientation) >= targetCenter.getProjection(tilingParent.orientation)
-                        ? target.ownIndex.orDie() + 1
-                        : target.ownIndex.orDie()
-                case .accordion:
-                    center.getProjection(tilingParent.orientation) >= targetCenter.getProjection(tilingParent.orientation)
-                        ? tilingParent.children.count
-                        : 0
+            let isAfterTarget = center.getProjection(parent.orientation) >= targetCenter.getProjection(parent.orientation)
+            index = switch parent.layout {
+                case .tiles: target.ownIndex.orDie() + (isAfterTarget ? 1 : 0)
+                case .accordion: isAfterTarget ? parent.children.count : 0
             }
         } else {
             index = 0
