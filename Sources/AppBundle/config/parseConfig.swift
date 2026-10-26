@@ -101,6 +101,11 @@ struct Parser<S>: Sendable {
         }
     }
 
+    /// A nested table. Its keys are parsed with `fields`, starting from the field's current value
+    init<T>(_ keyPath: SendableWritableKeyPath<S, T>, _ fields: [String: Parser<T>]) {
+        parseInto = { target, raw, backtrace, c in target[keyPath: keyPath] = parseTable(raw, target[keyPath: keyPath], fields, backtrace, &c) }
+    }
+
     /// The key is known, but its value is parsed separately. The field keeps its initial value
     static var parsedManually: Self { Parser(parseInto: { _, _, _, _ in }) }
 
@@ -145,8 +150,8 @@ private let configParser: [String: Parser<Config>] = [
     keyMappingConfigRootKey: .parsedManually,
     modeConfigRootKey: .parsedManually,
 
-    "gaps": Parser(\.gaps, parseGaps),
-    "focus-follows-mouse": Parser(\.focusFollowsMouse, parseFocusFollowsMouse),
+    "gaps": Parser(\.gaps, gapsParser),
+    "focus-follows-mouse": Parser(\.focusFollowsMouse, ["enabled": Parser(\.enabled, parseBool)]),
     "workspace-to-monitor-force-assignment": Parser(\.workspaceToMonitorForceAssignment, parseWorkspaceToMonitorAssignment),
     "on-window-detected": Parser(\.onWindowDetected, parseOnWindowDetectedArray),
 
