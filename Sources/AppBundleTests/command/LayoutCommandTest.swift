@@ -202,7 +202,7 @@ final class LayoutCommandTest: XCTestCase {
 
         let result = await parseCommand("layout h_tiles").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, ["Already in the requested h_tiles mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
+        assertEquals(result.stderr, ["Already in the requested h_tiles mode. Tip: use --fail-if-noop to exit with non-zero code"])
         assertEquals(root.layoutDescription, .h_tiles([.window(1), .window(2)]))
     }
 
@@ -235,7 +235,7 @@ final class LayoutCommandTest: XCTestCase {
         let result = await parseCommand("layout h_tiles").cmdOrDie
             .run(.defaultEnv.withWorkspaceName(name), .emptyStdin)
         assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, ["Already in the requested h_tiles mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
+        assertEquals(result.stderr, ["Already in the requested h_tiles mode. Tip: use --fail-if-noop to exit with non-zero code"])
         assertEquals(workspace.rootTilingContainer.layout, .tiles)
         assertEquals(workspace.rootTilingContainer.orientation, .h)
     }
@@ -254,7 +254,7 @@ final class LayoutCommandTest: XCTestCase {
         let result = await parseCommand("layout tiling").cmdOrDie
             .run(.defaultEnv.withWorkspaceName(name), .emptyStdin)
         assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, ["Already in the requested tiling mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
+        assertEquals(result.stderr, ["Already in the requested tiling mode. Tip: use --fail-if-noop to exit with non-zero code"])
         assertTrue(workspace.isEffectivelyEmpty)
     }
 
@@ -456,7 +456,7 @@ final class LayoutCommandTest: XCTestCase {
 
         let result = await parseCommand("layout --root h_tiles").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, ["Already in the requested h_tiles mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
+        assertEquals(result.stderr, ["Already in the requested h_tiles mode. Tip: use --fail-if-noop to exit with non-zero code"])
         assertEquals(root.layoutDescription, .h_tiles([.window(1), .window(2)]))
     }
 }

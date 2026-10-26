@@ -59,7 +59,7 @@ struct WorkspaceCommand: Command {
                 .toResult(
                     index >= workspaces.count
                         ? "Reached the end of the supplied workspaces list"
-                        : "Rached the beginning of the supplied workspaces list",
+                        : "Reached the beginning of the supplied workspaces list",
                 )
                 .get()
     }

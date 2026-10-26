@@ -18,7 +18,7 @@ struct MacosNativeFullscreenCommandTest: AeroSpaceTestSuite {
 
         var result = await parseCommand("macos-native-fullscreen off").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, ["Already not fullscreen. Tip: use --fail-if-noop to exit with non-zero exit code"])
+        assertEquals(result.stderr, ["Already not fullscreen. Tip: use --fail-if-noop to exit with non-zero code"])
 
         result = await parseCommand("macos-native-fullscreen off --fail-if-noop").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 2)
@@ -27,7 +27,7 @@ struct MacosNativeFullscreenCommandTest: AeroSpaceTestSuite {
         window.isMacosFullscreenForTest = true
         result = await parseCommand("macos-native-fullscreen on").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, ["Already fullscreen. Tip: use --fail-if-noop to exit with non-zero exit code"])
+        assertEquals(result.stderr, ["Already fullscreen. Tip: use --fail-if-noop to exit with non-zero code"])
 
         result = await parseCommand("macos-native-fullscreen on --fail-if-noop").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 2)
