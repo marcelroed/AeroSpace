@@ -24,27 +24,26 @@ extension String {
 
 func parseShell(_ tokens: [LexerToken]) -> ResOrStr<Shell<[String]>> {
     Result { () throws(String) in
-        switch tokens.singleOrNil() {
-            case let single? where single.payload == .end:
-                return .empty
-            default:
-                var index = 0
-                let result = try parseShellSeq(&index, tokens)
-                let token = tokens[index]
-                if token.payload != .end {
-                    throw "\(token.location): Unexpected token \(token.payload.description.singleQuoted)"
-                }
-                return result
+        if tokens.count == 1, tokens[0].payload == .end { return .empty }
+        var index = 0
+        let result = try parseShellSeq(&index, tokens)
+        let token = tokens[index]
+        if token.payload != .end {
+            throw "\(token.location): Unexpected token \(token.payload.description.singleQuoted)"
         }
+        return result
     }
+}
+
+extension LexerToken.Payload {
+    fileprivate var isSeqSeparator: Bool { self == .semicolon || self == .newline }
 }
 
 private func parseShellSeq(_ index: inout Int, _ tokens: [LexerToken]) throws(String) -> Shell<[String]> {
     var cur = [try parseShellOr(&index, tokens)]
-    while true {
-        if tokens[index].payload != .semicolon && tokens[index].payload != .newline { break }
+    while tokens[index].payload.isSeqSeparator {
         var sawASemicolon = false
-        while tokens[index].payload == .semicolon || tokens[index].payload == .newline {
+        while tokens[index].payload.isSeqSeparator {
             sawASemicolon = sawASemicolon || tokens[index].payload == .semicolon
             index += 1
         }
@@ -112,8 +111,7 @@ private func binaryOperationParsingLoop(
     _ tokens: [LexerToken],
 ) throws(String) -> Shell<[String]> {
     var cur = [try recurDescent(&index, tokens)]
-    while let token = tokens.getOrNil(atIndex: index) {
-        if token.payload != op { break }
+    while tokens.getOrNil(atIndex: index)?.payload == op {
         index += 1
         cur.append(try recurDescent(&index, tokens))
     }
