@@ -18,6 +18,9 @@ open class TreeNode: Equatable, AeroAny {
     // - move-mouse command
     // - focus-follows-mouse
     var lastAppliedLayoutPhysicalRect: Rect? = nil // with real inner gaps
+    // Usages:
+    // - resize with mouse
+    var weightBeforeResizeWithMouse: CGFloat? = nil
     private var unboundStacktrace: String? = nil
     var isBound: Bool { parent != nil } // todo drop, once https://github.com/nikitabobko/AeroSpace/issues/1215 is fixed
 
@@ -126,19 +129,6 @@ open class TreeNode: Equatable, AeroAny {
     nonisolated public static func == (lhs: TreeNode, rhs: TreeNode) -> Bool {
         lhs === rhs
     }
-
-    private var userData: [String: Any] = [:]
-    func getUserData<T>(key: TreeNodeUserDataKey<T>) -> T? { userData[key.key] as! T? }
-    func putUserData<T>(key: TreeNodeUserDataKey<T>, data: T) {
-        userData[key.key] = data
-    }
-    @discardableResult
-    func cleanUserData<T>(key: TreeNodeUserDataKey<T>) -> T? { userData.removeValue(forKey: key.key) as! T? }
-}
-
-// periphery:ignore - Generic T is used
-struct TreeNodeUserDataKey<T> {
-    let key: String
 }
 
 let WEIGHT_DOESNT_MATTER = CGFloat(-2)
