@@ -15,7 +15,7 @@ extension LiveFocus {
 /// Alternative name: ResolvedFocus
 struct LiveFocus: AeroAny, Equatable {
     let windowOrNil: Window?
-    var workspace: Workspace
+    let workspace: Workspace
 
     @MainActor fileprivate var frozen: FrozenFocus {
         return FrozenFocus(
@@ -61,14 +61,16 @@ private struct FrozenFocus: AeroAny, Equatable, Sendable {
 @MainActor var focus: LiveFocus { _focus.live }
 
 @MainActor func setFocus(to newFocus: LiveFocus) -> Bool {
-    if _focus == newFocus.frozen { return true }
+    let oldFrozenFocus = _focus // Read it before newFocus.frozen. _focus is lazily initialized
+    let newFrozenFocus = newFocus.frozen
+    if oldFrozenFocus == newFrozenFocus { return true }
     let oldFocus = focus
     // Normalize mruWindow when focus away from a workspace
     if oldFocus.workspace != newFocus.workspace {
         oldFocus.windowOrNil?.markAsMostRecentChild()
     }
 
-    _focus = newFocus.frozen
+    _focus = newFrozenFocus
     let status = newFocus.workspace.workspaceMonitor.setActiveWorkspace(newFocus.workspace)
 
     newFocus.windowOrNil?.markAsMostRecentChild()
