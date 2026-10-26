@@ -1,16 +1,17 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
 @MainActor
-final class MacosNativeFullscreenCommandTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
-
+@Suite(.aeroSpaceGlobalState)
+struct MacosNativeFullscreenCommandTest: AeroSpaceTestSuite {
+    @Test
     func testParse() {
         assertEquals(parseCommand("macos-native-fullscreen --fail-if-noop").errorOrNil, "--fail-if-noop requires 'on' or 'off' argument")
         assertEquals(parseCommand("macos-native-fullscreen foo").errorOrNil, "ERROR: Can't parse 'foo'. Possible values: on|off")
     }
 
+    @Test
     func testNoop() async {
         let window = TestWindow.new(id: 1, parent: Workspace.get(byName: name).rootTilingContainer)
         assertTrue(window.focusWindow())
@@ -33,6 +34,7 @@ final class MacosNativeFullscreenCommandTest: XCTestCase {
         assertEquals(result.stderr, [])
     }
 
+    @Test
     func testNoWindowIsFocused() async {
         let result = await parseCommand("macos-native-fullscreen").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 2)
