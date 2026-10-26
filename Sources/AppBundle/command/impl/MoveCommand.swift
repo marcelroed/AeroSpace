@@ -98,17 +98,10 @@ private let moveOutMacosUnconventionalWindow = "moving macOS fullscreen, minimiz
     _ env: CmdEnv,
 ) -> BinaryExitCode {
     let innerMostTilingContainer = window.parents.first(where: {
-        return switch $0.parent?.cases {
-            case .tilingContainer(let parent): parent.orientation == direction.orientation
-            // Stop searching: we have hit the workspace
-            case nil, .workspace: true
-            // Impossible: tilingContainer's parent can only be a workspace or tilingContainer
-            case .floatingWindowsContainer,
-                 .macosMinimizedWindowsContainer,
-                 .macosFullscreenWindowsContainer,
-                 .macosHiddenAppsWindowsContainer,
-                 .macosPopupWindowsContainer: true
-        }
+        // Stop searching if the parent isn't a tiling container: we have hit the workspace
+        // (a tiling container's parent can only be a workspace or a tiling container)
+        guard let parent = $0.parent as? TilingContainer else { return true }
+        return parent.orientation == direction.orientation
     }) as? TilingContainer
     guard let innerMostTilingContainer else { return .fail(io.err(bugPrompt())) } // Impossible
     switch innerMostTilingContainer.parent?.cases {

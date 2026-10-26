@@ -99,29 +99,15 @@ extension TreeNode {
         hasChildrenInDirection direction: CardinalDirection,
         withLayout layout: Layout?,
     ) -> (parent: TilingContainer, ownIndex: Int)? {
-        let innermostChild = parentsWithSelf.first(where: { (node: TreeNode) -> Bool in
-            return switch node.parent?.cases {
-                // stop searching. We didn't find it, or something went wrong
-                case .workspace, nil, .macosMinimizedWindowsContainer,
-                     .floatingWindowsContainer,
-                     .macosFullscreenWindowsContainer,
-                     .macosHiddenAppsWindowsContainer,
-                     .macosPopupWindowsContainer:
-                    true
-                case .tilingContainer(let parent):
-                    (layout == nil || parent.layout == layout) &&
-                        parent.orientation == direction.orientation &&
-                        (node.ownIndex.map { parent.children.indices.contains($0 + direction.focusOffset) } ?? true)
-            }
+        let innermostChild = parentsWithSelf.first(where: { node in
+            // stop searching if the parent isn't a tiling container. We didn't find it, or something went wrong
+            guard let parent = node.parent as? TilingContainer else { return true }
+            return (layout == nil || parent.layout == layout) &&
+                parent.orientation == direction.orientation &&
+                (node.ownIndex.map { parent.children.indices.contains($0 + direction.focusOffset) } ?? true)
         })
-        guard let innermostChild else { return nil }
-        switch innermostChild.parent?.cases {
-            case .tilingContainer(let parent):
-                check(parent.orientation == direction.orientation)
-                return innermostChild.ownIndex.map { (parent, $0) }
-            case .workspace, .floatingWindowsContainer, nil, .macosMinimizedWindowsContainer,
-                 .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer, .macosPopupWindowsContainer:
-                return nil
-        }
+        guard let innermostChild, let parent = innermostChild.parent as? TilingContainer else { return nil }
+        check(parent.orientation == direction.orientation)
+        return innermostChild.ownIndex.map { (parent, $0) }
     }
 }
