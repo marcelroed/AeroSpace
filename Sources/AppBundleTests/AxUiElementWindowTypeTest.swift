@@ -2,7 +2,7 @@
 import Common
 import XCTest
 
-final class AxWindowKindTest: XCTestCase {
+final class AxUiElementWindowTypeTest: XCTestCase {
     func test() throws {
         let checkedDumps = try checkAxDumpsRecursive(projectRoot.appending(path: "./axDumps"))
         assertTrue(checkedDumps > 0)
