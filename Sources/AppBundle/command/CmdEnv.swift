@@ -7,10 +7,7 @@ struct CmdEnv {
     static let defaultEnv: CmdEnv = .init()
 
     consuming func withFocus(_ focus: LiveFocus) -> Self {
-        return switch focus.asLeaf {
-            case .window(let wd): withWindowId(wd.windowId)
-            case .emptyWorkspace(let ws): withWorkspaceName(ws.name)
-        }
+        if let window = focus.windowOrNil { withWindowId(window.windowId) } else { withWorkspaceName(focus.workspace.name) }
     }
 
     consuming func withWindowId(_ windowId: UInt32) -> CmdEnv {

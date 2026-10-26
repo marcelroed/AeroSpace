@@ -1,16 +1,6 @@
 import AppKit
 import Common
 
-enum EffectiveLeaf {
-    case window(Window)
-    case emptyWorkspace(Workspace)
-}
-extension LiveFocus {
-    var asLeaf: EffectiveLeaf {
-        if let windowOrNil { .window(windowOrNil) } else { .emptyWorkspace(workspace) }
-    }
-}
-
 /// This object should be only passed around but never memorized
 /// Alternative name: ResolvedFocus
 struct LiveFocus: AeroAny, Equatable {
@@ -169,13 +159,12 @@ extension Workspace {
         var environment = config.execConfig.envVariables
         environment[AEROSPACE_FOCUSED_WORKSPACE] = newWorkspace
         environment[AEROSPACE_PREV_WORKSPACE] = oldWorkspace
-        switch focus.asLeaf {
-            case .emptyWorkspace(let w):
-                environment[AEROSPACE_WORKSPACE] = w.name
-                environment[AEROSPACE_WINDOW_ID] = nil
-            case .window(let w):
-                environment[AEROSPACE_WORKSPACE] = nil
-                environment[AEROSPACE_WINDOW_ID] = w.windowId.description
+        if let window = focus.windowOrNil {
+            environment[AEROSPACE_WORKSPACE] = nil
+            environment[AEROSPACE_WINDOW_ID] = window.windowId.description
+        } else { // Empty workspace
+            environment[AEROSPACE_WORKSPACE] = focus.workspace.name
+            environment[AEROSPACE_WINDOW_ID] = nil
         }
         process.environment = environment
         _ = Result { try process.run() }
