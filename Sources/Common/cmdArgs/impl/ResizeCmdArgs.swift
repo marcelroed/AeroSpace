@@ -44,7 +44,9 @@ func parseResizeCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ResizeCmdArgs> {
 }
 
 private func parseUnits(i: PosArgParserInput) -> ParsedCliArgs<ResizeCmdArgs.Units> {
-    if let number = UInt(i.arg.removePrefix("+").removePrefix("-")) {
+    let digits = i.arg.starts(with: "+") || i.arg.starts(with: "-") ? i.arg.dropFirst() : i.arg[...]
+    // UInt(...) accepts a sign too. Check the first char, so that the number has exactly one optional sign
+    return if digits.first?.isNumber == true, let number = UInt(digits) {
         switch true {
             case i.arg.starts(with: "+"): .succ(.add(number), advanceBy: 1)
             case i.arg.starts(with: "-"): .succ(.subtract(number), advanceBy: 1)
