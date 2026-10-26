@@ -30,14 +30,6 @@ public enum BinaryExitCode: Int32, ExitCode {
             default: self
         }
     }
-
-    // periphery:ignore
-    public func or(_ other: @autoclosure () -> Self) -> Self {
-        switch rawValue {
-            case EXIT_CODE_ZERO: self
-            default: other()
-        }
-    }
 }
 
 public enum ConditionalExitCode: Int32, ExitCode {
