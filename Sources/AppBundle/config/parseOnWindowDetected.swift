@@ -96,7 +96,7 @@ private func parseMatcher(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c:
             return .command(parseCommandForConfig(raw, allowExecAndForget: false, backtrace, &c))
         default:
             // Intentionally skip Table type from the list of expected types
-            c.errors.append(.init(backtrace, expectedActualTypeError(expected: .string, actual: raw.tomlType)))
+            c.errors.append(expectedActualTypeDiagnostic(expected: .string, actual: raw.tomlType, backtrace))
             return .command(.empty)
     }
 }

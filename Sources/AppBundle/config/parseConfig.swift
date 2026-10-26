@@ -188,12 +188,12 @@ func parseShellOfCommandsForConfig(_ raw: OrderedJson, _ backtrace: ConfigBacktr
             if let elem = elem.asStringOrNil {
                 result.append(parseCommandForConfig(elem, allowExecAndForget: true, backtrace, &c))
             } else {
-                c.errors.append(.init(backtrace, expectedActualTypeError(expected: .string, actual: elem.tomlType)))
+                c.errors.append(expectedActualTypeDiagnostic(expected: .string, actual: elem.tomlType, backtrace))
             }
         }
         return .newCompound(result, Shell<any Command>.seq)
     } else {
-        c.errors.append(.init(backtrace, expectedActualTypeError(expected: [.string, .array], actual: raw.tomlType)))
+        c.errors.append(expectedActualTypeDiagnostic(expected: [.string, .array], actual: raw.tomlType, backtrace))
         return .empty
     }
 }
@@ -478,9 +478,10 @@ enum TomlBacktraceItem: Equatable {
 }
 
 func expectedActualTypeDiagnostic(expected: TomlType, actual: TomlType, _ backtrace: ConfigBacktrace) -> ConfigParseDiagnostic {
-    .init(backtrace, expectedActualTypeError(expected: expected, actual: actual))
+    .init(backtrace, "Expected type is \(expected.rawValue.singleQuoted). But actual type is \(actual.rawValue.singleQuoted)")
 }
 
+/// Unlike the single-type message, prints the lowercase case names ('string' or 'array'). Tests pin both formats
 func expectedActualTypeDiagnostic(expected: [TomlType], actual: TomlType, _ backtrace: ConfigBacktrace) -> ConfigParseDiagnostic {
-    .init(backtrace, expectedActualTypeError(expected: expected, actual: actual))
+    .init(backtrace, "Expected types are \(expected.map { "'\($0)'" }.joined(separator: " or ")). But actual type is '\(actual)'")
 }
