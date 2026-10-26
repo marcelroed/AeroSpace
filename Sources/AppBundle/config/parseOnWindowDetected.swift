@@ -5,8 +5,8 @@ struct WindowDetectedCallback: Equatable {
     var checkFurtherCallbacks: Bool = false
     var run: Shell<any Command>
 
-    var debugJson: Json {
-        var result: [String: Json] = [:]
+    var debugJson: OrderedJson {
+        var result: OrderedJson.JsonDict = [:]
         result["matcher"] = switch matcher {
             case .command(let command): .string(command.shellOfCommandsDescription)
             case .legacy(let legacy): legacy.debugJson
@@ -34,7 +34,7 @@ struct LegacyWindowDetectedCallbackMatcher: Equatable {
     var workspace: String?
     var duringAeroSpaceStartup: Bool?
 
-    var debugJson: Json {
+    var debugJson: OrderedJson {
         let parts: [String?] = [
             appId.map { "appId=\"\($0)\"" },
             appNameRegexSubstring.map { "appNameRegexSubstring=\"\($0.origin)\"" },

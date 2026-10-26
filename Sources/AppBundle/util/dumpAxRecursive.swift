@@ -1,7 +1,7 @@
 import AppKit
 import Common
 
-func dumpAxRecursive(_ ax: AXUIElement, _ kind: AxKind, recursionDepth: Int = 0) -> [String: Json] {
+func dumpAxRecursive(_ ax: AXUIElement, _ kind: AxKind, recursionDepth: Int = 0) -> OrderedJson.JsonDict {
     if recursionDepth > 5 {
         return [
             "dumpAxRecursive infinite recursion": .bool(true),
@@ -9,7 +9,7 @@ func dumpAxRecursive(_ ax: AXUIElement, _ kind: AxKind, recursionDepth: Int = 0)
         ]
     }
     let recursionDepth = recursionDepth + 1
-    var result: [String: Json] = [:]
+    var result: OrderedJson.JsonDict = [:]
     var ignored: [String] = []
     var writable: [String] = []
     var failedAxRequest: [String] = []
@@ -44,7 +44,7 @@ enum AxKind: Hashable {
     case app
 }
 
-func prettyValue(_ value: Any?, recursionDepth: Int) -> Json {
+func prettyValue(_ value: Any?, recursionDepth: Int) -> OrderedJson {
     if let arr = value as? [Any?] {
         return .array(arr.map { prettyValue($0, recursionDepth: recursionDepth) })
     }

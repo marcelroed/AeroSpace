@@ -9,7 +9,7 @@ struct AxDumpJsonTest: AeroSpaceTestSuite {
     /// Encoded the same way as in `dumpWindowDebugInfo`
     @Test
     func testEncode() {
-        var result: [String: Json] = [:]
+        var result: OrderedJson.JsonDict = [:]
         result["Aero.AXApp"] = .dict(["AXRole": .string("AXApplication"), "AXEnabled": .int(1), "AXEmpty": .dict([:])])
         result["Aero.on-window-detected"] = .array([.dict(["commands": .string("layout floating")]), .array([])])
         result["Aero.workspace"] = .null
@@ -17,7 +17,7 @@ struct AxDumpJsonTest: AeroSpaceTestSuite {
         result["Aero.axWindowId"] = .int(42)
         result["Aero.App.nsApp.appBundlePath"] = .string("file:///Applications/Foo%20Bar.app/ \"é\" 🙂")
         assertEquals(
-            JSONEncoder.aeroSpaceDefault.encodeToString(result),
+            JSONEncoder.aeroSpaceDefault.encodeToString(OrderedJson.dict(result)),
             #"""
             {
               "Aero.AXApp" : {
@@ -47,7 +47,7 @@ struct AxDumpJsonTest: AeroSpaceTestSuite {
     /// AX numbers and booleans are CF objects, and all of them convert to Int. So the dump shows booleans as 0/1
     @Test
     func testDumpRendersAxBooleansAsInts() {
-        func pretty(_ raw: AnyObject?) -> Json { prettyValue(raw as Any?, recursionDepth: 1) }
+        func pretty(_ raw: AnyObject?) -> OrderedJson { prettyValue(raw as Any?, recursionDepth: 1) }
         assertEquals(pretty(kCFBooleanTrue), .int(1))
         assertEquals(pretty(kCFBooleanFalse), .int(0))
         assertEquals(pretty(NSNumber(value: true)), .int(1))
@@ -76,7 +76,7 @@ struct AxDumpJsonTest: AeroSpaceTestSuite {
             ),
             options: [.json5Allowed],
         )
-        let dump = Json.newOrDieRecursive(raw).asDictOrDie
+        let dump = OrderedJson.newOrDieRecursive(raw).asDictOrDie
         assertEquals(dump["AXEnabled"], .int(1))
         assertEquals(dump["AXFocused"], .int(0))
         assertEquals(dump["AXTitle"], .string("a/b"))

@@ -214,13 +214,13 @@ final class MacApp: AbstractApp {
         }
     }
 
-    func dumpWindowAxInfo(windowId: UInt32, _ cm: CancellationMode) async throws -> [String: Json] {
+    func dumpWindowAxInfo(windowId: UInt32, _ cm: CancellationMode) async throws -> OrderedJson.JsonDict {
         try await withWindow(windowId, cm) { window, job in
             dumpAxRecursive(window, .window)
         } ?? [:]
     }
 
-    func dumpAppAxInfo(_ cm: CancellationMode) async throws -> [String: Json] {
+    func dumpAppAxInfo(_ cm: CancellationMode) async throws -> OrderedJson.JsonDict {
         try await thread?.runInLoop(cm) { [axApp] job in
             dumpAxRecursive(axApp.threadGuarded, .app)
         } ?? [:]

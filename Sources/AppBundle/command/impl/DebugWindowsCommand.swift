@@ -80,7 +80,7 @@ private func dumpWindowDebugInfo(_ window: Window, _ cm: CancellationMode) async
     let window = window.asMacWindow()
     let appInfoDic = window.macApp.nsApp.bundleURL.flatMap { Bundle.init(url: $0) }?.infoDictionary ?? [:]
 
-    var result: [String: Json] = try await window.macApp.dumpWindowAxInfo(windowId: window.windowId, cm)
+    var result: OrderedJson.JsonDict = try await window.macApp.dumpWindowAxInfo(windowId: window.windowId, cm)
 
     let windowLevel = getWindowLevel(for: window.windowId)
     let windowLevelJson = windowLevel?.toJson() ?? .null
@@ -103,13 +103,13 @@ private func dumpWindowDebugInfo(_ window: Window, _ cm: CancellationMode) async
     result["Aero.AxUiElementWindowType"] = .string(AxUiElementWindowType.new(isWindow: isWindow, isDialog: { isDialog }).rawValue)
     result["Aero.AxUiElementWindowType_isDialogHeuristic"] = .bool(isDialog)
 
-    var matchingCallbacks: [Json] = []
+    var matchingCallbacks: [OrderedJson] = []
     for callback in config.onWindowDetected where await callback.matches(window) {
         matchingCallbacks.append(callback.debugJson)
     }
     result["Aero.on-window-detected"] = .array(matchingCallbacks)
 
-    return JSONEncoder.aeroSpaceDefault.encodeToString(result).prettyDescription
+    return JSONEncoder.aeroSpaceDefault.encodeToString(OrderedJson.dict(result)).prettyDescription
         .prefixLines(with: "\(window.app.rawAppBundleId ?? "nil-bundle-id").\(window.windowId) ||| ")
 }
 
