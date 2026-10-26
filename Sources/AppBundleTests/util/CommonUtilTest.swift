@@ -1,9 +1,11 @@
 @testable import AppBundle
 import Common
 import Foundation
-import XCTest
+import Testing
 
-final class CommonUtilTest: XCTestCase {
+@Suite
+struct CommonUtilTest: AeroSpaceTestSuite {
+    @Test
     func testToLogicalSegments() {
         assertEquals("".toLogicalSegments(), [])
         assertEquals("abc".toLogicalSegments(), [.string("abc")])
@@ -21,6 +23,7 @@ final class CommonUtilTest: XCTestCase {
         assertEquals("1\u{20E3}2".toLogicalSegments(), [.string("1\u{20E3}"), .number(2)]) // Keycap grapheme isn't a digit
     }
 
+    @Test
     func testLogicalSegmentsOrder() {
         func less(_ a: String, _ b: String) -> Bool { a.toLogicalSegments() < b.toLogicalSegments() }
         assertTrue(less("a2", "a10"))
@@ -40,6 +43,7 @@ final class CommonUtilTest: XCTestCase {
         )
     }
 
+    @Test
     func testTransposed() {
         assertEquals([[Int]]().transposed(), [])
         assertEquals([[1]].transposed(), [[1]])
@@ -48,6 +52,7 @@ final class CommonUtilTest: XCTestCase {
         assertEquals([[1], [2, 3]].transposed(), [[1, 2]]) // The first row defines the column count
     }
 
+    @Test
     func testToPaddingTable() {
         assertEquals([[String]]().toPaddingTable(), [])
         assertEquals(
@@ -60,6 +65,7 @@ final class CommonUtilTest: XCTestCase {
         )
     }
 
+    @Test
     func testJoinTruncating() {
         let arr = ["aaa", "bbb", "ccc"]
         assertEquals([String]().joinTruncating(separator: ", ", length: 0), "")
@@ -74,12 +80,14 @@ final class CommonUtilTest: XCTestCase {
         assertEquals(["x", "yyyy"].joinTruncating(separator: "|", length: 2, trailing: "..."), "x|y...")
     }
 
+    @Test
     func testPrefixLines() {
         assertEquals("a\n\nb".prefixLines(with: "> "), "> a\n> \n> b")
         assertEquals("a\n".prefixLines(with: "> "), "> a\n> ")
         assertEquals("".prefixLines(with: "> "), "> ")
     }
 
+    @Test
     func testArrSlice() {
         let arr = [10, 20, 30, 40]
         assertEquals(arr.slice.toArray(), arr)
@@ -112,6 +120,7 @@ final class CommonUtilTest: XCTestCase {
         assertEquals(literal.toArray(), [1, 2])
     }
 
+    @Test
     func testArrSliceEquality() {
         assertEquals([1, 2, 3].slice(1...), [9, 2, 3].slice(1...))
         assertEquals([1, 2, 3].slice(1...).orDie(), [2, 3])
@@ -121,6 +130,7 @@ final class CommonUtilTest: XCTestCase {
         assertEquals([1].slice(1...).orDie(), [5, 6].slice(2...).orDie())
     }
 
+    @Test
     func testSortedEntries() {
         let entries = ["b": 2, "a": 1, "c": 3].sortedEntries
         assertEquals(entries.map(\.key), ["a", "b", "c"])
@@ -128,11 +138,13 @@ final class CommonUtilTest: XCTestCase {
         assertEquals([String: Int]().sortedEntries.map(\.key), [])
     }
 
+    @Test
     func testWithIndex() {
         assertEquals(["a", "b", "c"].withIndex.map { "\($0.index)\($0.value)" }, ["0a", "1b", "2c"])
         assertEquals([String]().withIndex.count, 0)
     }
 
+    @Test
     func testFilterIsInstance() {
         let mixed: [Any] = [1, "a", 2.0, "b", 3]
         assertEquals(mixed.filterIsInstance(of: String.self), ["a", "b"])
@@ -142,6 +154,7 @@ final class CommonUtilTest: XCTestCase {
         assertEquals(objects.filterIsInstance(of: Derived.self).count, 1)
     }
 
+    @Test
     func testFlattenOptional() {
         let some: Int?? = .some(.some(1))
         let someNil: Int?? = .some(nil)
@@ -151,6 +164,7 @@ final class CommonUtilTest: XCTestCase {
         assertNil(none.flattenOptional())
     }
 
+    @Test
     func testSequenceHelpers() {
         assertEquals([1.5, 2.5].sumOfDouble { $0 * 2 }, 8.0)
         assertEquals([Double]().sumOfDouble { $0 }, 0.0)
@@ -160,6 +174,7 @@ final class CommonUtilTest: XCTestCase {
         assertNil([1, 2, 3].singleOrNil(where: { $0 > 3 }))
     }
 
+    @Test
     func testEncodeToString() {
         assertEquals(JSONEncoder.aeroSpaceDefault.encodeToString(["b": 1, "a": 2]), "{\n  \"a\" : 2,\n  \"b\" : 1\n}")
         assertEquals(JSONEncoder.aeroSpaceDefault.encodeToString("a/b"), "\"a/b\"")
