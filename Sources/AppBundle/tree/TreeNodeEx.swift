@@ -43,25 +43,12 @@ extension TreeNode {
         return result
     }
 
-    /// Also see visualWorkspace
     var nodeWorkspace: Workspace? {
         self as? Workspace ?? parent?.nodeWorkspace
     }
 
-    /// Also see: workspace
-    var visualWorkspace: Workspace? { nodeWorkspace ?? nodeMonitor?.activeWorkspace }
-
-    var nodeMonitor: MonitorInfo? {
-        switch self.nodeCases {
-            case .workspace(let ws): ws.workspaceMonitor
-            case .window,
-                 .tilingContainer,
-                 .macosFullscreenWindowsContainer,
-                 .macosHiddenAppsWindowsContainer,
-                 .floatingWindowsContainer: parent?.nodeMonitor
-            case .macosMinimizedWindowsContainer, .macosPopupWindowsContainer: nil
-        }
-    }
+    /// nil for the minimized and popup windows: their containers are roots, like workspaces
+    var nodeMonitor: MonitorInfo? { nodeWorkspace?.workspaceMonitor }
 
     var mostRecentWindowRecursive: Window? {
         self as? Window ?? mostRecentChild?.mostRecentWindowRecursive

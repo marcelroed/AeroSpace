@@ -74,7 +74,7 @@ extension Window {
         return setFocus(to: focus)
     }
 
-    func toLiveFocusOrNil() -> LiveFocus? { visualWorkspace.map { LiveFocus(windowOrNil: self, workspace: $0) } }
+    func toLiveFocusOrNil() -> LiveFocus? { nodeWorkspace.map { LiveFocus(windowOrNil: self, workspace: $0) } }
 }
 extension Workspace {
     func focusWorkspace() -> Bool { setFocus(to: toLiveFocus()) }
