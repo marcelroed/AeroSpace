@@ -148,7 +148,8 @@ public func check(
     }
 }
 
-public var isUnitTest: Bool { NSClassFromString("XCTestCase") != nil }
+// Computed once: XCTest is either loaded before any code reads this (test runner), or never loaded at all
+public let isUnitTest: Bool = NSClassFromString("XCTestCase") != nil
 
 extension CaseIterable where Self: RawRepresentable, RawValue == String {
     public static var cliArgsCases: [String] { allCases.map(\.rawValue) }
