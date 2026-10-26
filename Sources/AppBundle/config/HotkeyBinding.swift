@@ -32,9 +32,12 @@ extension HotKey {
         hotkeys[binding.descriptionWithKeyCode] = HotKey(key: binding.keyCode, modifiers: binding.modifiers, keyDownHandler: {
             Task.startUnstructured {
                 if let activeMode {
+                    // The HotKey is registered by the first mode that binds the key code. Another mode can bind the same
+                    // key code with another notation (e.g. 'shift-alt-a' and 'alt-shift-a')
+                    let activeBinding = config.modes[activeMode]?.bindings[binding.descriptionWithKeyCode] ?? binding
                     broadcastEvent(.bindingTriggered(
                         mode: activeMode,
-                        binding: binding.descriptionWithKeyNotation,
+                        binding: activeBinding.descriptionWithKeyNotation,
                     ))
                     try await runLightSession(.hotkeyBinding, .checkServerIsEnabledOrDie()) { () throws in
                         _ = await config.modes[activeMode]?.bindings[binding.descriptionWithKeyCode]?.commands
