@@ -1,11 +1,11 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
 @MainActor
-final class SplitCommandTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
-
+@Suite(.aeroSpaceGlobalState)
+struct SplitCommandTest: AeroSpaceTestSuite {
+    @Test
     func testSplit() async {
         let root = Workspace.get(byName: name).rootTilingContainer.apply {
             assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
@@ -21,6 +21,7 @@ final class SplitCommandTest: XCTestCase {
         ]))
     }
 
+    @Test
     func testSplitOppositeOrientation() async {
         let root = Workspace.get(byName: name).rootTilingContainer.apply {
             assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
@@ -36,6 +37,7 @@ final class SplitCommandTest: XCTestCase {
         ]))
     }
 
+    @Test
     func testChangeOrientation() async {
         let root = Workspace.get(byName: name).rootTilingContainer.apply {
             TilingContainer.newVTiles(parent: $0, adaptiveWeight: 1).apply {
@@ -53,6 +55,7 @@ final class SplitCommandTest: XCTestCase {
         ]))
     }
 
+    @Test
     func testToggleOrientation() async {
         let root = Workspace.get(byName: name).rootTilingContainer.apply {
             TilingContainer.newVTiles(parent: $0, adaptiveWeight: 1).apply {
