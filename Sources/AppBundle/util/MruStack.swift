@@ -23,7 +23,7 @@ final class MruStack<T: Equatable>: Sequence {
             if cur.value == value {
                 switch prev {
                     case let prev?: prev.next = cur.next
-                    case nil: mruNode = current?.next
+                    case nil: mruNode = cur.next
                 }
                 cur.next = nil
                 return true

@@ -34,35 +34,13 @@ public struct ArrSlice<Element>: AeroAny, ExpressibleByArrayLiteral, RandomAcces
     /*conforms*/ public var endIndex: Int { count }
     /*conforms*/ public func index(after i: Int) -> Int { i + 1 }
     /*conforms*/ public var indices: Range<Int> { 0 ..< count }
-    public func makeIterator() -> some IteratorProtocol<Element> { ArrSliceIterator(backing: self) }
     public func toArray() -> [Element] { Array(self) }
-}
-
-private struct ArrSliceIterator<Element>: IteratorProtocol {
-    fileprivate let backing: ArrSlice<Element>
-    fileprivate var index: Int = 0
-
-    mutating func next() -> Element? {
-        if index < backing.count {
-            let value = backing[index]
-            index += 1
-            return value
-        } else {
-            return nil
-        }
-    }
 }
 
 extension ArrSlice: Sendable where Element: Sendable {}
 
 extension ArrSlice: Equatable where Element: Equatable {
-    public static func == (lhs: Self, rhs: Self) -> Bool {
-        if lhs.count != rhs.count { return false }
-        for i in lhs.indices {
-            if lhs[i] != rhs[i] { return false }
-        }
-        return true
-    }
+    public static func == (lhs: Self, rhs: Self) -> Bool { lhs.count == rhs.count && lhs.elementsEqual(rhs) }
 }
 
 extension Array {

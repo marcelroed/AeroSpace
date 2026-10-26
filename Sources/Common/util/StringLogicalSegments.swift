@@ -1,19 +1,6 @@
 public typealias StringLogicalSegments = [StringLogicalSegment]
 extension StringLogicalSegments {
-    public static func < (lhs: Self, rhs: Self) -> Bool {
-        for (a, b) in zip(lhs, rhs) {
-            if a < b {
-                return true
-            }
-            if a > b {
-                return false
-            }
-        }
-        if lhs.count != rhs.count {
-            return lhs.count < rhs.count
-        }
-        return false
-    }
+    public static func < (lhs: Self, rhs: Self) -> Bool { lhs.lexicographicallyPrecedes(rhs) }
 }
 
 public enum StringLogicalSegment: Comparable, Equatable, Sendable {
@@ -36,7 +23,7 @@ extension String {
         var isPrevNumber: Bool = false // Initial value doesn't matter
         var result: [String] = []
         for char in self {
-            let isCurNumber = Int(char.description) != nil
+            let isCurNumber = char.isASCII && char.isNumber
             if isCurNumber != isPrevNumber && !currentSegment.isEmpty {
                 result.append(currentSegment)
                 currentSegment = ""

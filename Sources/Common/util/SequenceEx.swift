@@ -3,15 +3,7 @@ import OrderedCollections
 extension Sequence {
     public func filterNotNil<Unwrapped>() -> [Unwrapped] where Element == Unwrapped? { compactMap(id) }
 
-    @inlinable public func filterIsInstance<R>(of _: R.Type) -> [R] {
-        var result: [R] = []
-        for elem in self {
-            if let elemR = elem as? R {
-                result.append(elemR)
-            }
-        }
-        return result
-    }
+    @inlinable public func filterIsInstance<R>(of _: R.Type) -> [R] { compactMap { $0 as? R } }
 
     public var first: Element? { // Used by non-Collection sequences, e.g. OrderedDictionary
         var iter = makeIterator()
@@ -102,13 +94,7 @@ extension Sequence {
         Dictionary(grouping: self, by: criterion)
     }
 
-    public var withIndex: [(index: Int, value: Element)] {
-        var index = -1
-        return map {
-            index += 1
-            return (index, $0)
-        }
-    }
+    public var withIndex: [(index: Int, value: Element)] { enumerated().map { (index: $0.offset, value: $0.element) } }
 
     public func toSet() -> Set<Element> where Element: Hashable { Set(self) }
     public func toOrderedSet() -> OrderedSet<Element> where Element: Hashable { OrderedSet(self) }

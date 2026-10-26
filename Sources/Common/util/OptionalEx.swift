@@ -20,12 +20,7 @@ extension Optional {
         }
     }
 
-    public func flattenOptional<T>() -> T? where Wrapped == T? {
-        switch self {
-            case let x?: x
-            case nil: nil
-        }
-    }
+    public func flattenOptional<T>() -> T? where Wrapped == T? { flatMap { $0 } }
 
     public var prettyDescription: String {
         switch self {

@@ -35,7 +35,7 @@ public func bugPrompt(
         Thread name: \(thread.name.prettyDescription)
         Is main thread: \(thread.isMainThread)
         axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken.prettyDescription)
-        macOS version: \(ProcessInfo().operatingSystemVersionString)
+        macOS version: \(ProcessInfo.processInfo.operatingSystemVersionString)
         Coordinate: \(file):\(line):\(column) \(function)
         recursionDetectorDuringTermination: \(recursionDetectorDuringTermination)
         cli: \(isCli)
