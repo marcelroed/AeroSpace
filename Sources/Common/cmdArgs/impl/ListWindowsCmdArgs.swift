@@ -20,7 +20,6 @@ public struct ListWindowsCmdArgs: CmdArgs {
             "--count": trueBoolFlag(\.outputOnlyCount),
             "--json": trueBoolFlag(\.json),
         ],
-        posArgs: [],
         conflictingOptions: [
             ["--all", "--focused", "--workspace"],
             ["--all", "--focused", "--monitor"],

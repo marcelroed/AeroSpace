@@ -11,7 +11,6 @@ public struct ListAppsCmdArgs: CmdArgs {
             "--count": trueBoolFlag(\.outputOnlyCount),
             "--json": trueBoolFlag(\.json),
         ],
-        posArgs: [],
         conflictingOptions: [
             ["--count", "--format"],
             ["--count", "--json"],

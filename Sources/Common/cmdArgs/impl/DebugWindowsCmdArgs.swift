@@ -6,6 +6,5 @@ public struct DebugWindowsCmdArgs: CmdArgs {
         flags: [
             "--window-id": windowIdSubArgParser(),
         ],
-        posArgs: [],
     )
 }

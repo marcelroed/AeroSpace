@@ -6,7 +6,6 @@ public struct CloseAllWindowsButCurrentCmdArgs: CmdArgs {
         flags: [
             "--quit-if-last-window": ArgParser(\.closeArgs.quitIfLastWindow, constSubArgParserFun(true)),
         ],
-        posArgs: [],
     )
 
     public var closeArgs = CloseCmdArgs(rawArgs: [])

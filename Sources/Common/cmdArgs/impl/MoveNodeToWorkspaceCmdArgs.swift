@@ -25,9 +25,7 @@ public struct MoveNodeToWorkspaceCmdArgs: CmdArgs {
     public var focusFollowsWindow: Bool = false
     public var target: Lateinit<WorkspaceTarget> = .uninitialized
 
-    public init(rawArgs: StrArrSlice) {
-        self.commonState = .init(rawArgs)
-    }
+    public init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
 }
 
 extension MoveNodeToWorkspaceCmdArgs {

@@ -6,6 +6,5 @@ public struct MacosNativeMinimizeCmdArgs: CmdArgs {
         flags: [
             "--window-id": windowIdSubArgParser(),
         ],
-        posArgs: [],
     )
 }

@@ -28,7 +28,7 @@ func parseSpecificCmdArgs<T: CmdArgs>(_ raw: T, _ args: StrArrSlice) -> ParsedCm
                 if arg == "--" {
                     positionalOnly = true
                 }
-                if let parser = T.parser.positionalArgs.getOrNil(atIndex: posArgumentParserIndex) {
+                if let parser = T.parser.posArgs.getOrNil(atIndex: posArgumentParserIndex) {
                     let input = PosArgParserInput(index: index, args: args, sawDashDash: positionalOnly)
                     raw = parser.transformRaw(raw, &index, input, &errors)
                     posArgumentParserIndex += 1
@@ -39,7 +39,7 @@ func parseSpecificCmdArgs<T: CmdArgs>(_ raw: T, _ args: StrArrSlice) -> ParsedCm
         }
     }
 
-    for arg in T.parser.positionalArgs[posArgumentParserIndex...] {
+    for arg in T.parser.posArgs[posArgumentParserIndex...] {
         if let placeholder = arg.context.argPlaceholderIfMandatory {
             errors.append("Argument \(placeholder.singleQuoted) is mandatory")
         }

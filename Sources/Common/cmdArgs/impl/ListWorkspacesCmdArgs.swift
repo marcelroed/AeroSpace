@@ -20,7 +20,6 @@ public struct ListWorkspacesCmdArgs: CmdArgs {
             "--count": trueBoolFlag(\.outputOnlyCount),
             "--json": trueBoolFlag(\.json),
         ],
-        posArgs: [],
         conflictingOptions: [
             ["--all", "--focused", "--monitor"],
             ["--count", "--format"],

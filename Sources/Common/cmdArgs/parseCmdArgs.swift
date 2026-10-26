@@ -60,23 +60,9 @@ extension CmdArgs {
 
 public struct CmdParser<Root>: Sendable {
     public let kind: CmdKind
-    let flags: [String: any ArgParserProtocol<SubArgParserInput, Root, ()>]
-    let positionalArgs: [any ArgParserProtocol<PosArgParserInput, Root, PosArgParserContext>]
-    let conflictingOptions: [Set<String>]
+    var flags: [String: any ArgParserProtocol<SubArgParserInput, Root, ()>] = [:]
+    var posArgs: [any ArgParserProtocol<PosArgParserInput, Root, PosArgParserContext>] = []
+    var conflictingOptions: [Set<String>] = []
     /// Whether args like `-10` are positional arguments rather than unknown flags
-    let negativeNumbersArePositional: Bool
-
-    init(
-        kind: CmdKind,
-        flags: [String: any ArgParserProtocol<SubArgParserInput, Root, ()>],
-        posArgs: [any ArgParserProtocol<PosArgParserInput, Root, PosArgParserContext>],
-        conflictingOptions: [Set<String>] = [],
-        negativeNumbersArePositional: Bool = false,
-    ) {
-        self.kind = kind
-        self.flags = flags
-        self.positionalArgs = posArgs
-        self.conflictingOptions = conflictingOptions
-        self.negativeNumbersArePositional = negativeNumbersArePositional
-    }
+    var negativeNumbersArePositional = false
 }

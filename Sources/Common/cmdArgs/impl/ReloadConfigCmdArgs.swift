@@ -8,7 +8,6 @@ public struct ReloadConfigCmdArgs: CmdArgs {
             "--dry-run": trueBoolFlag(\.dryRun),
             "--warnings-as-errors": trueBoolFlag(\.warningsAsErrors),
         ],
-        posArgs: [],
     )
 
     public var noGui: Bool = false

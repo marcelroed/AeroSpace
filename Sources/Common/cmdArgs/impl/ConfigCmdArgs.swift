@@ -10,7 +10,6 @@ public struct ConfigCmdArgs: CmdArgs, Equatable {
             "--config-path": trueBoolFlag(\.configPath),
             "--get": singleValueSubArgParser(\.keyNameToGet, "<name>", Result.success),
         ],
-        posArgs: [],
     )
 
     public var json: Bool = false

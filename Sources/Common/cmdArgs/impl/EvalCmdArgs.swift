@@ -10,7 +10,6 @@ public struct EvalCmdArgs: CmdArgs {
             dashDashArg(mandatory: false),
             newMandatoryPosArgParser(\.shellExpr, consumeStrCliArg, placeholder: "<aerospace-shell-expr>"),
         ],
-        conflictingOptions: [],
     )
 
     public var shellExpr: Lateinit<String> = .uninitialized

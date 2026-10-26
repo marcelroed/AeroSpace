@@ -7,7 +7,6 @@ public struct CloseCmdArgs: CmdArgs {
             "--quit-if-last-window": trueBoolFlag(\.quitIfLastWindow),
             "--window-id": windowIdSubArgParser(),
         ],
-        posArgs: [],
     )
 
     public var quitIfLastWindow: Bool = false

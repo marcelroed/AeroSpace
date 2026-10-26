@@ -6,6 +6,5 @@ public struct FlattenWorkspaceTreeCmdArgs: CmdArgs {
         flags: [
             "--workspace": workspaceSubArgParser(),
         ],
-        posArgs: [],
     )
 }

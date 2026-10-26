@@ -1,8 +1,6 @@
 public struct SubscribeCmdArgs: CmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
-    fileprivate init(rawArgs: StrArrSlice) {
-        self.commonState = .init(rawArgs)
-    }
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
     public static let parser: CmdParser<Self> = .init(
         kind: .subscribe,
         flags: [

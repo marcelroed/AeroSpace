@@ -6,6 +6,5 @@ public struct BalanceSizesCmdArgs: CmdArgs {
         flags: [
             "--workspace": workspaceSubArgParser(),
         ],
-        posArgs: [],
     )
 }
