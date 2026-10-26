@@ -4,7 +4,7 @@ import OrderedCollections
 extension Sequence {
     public func filterNotNil<Unwrapped>() -> [Unwrapped] where Element == Unwrapped? { compactMap(id) }
 
-    public func filterIsInstance<R>(of _: R.Type) -> [R] {
+    @inlinable public func filterIsInstance<R>(of _: R.Type) -> [R] {
         var result: [R] = []
         for elem in self {
             if let elemR = elem as? R {
@@ -91,7 +91,7 @@ extension Sequence {
         })
     }
 
-    public func sumOfDouble(_ selector: (Self.Element) -> Double) -> Double {
+    @inlinable public func sumOfDouble(_ selector: (Self.Element) -> Double) -> Double {
         var result: Double = 0
         for elem in self {
             result += selector(elem)
@@ -99,7 +99,7 @@ extension Sequence {
         return result
     }
 
-    public func sumOfInt(_ selector: (Self.Element) -> Int) -> Int {
+    @inlinable public func sumOfInt(_ selector: (Self.Element) -> Int) -> Int {
         var result: Int = 0
         for elem in self {
             result += selector(elem)

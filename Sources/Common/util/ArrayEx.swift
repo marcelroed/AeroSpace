@@ -14,7 +14,7 @@ extension Array {
         return result
     }
 
-    public func singleOrNil(where predicate: (Self.Element) throws -> Bool) rethrows -> Self.Element? {
+    @inlinable public func singleOrNil(where predicate: (Self.Element) throws -> Bool) rethrows -> Self.Element? {
         var found: Self.Element? = nil
         for elem in self where try predicate(elem) {
             switch found == nil {
