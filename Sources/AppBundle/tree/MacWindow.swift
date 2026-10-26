@@ -109,6 +109,9 @@ final class MacWindow: Window {
         // Don't accidentally override prevUnhiddenProportionalPositionInsideWorkspaceRect in case of subsequent `hideInCorner` calls
         if !isHiddenInCorner {
             guard let windowRect = try await getAxRect(.cancellable) else { return }
+            // The screens may disappear at the suspension point above. Don't remember the position relative to the fake
+            // mainMonitorInfo, the window would come back at the wrong place
+            if !hasScreens { return }
             // Check for isHiddenInCorner for the second time because of the suspension point above
             if !isHiddenInCorner {
                 let topLeftCorner = windowRect.topLeftCorner
