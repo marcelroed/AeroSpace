@@ -81,9 +81,10 @@ enum Ax {
     static let sizeAttr = WritableAttrImpl<CGSize>(
         key: kAXSizeAttribute,
         getter: {
+            // The app can return a value of any type. AXValueGetValue returns false for an AXValue of another type
+            guard CFGetTypeID($0) == AXValueGetTypeID() else { return nil }
             var raw: CGSize = .zero
-            check(unsafe AXValueGetValue($0 as! AXValue, .cgSize, &raw))
-            return raw
+            return unsafe AXValueGetValue($0 as! AXValue, .cgSize, &raw) ? raw : nil
         },
         setter: {
             var size = $0
@@ -93,9 +94,10 @@ enum Ax {
     static let topLeftCornerAttr = WritableAttrImpl<CGPoint>(
         key: kAXPositionAttribute,
         getter: {
+            // The app can return a value of any type. AXValueGetValue returns false for an AXValue of another type
+            guard CFGetTypeID($0) == AXValueGetTypeID() else { return nil }
             var raw: CGPoint = .zero
-            check(unsafe AXValueGetValue($0 as! AXValue, .cgPoint, &raw))
-            return raw
+            return unsafe AXValueGetValue($0 as! AXValue, .cgPoint, &raw) ? raw : nil
         },
         setter: {
             var size = $0
