@@ -13,7 +13,7 @@ struct ConfigCommand: Command {
                 let out = """
                     .
                     mode
-                    \(config.modes.keys.map { "mode.\($0).binding" }.joined(separator: "\n"))
+                    \(config.modes.keys.sorted().map { "mode.\($0).binding" }.joined(separator: "\n"))
                     """
                 return .succ(io.out(out))
             case .allKeys:
@@ -45,7 +45,7 @@ extension String {
             case .scalar(let scalar):
                 return .fail(io.err("--keys flag cannot be applied to scalar object '\(scalar)'"))
             case .map(let map):
-                configMap = .array(map.keys.map { .scalar(.string($0)) })
+                configMap = .array(map.keys.sorted().map { .scalar(.string($0)) })
             case .array(let array):
                 configMap = .array((0 ..< array.count).map { .scalar(.int($0)) })
         }
@@ -109,7 +109,7 @@ extension ConfigMapValue {
         switch self {
             case .scalar: break
             case .map(let map):
-                for (key, value) in map {
+                for (key, value) in map.sorted(by: { $0.key < $1.key }) {
                     let path = path == "." ? key : path + "." + key
                     value.dumpAllKeysRecursive(path: path, result: &result)
                 }

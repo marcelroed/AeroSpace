@@ -24,4 +24,16 @@ struct TriggerBindingCommandTest: AeroSpaceTestSuite {
         )
         testParseCommandFail("trigger-binding --mode main --", msg: "ERROR: Argument '<binding>' is mandatory", exitCode: 2)
     }
+
+    @Test
+    func testUnknownMode_listsAvailableModesSorted() async {
+        // Ten modes, so that the dictionary order can't match the sorted order by chance (RB-13)
+        let modeNames = ["main", "service", "resize", "move", "a", "z", "b", "y", "c", "x"]
+        config.modes = Dictionary(uniqueKeysWithValues: modeNames.map { ($0, Mode(bindings: [:])) })
+
+        let result = await parseCommand("trigger-binding alt-h --mode unknown").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result.exitCode.rawValue, 2)
+        assertEquals(result.stdout, [])
+        assertEquals(result.stderr, ["Mode 'unknown' doesn't exist. Available modes: a,b,c,main,move,resize,service,x,y,z"])
+    }
 }
