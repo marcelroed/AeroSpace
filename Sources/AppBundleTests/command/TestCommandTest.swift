@@ -32,6 +32,17 @@ final class TestCommandTest: XCTestCase {
         testParseCommandFail("test %{window-id} = %{invalid}", msg: "ERROR: Right hand side doesn\'t allow interpolation variables", exitCode: 2)
     }
 
+    func testParseHelpPrintsOwnUsage() {
+        // test-not parses its arguments with TestCmdArgs, but its help must still be its own (RB-11)
+        for (command, expectedHelp) in [("test --help", TestCmdArgs.info.help), ("test-not --help", TestNotCmdArgs.info.help), ("test-not -h", TestNotCmdArgs.info.help)] {
+            switch parseCommand(command) {
+                case .help(let help): assertEquals(help, expectedHelp)
+                case let parsed: failExpectedActual("'\(command)' parsed as help", parsed)
+            }
+        }
+        assertTrue(TestNotCmdArgs.info.help.hasPrefix("USAGE: test-not "))
+    }
+
     func testExec() async {
         Workspace.get(byName: name).rootTilingContainer.apply {
             assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
