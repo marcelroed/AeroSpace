@@ -53,7 +53,7 @@ extension CmdArgs {
     public var description: String {
         switch Self.info.kind {
             case .execAndForget:
-                CmdKind.execAndForget.rawValue + " " + (self as! ExecAndForgetCmdArgs).bashScript
+                CmdKind.execAndForget.rawValue + (self as! ExecAndForgetCmdArgs).bashScript // bashScript keeps the whitespace after the name
             default:
                 ([Self.info.kind.rawValue] + commonState.rawArgsForStrRepr.value.toArray()).joinArgs()
         }
