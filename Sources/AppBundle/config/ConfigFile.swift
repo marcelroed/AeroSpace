@@ -13,11 +13,10 @@ func findCustomConfigUrl() -> ConfigFile {
                 xdgConfigHome.appending(path: "aerospace").appending(path: "aerospace.toml"),
             ]
     }
-    let existingCandidates: [URL] = candidates.filter { (candidate: URL) in FileManager.default.fileExists(atPath: candidate.path) }
-    let count = existingCandidates.count
-    return switch count {
+    let existingCandidates = candidates.filter { FileManager.default.fileExists(atPath: $0.path) }
+    return switch existingCandidates.count {
         case 0: .noCustomConfigExists
-        case 1: .file(existingCandidates.first.orDie())
+        case 1: .file(existingCandidates[0])
         default: .ambiguousConfigError(existingCandidates)
     }
 }
@@ -26,7 +25,7 @@ enum ConfigFile {
     case file(URL), ambiguousConfigError(_ candidates: [URL]), noCustomConfigExists
 
     var urlOrNil: URL? {
-        return switch self {
+        switch self {
             case .file(let url): url
             case .ambiguousConfigError, .noCustomConfigExists: nil
         }
