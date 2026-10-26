@@ -45,15 +45,16 @@ final class MacApp: AbstractApp {
 
     @MainActor
     @discardableResult
-    static func getOrRegister(_ nsApp: NSRunningApplication) async throws -> MacApp? {
+    static func getOrRegister(_ nsApp: NSRunningApplication, pid: pid_t? = nil) async throws -> MacApp? {
+        let pid = pid ?? nsApp.processIdentifier
+        // Look up first (saves a bundleIdentifier XPC): the lock screen and AeroSpace itself are never registered
+        if let existing = allAppsMap[pid] { return existing }
         // Don't perceive any of the lock screen windows as real windows
         // Otherwise, false positive ax notifications might trigger that lead to gcWindows
         if nsApp.bundleIdentifier == lockScreenAppBundleId { return nil }
-        let pid = nsApp.processIdentifier
         // AX requests crash if you send them to yourself
         if pid == myPid { return nil }
 
-        if let existing = allAppsMap[pid] { return existing }
         try checkCancellation()
         if let wip = wipPids[pid] {
             try await wip.await()
@@ -266,9 +267,10 @@ final class MacApp: AbstractApp {
         }
         return try await withThrowingTaskGroup(of: (pid_t, [UInt32]).self, returning: [MacApp: [UInt32]].self) { group in
             func refreshTheApp(_ nsApp: NSRunningApplication) {
+                let pid = nsApp.processIdentifier // Free right after activationPolicy, an XPC after a suspension point
                 group.addTask { @Sendable @MainActor in
-                    guard let app = try await MacApp.getOrRegister(nsApp) else { return (nsApp.processIdentifier, []) }
-                    return (nsApp.processIdentifier, try await app.refreshAndGetAliveWindowIds(frontmostAppBundleId: frontmostAppBundleId))
+                    guard let app = try await MacApp.getOrRegister(nsApp, pid: pid) else { return (pid, []) }
+                    return (pid, try await app.refreshAndGetAliveWindowIds(frontmostAppBundleId: frontmostAppBundleId))
                 }
             }
             // Register new apps
