@@ -10,20 +10,11 @@ struct FullscreenCommand: Command {
         guard let window = target.windowOrNil else {
             return .fail(io.err(noWindowIsFocused))
         }
-        let newState: Bool = switch args.toggle {
-            case .on: true
-            case .off: false
-            case .toggle: !window.isFullscreen
-        }
+        let newState = args.toggle.resolve(current: window.isFullscreen)
         if newState == window.isFullscreen {
-            switch args.failIfNoop {
-                case true: return .fail
-                case false:
-                    let msg = newState
-                        ? "Already fullscreen. Tip: use --fail-if-noop to exit with non-zero code"
-                        : "Already not fullscreen. Tip: use --fail-if-noop to exit with non-zero code"
-                    return .succ(io.err(msg))
-            }
+            return .noop(io, failIfNoop: args.failIfNoop, newState
+                ? "Already fullscreen. Tip: use --fail-if-noop to exit with non-zero code"
+                : "Already not fullscreen. Tip: use --fail-if-noop to exit with non-zero code")
         }
         window.isFullscreen = newState
         window.noOuterGapsInFullscreen = args.noOuterGaps

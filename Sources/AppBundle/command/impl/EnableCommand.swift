@@ -7,20 +7,11 @@ struct EnableCommand: Command {
 
     func run(_ env: CmdEnv, _ io: CmdIo) async -> BinaryExitCode {
         let prevState = TrayMenuModel.shared.isEnabled
-        let newState: Bool = switch args.targetState.val {
-            case .on: true
-            case .off: false
-            case .toggle: !TrayMenuModel.shared.isEnabled
-        }
+        let newState = args.targetState.val.resolve(current: prevState)
         if newState == prevState {
-            switch args.failIfNoop {
-                case true: return .fail
-                case false:
-                    let msg = newState
-                        ? "Already enabled. Tip: use --fail-if-noop to exit with non-zero code"
-                        : "Already disabled. Tip: use --fail-if-noop to exit with non-zero code"
-                    return .succ(io.err(msg))
-            }
+            return .noop(io, failIfNoop: args.failIfNoop, newState
+                ? "Already enabled. Tip: use --fail-if-noop to exit with non-zero code"
+                : "Already disabled. Tip: use --fail-if-noop to exit with non-zero code")
         }
 
         TrayMenuModel.shared.isEnabled = newState
