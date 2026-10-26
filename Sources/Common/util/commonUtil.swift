@@ -22,6 +22,10 @@ public func bugPrompt(
 ) -> String {
     let _message = __message.contains("\n") ? "\n" + __message.prefixLines(with: "    ") : __message
     let thread = Thread.current
+    // AppKit doesn't document NSScreen as thread-safe, and the dying thread is often an AX thread
+    let notMainThread = "n/a (not main thread)"
+    let monitorCount = thread.isMainThread ? NSScreen.screens.count.description : notMainThread
+    let screensHaveSeparateSpaces = thread.isMainThread ? NSScreen.screensHaveSeparateSpaces.description : notMainThread
     return """
         Please report to:
             https://github.com/nikitabobko/AeroSpace/discussions/categories/potential-bugs
@@ -40,8 +44,8 @@ public func bugPrompt(
         recursionDetectorDuringTermination: \(recursionDetectorDuringTermination)
         cli: \(isCli)
         die: \(isDie)
-        Monitor count: \(NSScreen.screens.count)
-        Displays have separate spaces: \(NSScreen.screensHaveSeparateSpaces)
+        Monitor count: \(monitorCount)
+        Displays have separate spaces: \(screensHaveSeparateSpaces)
 
         Stacktrace:
         \(getStringStacktrace())
