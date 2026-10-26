@@ -34,8 +34,8 @@ private struct AppServerTerminationHandler: TerminationHandler {
             let monitorVisibleRect = monitor.visibleRect
             let windowSize = window.lastFloatingSize ?? CGSize(width: monitorVisibleRect.width, height: monitorVisibleRect.height)
             let point = CGPoint(
-                x: (monitorVisibleRect.width - windowSize.width) / 2,
-                y: (monitorVisibleRect.height - windowSize.height) / 2,
+                x: monitorVisibleRect.topLeftX + (monitorVisibleRect.width - windowSize.width) / 2,
+                y: monitorVisibleRect.topLeftY + (monitorVisibleRect.height - windowSize.height) / 2,
             )
             window.macApp.setAxFrameForTermination(window.windowId, point, windowSize)
         }
