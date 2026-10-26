@@ -16,6 +16,9 @@ public final class TrayMenuModel: ObservableObject {
     @Published var sponsorshipMessage: String = sponsorshipPrompts.randomElement().orDie()
     @Published var lastReloadConfigContainedWarnings: Bool = false
     @Published var axPermissionStatus: AxPermissionStatus = .waitingWithPrompt
+    // Polled by updateTrayText, since nothing notifies us when these change
+    @Published var appearanceTheme: AppearanceTheme = .current
+    @Published var textEditorToOpenConfig: URL = getTextEditorToOpenConfig()
 }
 
 enum AxPermissionStatus: Equatable {
@@ -72,6 +75,12 @@ enum AxPermissionStatus: Equatable {
     if model.trayText != trayText { model.trayText = trayText }
     if model.workspaces != workspaces { model.workspaces = workspaces }
     if model.trayItems != trayItems { model.trayItems = trayItems }
+    // The menu also shows values that nothing notifies us about. Poll them here, so that the first refresh after they
+    // change still rebuilds the menu
+    let appearanceTheme = AppearanceTheme.current
+    if model.appearanceTheme != appearanceTheme { model.appearanceTheme = appearanceTheme }
+    let textEditorToOpenConfig = getTextEditorToOpenConfig()
+    if model.textEditorToOpenConfig != textEditorToOpenConfig { model.textEditorToOpenConfig = textEditorToOpenConfig }
 }
 
 extension [Window] {

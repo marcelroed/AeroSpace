@@ -1,4 +1,5 @@
 @testable import AppBundle
+import AppKit
 import Combine
 import Common
 import XCTest
@@ -83,6 +84,27 @@ final class TrayMenuModelTest: XCTestCase {
         }
         updateTrayText()
         assertEquals(publishedChanges, 3) // trayText, workspaces, trayItems
+    }
+
+    func testUpdateTrayText_publishesAppearanceChange() {
+        let app = NSApplication.shared
+        let prevAppearance = app.appearance
+        defer {
+            app.appearance = prevAppearance
+            updateTrayText()
+        }
+        app.appearance = NSAppearance(named: .aqua)
+        updateTrayText()
+        assertEquals(TrayMenuModel.shared.appearanceTheme, .light)
+        var publishedChanges = 0
+        let subscription = TrayMenuModel.shared.objectWillChange.sink { publishedChanges += 1 }
+        defer { subscription.cancel() }
+
+        // The tray text stays the same, but the menu must still be rebuilt with the new appearance
+        app.appearance = NSAppearance(named: .darkAqua)
+        updateTrayText()
+        assertEquals(TrayMenuModel.shared.appearanceTheme, .dark)
+        assertEquals(publishedChanges, 1)
     }
 
     func testSystemImageName() {

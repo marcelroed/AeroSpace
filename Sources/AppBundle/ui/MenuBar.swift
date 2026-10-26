@@ -25,7 +25,7 @@ public func menuBar(viewModel: TrayMenuModel) -> some Scene { // todo should it 
             Divider()
             enableToggleButton(viewModel)
             getExperimentalUISettingsMenu(viewModel: viewModel)
-            openConfigButton()
+            openConfigButton(editor: viewModel.textEditorToOpenConfig)
             reloadConfigButton(warningsAsErrors: false)
         } else {
             Button("AeroSpace requires accessibility permission to move windows") {
@@ -113,8 +113,7 @@ private func menuBarIcon(_ viewModel: TrayMenuModel) -> some View {
 }
 
 @MainActor @ViewBuilder
-func openConfigButton(showShortcutGroup: Bool = false) -> some View {
-    let editor = getTextEditorToOpenConfig()
+func openConfigButton(editor: URL = getTextEditorToOpenConfig(), showShortcutGroup: Bool = false) -> some View {
     let button = Button("Open config in '\(editor.lastPathComponent)'") {
         let fallbackConfig: URL = FileManager.default.homeDirectoryForCurrentUser.appending(path: configDotfileName)
         switch findCustomConfigUrl() {

@@ -37,7 +37,7 @@ enum ExperimentalUISettingsItems: String {
 
 @MainActor
 func getExperimentalUISettingsMenu(viewModel: TrayMenuModel) -> some View {
-    let color = AppearanceTheme.current == .dark ? Color.white : Color.black
+    let color = viewModel.appearanceTheme == .dark ? Color.white : Color.black
     return Menu {
         Text("Menu bar style (macOS 14 or later):")
         ForEach(MenuBarStyle.allCases) { style in
