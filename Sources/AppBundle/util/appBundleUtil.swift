@@ -99,7 +99,8 @@ extension CGPoint {
 
     var vectorLength: CGFloat { sqrt(x * x + y * y) }
 
-    var monitorApproximation: MonitorInfo { monitorInfos.minByOrDie { distance(toOuterFrame: $0.rect) } }
+    // Fall back to mainMonitorInfo if there are no screens (e.g., during display reconfiguration) to avoid crash
+    var monitorApproximation: MonitorInfo { monitorInfos.minBy { distance(toOuterFrame: $0.rect) } ?? mainMonitorInfo }
 
     var withYAxisFlipped: CGPoint {
         consuming get {

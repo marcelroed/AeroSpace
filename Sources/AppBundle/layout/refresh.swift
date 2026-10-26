@@ -30,6 +30,9 @@ func runHeavyCompleteRefreshSession(
     let state = signposter.beginInterval(#function, "event: \(event) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug)")
     defer { signposter.endInterval(#function, state) }
     if !TrayMenuModel.shared.isEnabled { return }
+    // No screens (e.g., during display reconfiguration). Skip the session: the model and the layout would be refreshed
+    // against the fake mainMonitorInfo. The next session catches up when the screens come back
+    if monitorInfos.isEmpty { return }
     let res = await Result {
         try await $refreshSessionEvent.withValue(event) {
             let nativeFocused = try await getNativeFocusedWindow(.cancellable)
@@ -162,6 +165,9 @@ private func layoutWorkspaces() async throws {
         return
     }
     let monitors = monitorInfos
+    // No screens (e.g., the screens disappeared in the middle of the refresh session). Don't hide windows in the corners of
+    // a monitor that doesn't exist
+    if monitors.isEmpty { return }
     var monitorToOptimalHideCorner: [CGPoint: OptimalHideCorner] = [:]
     for monitor in monitors {
         let xOff = monitor.width * 0.1

@@ -169,6 +169,9 @@ extension CGPoint {
 @MainActor
 private func rearrangeWorkspacesOnMonitors() {
     let newScreens = monitorInfos.map(\.rect.topLeftCorner)
+    // No screens (e.g., during display reconfiguration). Keep the current arrangement until the screens come back.
+    // Otherwise, every visible workspace is forgotten, and the screens get stub workspaces when they come back
+    if newScreens.isEmpty { return }
     var newScreenToOldScreenMapping: [CGPoint: CGPoint] = [:]
     for (oldScreen, _) in screenPointToVisibleWorkspace {
         guard let newScreen = newScreens.minBy({ ($0 - oldScreen).vectorLength }) else { continue }
