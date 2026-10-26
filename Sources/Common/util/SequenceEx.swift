@@ -5,11 +5,6 @@ extension Sequence {
 
     @inlinable public func filterIsInstance<R>(of _: R.Type) -> [R] { compactMap { $0 as? R } }
 
-    public var first: Element? { // Used by non-Collection sequences, e.g. OrderedDictionary
-        var iter = makeIterator()
-        return iter.next()
-    }
-
     public func mapAllOrFailure<T, E>(_ transform: (Self.Element) -> Result<T, E>) -> Result<[T], E> {
         var result: [T] = []
         for element in self {
