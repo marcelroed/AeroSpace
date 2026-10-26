@@ -4,11 +4,13 @@ extension Workspace {
     @MainActor
     func layoutWorkspace() async throws {
         if isEffectivelyEmpty { return }
-        let rect = workspaceMonitor.visibleRectPaddedByOuterGaps
+        let monitor = workspaceMonitor
+        let context = LayoutContext(self, monitor)
+        let rect = monitor.visibleRectPadded(by: context.resolvedGaps)
         // If monitors are aligned vertically and the monitor below has smaller width, then macOS may not allow the
         // window on the upper monitor to take full width. rect.height - 1 resolves this problem
         // But I also faced this problem in monitors horizontal configuration. ¯\_(ツ)_/¯
-        try await layoutRecursive(rect.topLeftCorner, width: rect.width, height: rect.height - 1, virtual: rect, LayoutContext(self))
+        try await layoutRecursive(rect.topLeftCorner, width: rect.width, height: rect.height - 1, virtual: rect, context)
     }
 }
 
@@ -61,9 +63,9 @@ private struct LayoutContext {
     let resolvedGaps: ResolvedGaps
 
     @MainActor
-    init(_ workspace: Workspace) {
+    init(_ workspace: Workspace, _ monitor: MonitorInfo) {
         self.workspace = workspace
-        self.resolvedGaps = ResolvedGaps(gaps: config.gaps, monitor: workspace.workspaceMonitor)
+        self.resolvedGaps = ResolvedGaps(gaps: config.gaps, monitor: monitor)
     }
 }
 
@@ -114,37 +116,38 @@ extension TilingContainer {
             .div(children.count) else { return }
 
         let lastIndex = children.indices.last
+        let rawGap = context.resolvedGaps.inner.get(orientation).toDouble()
         for (i, child) in children.enumerated() {
-            child.setWeight(orientation, child.getWeight(orientation) + delta)
-            let rawGap = context.resolvedGaps.inner.get(orientation).toDouble()
+            let weight = child.getWeight(orientation) + delta
+            child.setWeight(orientation, weight)
             // Gaps. Consider 4 cases:
             // 1. Multiple children. Layout first child
             // 2. Multiple children. Layout last child
             // 3. Multiple children. Layout child in the middle
-            // 4. Single child   let rawGap = gaps.inner.get(orientation).toDouble()
+            // 4. Single child
             let gap = rawGap - (i == 0 ? rawGap / 2 : 0) - (i == lastIndex ? rawGap / 2 : 0)
             try await child.layoutRecursive(
                 i == 0 ? point : point.addingOffset(orientation, rawGap / 2),
-                width: orientation == .h ? child.hWeight - gap : width,
-                height: orientation == .v ? child.vWeight - gap : height,
+                width: orientation == .h ? weight - gap : width,
+                height: orientation == .v ? weight - gap : height,
                 virtual: Rect(
                     topLeftX: virtualPoint.x,
                     topLeftY: virtualPoint.y,
-                    width: orientation == .h ? child.hWeight : width,
-                    height: orientation == .v ? child.vWeight : height,
+                    width: orientation == .h ? weight : width,
+                    height: orientation == .v ? weight : height,
                 ),
                 context,
             )
-            virtualPoint = orientation == .h ? virtualPoint.addingXOffset(child.hWeight) : virtualPoint.addingYOffset(child.vWeight)
-            point = orientation == .h ? point.addingXOffset(child.hWeight) : point.addingYOffset(child.vWeight)
+            virtualPoint = virtualPoint.addingOffset(orientation, weight)
+            point = point.addingOffset(orientation, weight)
         }
     }
 
     @MainActor
     fileprivate func layoutAccordion(_ point: CGPoint, width: CGFloat, height: CGFloat, virtual: Rect, _ context: LayoutContext) async throws {
         guard let mruIndex: Int = mostRecentChild?.ownIndex else { return }
+        let padding = CGFloat(config.accordionPadding)
         for (index, child) in children.enumerated() {
-            let padding = CGFloat(config.accordionPadding)
             let (lPadding, rPadding): (CGFloat, CGFloat) = switch index {
                 case 0 where children.count == 1: (0, 0)
                 case 0:                           (0, padding)
