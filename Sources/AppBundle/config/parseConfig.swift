@@ -159,16 +159,6 @@ private let configParser: [String: Parser<Config>] = [
     "indent-for-nested-containers-with-the-same-orientation": .diagnosticOnly(parseIndentForNestedContainersWithTheSameOrientation),
 ]
 
-extension ParsedCmd {
-    func toResult() -> ResOrStr<T> {
-        return switch self {
-            case .cmd(let a): .success(a)
-            case .help(let a): .failure(a)
-            case .failure(let a): .failure(a.msg)
-        }
-    }
-}
-
 func parseDeprecatedAfterLoginCommand(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<[any Command]> {
     if let array = raw.asArrayOrNil, array.count == 0 {
         return .success([])
@@ -203,8 +193,12 @@ func parseCommandForConfig(
     _ backtrace: ConfigBacktrace,
     _ c: inout ConfigParserContext,
 ) -> Shell<any Command> {
-    parseCommand(raw, allowExecAndForget: allowExecAndForget, allowEval: false).toResult().toParsedConfig(backtrace)
-        .getOrNil(appendErrorTo: &c.errors) ?? .empty
+    switch parseCommand(raw, allowExecAndForget: allowExecAndForget, allowEval: false) {
+        case .cmd(let shell): return shell
+        case .help(let msg): c.errors.append(.init(backtrace, msg))
+        case .failure(let failure): c.errors.append(.init(backtrace, failure.msg))
+    }
+    return .empty
 }
 
 private func parseTomlRootTable(_ rawToml: String, _ errors: inout [ConfigParseDiagnostic]) -> OrderedJson.JsonDict {
@@ -434,13 +428,9 @@ func parseBool(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigP
 
 struct ConfigBacktrace: CustomStringConvertible, Equatable {
     private var path: [TomlBacktraceItem] = []
-    private init(_ path: [TomlBacktraceItem]) {
-        check(path.first?.isKey != false, "Tried to construct invalid TOML path: \(path)")
-        self.path = path
-    }
 
-    static func rootKey(_ key: String) -> Self { .init([.key(key)]) }
-    static let emptyRoot: Self = .init([])
+    static func rootKey(_ key: String) -> Self { Self(path: [.key(key)]) }
+    static let emptyRoot: Self = Self()
 
     var description: String {
         var result = ""
