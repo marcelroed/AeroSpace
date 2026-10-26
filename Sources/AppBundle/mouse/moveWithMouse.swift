@@ -8,7 +8,7 @@ func movedObs(_: AXObserver, ax: AXUIElement, notif: CFString, _: UnsafeMutableR
 }
 
 @MainActor
-private func moveWithMouse(_ window: Window) async throws { // todo cover with tests
+func moveWithMouse(_ window: Window) async throws { // todo cover with tests
     resetClosedWindowsCache()
     switch window.windowParentCases {
         case .floatingWindowsContainer:
@@ -24,8 +24,8 @@ private func moveWithMouse(_ window: Window) async throws { // todo cover with t
 @MainActor
 private func moveFloatingWindow(_ window: Window) async throws {
     guard let targetWorkspace = try await window.getCenter(.cancellable)?.monitorApproximation.activeWorkspace else { return }
-    guard let parent = window.parent else { return }
-    if targetWorkspace != parent {
+    guard let workspace = window.nodeWorkspace else { return }
+    if targetWorkspace != workspace {
         window.bindAsFloatingWindow(to: targetWorkspace)
     }
 }
