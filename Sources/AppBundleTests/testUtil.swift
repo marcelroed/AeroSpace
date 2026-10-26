@@ -74,7 +74,7 @@ func testParseCommandFail(
     msg expectedMsg: String,
     exitCode expectedExitCode: Int32,
     fileID: String = #fileID,
-    filePath: String = #filePath,
+    filePath: StaticString = #filePath,
     line: Int = #line,
     column: Int = #column,
 ) {

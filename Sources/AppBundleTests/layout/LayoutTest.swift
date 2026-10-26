@@ -269,12 +269,12 @@ private func cg(_ rect: Rect) -> CGRect {
     CGRect(x: rect.topLeftX, y: rect.topLeftY, width: rect.width, height: rect.height)
 }
 
-private func assertEquals(_ actual: CGRect?, _ expected: Rect, fileID: String = #fileID, filePath: String = #filePath, line: Int = #line, column: Int = #column) {
+private func assertEquals(_ actual: CGRect?, _ expected: Rect, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
     assertEquals(actual, cg(expected), fileID: fileID, filePath: filePath, line: line, column: column)
 }
 
 @MainActor
-private func assertRects(_ node: TreeNode, physical: Rect, virtual: Rect, fileID: String = #fileID, filePath: String = #filePath, line: Int = #line, column: Int = #column) {
+private func assertRects(_ node: TreeNode, physical: Rect, virtual: Rect, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
     assertEquals(node.lastAppliedLayoutPhysicalRect.map(cg), physical, fileID: fileID, filePath: filePath, line: line, column: column)
     assertEquals(node.lastAppliedLayoutVirtualRect.map(cg), virtual, fileID: fileID, filePath: filePath, line: line, column: column)
 }

@@ -108,7 +108,7 @@ struct AwaitableOneTimeBroadcastLatchTest: AeroSpaceTestSuite {
         try await latch.await()
     }
 
-    private func assertThrowsCancellation<T: Sendable>(_ task: Task<T, any Error>, fileID: String = #fileID, filePath: String = #filePath, line: Int = #line, column: Int = #column) async {
+    private func assertThrowsCancellation<T: Sendable>(_ task: Task<T, any Error>, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) async {
         do {
             _ = try await task.value
             failExpectedActual("CancellationError", "no error thrown", fileID: fileID, filePath: filePath, line: line, column: column)

@@ -74,7 +74,7 @@ private func testSucInterpolation(
     _ vars: [String: String] = [:],
     expected: String,
     fileID: String = #fileID,
-    filePath: String = #filePath,
+    filePath: StaticString = #filePath,
     line: Int = #line,
     column: Int = #column,
 ) {
@@ -84,7 +84,7 @@ private func testSucInterpolation(
     }
 }
 
-private func testFailInterpolation(_ str: String, _ vars: [String: String] = [:], fileID: String = #fileID, filePath: String = #filePath, line: Int = #line, column: Int = #column) {
+private func testFailInterpolation(_ str: String, _ vars: [String: String] = [:], fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
     switch str.interpolate(with: vars) {
         case .success(let actual): failExpectedActual(nil, actual, fileID: fileID, filePath: filePath, line: line, column: column)
         case .failure: break
