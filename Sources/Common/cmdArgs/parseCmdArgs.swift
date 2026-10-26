@@ -49,12 +49,7 @@ extension CmdArgs {
     }
 
     public var description: String {
-        switch Self.parser.kind {
-            case .execAndForget:
-                CmdKind.execAndForget.rawValue + " " + (self as! ExecAndForgetCmdArgs).bashScript
-            default:
-                ([Self.parser.kind.rawValue] + commonState.rawArgsForStrRepr.value.toArray()).joinArgs()
-        }
+        ([Self.parser.kind.rawValue] + commonState.rawArgsForStrRepr.value.toArray()).joinArgs()
     }
 }
 

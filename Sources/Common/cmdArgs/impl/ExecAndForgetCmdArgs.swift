@@ -8,4 +8,6 @@ public struct ExecAndForgetCmdArgs: CmdArgs {
     }
 
     public let bashScript: String
+
+    public var description: String { CmdKind.execAndForget.rawValue + " " + bashScript }
 }
