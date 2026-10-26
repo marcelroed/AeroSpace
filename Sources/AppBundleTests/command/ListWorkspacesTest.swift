@@ -1,11 +1,12 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Foundation
+import Testing
 
 @MainActor
-final class ListWorkspacesTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
-
+@Suite(.aeroSpaceGlobalState)
+struct ListWorkspacesTest: AeroSpaceTestSuite {
+    @Test
     func testParse() {
         assertNotNil(parseCommand("list-workspaces --all").cmdOrNil)
         assertNil(parseCommand("list-workspaces --all --visible").cmdOrNil)
@@ -21,6 +22,7 @@ final class ListWorkspacesTest: XCTestCase {
         assertEquals(parseCommand("list-workspaces --all --focused --monitor mouse").errorOrNil, "ERROR: Conflicting options: --all, --focused, --monitor")
     }
 
+    @Test
     func testRunAll() async {
         TestWindow.new(id: 1, parent: Workspace.get(byName: "a").rootTilingContainer)
         TestWindow.new(id: 2, parent: Workspace.get(byName: "b").rootTilingContainer)
@@ -31,6 +33,7 @@ final class ListWorkspacesTest: XCTestCase {
         assertEquals(result.stdout, ["a", "b", "setUpWorkspacesForTests"])
     }
 
+    @Test
     func testRunVisible() async {
         TestWindow.new(id: 1, parent: Workspace.get(byName: "a").rootTilingContainer)
         let result = await parseCommand("list-workspaces --monitor all --visible").cmdOrDie.run(.defaultEnv, .emptyStdin)
@@ -39,6 +42,7 @@ final class ListWorkspacesTest: XCTestCase {
         assertEquals(result.stdout, ["setUpWorkspacesForTests"])
     }
 
+    @Test
     func testRunInvisible() async {
         TestWindow.new(id: 1, parent: Workspace.get(byName: "a").rootTilingContainer)
         TestWindow.new(id: 2, parent: Workspace.get(byName: "b").rootTilingContainer)
@@ -47,6 +51,7 @@ final class ListWorkspacesTest: XCTestCase {
         assertEquals(result.stdout, ["a", "b"])
     }
 
+    @Test
     func testRunEmpty() async {
         TestWindow.new(id: 1, parent: Workspace.get(byName: "a").rootTilingContainer)
         _ = Workspace.get(byName: "b") // empty (no windows)
@@ -55,6 +60,7 @@ final class ListWorkspacesTest: XCTestCase {
         assertEquals(result.stdout, ["b", "setUpWorkspacesForTests"])
     }
 
+    @Test
     func testRunNonEmpty() async {
         TestWindow.new(id: 1, parent: Workspace.get(byName: "a").rootTilingContainer)
         _ = Workspace.get(byName: "b") // empty
@@ -63,6 +69,7 @@ final class ListWorkspacesTest: XCTestCase {
         assertEquals(result.stdout, ["a"])
     }
 
+    @Test
     func testRunFocusedAlias() async {
         // The initial focused workspace is "setUpWorkspacesForTests" (visible on the focused monitor).
         TestWindow.new(id: 1, parent: Workspace.get(byName: "a").rootTilingContainer)
@@ -72,6 +79,7 @@ final class ListWorkspacesTest: XCTestCase {
         assertEquals(result.stdout, ["setUpWorkspacesForTests"])
     }
 
+    @Test
     func testRunMonitorFocused() async {
         TestWindow.new(id: 1, parent: Workspace.get(byName: "a").rootTilingContainer)
         let result = await parseCommand("list-workspaces --monitor focused").cmdOrDie.run(.defaultEnv, .emptyStdin)
@@ -80,6 +88,7 @@ final class ListWorkspacesTest: XCTestCase {
         assertEquals(result.stdout, ["a", "setUpWorkspacesForTests"])
     }
 
+    @Test
     func testRunInvalidMonitor() async {
         let result = await parseCommand("list-workspaces --monitor 99").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 2)
@@ -87,6 +96,7 @@ final class ListWorkspacesTest: XCTestCase {
         assertEquals(result.stderr, ["Invalid monitor ID: 99"])
     }
 
+    @Test
     func testRunCount() async {
         TestWindow.new(id: 1, parent: Workspace.get(byName: "a").rootTilingContainer)
         TestWindow.new(id: 2, parent: Workspace.get(byName: "b").rootTilingContainer)
@@ -95,6 +105,7 @@ final class ListWorkspacesTest: XCTestCase {
         assertEquals(result.stdout, ["3"])
     }
 
+    @Test
     func testRunJson() async {
         TestWindow.new(id: 1, parent: Workspace.get(byName: "a").rootTilingContainer)
         let result = await parseCommand("list-workspaces --all --format '%{workspace}' --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
