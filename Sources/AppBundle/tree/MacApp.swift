@@ -304,18 +304,20 @@ final class MacApp: AbstractApp {
         }
         guard let thread else { return [] }
         let (alive, dead) = try await thread.runInLoop(.cancellable) { [nsApp, windows, axApp] (job) -> ([UInt32], [UInt32]) in
+            let listed = axApp.threadGuarded.get(Ax.windowsAttr) ?? []
             var alive: [UInt32: AxWindow] = windows.threadGuarded
             var dead = [UInt32: AxWindow]()
             // Second line of defence against lock screen. See the first line of defence: closedWindowsCache
             // Second and third lines of defence are technically needed only to avoid potential flickering
             if frontmostAppBundleId != lockScreenAppBundleId {
-                (alive, dead) = try alive.partition {
+                (alive, dead) = try alive.partition { (_, window) in
                     try job.checkCancellation()
-                    return $0.value.ax.containingWindowId() != nil
+                    // A listed CFEqual element has just answered containingWindowId() in the windowsAttr getter
+                    return listed.contains { $0.ax == window.ax } || window.ax.containingWindowId() != nil
                 }
             }
 
-            for (id, window) in axApp.threadGuarded.get(Ax.windowsAttr) ?? [] {
+            for (id, window) in listed {
                 try job.checkCancellation()
                 try alive.getOrRegisterAxWindow(windowId: id, window, nsApp, job)
             }
