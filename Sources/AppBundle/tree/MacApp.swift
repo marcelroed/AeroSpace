@@ -281,28 +281,33 @@ final class MacApp: AbstractApp {
             }
         }
         return try await withThrowingTaskGroup(of: (pid_t, [UInt32]).self, returning: [MacApp: [UInt32]].self) { group in
+            var refreshedPids: Set<pid_t> = []
             func refreshTheApp(_ nsApp: NSRunningApplication) {
                 let pid = nsApp.processIdentifier // Free right after activationPolicy, an XPC after a suspension point
+                refreshedPids.insert(pid)
                 group.addTask { @Sendable @MainActor in
                     guard let app = try await MacApp.getOrRegister(nsApp, pid: pid) else { return (pid, []) }
                     return (pid, try await app.refreshAndGetAliveWindowIds(frontmostAppBundleId: frontmostAppBundleId))
                 }
             }
             // Register new apps
-            for nsApp in NSWorkspace.shared.runningApplications {
+            for (index, nsApp) in NSWorkspace.shared.runningApplications.enumerated() {
+                // Each activationPolicy read is a launchservicesd XPC, and there are hundreds of apps.
+                // Yield now and then, so that runLightSession can cancel this refresh instead of waiting for the whole loop
+                if index % 16 == 15 { await Task.yield() }
                 try checkCancellation()
                 if nsApp.activationPolicy == .regular {
                     refreshTheApp(nsApp)
                 }
             }
-            for (_, app) in MacApp.allAppsMap {
+            for (_, app) in MacApp.allAppsMap where !refreshedPids.contains(app.pid) {
                 try checkCancellation()
                 // "About this Mac" window, TouchID, and a lot of other utility windows
                 // We don't monitor them actively as we do for regular apps, but if a window of one of those utility
                 // apps got focused it will end up in allAppsMap
-                if app.nsApp.activationPolicy != .regular {
-                    refreshTheApp(app.nsApp)
-                }
+                // Don't re-read activationPolicy: after a yield it can disagree with the scan, and an app that became
+                // regular in between would be refreshed by neither loop
+                refreshTheApp(app.nsApp)
             }
             var result: [MacApp: [UInt32]] = [:]
             for try await (pid, windowIds) in group {
