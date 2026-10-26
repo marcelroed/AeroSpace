@@ -49,6 +49,26 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
     }
 
     @Test
+    func testBindingWithCommentedOutCommands() {
+        let result = parseConfig(
+            """
+            [mode.main.binding]
+                alt-a = '''
+                    # workspace a
+                '''
+                alt-b = '''
+                    # Go to workspace b
+                    workspace b
+                '''
+            """,
+        )
+        assertEquals(result.errors, [])
+        let bindings = result.config.modes[mainModeId]?.bindings ?? [:]
+        assertEquals(bindings["alt-a"]?.commands.shellOfCommandsDescription, "")
+        assertEquals(bindings["alt-b"]?.commands.shellOfCommandsDescription, "workspace b")
+    }
+
+    @Test
     func testDynamicGapValueOfWrongScalarType() {
         let result = parseConfig(
             """

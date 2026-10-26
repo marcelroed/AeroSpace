@@ -1,6 +1,6 @@
 import Common
 
-// Root = Seq? EndOfInput
+// Root = "\n"* Seq? EndOfInput
 //
 // EndOfInput = /$/
 //
@@ -24,8 +24,9 @@ extension String {
 
 func parseShell(_ tokens: [LexerToken]) -> ResOrStr<Shell<[String]>> {
     Result { () throws(String) in
-        if tokens.count == 1, tokens[0].payload == .end { return .empty }
         var index = 0
+        while tokens[index].payload == .newline { index += 1 } // Skip leading empty lines and comment lines
+        if tokens[index].payload == .end { return .empty }
         let result = try parseShellSeq(&index, tokens)
         let token = tokens[index]
         if token.payload != .end {
