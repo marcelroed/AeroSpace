@@ -2,99 +2,52 @@ import Common
 
 extension CmdArgs {
     func toCommand() -> ParsedCmd<any Command> {
-        let command: any Command
         switch Self.parser.kind {
-            case ._false:
-                command = FalseCommand(args: self as! FalseCmdArgs)
-            case ._true:
-                command = TrueCommand(args: self as! TrueCmdArgs)
-            case .balanceSizes:
-                command = BalanceSizesCommand(args: self as! BalanceSizesCmdArgs)
-            case .close:
-                command = CloseCommand(args: self as! CloseCmdArgs)
-            case .closeAllWindowsButCurrent:
-                command = CloseAllWindowsButCurrentCommand(args: self as! CloseAllWindowsButCurrentCmdArgs)
-            case .config:
-                command = ConfigCommand(args: self as! ConfigCmdArgs)
-            case .debugWindows:
-                command = DebugWindowsCommand(args: self as! DebugWindowsCmdArgs)
-            case .echo:
-                command = EchoCommand(args: self as! EchoCmdArgs)
-            case .enable:
-                command = EnableCommand(args: self as! EnableCmdArgs)
-            case .eval:
-                command = EvalCommand(args: self as! EvalCmdArgs)
-            case .execAndForget:
-                return .failure("exec-and-forget is not a real command and it's NOT allowed in the shell", EXIT_CODE_TWO)
-            case .flattenWorkspaceTree:
-                command = FlattenWorkspaceTreeCommand(args: self as! FlattenWorkspaceTreeCmdArgs)
-            case .focus:
-                command = FocusCommand(args: self as! FocusCmdArgs)
-            case .focusBackAndForth:
-                command = FocusBackAndForthCommand(args: self as! FocusBackAndForthCmdArgs)
-            case .focusMonitor:
-                command = FocusMonitorCommand(args: self as! FocusMonitorCmdArgs)
-            case .fullscreen:
-                command = FullscreenCommand(args: self as! FullscreenCmdArgs)
-            case .joinWith:
-                command = JoinWithCommand(args: self as! JoinWithCmdArgs)
-            case .layout:
-                command = LayoutCommand(args: self as! LayoutCmdArgs)
-            case .listApps:
-                command = ListAppsCommand(args: self as! ListAppsCmdArgs)
-            case .listExecEnvVars:
-                command = ListExecEnvVarsCommand(args: self as! ListExecEnvVarsCmdArgs)
-            case .listModes:
-                command = ListModesCommand(args: self as! ListModesCmdArgs)
-            case .listMonitors:
-                command = ListMonitorsCommand(args: self as! ListMonitorsCmdArgs)
-            case .listWindows:
-                command = ListWindowsCommand(args: self as! ListWindowsCmdArgs)
-            case .listWorkspaces:
-                command = ListWorkspacesCommand(args: self as! ListWorkspacesCmdArgs)
-            case .macosNativeFullscreen:
-                command = MacosNativeFullscreenCommand(args: self as! MacosNativeFullscreenCmdArgs)
-            case .macosNativeMinimize:
-                command = MacosNativeMinimizeCommand(args: self as! MacosNativeMinimizeCmdArgs)
-            case .mode:
-                command = ModeCommand(args: self as! ModeCmdArgs)
-            case .move:
-                command = MoveCommand(args: self as! MoveCmdArgs)
-            case .moveMouse:
-                command = MoveMouseCommand(args: self as! MoveMouseCmdArgs)
-            case .moveNodeToMonitor:
-                command = MoveNodeToMonitorCommand(args: self as! MoveNodeToMonitorCmdArgs)
-            case .moveNodeToWorkspace:
-                command = MoveNodeToWorkspaceCommand(args: self as! MoveNodeToWorkspaceCmdArgs)
-            case .moveWorkspaceToMonitor:
-                command = MoveWorkspaceToMonitorCommand(args: self as! MoveWorkspaceToMonitorCmdArgs)
-            case .reloadConfig:
-                command = ReloadConfigCommand(args: self as! ReloadConfigCmdArgs)
-            case .resize:
-                command = ResizeCommand(args: self as! ResizeCmdArgs)
-            case .runCallback:
-                command = RunCallbackCommand(args: self as! RunCallbackCmdArgs)
-            case .split:
-                command = SplitCommand(args: self as! SplitCmdArgs)
-            case .subscribe:
-                return .failure("subscribe is not supported in the eval", EXIT_CODE_TWO)
-            case .summonWorkspace:
-                command = SummonWorkspaceCommand(args: self as! SummonWorkspaceCmdArgs)
-            case .swap:
-                command = SwapCommand(args: self as! SwapCmdArgs)
-            case .test:
-                command = TestCommand(args: self as! TestCmdArgs)
-            case .testNot:
-                command = TestNotCommand(args: self as! TestNotCmdArgs)
-            case .triggerBinding:
-                command = TriggerBindingCommand(args: self as! TriggerBindingCmdArgs)
-            case .volume:
-                command = VolumeCommand(args: self as! VolumeCmdArgs)
-            case .workspace:
-                command = WorkspaceCommand(args: self as! WorkspaceCmdArgs)
-            case .workspaceBackAndForth:
-                command = WorkspaceBackAndForthCommand(args: self as! WorkspaceBackAndForthCmdArgs)
+            case ._false: .cmd(FalseCommand(args: self as! FalseCmdArgs))
+            case ._true: .cmd(TrueCommand(args: self as! TrueCmdArgs))
+            case .balanceSizes: .cmd(BalanceSizesCommand(args: self as! BalanceSizesCmdArgs))
+            case .close: .cmd(CloseCommand(args: self as! CloseCmdArgs))
+            case .closeAllWindowsButCurrent: .cmd(CloseAllWindowsButCurrentCommand(args: self as! CloseAllWindowsButCurrentCmdArgs))
+            case .config: .cmd(ConfigCommand(args: self as! ConfigCmdArgs))
+            case .debugWindows: .cmd(DebugWindowsCommand(args: self as! DebugWindowsCmdArgs))
+            case .echo: .cmd(EchoCommand(args: self as! EchoCmdArgs))
+            case .enable: .cmd(EnableCommand(args: self as! EnableCmdArgs))
+            case .eval: .cmd(EvalCommand(args: self as! EvalCmdArgs))
+            case .execAndForget: .failure("exec-and-forget is not a real command and it's NOT allowed in the shell", EXIT_CODE_TWO)
+            case .flattenWorkspaceTree: .cmd(FlattenWorkspaceTreeCommand(args: self as! FlattenWorkspaceTreeCmdArgs))
+            case .focus: .cmd(FocusCommand(args: self as! FocusCmdArgs))
+            case .focusBackAndForth: .cmd(FocusBackAndForthCommand(args: self as! FocusBackAndForthCmdArgs))
+            case .focusMonitor: .cmd(FocusMonitorCommand(args: self as! FocusMonitorCmdArgs))
+            case .fullscreen: .cmd(FullscreenCommand(args: self as! FullscreenCmdArgs))
+            case .joinWith: .cmd(JoinWithCommand(args: self as! JoinWithCmdArgs))
+            case .layout: .cmd(LayoutCommand(args: self as! LayoutCmdArgs))
+            case .listApps: .cmd(ListAppsCommand(args: self as! ListAppsCmdArgs))
+            case .listExecEnvVars: .cmd(ListExecEnvVarsCommand(args: self as! ListExecEnvVarsCmdArgs))
+            case .listModes: .cmd(ListModesCommand(args: self as! ListModesCmdArgs))
+            case .listMonitors: .cmd(ListMonitorsCommand(args: self as! ListMonitorsCmdArgs))
+            case .listWindows: .cmd(ListWindowsCommand(args: self as! ListWindowsCmdArgs))
+            case .listWorkspaces: .cmd(ListWorkspacesCommand(args: self as! ListWorkspacesCmdArgs))
+            case .macosNativeFullscreen: .cmd(MacosNativeFullscreenCommand(args: self as! MacosNativeFullscreenCmdArgs))
+            case .macosNativeMinimize: .cmd(MacosNativeMinimizeCommand(args: self as! MacosNativeMinimizeCmdArgs))
+            case .mode: .cmd(ModeCommand(args: self as! ModeCmdArgs))
+            case .move: .cmd(MoveCommand(args: self as! MoveCmdArgs))
+            case .moveMouse: .cmd(MoveMouseCommand(args: self as! MoveMouseCmdArgs))
+            case .moveNodeToMonitor: .cmd(MoveNodeToMonitorCommand(args: self as! MoveNodeToMonitorCmdArgs))
+            case .moveNodeToWorkspace: .cmd(MoveNodeToWorkspaceCommand(args: self as! MoveNodeToWorkspaceCmdArgs))
+            case .moveWorkspaceToMonitor: .cmd(MoveWorkspaceToMonitorCommand(args: self as! MoveWorkspaceToMonitorCmdArgs))
+            case .reloadConfig: .cmd(ReloadConfigCommand(args: self as! ReloadConfigCmdArgs))
+            case .resize: .cmd(ResizeCommand(args: self as! ResizeCmdArgs))
+            case .runCallback: .cmd(RunCallbackCommand(args: self as! RunCallbackCmdArgs))
+            case .split: .cmd(SplitCommand(args: self as! SplitCmdArgs))
+            case .subscribe: .failure("subscribe is not supported in the eval", EXIT_CODE_TWO)
+            case .summonWorkspace: .cmd(SummonWorkspaceCommand(args: self as! SummonWorkspaceCmdArgs))
+            case .swap: .cmd(SwapCommand(args: self as! SwapCmdArgs))
+            case .test: .cmd(TestCommand(args: self as! TestCmdArgs))
+            case .testNot: .cmd(TestNotCommand(args: self as! TestNotCmdArgs))
+            case .triggerBinding: .cmd(TriggerBindingCommand(args: self as! TriggerBindingCmdArgs))
+            case .volume: .cmd(VolumeCommand(args: self as! VolumeCmdArgs))
+            case .workspace: .cmd(WorkspaceCommand(args: self as! WorkspaceCmdArgs))
+            case .workspaceBackAndForth: .cmd(WorkspaceBackAndForthCommand(args: self as! WorkspaceBackAndForthCmdArgs))
         }
-        return .cmd(command)
     }
 }
