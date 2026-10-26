@@ -44,7 +44,7 @@ enum AxKind: Hashable {
     case app
 }
 
-private func prettyValue(_ value: Any?, recursionDepth: Int) -> Json {
+func prettyValue(_ value: Any?, recursionDepth: Int) -> Json {
     if let arr = value as? [Any?] {
         return .array(arr.map { prettyValue($0, recursionDepth: recursionDepth) })
     }
