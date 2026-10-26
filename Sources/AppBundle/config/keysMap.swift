@@ -204,22 +204,13 @@ private let colemakMap: [String: Key] = keyNotationToKeyCode + [
     "slash": .slash,
 ]
 
-let modifiersMap: [String: NSEvent.ModifierFlags] = [
-    "shift": .shift,
-    "alt": .option,
-    "ctrl": .control,
-    "cmd": .command,
-]
+/// In the order in which `toString()` lists the modifiers
+private let modifierNames: [(name: String, flag: NSEvent.ModifierFlags)] = [("alt", .option), ("ctrl", .control), ("cmd", .command), ("shift", .shift)]
+
+let modifiersMap: [String: NSEvent.ModifierFlags] = Dictionary(uniqueKeysWithValues: modifierNames)
 
 extension NSEvent.ModifierFlags {
-    func toString() -> String {
-        var result: [String] = []
-        if contains(.option) { result.append("alt") }
-        if contains(.control) { result.append("ctrl") }
-        if contains(.command) { result.append("cmd") }
-        if contains(.shift) { result.append("shift") }
-        return result.joined(separator: "-")
-    }
+    func toString() -> String { modifierNames.filter { contains($0.flag) }.map(\.name).joined(separator: "-") }
 }
 
 private let keyCodeToKeyNotation: [Key: String] = Dictionary(uniqueKeysWithValues: keyNotationToKeyCode.map { ($0.value, $0.key) })
