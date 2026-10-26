@@ -118,6 +118,9 @@ func openConfigButton(editor: URL = getTextEditorToOpenConfig(), showShortcutGro
         let fallbackConfig: URL = FileManager.default.homeDirectoryForCurrentUser.appending(path: configDotfileName)
         switch findCustomConfigUrl() {
             case .file(let url):
+                if !FileManager.default.fileExists(atPath: url.path) { // The --config-path file was deleted after the startup
+                    _ = try? FileManager.default.copyItem(atPath: defaultConfigUrl.path, toPath: url.path)
+                }
                 url.open(with: editor)
             case .noCustomConfigExists:
                 _ = try? FileManager.default.copyItem(atPath: defaultConfigUrl.path, toPath: fallbackConfig.path)

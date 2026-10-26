@@ -2,17 +2,15 @@ import Common
 import Foundation
 
 let configDotfileName = ".aerospace.toml"
-func findCustomConfigUrl() -> ConfigFile {
+func findCustomConfigUrl(configLocation: String? = serverArgs.configLocation) -> ConfigFile {
+    // Use --config-path even if the file was deleted after the startup. Reading it then reports the missing file
+    if let configLocation { return .file(URL(filePath: configLocation)) }
     let xdgConfigHome = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"].map { URL(filePath: $0) }
         ?? FileManager.default.homeDirectoryForCurrentUser.appending(path: ".config/")
-    let candidates: [URL] = switch serverArgs.configLocation {
-        case let configLocation?: [URL(filePath: configLocation)]
-        case nil:
-            [
-                FileManager.default.homeDirectoryForCurrentUser.appending(path: configDotfileName),
-                xdgConfigHome.appending(path: "aerospace").appending(path: "aerospace.toml"),
-            ]
-    }
+    let candidates: [URL] = [
+        FileManager.default.homeDirectoryForCurrentUser.appending(path: configDotfileName),
+        xdgConfigHome.appending(path: "aerospace").appending(path: "aerospace.toml"),
+    ]
     let existingCandidates = candidates.filter { FileManager.default.fileExists(atPath: $0.path) }
     return switch existingCandidates.count {
         case 0: .noCustomConfigExists
