@@ -16,14 +16,14 @@ struct LayoutCommand: Command {
         }
         guard let target = args.resolveTargetOrReportError(env, io) else { return .fail }
 
-        let node: ConventionalWindowParentCases
+        let node: TilingContainer? // nil if the window is floating
         switch args.root ? nil : target.windowOrNil {
             case let window?:
                 switch window.parent?.cases {
-                    case .floatingWindowsContainer(let it):
-                        node = .floatingWindowsContainer(it)
+                    case .floatingWindowsContainer:
+                        node = nil
                     case .tilingContainer(let it):
-                        node = .tilingContainer(it)
+                        node = it
                     case .macosFullscreenWindowsContainer,
                          .macosHiddenAppsWindowsContainer,
                          .macosMinimizedWindowsContainer:
@@ -34,7 +34,7 @@ struct LayoutCommand: Command {
                         return .fail(io.err(bugPrompt()))
                 }
             case nil:
-                node = .tilingContainer(target.workspace.rootTilingContainer)
+                node = target.workspace.rootTilingContainer
         }
 
         let targetDescription = args.toggleBetween.val.first(where: { !node.matchesDescription($0) })
@@ -62,19 +62,16 @@ struct LayoutCommand: Command {
                 return changeTilingLayout(io, targetLayout: nil, targetOrientation: .v, node: node)
             case .tiling:
                 guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
-                switch node {
-                    case .tilingContainer:
-                        return .succ // Nothing to do
-                    case .floatingWindowsContainer(let container):
-                        window.lastFloatingSize = (try? await window.getAxSize(.nonCancellable)) ?? window.lastFloatingSize
-                        guard let workspace = container.nodeWorkspace else { return .fail(io.err(bugPrompt())) }
-                        do {
-                            try await window.relayoutWindow(on: workspace, .nonCancellable, forceTile: true)
-                        } catch {
-                            return .fail(io.err(bugPrompt()))
-                        }
-                        return .succ
+                if node != nil { return .succ } // Nothing to do
+                let workspace = window.nodeWorkspace // The floating container's workspace. Read it before the suspension point
+                window.lastFloatingSize = (try? await window.getAxSize(.nonCancellable)) ?? window.lastFloatingSize
+                guard let workspace else { return .fail(io.err(bugPrompt())) }
+                do {
+                    try await window.relayoutWindow(on: workspace, .nonCancellable, forceTile: true)
+                } catch {
+                    return .fail(io.err(bugPrompt()))
                 }
+                return .succ
             case .floating:
                 guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
                 let workspace = target.workspace
@@ -91,33 +88,29 @@ struct LayoutCommand: Command {
     _ io: CmdIo,
     targetLayout: Layout?,
     targetOrientation: Orientation?,
-    node: ConventionalWindowParentCases,
+    node: TilingContainer?,
 ) -> BinaryExitCode {
-    switch node {
-        case .floatingWindowsContainer:
-            return .fail(io.err("The window is non-tiling"))
-        case .tilingContainer(let parent):
-            let targetOrientation = targetOrientation ?? parent.orientation
-            let targetLayout = targetLayout ?? parent.layout
-            parent.layout = targetLayout
-            parent.changeOrientation(targetOrientation)
-            return .succ
-    }
+    guard let parent = node else { return .fail(io.err("The window is non-tiling")) }
+    let targetOrientation = targetOrientation ?? parent.orientation
+    let targetLayout = targetLayout ?? parent.layout
+    parent.layout = targetLayout
+    parent.changeOrientation(targetOrientation)
+    return .succ
 }
 
-extension ConventionalWindowParentCases {
+extension TilingContainer? { // nil is a floating window
     @MainActor fileprivate func matchesDescription(_ layout: LayoutCmdArgs.LayoutDescription) -> Bool {
         return switch layout {
-            case .accordion:   tilingContainerOrNil?.layout == .accordion
-            case .tiles:       tilingContainerOrNil?.layout == .tiles
-            case .horizontal:  tilingContainerOrNil?.orientation == .h
-            case .vertical:    tilingContainerOrNil?.orientation == .v
-            case .h_accordion: tilingContainerOrNil.map { $0.layout == .accordion && $0.orientation == .h } == true
-            case .v_accordion: tilingContainerOrNil.map { $0.layout == .accordion && $0.orientation == .v } == true
-            case .h_tiles:     tilingContainerOrNil.map { $0.layout == .tiles && $0.orientation == .h } == true
-            case .v_tiles:     tilingContainerOrNil.map { $0.layout == .tiles && $0.orientation == .v } == true
-            case .tiling:      tilingContainerOrNil != nil
-            case .floating:    floatingWindowsContainerOrNil != nil
+            case .accordion:   self?.layout == .accordion
+            case .tiles:       self?.layout == .tiles
+            case .horizontal:  self?.orientation == .h
+            case .vertical:    self?.orientation == .v
+            case .h_accordion: self.map { $0.layout == .accordion && $0.orientation == .h } == true
+            case .v_accordion: self.map { $0.layout == .accordion && $0.orientation == .v } == true
+            case .h_tiles:     self.map { $0.layout == .tiles && $0.orientation == .h } == true
+            case .v_tiles:     self.map { $0.layout == .tiles && $0.orientation == .v } == true
+            case .tiling:      self != nil
+            case .floating:    self == nil
         }
     }
 }

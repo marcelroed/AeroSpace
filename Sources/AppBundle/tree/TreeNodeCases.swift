@@ -36,25 +36,6 @@ enum NonLeafTreeNodeKind: Equatable {
     case floatingWindowsContainer
 }
 
-enum ConventionalWindowParentCases {
-    case tilingContainer(TilingContainer)
-    case floatingWindowsContainer(FloatingWindowsContainer)
-
-    var tilingContainerOrNil: TilingContainer? {
-        switch self {
-            case .tilingContainer(let it): it
-            default: nil
-        }
-    }
-
-    var floatingWindowsContainerOrNil: FloatingWindowsContainer? {
-        switch self {
-            case .floatingWindowsContainer(let it): it
-            default: nil
-        }
-    }
-}
-
 protocol NonLeafTreeNodeObject: TreeNode {}
 
 extension TreeNode {
