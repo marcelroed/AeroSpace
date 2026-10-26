@@ -1,4 +1,5 @@
 @testable import AppBundle
+import AppKit
 import Common
 import Testing
 
@@ -73,6 +74,42 @@ struct WindowParentTest: AeroSpaceTestSuite {
         }
         assertEquals(fullscreen.parent === workspace.macOsNativeFullscreenWindowsContainer, true)
         assertEquals(hiddenApp.parent === workspace.macOsNativeHiddenAppsWindowsContainer, true)
+    }
+
+    @Test
+    func testLayoutFloatingAndTilingWindows() async {
+        let workspace = Workspace.get(byName: name)
+        TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        let floating = TestWindow.new(id: 2, parent: workspace.floatingWindowsContainer)
+        floating.lastFloatingSize = CGSize(width: 100, height: 50)
+        assertTrue(floating.focusWindow())
+        func run(_ command: String) async -> CmdResult { await parseCommand(command).cmdOrDie.run(.defaultEnv, .emptyStdin) }
+
+        for command in ["layout h_tiles", "layout accordion", "layout vertical"] {
+            let result = await run(command)
+            assertEquals(result.exitCode.rawValue, 2)
+            assertEquals(result.stderr, ["The window is non-tiling"])
+        }
+        let noop = await run("layout floating")
+        assertEquals(noop.exitCode.rawValue, 0)
+        assertEquals(noop.stderr, ["Already in the requested floating mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
+
+        let toTiling = await run("layout floating tiling")
+        assertEquals(toTiling.exitCode.rawValue, 0)
+        assertEquals(toTiling.stderr, [])
+        assertEquals(workspace.layoutDescription, .workspace([.h_tiles([.window(1), .window(2)]), .floatingWindowsContainer([])]))
+        assertEquals(floating.lastFloatingSize, CGSize(width: 100, height: 50))
+
+        let tilingNoop = await run("layout tiling")
+        assertEquals(tilingNoop.exitCode.rawValue, 0)
+        assertEquals(tilingNoop.stderr, ["Already in the requested tiling mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
+        assertEquals((await run("layout v_accordion")).exitCode.rawValue, 0)
+        assertEquals(workspace.rootTilingContainer.layoutDescription, .v_accordion([.window(1), .window(2)]))
+
+        let toFloating = await run("layout tiling floating")
+        assertEquals(toFloating.exitCode.rawValue, 0)
+        assertEquals(workspace.layoutDescription, .workspace([.v_accordion([.window(1)]), .floatingWindowsContainer([.window(2)])]))
+        assertEquals(floating.setAxFrameHistory.last, AxFrame(topLeft: nil, size: CGSize(width: 100, height: 50)))
     }
 
     @Test
