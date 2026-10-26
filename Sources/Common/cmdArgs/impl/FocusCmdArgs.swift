@@ -9,13 +9,13 @@ public struct FocusCmdArgs: CmdArgs {
             "--window-id": windowIdSubArgParser(),
             "--dfs-index": singleValueSubArgParser(\.dfsIndex, "<dfs-index>", parseUInt32),
 
-            "--boundaries": ArgParser(\.rawBoundaries, upcastArgParserFun(parseBoundaries)),
-            "--boundaries-action": ArgParser(\.rawBoundariesAction, upcastArgParserFun(parseBoundariesAction)),
+            "--boundaries": ArgParser(\.rawBoundaries, upcastArgParserFun(enumSubArg(Boundaries.self, placeholder: "<boundary>"))),
+            "--boundaries-action": ArgParser(\.rawBoundariesAction, upcastArgParserFun(enumSubArg(WhenBoundariesCrossed.self, placeholder: "<action>"))),
             "--fail-if-fullscreen": trueBoolFlag(\.failIfFullscreen),
             "--fail-if-macos-native-fullscreen": trueBoolFlag(\.failIfMacosNativeFullscreen),
             "--wrap-around": trueBoolFlag(\.wrapAroundAlias),
         ],
-        posArgs: [ArgParser(\.cardinalOrDfsDirection, upcastArgParserFun(parseCardinalOrDfsDirection))],
+        posArgs: [ArgParser(\.cardinalOrDfsDirection, upcastArgParserFun(enumPosArg(CardinalOrDfsDirection.self)))],
         conflictingOptions: [
             ["--wrap-around", "--boundaries-action"],
             ["--wrap-around", "--boundaries"],
@@ -123,20 +123,4 @@ func parseFocusCmdArgs(_ args: StrArrSlice) -> ParsedCmd<FocusCmdArgs> {
         .filter("(dfs-next|dfs-prev) only supports --boundaries workspace") {
             $0.target.isDfsRelative.implies($0.boundaries == .workspace)
         }
-}
-
-private func parseBoundariesAction(i: SubArgParserInput) -> ParsedCliArgs<FocusCmdArgs.WhenBoundariesCrossed> {
-    if let arg = i.nonFlagArgOrNil() {
-        return .init(parseEnum(arg, FocusCmdArgs.WhenBoundariesCrossed.self), advanceBy: 1)
-    } else {
-        return .fail("<action> is mandatory", advanceBy: 0)
-    }
-}
-
-private func parseBoundaries(i: SubArgParserInput) -> ParsedCliArgs<FocusCmdArgs.Boundaries> {
-    if let arg = i.nonFlagArgOrNil() {
-        return .init(parseEnum(arg, FocusCmdArgs.Boundaries.self), advanceBy: 1)
-    } else {
-        return .fail("<boundary> is mandatory", advanceBy: 0)
-    }
 }

@@ -8,7 +8,7 @@ public struct ResizeCmdArgs: CmdArgs {
             "--window-id": windowIdSubArgParser(),
         ],
         posArgs: [
-            newMandatoryPosArgParser(\.dimension, parseDimension, placeholder: "(smart|smart-opposite|width|height)"),
+            newMandatoryPosArgParser(\.dimension, enumPosArg(Dimension.self), placeholder: "(smart|smart-opposite|width|height)"),
             newMandatoryPosArgParser(\.units, parseUnits, placeholder: "[+|-]<number>"),
         ],
     )
@@ -40,10 +40,6 @@ public struct ResizeCmdArgs: CmdArgs {
 
 func parseResizeCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ResizeCmdArgs> {
     parseSpecificCmdArgs(ResizeCmdArgs(rawArgs: args), args)
-}
-
-private func parseDimension(i: PosArgParserInput) -> ParsedCliArgs<ResizeCmdArgs.Dimension> {
-    .init(parseEnum(i.arg, ResizeCmdArgs.Dimension.self), advanceBy: 1)
 }
 
 private func parseUnits(i: PosArgParserInput) -> ParsedCliArgs<ResizeCmdArgs.Units> {

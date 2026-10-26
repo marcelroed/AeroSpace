@@ -9,7 +9,7 @@ public struct SwapCmdArgs: CmdArgs {
             "--wrap-around": trueBoolFlag(\.wrapAround),
             "--window-id": windowIdSubArgParser(),
         ],
-        posArgs: [newMandatoryPosArgParser(\.target, parseCardinalOrDfsDirection, placeholder: CardinalOrDfsDirection.unionLiteral)],
+        posArgs: [newMandatoryPosArgParser(\.target, enumPosArg(CardinalOrDfsDirection.self), placeholder: CardinalOrDfsDirection.unionLiteral)],
     )
 
     public var target: Lateinit<CardinalOrDfsDirection> = .uninitialized

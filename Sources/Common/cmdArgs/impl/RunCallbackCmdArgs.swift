@@ -9,7 +9,7 @@ public struct RunCallbackCmdArgs: CmdArgs {
             "--window-id": windowIdSubArgParser(),
         ],
         posArgs: [
-            newMandatoryPosArgParser(\.callback, parseCallbackKind, placeholder: "<callback>"),
+            newMandatoryPosArgParser(\.callback, enumPosArg(CallbackKind.self), placeholder: "<callback>"),
         ],
         conflictingOptions: [
             ["--for-every-window", "--window-id"],
@@ -25,10 +25,6 @@ public struct RunCallbackCmdArgs: CmdArgs {
         case onFocusChanged = "on-focus-changed"
         case onFocusedMonitorChanged = "on-focused-monitor-changed"
     }
-}
-
-private func parseCallbackKind(i: PosArgParserInput) -> ParsedCliArgs<RunCallbackCmdArgs.CallbackKind> {
-    .init(parseEnum(i.arg, RunCallbackCmdArgs.CallbackKind.self), advanceBy: 1)
 }
 
 public func parseRunCallbackCmdArgs(_ args: StrArrSlice) -> ParsedCmd<RunCallbackCmdArgs> {

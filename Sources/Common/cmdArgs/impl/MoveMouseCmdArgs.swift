@@ -7,15 +7,11 @@ public struct MoveMouseCmdArgs: CmdArgs {
         flags: [
             "--fail-if-noop": trueBoolFlag(\.failIfNoop),
         ],
-        posArgs: [newMandatoryPosArgParser(\.mouseTarget, parseMouseTarget, placeholder: "<mouse-position>")],
+        posArgs: [newMandatoryPosArgParser(\.mouseTarget, enumPosArg(MouseTarget.self), placeholder: "<mouse-position>")],
     )
 
     public var failIfNoop: Bool = false
     public var mouseTarget: Lateinit<MouseTarget> = .uninitialized
-}
-
-func parseMouseTarget(i: PosArgParserInput) -> ParsedCliArgs<MouseTarget> {
-    .init(parseEnum(i.arg, MouseTarget.self), advanceBy: 1)
 }
 
 func parseMoveMouseCmdArgs(_ args: StrArrSlice) -> ParsedCmd<MoveMouseCmdArgs> {

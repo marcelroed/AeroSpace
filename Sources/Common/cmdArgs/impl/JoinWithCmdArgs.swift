@@ -7,7 +7,7 @@ public struct JoinWithCmdArgs: CmdArgs {
         flags: [
             "--window-id": windowIdSubArgParser(),
         ],
-        posArgs: [newMandatoryPosArgParser(\.direction, parseCardinalDirectionArg, placeholder: CardinalDirection.unionLiteral)],
+        posArgs: [newMandatoryPosArgParser(\.direction, enumPosArg(CardinalDirection.self), placeholder: CardinalDirection.unionLiteral)],
     )
 
     public var direction: Lateinit<CardinalDirection> = .uninitialized

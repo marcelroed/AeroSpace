@@ -6,12 +6,12 @@ public struct MoveCmdArgs: CmdArgs {
         help: move_help_generated,
         flags: [
             "--window-id": windowIdSubArgParser(),
-            "--boundaries": ArgParser(\.rawBoundaries, upcastArgParserFun(parseBoundaries)),
-            "--boundaries-action": ArgParser(\.rawBoundariesAction, upcastArgParserFun(parseBoundariesAction)),
+            "--boundaries": ArgParser(\.rawBoundaries, upcastArgParserFun(enumSubArg(Boundaries.self, placeholder: "<boundary>"))),
+            "--boundaries-action": ArgParser(\.rawBoundariesAction, upcastArgParserFun(enumSubArg(WhenBoundariesCrossed.self, placeholder: "<action>"))),
             "--fail-if-fullscreen": trueBoolFlag(\.failIfFullscreen),
             "--fail-if-macos-native-fullscreen": trueBoolFlag(\.failIfMacosNativeFullscreen),
         ],
-        posArgs: [newMandatoryPosArgParser(\.direction, parseCardinalDirectionArg, placeholder: CardinalDirection.unionLiteral)],
+        posArgs: [newMandatoryPosArgParser(\.direction, enumPosArg(CardinalDirection.self), placeholder: CardinalDirection.unionLiteral)],
     )
 
     public var direction: Lateinit<CardinalDirection> = .uninitialized
@@ -39,20 +39,4 @@ extension MoveCmdArgs {
 
 func parseMoveCmdArgs(_ args: StrArrSlice) -> ParsedCmd<MoveCmdArgs> {
     parseSpecificCmdArgs(MoveCmdArgs(rawArgs: args), args)
-}
-
-private func parseBoundaries(i: SubArgParserInput) -> ParsedCliArgs<MoveCmdArgs.Boundaries> {
-    if let arg = i.nonFlagArgOrNil() {
-        return .init(parseEnum(arg, MoveCmdArgs.Boundaries.self), advanceBy: 1)
-    } else {
-        return .fail("<boundary> is mandatory", advanceBy: 0)
-    }
-}
-
-private func parseBoundariesAction(i: SubArgParserInput) -> ParsedCliArgs<MoveCmdArgs.WhenBoundariesCrossed> {
-    if let arg = i.nonFlagArgOrNil() {
-        return .init(parseEnum(arg, MoveCmdArgs.WhenBoundariesCrossed.self), advanceBy: 1)
-    } else {
-        return .fail("<action> is mandatory", advanceBy: 0)
-    }
 }

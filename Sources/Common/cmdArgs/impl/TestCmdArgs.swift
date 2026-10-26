@@ -13,7 +13,7 @@ public struct TestCmdArgs: CmdArgs {
         flags: [:],
         posArgs: [
             newMandatoryPosArgParser(\.lhs, parseTestLhs, placeholder: "<lhs>"),
-            newMandatoryPosArgParser(\.infixOperator, parseTestInfixOperator, placeholder: "<operator>"),
+            newMandatoryPosArgParser(\.infixOperator, enumPosArg(InfixOperator.self), placeholder: "<operator>"),
             newMandatoryPosArgParser(\.rhs, parseTestRhs, placeholder: "<rhs>"),
         ],
     )
@@ -42,10 +42,6 @@ func parseTestLhs(_ input: PosArgParserInput) -> ParsedCliArgs<FormatVar> {
         }
     }
     return .init(result, advanceBy: 1)
-}
-
-func parseTestInfixOperator(_ input: PosArgParserInput) -> ParsedCliArgs<InfixOperator> {
-    .init(parseEnum(input.arg, InfixOperator.self), advanceBy: 1)
 }
 
 func parseTestCmdArgs(_ args: StrArrSlice) -> ParsedCmd<TestCmdArgs> {

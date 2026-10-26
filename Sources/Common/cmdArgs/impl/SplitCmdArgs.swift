@@ -7,7 +7,7 @@ public struct SplitCmdArgs: CmdArgs {
         flags: [
             "--window-id": windowIdSubArgParser(),
         ],
-        posArgs: [newMandatoryPosArgParser(\.arg, parseSplitArg, placeholder: SplitArg.unionLiteral)],
+        posArgs: [newMandatoryPosArgParser(\.arg, enumPosArg(SplitArg.self), placeholder: SplitArg.unionLiteral)],
     )
 
     public var arg: Lateinit<SplitArg> = .uninitialized
@@ -19,8 +19,4 @@ public struct SplitCmdArgs: CmdArgs {
 
 func parseSplitCmdArgs(_ args: StrArrSlice) -> ParsedCmd<SplitCmdArgs> {
     parseSpecificCmdArgs(SplitCmdArgs(rawArgs: args), args)
-}
-
-private func parseSplitArg(i: PosArgParserInput) -> ParsedCliArgs<SplitCmdArgs.SplitArg> {
-    .init(parseEnum(i.arg, SplitCmdArgs.SplitArg.self), advanceBy: 1)
 }

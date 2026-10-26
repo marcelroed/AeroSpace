@@ -7,7 +7,7 @@ public struct EnableCmdArgs: CmdArgs {
         flags: [
             "--fail-if-noop": trueBoolFlag(\.failIfNoop),
         ],
-        posArgs: [newMandatoryPosArgParser(\.targetState, parseState, placeholder: EnableCmdArgs.State.unionLiteral)],
+        posArgs: [newMandatoryPosArgParser(\.targetState, enumPosArg(State.self), placeholder: EnableCmdArgs.State.unionLiteral)],
     )
     public var targetState: Lateinit<State> = .uninitialized
     public var failIfNoop: Bool = false
@@ -25,8 +25,4 @@ public struct EnableCmdArgs: CmdArgs {
 func parseEnableCmdArgs(_ args: StrArrSlice) -> ParsedCmd<EnableCmdArgs> {
     return parseSpecificCmdArgs(EnableCmdArgs(rawArgs: args), args)
         .filterNot("--fail-if-noop is incompatible with 'toggle' argument") { $0.targetState.val == .toggle && $0.failIfNoop }
-}
-
-private func parseState(i: PosArgParserInput) -> ParsedCliArgs<EnableCmdArgs.State> {
-    .init(parseEnum(i.arg, EnableCmdArgs.State.self), advanceBy: 1)
 }
