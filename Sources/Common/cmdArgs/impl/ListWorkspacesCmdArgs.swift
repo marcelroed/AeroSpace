@@ -79,8 +79,7 @@ func parseMonitorIds(input: SubArgParserInput) -> ParsedCliArgs<[MonitorId]> {
         return .fail("\(monitorsPlaceholder) is mandatory. \(possibleValues)", advanceBy: args.count)
     }
     var monitors: [MonitorId] = []
-    var i = 0
-    for monitor in args {
+    for (i, monitor) in args.enumerated() {
         switch Int.init(monitor) {
             case let unwrapped?: monitors.append(.index(unwrapped - 1))
             case _ where monitor == "mouse": monitors.append(.mouse)
@@ -88,7 +87,6 @@ func parseMonitorIds(input: SubArgParserInput) -> ParsedCliArgs<[MonitorId]> {
             case _ where monitor == "focused": monitors.append(.focused)
             default: return .fail("Can't parse monitor ID '\(monitor)'. \(possibleValues)", advanceBy: i + 1)
         }
-        i += 1
     }
     return .succ(monitors, advanceBy: monitors.count)
 }

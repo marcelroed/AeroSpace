@@ -1,6 +1,5 @@
 import AppKit
 import Common
-import Foundation
 
 struct BalanceSizesCommand: Command {
     let args: BalanceSizesCmdArgs

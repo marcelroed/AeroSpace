@@ -1,6 +1,5 @@
 import AppKit
 import Common
-import Foundation
 
 struct WorkspaceCommand: Command {
     let args: WorkspaceCmdArgs

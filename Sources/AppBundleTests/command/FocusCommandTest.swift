@@ -70,6 +70,11 @@ final class FocusCommandTest: XCTestCase {
         assertEquals(parseCommand("focus --boundaries-action").errorOrNil, "ERROR: <action> is mandatory")
         assertEquals(parseCommand("focus --boundaries-action foo left").errorOrNil, "ERROR: Can't parse 'foo'.\n       Possible values: (stop|fail|wrap-around-the-workspace|wrap-around-all-monitors)")
         assertEquals(parseCommand("focus foo").errorOrNil, "ERROR: Can't parse 'foo'.\n       Possible values: (left|down|up|right|dfs-next|dfs-prev)")
+        assertEquals(
+            parseCommand("focus --boundaries-action wrap-around-all-monitors dfs-next").errorOrNil,
+            "workspace and wrap-around-all-monitors is an invalid combination of values",
+        )
+        assertEquals(parseCommand("focus --dfs-index 0 left").errorOrNil, "--dfs-index is incompatible with other options")
     }
 
     func testFailIfFullscreen() async {

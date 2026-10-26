@@ -22,7 +22,3 @@ public struct ListModesCmdArgs: CmdArgs {
     public var json: Bool = false
     public var outputOnlyCount: Bool = false
 }
-
-func parseListModesCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ListModesCmdArgs> {
-    parseSpecificCmdArgs(ListModesCmdArgs(rawArgs: args), args)
-}

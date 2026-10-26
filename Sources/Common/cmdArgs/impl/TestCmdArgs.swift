@@ -44,10 +44,6 @@ func parseTestLhs(_ input: PosArgParserInput) -> ParsedCliArgs<FormatVar> {
     return .init(result, advanceBy: 1)
 }
 
-func parseTestCmdArgs(_ args: StrArrSlice) -> ParsedCmd<TestCmdArgs> {
-    return parseSpecificCmdArgs(TestCmdArgs(rawArgs: args), args)
-}
-
 public enum InfixOperator: String, CaseIterable, Equatable, Sendable {
     case equals = "="
     case matchesRegex = "~="

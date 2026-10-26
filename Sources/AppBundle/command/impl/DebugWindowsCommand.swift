@@ -77,7 +77,7 @@ struct DebugWindowsCommand: Command {
 
 @MainActor
 private func dumpWindowDebugInfo(_ window: Window, _ cm: CancellationMode) async throws -> String {
-    let window = window as! MacWindow
+    let window = window.asMacWindow()
     let appInfoDic = window.macApp.nsApp.bundleURL.flatMap { Bundle.init(url: $0) }?.infoDictionary ?? [:]
 
     var result: [String: Json] = try await window.dumpAxInfo(cm)

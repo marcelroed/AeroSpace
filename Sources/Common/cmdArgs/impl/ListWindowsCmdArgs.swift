@@ -100,8 +100,7 @@ private func parseWorkspaces(input: SubArgParserInput) -> ParsedCliArgs<[Workspa
         return .fail("\(workspaces) is mandatory. \(possibleValues)", advanceBy: args.count)
     }
     var workspaces: [WorkspaceFilter] = []
-    var i = 0
-    for workspaceRaw in args {
+    for (i, workspaceRaw) in args.enumerated() {
         switch workspaceRaw {
             case "visible": workspaces.append(.visible)
             case "focused": workspaces.append(.focused)
@@ -111,7 +110,6 @@ private func parseWorkspaces(input: SubArgParserInput) -> ParsedCliArgs<[Workspa
                     case .failure(let msg): return .fail(msg, advanceBy: i + 1)
                 }
         }
-        i += 1
     }
     return .succ(workspaces, advanceBy: workspaces.count)
 }

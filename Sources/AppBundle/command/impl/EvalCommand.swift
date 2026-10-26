@@ -11,7 +11,7 @@ struct EvalCommand: Command {
                 return Int32ExitCode(rawValue: cmdParsingFailure.exitCode)
             case .help:
                 io.err("--help is not supported inside eval command")
-                return .init(rawValue: EXIT_CODE_TWO)
+                return .fail
             case .cmd(let cmd):
                 return await cmd.run(env, io)
         }

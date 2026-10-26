@@ -31,7 +31,7 @@ struct CmdEnv {
             result[AEROSPACE_WINDOW_ID] = windowId.description
         }
         if let workspaceName {
-            result[AEROSPACE_WORKSPACE] = workspaceName.description
+            result[AEROSPACE_WORKSPACE] = workspaceName
         }
         return result
     }

@@ -124,9 +124,9 @@ enum Primitive: Encodable {
         try container.encode(value)
     }
 
-    public static func int(_ int: UInt32) -> Self { .int(Int64(exactly: int).orDie()) }
-    public static func int(_ int: Int32) -> Self { .int(Int64(exactly: int).orDie()) }
-    public static func int(_ int: Int) -> Self { .int(Int64(exactly: int).orDie()) }
+    static func int(_ int: UInt32) -> Self { .int(Int64(int)) }
+    static func int(_ int: Int32) -> Self { .int(Int64(int)) }
+    static func int(_ int: Int) -> Self { .int(Int64(int)) }
 }
 
 private struct Cell<T> {
@@ -196,7 +196,7 @@ enum InterVarExpansionError: LocalizedError, CustomStringConvertible {
     case windowParentIllegalRelation(String)
     case rightPaddingCannotBeExpanded(String)
 
-    public var description: String {
+    var description: String {
         switch self {
             case .unknownInterpolationVariable(let msg): msg
             case .nullParent(let msg): msg
@@ -206,7 +206,7 @@ enum InterVarExpansionError: LocalizedError, CustomStringConvertible {
         }
     }
 
-    public var errorDescription: String? { description }
+    var errorDescription: String? { description }
 
     /// The error message that `echo` and `test` report
     var cmdErrorMessage: String {

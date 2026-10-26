@@ -40,7 +40,7 @@ final class CmdIoImpl: CmdIo {
 }
 
 final class CmdIoForwardingStdin: CmdIo {
-    private var stdin: CmdIo
+    private let stdin: CmdIo
     var stdout: [String] = []
     var stderr: [String] = []
 

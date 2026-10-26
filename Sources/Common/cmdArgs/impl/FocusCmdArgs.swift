@@ -97,19 +97,17 @@ extension FocusCmdArgs {
 
 func parseFocusCmdArgs(_ args: StrArrSlice) -> ParsedCmd<FocusCmdArgs> {
     return parseSpecificCmdArgs(FocusCmdArgs(rawArgs: args), args)
-        .flatMap { (raw: FocusCmdArgs) -> ParsedCmd<FocusCmdArgs> in
-            raw.boundaries == .workspace && raw.boundariesAction == .wrapAroundAllMonitors
-                ? .failure("\(raw.boundaries.rawValue) and \(raw.boundariesAction.rawValue) is an invalid combination of values")
-                : .cmd(raw)
+        .filterNot("\(FocusCmdArgs.Boundaries.workspace.rawValue) and \(FocusCmdArgs.WhenBoundariesCrossed.wrapAroundAllMonitors.rawValue) is an invalid combination of values") {
+            $0.boundaries == .workspace && $0.boundariesAction == .wrapAroundAllMonitors
         }
         .filter("Mandatory argument is missing. \(CardinalOrDfsDirection.unionLiteral), --window-id or --dfs-index is required") {
             $0.cardinalOrDfsDirection != nil || $0.windowId != nil || $0.dfsIndex != nil
         }
-        .filter("--window-id is incompatible with other options") {
-            $0.windowId == nil || $0 == FocusCmdArgs(rawArgs: args, windowId: $0.windowId.orDie())
+        .filter("--window-id is incompatible with other options") { raw in
+            raw.windowId.map { raw == FocusCmdArgs(rawArgs: args, windowId: $0) } ?? true
         }
-        .filter("--dfs-index is incompatible with other options") {
-            $0.dfsIndex == nil || $0 == FocusCmdArgs(rawArgs: args, dfsIndex: $0.dfsIndex.orDie())
+        .filter("--dfs-index is incompatible with other options") { raw in
+            raw.dfsIndex.map { raw == FocusCmdArgs(rawArgs: args, dfsIndex: $0) } ?? true
         }
         .filter("--fail-if-fullscreen/--fail-if-macos-native-fullscreen require using (left|down|up|right) argument") {
             if !$0.failIfFullscreen && !$0.failIfMacosNativeFullscreen {

@@ -16,7 +16,3 @@ public struct SwapCmdArgs: CmdArgs {
     public var swapFocus: Bool = false
     public var wrapAround: Bool = false
 }
-
-func parseSwapCmdArgs(_ args: StrArrSlice) -> ParsedCmd<SwapCmdArgs> {
-    return parseSpecificCmdArgs(SwapCmdArgs(rawArgs: args), args)
-}

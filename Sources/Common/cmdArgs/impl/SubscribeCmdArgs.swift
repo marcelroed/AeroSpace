@@ -31,7 +31,7 @@ public func parseSubscribeCmdArgs(_ args: StrArrSlice) -> ParsedCmd<SubscribeCmd
         }
 }
 
-private func parseEventTypes(_ input: ArgParserInput) -> ParsedCliArgs<Set<ServerEventType>> {
+private func parseEventTypes(_ input: PosArgParserInput) -> ParsedCliArgs<Set<ServerEventType>> {
     let args = input.nonFlagArgs()
     var events: Set<ServerEventType> = []
     var errorMsg: String? = nil

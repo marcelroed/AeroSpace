@@ -95,7 +95,7 @@ func initSubcommands() -> [String: SubCommandParser] {
             case .listExecEnvVars:
                 result[kind.rawValue] = SubCommandParser(ListExecEnvVarsCmdArgs.init)
             case .listModes:
-                result[kind.rawValue] = SubCommandParser(parseListModesCmdArgs)
+                result[kind.rawValue] = SubCommandParser(ListModesCmdArgs.init)
             case .listMonitors:
                 result[kind.rawValue] = SubCommandParser(parseListMonitorsCmdArgs)
             case .listWindows:
@@ -135,9 +135,9 @@ func initSubcommands() -> [String: SubCommandParser] {
             case .summonWorkspace:
                 result[kind.rawValue] = SubCommandParser(SummonWorkspaceCmdArgs.init)
             case .swap:
-                result[kind.rawValue] = SubCommandParser(parseSwapCmdArgs)
+                result[kind.rawValue] = SubCommandParser(SwapCmdArgs.init)
             case .test:
-                result[kind.rawValue] = SubCommandParser(parseTestCmdArgs)
+                result[kind.rawValue] = SubCommandParser(TestCmdArgs.init)
             case .testNot:
                 result[kind.rawValue] = SubCommandParser(parseTestNotCmdArgs)
             case .triggerBinding:
