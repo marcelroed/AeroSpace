@@ -68,6 +68,42 @@ final class NWConnectionExTest: XCTestCase {
             case let other: failExpectedActual("nwError", other)
         }
     }
+
+    func testHandshakeFailsWhenCancelledBeforeReady() async throws {
+        let server = try await TestSocketServer.start(serverVersion: SOCKET_PROTOCOL_VERSION)
+        defer { server.stop() }
+        let params = NWParameters.tcp
+        params.defaultProtocolStack.applicationProtocols.insert(NWProtocolFramer.Options(definition: NeverReadyFramer.definition), at: 0)
+        let connection = NWConnection(to: .unix(path: server.path), using: params)
+        defer { connection.cancel() }
+
+        // Cancel the connection while it is stuck in .preparing. If initConnection ignored .cancelled, it would never
+        // return (RB-46)
+        Task.startUnstructured {
+            for _ in 0 ..< 500 {
+                guard case .setup = connection.state else { break }
+                try? await Task.sleep(for: .milliseconds(10))
+            }
+            connection.cancel()
+        }
+        switch await withTimeout(seconds: 5, { await connection.initConnection().error }) {
+            case .some(.some(.nwError)): break
+            case let other: failExpectedActual("nwError", other.map { String(describing: $0) } ?? "timed out")
+        }
+    }
+}
+
+/// Never marks the connection ready, so it stays in .preparing
+private final class NeverReadyFramer: NWProtocolFramerImplementation {
+    static let definition = NWProtocolFramer.Definition(implementation: NeverReadyFramer.self)
+    static var label: String { "NeverReady" }
+    init(framer: NWProtocolFramer.Instance) {}
+    func start(framer: NWProtocolFramer.Instance) -> NWProtocolFramer.StartResult { .willMarkReady }
+    func handleInput(framer: NWProtocolFramer.Instance) -> Int { 0 }
+    func handleOutput(framer: NWProtocolFramer.Instance, message: NWProtocolFramer.Message, messageLength: Int, isComplete: Bool) {}
+    func wakeup(framer: NWProtocolFramer.Instance) {}
+    func stop(framer: NWProtocolFramer.Instance) -> Bool { true }
+    func cleanup(framer: NWProtocolFramer.Instance) {}
 }
 
 /// $TMPDIR can be too long for a unix socket path (sun_path is capped at 104 bytes). Like the real socketPath, use /tmp
