@@ -11,8 +11,8 @@ struct CloseCommand: Command {
             return .fail(io.err("Empty workspace"))
         }
         // Access ax directly. Not cool :(
-        if await args.quitIfLastWindow.andAsync({ @MainActor @Sendable in (try? await window.macAppUnsafe.getAxWindowsCount(.nonCancellable)) == 1 }) {
-            let app = window.macAppUnsafe
+        if await args.quitIfLastWindow.andAsync({ @MainActor @Sendable in (try? await window.asMacWindow().macApp.getAxWindowsCount(.nonCancellable)) == 1 }) {
+            let app = window.asMacWindow().macApp
             if app.nsApp.terminate() {
                 for workspace in Workspace.all {
                     for window in workspace.allLeafWindowsRecursive where window.app.pid == app.pid {

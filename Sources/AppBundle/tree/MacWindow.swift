@@ -39,18 +39,6 @@ final class MacWindow: Window {
         return window
     }
 
-    func isWindowHeuristic(_ windowLevel: MacOsWindowLevel?, _ cm: CancellationMode) async throws -> Bool { // todo cache
-        try await macApp.isWindowHeuristic(windowId, windowLevel, cm)
-    }
-
-    func isDialogHeuristic(_ windowLevel: MacOsWindowLevel?, _ cm: CancellationMode) async throws -> Bool { // todo cache
-        try await macApp.isDialogHeuristic(windowId, windowLevel, cm)
-    }
-
-    func dumpAxInfo(_ cm: CancellationMode) async throws -> [String: Json] {
-        try await macApp.dumpWindowAxInfo(windowId: windowId, cm)
-    }
-
     func setNativeFullscreen(_ value: Bool) {
         macApp.setAxAttr(windowId, Ax.isFullscreenAttr, value)
     }

@@ -25,7 +25,3 @@ extension AbstractApp {
         hasher.combine(pid)
     }
 }
-
-extension Window {
-    var macAppUnsafe: MacApp { app as! MacApp }
-}

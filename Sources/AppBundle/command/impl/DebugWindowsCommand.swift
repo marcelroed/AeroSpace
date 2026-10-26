@@ -80,7 +80,7 @@ private func dumpWindowDebugInfo(_ window: Window, _ cm: CancellationMode) async
     let window = window.asMacWindow()
     let appInfoDic = window.macApp.nsApp.bundleURL.flatMap { Bundle.init(url: $0) }?.infoDictionary ?? [:]
 
-    var result: [String: Json] = try await window.dumpAxInfo(cm)
+    var result: [String: Json] = try await window.macApp.dumpWindowAxInfo(windowId: window.windowId, cm)
 
     let windowLevel = getWindowLevel(for: window.windowId)
     let windowLevelJson = windowLevel?.toJson() ?? .null
@@ -98,8 +98,8 @@ private func dumpWindowDebugInfo(_ window: Window, _ cm: CancellationMode) async
     result["Aero.App.nsApp.appBundlePath"] = .stringOrNull(window.macApp.nsApp.bundleURL?.description)
     result["Aero.AXApp"] = .dict(try await window.macApp.dumpAppAxInfo(cm))
 
-    let isDialog = try await window.isDialogHeuristic(windowLevel, cm)
-    let isWindow = try await window.isWindowHeuristic(windowLevel, cm)
+    let isDialog = try await window.macApp.isDialogHeuristic(window.windowId, windowLevel, cm)
+    let isWindow = try await window.macApp.isWindowHeuristic(window.windowId, windowLevel, cm)
     result["Aero.AxUiElementWindowType"] = .string(AxUiElementWindowType.new(isWindow: isWindow, isDialog: { isDialog }).rawValue)
     result["Aero.AxUiElementWindowType_isDialogHeuristic"] = .bool(isDialog)
 
