@@ -49,16 +49,16 @@ struct FocusCommand: Command {
                 guard let currentIndex = windows.firstIndex(where: { $0 == target.windowOrNil }) else {
                     return .fail
                 }
-                var targetIndex = currentIndex + nextPrev.indexOffset
-                if !(0 ..< windows.count).contains(targetIndex) {
-                    switch args.boundariesAction {
-                        case .stop: return .succ
-                        case .fail: return .fail
-                        case .wrapAroundTheWorkspace: targetIndex = (targetIndex + windows.count) % windows.count
-                        case .wrapAroundAllMonitors: return .fail(io.err(bugPrompt("Must be discarded by args parser")))
-                    }
+                let targetIndex = currentIndex + nextPrev.indexOffset
+                if let windowToFocus = windows.getOrNil(atIndex: targetIndex) {
+                    return .from(bool: windowToFocus.focusWindow())
                 }
-                return .from(bool: windows[targetIndex].focusWindow())
+                switch args.boundariesAction {
+                    case .stop: return .succ
+                    case .fail: return .fail
+                    case .wrapAroundTheWorkspace: return .from(bool: windows.get(wrappingIndex: targetIndex).orDie().focusWindow())
+                    case .wrapAroundAllMonitors: return .fail(io.err(bugPrompt("Must be discarded by args parser")))
+                }
         }
     }
 }

@@ -30,14 +30,8 @@ struct SwapCommand: Command {
                 guard let currentIndex = windows.firstIndex(where: { $0 == target.windowOrNil }) else {
                     return .fail
                 }
-                var targetIndex = currentIndex + nextPrev.indexOffset
-                if !(0 ..< windows.count).contains(targetIndex) {
-                    if !args.wrapAround {
-                        return .fail
-                    }
-                    targetIndex = (targetIndex + windows.count) % windows.count
-                }
-                targetWindow = windows[targetIndex]
+                let targetIndex = currentIndex + nextPrev.indexOffset
+                targetWindow = args.wrapAround ? windows.get(wrappingIndex: targetIndex) : windows.getOrNil(atIndex: targetIndex)
         }
 
         guard let targetWindow else {
