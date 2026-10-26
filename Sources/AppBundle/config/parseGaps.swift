@@ -11,16 +11,6 @@ struct Gaps: Equatable, Sendable {
         var horizontal: DynamicConfigValue<Int>
 
         static let zero = Inner(vertical: 0, horizontal: 0)
-
-        init(vertical: Int, horizontal: Int) {
-            self.vertical = .constant(vertical)
-            self.horizontal = .constant(horizontal)
-        }
-
-        init(vertical: DynamicConfigValue<Int>, horizontal: DynamicConfigValue<Int>) {
-            self.vertical = vertical
-            self.horizontal = horizontal
-        }
     }
 
     struct Outer: Equatable, Sendable {
@@ -30,20 +20,18 @@ struct Gaps: Equatable, Sendable {
         var right: DynamicConfigValue<Int>
 
         static let zero = Outer(left: 0, bottom: 0, top: 0, right: 0)
+    }
+}
 
-        init(left: Int, bottom: Int, top: Int, right: Int) {
-            self.left = .constant(left)
-            self.bottom = .constant(bottom)
-            self.top = .constant(top)
-            self.right = .constant(right)
-        }
+extension Gaps.Inner {
+    init(vertical: Int, horizontal: Int) {
+        self.init(vertical: .constant(vertical), horizontal: .constant(horizontal))
+    }
+}
 
-        init(left: DynamicConfigValue<Int>, bottom: DynamicConfigValue<Int>, top: DynamicConfigValue<Int>, right: DynamicConfigValue<Int>) {
-            self.left = left
-            self.bottom = bottom
-            self.top = top
-            self.right = right
-        }
+extension Gaps.Outer {
+    init(left: Int, bottom: Int, top: Int, right: Int) {
+        self.init(left: .constant(left), bottom: .constant(bottom), top: .constant(top), right: .constant(right))
     }
 }
 
@@ -68,16 +56,18 @@ struct ResolvedGaps {
     }
 
     @MainActor init(gaps: Gaps, monitor: any MonitorInfo) {
+        // Query the monitors at most once, and only if some of the gaps are per-monitor
+        lazy var sortedMonitors = sortedMonitorInfos
         inner = .init(
-            vertical: gaps.inner.vertical.getValue(for: monitor),
-            horizontal: gaps.inner.horizontal.getValue(for: monitor),
+            vertical: gaps.inner.vertical.getValue(for: monitor, sortedMonitors: sortedMonitors),
+            horizontal: gaps.inner.horizontal.getValue(for: monitor, sortedMonitors: sortedMonitors),
         )
 
         outer = .init(
-            left: gaps.outer.left.getValue(for: monitor),
-            bottom: gaps.outer.bottom.getValue(for: monitor),
-            top: gaps.outer.top.getValue(for: monitor),
-            right: gaps.outer.right.getValue(for: monitor),
+            left: gaps.outer.left.getValue(for: monitor, sortedMonitors: sortedMonitors),
+            bottom: gaps.outer.bottom.getValue(for: monitor, sortedMonitors: sortedMonitors),
+            top: gaps.outer.top.getValue(for: monitor, sortedMonitors: sortedMonitors),
+            right: gaps.outer.right.getValue(for: monitor, sortedMonitors: sortedMonitors),
         )
     }
 }

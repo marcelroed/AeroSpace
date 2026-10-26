@@ -350,10 +350,6 @@ func parseString(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfi
     raw.asStringOrNil.toResult(expectedActualTypeDiagnostic(expected: .string, actual: raw.tomlType, backtrace))
 }
 
-func parseSimpleType<T>(_ raw: OrderedJson, ofType: T.Type) -> T? {
-    (raw.asIntOrNil as? T) ?? (raw.asStringOrNil as? T) ?? (raw.asBoolOrNil as? T)
-}
-
 extension OrderedJson {
     func unwrapTableWithSingleKey(expectedKey: String? = nil, _ backtrace: inout ConfigBacktrace) -> ResOrConfigParseDiagnostic<(key: String, value: OrderedJson)> {
         guard let asDictOrNil else {

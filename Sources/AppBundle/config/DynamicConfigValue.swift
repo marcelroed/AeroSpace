@@ -13,31 +13,36 @@ enum DynamicConfigValue<Value: Equatable>: Equatable {
 extension DynamicConfigValue: Sendable where Value: Sendable {}
 
 extension DynamicConfigValue {
-    @MainActor func getValue(for monitor: any MonitorInfo) -> Value {
+    /// - Parameter sortedMonitors: evaluated only for per-monitor values
+    @MainActor func getValue(for monitor: any MonitorInfo, sortedMonitors: @autoclosure () -> [MonitorInfo]) -> Value {
         switch self {
             case .constant(let value): return value
             case .perMonitor(let array, let defaultValue):
-                let sortedMonitors = sortedMonitorInfos
-                return array
-                    .lazy
-                    .compactMap {
-                        $0.description.resolveMonitor(sortedMonitors: sortedMonitors)?.rect.topLeftCorner == monitor.rect.topLeftCorner
-                            ? $0.value
-                            : nil
-                    }
-                    .first ?? defaultValue
+                let sortedMonitors = sortedMonitors()
+                return array.first {
+                    $0.description.resolveMonitor(sortedMonitors: sortedMonitors)?.rect.topLeftCorner == monitor.rect.topLeftCorner
+                }?.value ?? defaultValue
         }
     }
 }
 
-func parseDynamicValue<T>(
+/// A TOML scalar that a ``DynamicConfigValue`` can hold
+protocol TomlScalar {
+    static func fromTomlOrNil(_ raw: OrderedJson) -> Self?
+}
+
+extension Int: TomlScalar {
+    static func fromTomlOrNil(_ raw: OrderedJson) -> Int? { raw.asIntOrNil }
+}
+
+func parseDynamicValue<T: TomlScalar>(
     _ raw: OrderedJson,
     ofType valueType: T.Type,
     _ fallback: T,
     _ backtrace: ConfigBacktrace,
     _ c: inout ConfigParserContext,
 ) -> DynamicConfigValue<T> {
-    if let simpleValue = parseSimpleType(raw, ofType: T.self) {
+    if let simpleValue = T.fromTomlOrNil(raw) {
         return .constant(simpleValue)
     } else if let array = raw.asArrayOrNil {
         if array.isEmpty {
@@ -45,7 +50,7 @@ func parseDynamicValue<T>(
             return .constant(fallback)
         }
 
-        guard let defaultValue = array.last.flatMap({ parseSimpleType($0, ofType: T.self) }) else {
+        guard let defaultValue = array.last.flatMap(T.fromTomlOrNil) else {
             c.errors.append(.init(backtrace, "The last item in the array must be of type \(T.self)"))
             return .constant(fallback)
         }
@@ -64,7 +69,7 @@ func parseDynamicValue<T>(
     }
 }
 
-func parsePerMonitorValues<T>(_ array: OrderedJson.JsonArray, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> [PerMonitorValue<T>] {
+func parsePerMonitorValues<T: TomlScalar>(_ array: OrderedJson.JsonArray, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> [PerMonitorValue<T>] {
     array.enumerated().compactMap { (index: Int, raw: OrderedJson) -> PerMonitorValue<T>? in
         var backtrace = backtrace + .index(index)
 
@@ -79,7 +84,7 @@ func parsePerMonitorValues<T>(_ array: OrderedJson.JsonArray, _ backtrace: Confi
 
         guard let monitorDescription = monitorDescriptionResult.getOrNil(appendErrorTo: &c.errors) else { return nil }
 
-        guard let value = parseSimpleType(value, ofType: T.self) else {
+        guard let value = T.fromTomlOrNil(value) else {
             c.errors.append(.init(backtrace, "Expected type is '\(T.self)'. But actual type is '\(value.tomlType)'"))
             return nil
         }
