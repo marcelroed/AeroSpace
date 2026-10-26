@@ -1,6 +1,6 @@
 public struct SplitCmdArgs: CmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
-    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
     public static let parser: CmdParser<Self> = .init(
         kind: .split,
         flags: [
@@ -14,8 +14,4 @@ public struct SplitCmdArgs: CmdArgs {
     public enum SplitArg: String, CaseIterable, Sendable {
         case horizontal, vertical, opposite
     }
-}
-
-func parseSplitCmdArgs(_ args: StrArrSlice) -> ParsedCmd<SplitCmdArgs> {
-    parseSpecificCmdArgs(SplitCmdArgs(rawArgs: args), args)
 }
