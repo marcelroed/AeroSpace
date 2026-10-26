@@ -143,17 +143,9 @@ extension FormatVar {
                 return w.window.nodeMonitor.flatMap(AeroObj.monitor).map(expandFormatVar) ?? .success(.string("NULL-MONITOR"))
             case (.window(let w), .app):
                 return expandFormatVar(obj: .app(w.window.app))
-            case (.window(_), .window): break
-
             case (.workspace(let ws), .monitor):
                 return expandFormatVar(obj: AeroObj.monitor(ws.workspaceMonitor))
-            case (.workspace, _): break
 
-            case (.app(_), _): break
-            case (.monitor(_), _): break
-        }
-
-        switch (obj, self) {
             case (.window(let w), .window(let f)):
                 return switch f {
                     case .windowId: .success(.int(w.window.windowId))
@@ -183,9 +175,9 @@ extension FormatVar {
                     case .appExecPath: .success(.string(a.execPath ?? "NULL-APP-EXEC-PATH"))
                     case .appBundlePath: .success(.string(a.bundlePath ?? "NULL-APP-BUNDLE-PATH"))
                 }
-            default: break
+            default:
+                return .failure(.unknownInterpolationVariable(unknownInterpolationVariable(variable: rawValue, obj)))
         }
-        return .failure(.unknownInterpolationVariable(unknownInterpolationVariable(variable: rawValue, obj)))
     }
 }
 
