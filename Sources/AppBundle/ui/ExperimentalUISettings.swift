@@ -24,28 +24,17 @@ func getExperimentalUISettingsMenu(viewModel: TrayMenuModel) -> some View {
     return Menu {
         Text("Menu bar style (macOS 14 or later):")
         ForEach(MenuBarStyle.allCases) { style in
-            MenuBarStyleButton(style: style, color: color).environmentObject(viewModel)
+            Button {
+                viewModel.menuBarStyle = style
+            } label: {
+                Toggle(isOn: .constant(viewModel.menuBarStyle == style)) {
+                    MenuBarLabel(style: style, color: color)
+                        .environmentObject(viewModel)
+                    Text(" -  " + style.title)
+                }
+            }
         }
     } label: {
         Text("Experimental UI Settings (No stability guarantees)")
-    }
-}
-
-@MainActor
-struct MenuBarStyleButton: View {
-    @EnvironmentObject var viewModel: TrayMenuModel
-    let style: MenuBarStyle
-    let color: Color
-
-    var body: some View {
-        Button {
-            viewModel.menuBarStyle = style
-        } label: {
-            Toggle(isOn: .constant(viewModel.menuBarStyle == style)) {
-                MenuBarLabel(style: style, color: color)
-                    .environmentObject(viewModel)
-                Text(" -  " + style.title)
-            }
-        }
     }
 }
