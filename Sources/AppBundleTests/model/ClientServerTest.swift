@@ -1,8 +1,11 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Foundation
+import Testing
 
-final class ClientServerTest: XCTestCase {
+@Suite
+struct ClientServerTest: AeroSpaceTestSuite {
+    @Test
     func testClientRequestJsonV1_decoding() {
         let data = """
             { "command": "deprecated", "args": ["foo", "bar"], "stdin": "stdin" }
@@ -13,6 +16,7 @@ final class ClientServerTest: XCTestCase {
         assertSucc(ClientRequest.decodeJson(data), expected)
     }
 
+    @Test
     func testClientRequestJsonV2_decoding() {
         let data = """
             { "args": ["foo", "bar"], "stdin": "stdin" }
@@ -23,6 +27,7 @@ final class ClientServerTest: XCTestCase {
         assertSucc(ClientRequest.decodeJson(data), expected)
     }
 
+    @Test
     func testClientRequestJsonV3_decoding() {
         let data = """
             { "args": ["foo", "bar"], "stdin": "stdin", "windowId": null, "workspace": null }
@@ -31,6 +36,7 @@ final class ClientServerTest: XCTestCase {
         assertSucc(ClientRequest.decodeJson(data), expected)
     }
 
+    @Test
     func testClientRequestJsonV3_decoding2() {
         let data = """
             { "args": ["foo", "bar"], "stdin": "stdin", "windowId": 1, "workspace": "foo" }
@@ -39,6 +45,7 @@ final class ClientServerTest: XCTestCase {
         assertSucc(ClientRequest.decodeJson(data), expected)
     }
 
+    @Test
     func testClientRequestJsonV9999_decoding() {
         let data = """
             { "args": ["foo", "bar"], "stdin": "stdin", "yet another future field": 1 }
@@ -46,6 +53,7 @@ final class ClientServerTest: XCTestCase {
         assertSucc(ClientRequest.decodeJson(data))
     }
 
+    @Test
     func testClientRequestJsonCompatibility_encoding() {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -64,6 +72,7 @@ final class ClientServerTest: XCTestCase {
         }
     }
 
+    @Test
     func testServerEventEncoding() {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -93,6 +102,7 @@ final class ClientServerTest: XCTestCase {
         }
     }
 
+    @Test
     func testServerEventDecoding() {
         let testData: [(String, ServerEventType)] = [
             (#"{"_event":"focus-changed","windowId":123,"workspace":"1","monitorId":1}"#, .focusChanged),
