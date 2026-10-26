@@ -1,11 +1,11 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
 @MainActor
-final class RunCallbackCommandTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
-
+@Suite(.aeroSpaceGlobalState)
+struct RunCallbackCommandTest: AeroSpaceTestSuite {
+    @Test
     func testParse() {
         testParseSingleCommandSucc(
             "run-callback on-window-detected",
@@ -33,6 +33,7 @@ final class RunCallbackCommandTest: XCTestCase {
         )
     }
 
+    @Test
     func testParseFailure() {
         testParseCommandFail("run-callback", msg: "ERROR: Argument '<callback>' is mandatory", exitCode: 2)
         testParseCommandFail(
