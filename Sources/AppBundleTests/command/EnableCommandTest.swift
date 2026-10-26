@@ -1,15 +1,11 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
 @MainActor
-final class EnableCommandTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
-    override func tearDown() async throws {
-        TrayMenuModel.shared.isEnabled = true
-        activeMode = mainModeId
-    }
-
+@Suite(.aeroSpaceGlobalState)
+struct EnableCommandTest: AeroSpaceTestSuite {
+    @Test
     func testParse() {
         testParseSingleCommandSucc("enable on", EnableCmdArgs(rawArgs: [], targetState: .on))
         testParseSingleCommandSucc("enable off", EnableCmdArgs(rawArgs: [], targetState: .off))
@@ -20,6 +16,7 @@ final class EnableCommandTest: XCTestCase {
         assertEquals(parseCommand("enable").errorOrNil, "ERROR: Argument '(on|off|toggle)' is mandatory")
     }
 
+    @Test
     func testNoop() async {
         var result = await parseCommand("enable on").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 0)
@@ -41,6 +38,7 @@ final class EnableCommandTest: XCTestCase {
         assertEquals(result.stderr, [])
     }
 
+    @Test
     func testToggle() async {
         var result = await parseCommand("enable toggle").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 0)
