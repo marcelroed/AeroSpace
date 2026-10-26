@@ -55,24 +55,20 @@ struct Main {
                 exit(failExitCode, err: "Can't connect to AeroSpace server. Is AeroSpace.app running?\n\(e.localizedDescription)")
         }
 
-        var stdin = ""
-        if parsedArgs.commonState.explicitStdinFlag == true ||
-            // todo: drop after a couple of versions
-            (parsedArgs.commonState.explicitStdinFlag != false && isRelativeWorkspaceTarget(parsedArgs) && hasStdin())
-        {
-            if parsedArgs.commonState.explicitStdinFlag == nil && (parsedArgs is WorkspaceCmdArgs || parsedArgs is MoveNodeToWorkspaceCmdArgs) {
-                exit(
-                    failExitCode,
-                    err: """
-                        ERROR: Implicit stdin is detected (stdin is not TTY). Implicit stdin was forbidden in AeroSpace v0.20.0.
-                        1. Please supply '--stdin' flag to make stdin explicit and preserve old AeroSpace behavior
-                        2. You can also use '--no-stdin' flag to behave as if no stdin was supplied
-                        Breaking change issue: https://github.com/nikitabobko/AeroSpace/issues/1683
-                        """,
-                )
-            }
-            stdin = readStdinOrExit(failExitCode: failExitCode)
+        let explicitStdinFlag = parsedArgs.commonState.explicitStdinFlag
+        // todo: drop after a couple of versions
+        if explicitStdinFlag == nil && isRelativeWorkspaceTarget(parsedArgs) && hasStdin() {
+            exit(
+                failExitCode,
+                err: """
+                    ERROR: Implicit stdin is detected (stdin is not TTY). Implicit stdin was forbidden in AeroSpace v0.20.0.
+                    1. Please supply '--stdin' flag to make stdin explicit and preserve old AeroSpace behavior
+                    2. You can also use '--no-stdin' flag to behave as if no stdin was supplied
+                    Breaking change issue: https://github.com/nikitabobko/AeroSpace/issues/1683
+                    """,
+            )
         }
+        let stdin = explicitStdinFlag == true ? readStdinOrExit(failExitCode: failExitCode) : ""
 
         let windowId = ProcessInfo.processInfo.environment[AEROSPACE_WINDOW_ID].flatMap(UInt32.init)
         let workspace = ProcessInfo.processInfo.environment[AEROSPACE_WORKSPACE]
