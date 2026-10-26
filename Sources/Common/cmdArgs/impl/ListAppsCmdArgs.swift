@@ -39,20 +39,5 @@ extension ListAppsCmdArgs {
 
 func parseListAppsCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ListAppsCmdArgs> {
     parseSpecificCmdArgs(ListAppsCmdArgs(rawArgs: args), args)
-        .flatMap { if $0.json, let msg = getErrorIfFormatIsIncompatibleWithJson($0._format) { .failure(msg) } else { .cmd($0) } }
-}
-
-func getErrorIfFormatIsIncompatibleWithJson(_ format: [InterToken<InterVar>]) -> String? {
-    for x in format {
-        switch x {
-            case .interVar(.plainInterVar(.rightPadding)):
-                return "%{right-padding} interpolation variable is not allowed when --json is used"
-            case .interVar: break // skip
-            case .literal(let literal):
-                if literal.contains(where: { $0 != " " }) {
-                    return "Only interpolation variables and spaces are allowed in '--format' when '--json' is used"
-                }
-        }
-    }
-    return nil
+        .filterFormatCompatibleWithJson()
 }

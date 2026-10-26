@@ -1,5 +1,3 @@
-import OrderedCollections
-
 let onitor = "<monitor>"
 let _monitors = "\(onitor)..."
 
@@ -71,7 +69,7 @@ func parseListWorkspacesCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ListWorkspaces
                     .copy(\.focused, false)
                 : raw
         }
-        .flatMap { if $0.json, let msg = getErrorIfFormatIsIncompatibleWithJson($0._format) { .failure(msg) } else { .cmd($0) } }
+        .filterFormatCompatibleWithJson()
 }
 
 func parseMonitorIds(input: SubArgParserInput) -> ParsedCliArgs<[MonitorId]> {

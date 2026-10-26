@@ -42,27 +42,16 @@ struct ListWindowsCommand: Command {
 
         if args.outputOnlyCount {
             return .succ(io.out("\(windows.count)"))
-        } else {
-            var _list: [WindowWithPrefetchedTitle] = [] // todo cleanup
-            for window in windows {
-                guard let window = try? await WindowWithPrefetchedTitle.resolveWindow(window, for: args.format, .nonCancellable) else { return .fail(io.err(bugPrompt())) }
-                _list.append(window)
-            }
-            _list = _list.filter { $0.window.isBound }
-            _list = _list.sortedBy([{ $0.window.app.name ?? "" }, { $0.title ?? "" }])
-
-            let list = _list.map { AeroObj.window($0) }
-            if args.json {
-                return switch list.formatToJson(args.format, ignoreRightPaddingVar: args._format.isEmpty) {
-                    case .success(let json): .succ(io.out(json))
-                    case .failure(let msg): .fail(io.err(msg))
-                }
-            } else {
-                return switch list.format(args.format) {
-                    case .success(let lines): .succ(io.out(lines))
-                    case .failure(let msg): .fail(io.err(msg.map(\.description).joinErrors()))
-                }
-            }
         }
+        var resolved: [WindowWithPrefetchedTitle] = []
+        for window in windows {
+            guard let window = try? await WindowWithPrefetchedTitle.resolveWindow(window, for: args.format, .nonCancellable) else { return .fail(io.err(bugPrompt())) }
+            resolved.append(window)
+        }
+        let list = resolved
+            .filter { $0.window.isBound }
+            .sortedBy([{ $0.window.app.name ?? "" }, { $0.title ?? "" }])
+            .map(AeroObj.window)
+        return args.printList(list, io)
     }
 }

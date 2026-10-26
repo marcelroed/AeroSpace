@@ -1,5 +1,3 @@
-import OrderedCollections
-
 private let workspace = "<workspace>"
 private let workspaces = "\(workspace)..."
 
@@ -75,7 +73,7 @@ func parseListWindowsCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ListWindowsCmdArg
         .map { raw in
             raw.allAlias ? raw.copy(\.filteringOptions.monitors, [.all]).copy(\.allAlias, false) : raw // Normalize alias
         }
-        .flatMap { if $0.json, let msg = getErrorIfFormatIsIncompatibleWithJson($0._format) { .failure(msg) } else { .cmd($0) } }
+        .filterFormatCompatibleWithJson()
 }
 
 func formatParser<Root>(
