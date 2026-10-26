@@ -18,10 +18,6 @@ struct MoveWorkspaceToMonitorCommandTest: AeroSpaceTestSuite {
     }
 }
 
-@MainActor
 private func parseMoveWorkspaceToMonitorTarget(_ raw: String) -> MonitorTarget? {
-    guard case .cmd(.cmd(let cmd)) = parseCommand(raw),
-          let args = cmd.args as? MoveWorkspaceToMonitorCmdArgs
-    else { return nil }
-    return args.target.val
+    parsedArgs(raw, as: MoveWorkspaceToMonitorCmdArgs.self)?.target.val
 }

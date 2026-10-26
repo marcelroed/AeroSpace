@@ -25,8 +25,6 @@ struct MoveMouseCommandTest: AeroSpaceTestSuite {
     }
 }
 
-@MainActor
 private func parseMouseTarget(_ raw: String) -> MouseTarget? {
-    guard case .cmd(.cmd(let command)) = parseCommand(raw) else { return nil }
-    return (command as? MoveMouseCommand)?.args.mouseTarget.val
+    parsedArgs(raw, as: MoveMouseCmdArgs.self)?.mouseTarget.val
 }

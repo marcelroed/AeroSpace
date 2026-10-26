@@ -63,6 +63,12 @@ extension ParsedCmd {
     var cmdOrDie: T { cmdOrNil ?? dieT("\(self)") }
 }
 
+/// The arguments of `raw` if it parses as a single command with arguments of type `T`, nil otherwise
+func parsedArgs<T: CmdArgs>(_ raw: String, as _: T.Type) -> T? {
+    guard case .cmd(.cmd(let command)) = parseCommand(raw) else { return nil }
+    return command.args as? T
+}
+
 func testParseCommandFail(
     _ command: String,
     msg expectedMsg: String,

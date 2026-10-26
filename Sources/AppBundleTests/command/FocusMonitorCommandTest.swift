@@ -21,10 +21,6 @@ struct FocusMonitorCommandTest: AeroSpaceTestSuite {
     }
 }
 
-@MainActor
 private func parseFocusMonitorTarget(_ raw: String) -> MonitorTarget? {
-    guard case .cmd(.cmd(let cmd)) = parseCommand(raw),
-          let args = cmd.args as? FocusMonitorCmdArgs
-    else { return nil }
-    return args.target.val
+    parsedArgs(raw, as: FocusMonitorCmdArgs.self)?.target.val
 }
