@@ -52,8 +52,8 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case workspaceBackAndForth = "workspace-back-and-forth"
 }
 
-func initSubcommands() -> [String: any SubCommandParserProtocol] {
-    var result: [String: any SubCommandParserProtocol] = [:]
+func initSubcommands() -> [String: SubCommandParser] {
+    var result: [String: SubCommandParser] = [:]
     for kind in CmdKind.allCases {
         switch kind {
             case .balanceSizes:
