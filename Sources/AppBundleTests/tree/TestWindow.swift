@@ -42,4 +42,15 @@ final class TestWindow: Window, CustomStringConvertible {
     }
 
     override func isMacosFullscreen(_ cm: CancellationMode) async throws -> Bool { isMacosFullscreenForTest }
+
+    private(set) var setAxFrameHistory: [AxFrame] = []
+    override func setAxFrame(_ topLeft: CGPoint?, _ size: CGSize?) {
+        setAxFrameHistory.append(AxFrame(topLeft: topLeft, size: size))
+    }
+}
+
+// periphery:ignore - false positive unused warning. The properties are read by the synthesized Equatable
+struct AxFrame: Equatable {
+    let topLeft: CGPoint?
+    let size: CGSize?
 }
