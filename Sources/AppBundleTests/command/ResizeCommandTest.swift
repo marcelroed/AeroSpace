@@ -169,6 +169,7 @@ final class ResizeCommandTest: XCTestCase {
 
         let result = await parseCommand("resize width +2").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 2)
+        assertEquals(result.stderr, ["Can't resize: there are no other tiling windows to the left or right"]) // RB-67
         assertEquals(window.hWeight, 4)
     }
 }

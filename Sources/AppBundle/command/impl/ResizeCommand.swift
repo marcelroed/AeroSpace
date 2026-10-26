@@ -23,15 +23,18 @@ struct ResizeCommand: Command {
         guard let parent = node?.parent as? TilingContainer else {
             return .fail(io.err("resize command doesn't support floating windows yet https://github.com/nikitabobko/AeroSpace/issues/9"))
         }
-        guard let orientation else { return .fail }
-        guard let node else { return .fail }
+        // Impossible: parent is non-nil only if node is, and node matched a non-nil orientation
+        guard let orientation else { return .fail(io.err(bugPrompt())) }
+        guard let node else { return .fail(io.err(bugPrompt())) }
         let diff: CGFloat = switch args.units.val {
             case .set(let unit): CGFloat(unit) - node.getWeight(orientation)
             case .add(let unit): CGFloat(unit)
             case .subtract(let unit): -CGFloat(unit)
         }
 
-        guard let childDiff = diff.div(parent.children.count - 1) else { return .fail }
+        guard let childDiff = diff.div(parent.children.count - 1) else {
+            return .fail(io.err("Can't resize: there are no other tiling windows \(orientation == .h ? "to the left or right" : "above or below")"))
+        }
         for child in parent.children where child != node {
             child.setWeight(parent.orientation, child.getWeight(parent.orientation) - childDiff)
         }
