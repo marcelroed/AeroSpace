@@ -95,9 +95,9 @@ extension Shell where T == any Command {
                 await refreshModel_nonCancellable()
                 return exitCode
             case .pipe(let commands): return await runShellPipe(commands, env, io)
-            case .and(let commands): return await runShellAnd(commands, env, io)
-            case .or(let commands): return await runShellOr(commands, env, io)
-            case .seq(let commands): return await runShellSeq(commands, env, io)
+            case .and(let commands): return await runSequentially(commands, env, io, initial: EXIT_CODE_ZERO) { $0 != 0 }
+            case .or(let commands): return await runSequentially(commands, env, io, initial: EXIT_CODE_TWO) { $0 == 0 }
+            case .seq(let commands): return await runSequentially(commands, env, io, initial: EXIT_CODE_ZERO) { _ in false }
         }
     }
 
@@ -108,28 +108,12 @@ extension Shell where T == any Command {
     }
 }
 
-@MainActor private func runShellOr(_ commands: [Shell<any Command>], _ env: CmdEnv, _ io: CmdIo) async -> Int32ExitCode {
-    var exitCode = Int32ExitCode(rawValue: EXIT_CODE_TWO)
+/// Runs `commands` in order and stops after the first exit code for which `stop` is true
+@MainActor private func runSequentially(_ commands: [Shell<any Command>], _ env: CmdEnv, _ io: CmdIo, initial: Int32, stop: (Int32) -> Bool) async -> Int32ExitCode {
+    var exitCode = Int32ExitCode(rawValue: initial)
     for command in commands {
         exitCode = await command.run(env, io)
-        if exitCode.rawValue == 0 { break }
-    }
-    return exitCode
-}
-
-@MainActor private func runShellAnd(_ commands: [Shell<any Command>], _ env: CmdEnv, _ io: CmdIo) async -> Int32ExitCode {
-    var exitCode = Int32ExitCode(rawValue: EXIT_CODE_ZERO)
-    for command in commands {
-        exitCode = await command.run(env, io)
-        if exitCode.rawValue != 0 { break }
-    }
-    return exitCode
-}
-
-@MainActor private func runShellSeq(_ commands: [Shell<any Command>], _ env: CmdEnv, _ io: CmdIo) async -> Int32ExitCode {
-    var exitCode = Int32ExitCode(rawValue: EXIT_CODE_ZERO)
-    for command in commands {
-        exitCode = await command.run(env, io)
+        if stop(exitCode.rawValue) { break }
     }
     return exitCode
 }
