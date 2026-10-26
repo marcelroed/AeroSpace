@@ -150,24 +150,13 @@ extension TilingContainer {
                 case mruIndex + 1:                (2 * padding, 0)
                 default:                          (padding, padding)
             }
-            switch orientation {
-                case .h:
-                    try await child.layoutRecursive(
-                        point + CGPoint(x: lPadding, y: 0),
-                        width: width - rPadding - lPadding,
-                        height: height,
-                        virtual: virtual,
-                        context,
-                    )
-                case .v:
-                    try await child.layoutRecursive(
-                        point + CGPoint(x: 0, y: lPadding),
-                        width: width,
-                        height: height - lPadding - rPadding,
-                        virtual: virtual,
-                        context,
-                    )
-            }
+            try await child.layoutRecursive(
+                point.addingOffset(orientation, lPadding),
+                width: orientation == .h ? width - rPadding - lPadding : width,
+                height: orientation == .v ? height - lPadding - rPadding : height,
+                virtual: virtual,
+                context,
+            )
         }
     }
 }
