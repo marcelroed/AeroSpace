@@ -103,6 +103,11 @@ struct Parser<S>: Sendable {
 
     /// The key is known, but its value is parsed separately. The field keeps its initial value
     static var parsedManually: Self { Parser(parseInto: { _, _, _, _ in }) }
+
+    /// The key only produces diagnostics (e.g. deprecated keys). The parsed value is dropped
+    static func diagnosticOnly<T>(_ parse: @escaping @Sendable (OrderedJson, ConfigBacktrace) -> ResOrConfigParseDiagnostic<T>) -> Self {
+        Parser(parseInto: { _, raw, backtrace, c in _ = parse(raw, backtrace).getOrNil(appendErrorTo: &c.errors) })
+    }
 }
 
 private let keyMappingConfigRootKey = "key-mapping"
@@ -116,7 +121,7 @@ private let persistentWorkspacesKey = "persistent-workspaces"
 private let configParser: [String: Parser<Config>] = [
     configVersionConfigRootKey: .parsedManually,
 
-    "after-login-command": Parser(\._afterLoginCommand, parseDeprecatedAfterLoginCommand),
+    "after-login-command": .diagnosticOnly(parseDeprecatedAfterLoginCommand),
     "after-startup-command": Parser(\.afterStartupCommand, parseShellOfCommandsForConfig),
 
     "on-focus-changed": Parser(\.onFocusChanged, parseShellOfCommandsForConfig),
@@ -147,8 +152,8 @@ private let configParser: [String: Parser<Config>] = [
     "on-window-detected": Parser(\.onWindowDetected, parseOnWindowDetectedArray),
 
     // Deprecated
-    "non-empty-workspaces-root-containers-layout-on-startup": Parser(\._nonEmptyWorkspacesRootContainersLayoutOnStartup, parseStartupRootContainerLayout),
-    "indent-for-nested-containers-with-the-same-orientation": Parser(\._indentForNestedContainersWithTheSameOrientation, parseIndentForNestedContainersWithTheSameOrientation),
+    "non-empty-workspaces-root-containers-layout-on-startup": .diagnosticOnly(parseStartupRootContainerLayout),
+    "indent-for-nested-containers-with-the-same-orientation": .diagnosticOnly(parseIndentForNestedContainersWithTheSameOrientation),
 ]
 
 extension ParsedCmd {

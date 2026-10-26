@@ -34,11 +34,8 @@ var defaultConfigUrl: URL {
 
 struct Config {
     var configVersion: ConfigVersion = ._1
-    var _afterLoginCommand: [any Command] = []
     var afterStartupCommand: Shell<any Command> = .empty
-    var _indentForNestedContainersWithTheSameOrientation: Void = ()
     var enableNormalizationFlattenContainers: Bool = true
-    var _nonEmptyWorkspacesRootContainersLayoutOnStartup: Void = ()
     var defaultRootContainerLayout: Layout = .tiles
     var defaultRootContainerOrientation: DefaultContainerOrientation = .auto
     var startAtLogin: Bool = false
