@@ -3,10 +3,10 @@ import AppKit
 
 extension TilingContainer {
     static func newHTiles(parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat) -> TilingContainer {
-        newHTiles(parent: parent, adaptiveWeight: adaptiveWeight, index: INDEX_BIND_LAST)
+        TilingContainer(parent: parent, adaptiveWeight: adaptiveWeight, .h, .tiles, index: INDEX_BIND_LAST)
     }
 
     static func newVTiles(parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat) -> TilingContainer {
-        newVTiles(parent: parent, adaptiveWeight: adaptiveWeight, index: INDEX_BIND_LAST)
+        TilingContainer(parent: parent, adaptiveWeight: adaptiveWeight, .v, .tiles, index: INDEX_BIND_LAST)
     }
 }

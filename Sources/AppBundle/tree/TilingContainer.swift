@@ -11,14 +11,6 @@ final class TilingContainer: TreeNode, NonLeafTreeNodeObject { // todo consider 
         self.layout = layout
         super.init(parent: parent, adaptiveWeight: adaptiveWeight, index: index)
     }
-
-    static func newHTiles(parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) -> TilingContainer {
-        TilingContainer(parent: parent, adaptiveWeight: adaptiveWeight, .h, .tiles, index: index)
-    }
-
-    static func newVTiles(parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) -> TilingContainer {
-        TilingContainer(parent: parent, adaptiveWeight: adaptiveWeight, .v, .tiles, index: index)
-    }
 }
 
 extension TilingContainer {
