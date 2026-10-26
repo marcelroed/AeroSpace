@@ -7,6 +7,7 @@ func getDefaultConfigUrlFromProject() -> URL {
     var url = URL(filePath: #filePath)
     check(FileManager.default.fileExists(atPath: url.path))
     while !FileManager.default.fileExists(atPath: url.appending(component: ".git").path) {
+        check(url.path != "/", "Can't find the project root: no parent directory of \(#filePath) contains .git")
         url.deleteLastPathComponent()
     }
     let projectRoot: URL = url
