@@ -43,6 +43,22 @@ final class NWConnectionExTest: XCTestCase {
         }
     }
 
+    func testReadFailsWhenPeerClosesMidAnswer() async throws {
+        let server = try await TestSocketServer.start(serverVersion: SOCKET_PROTOCOL_VERSION, closeMidAnswer: true)
+        defer { server.stop() }
+        let connection = NWConnection(to: .unix(path: server.path), using: .tcp)
+        defer { connection.cancel() }
+
+        assertNil(await connection.initConnection().error)
+        let request = ClientRequest(args: ["list-workspaces", "--all"], stdin: "", windowId: nil, workspace: nil)
+        assertNil(await connection.writeAtomic(request).error)
+        // The receive after the end of the stream fails. If it didn't, the read would spin forever (RB-08)
+        switch await withTimeout(seconds: 5, { await connection.readNonAtomic() }) {
+            case .failure: break
+            case let other: failExpectedActual("failure", other.map { "\($0)" } ?? "timed out")
+        }
+    }
+
     func testHandshakeWithoutServerFails() async {
         let connection = NWConnection(to: .unix(path: testSocketPath()), using: .tcp)
         defer { connection.cancel() }
@@ -57,6 +73,23 @@ final class NWConnectionExTest: XCTestCase {
 /// $TMPDIR can be too long for a unix socket path (sun_path is capped at 104 bytes). Like the real socketPath, use /tmp
 private func testSocketPath() -> String { "/tmp/aerospace-test-\(UUID().uuidString.prefix(8)).sock" }
 
+/// Returns nil if `body` doesn't finish in time. `body` can't be cancelled and keeps running in that case
+private func withTimeout<T: Sendable>(seconds: Int, _ body: @escaping @Sendable () async -> T) async -> T? {
+    await withCheckedContinuation { cont in
+        let isDone = OSAllocatedUnfairLock(initialState: false)
+        let resume: @Sendable (T?) -> Void = { result in
+            // Make sure to resume continuation only once
+            let wasAlreadyDone = isDone.withLock { isDone in
+                defer { isDone = true }
+                return isDone
+            }
+            if !wasAlreadyDone { cont.resume(returning: result) }
+        }
+        Task.startUnstructured { resume(await body()) }
+        DispatchQueue.global().asyncAfter(deadline: .now() + .seconds(seconds)) { resume(nil) }
+    }
+}
+
 /// Mirrors the handshake of the real server (server.swift): read client version, answer with own version, then
 /// answer each request
 private final class TestSocketServer: Sendable {
@@ -68,7 +101,8 @@ private final class TestSocketServer: Sendable {
         self.listener = listener
     }
 
-    static func start(serverVersion: UInt32) async throws -> TestSocketServer {
+    /// - closeMidAnswer: announce an answer, then close the connection without sending it
+    static func start(serverVersion: UInt32, closeMidAnswer: Bool = false) async throws -> TestSocketServer {
         let path = testSocketPath()
         let params = NWParameters.tcp
         params.requiredLocalEndpoint = .unix(path: path)
@@ -80,6 +114,10 @@ private final class TestSocketServer: Sendable {
                 guard await connection.readUInt32().getIgnoringErrorsOrNil() != nil else { return }
                 if await connection.writeUInt32(serverVersion).error != nil { return }
                 while let raw = await connection.readNonAtomic().getIgnoringErrorsOrNil() {
+                    if closeMidAnswer {
+                        _ = await connection.writeUInt32(100) // The answer size
+                        return
+                    }
                     let request = ClientRequest.decodeJson(raw).getOrDie()
                     let answer = ServerAnswer(
                         exitCode: 0,
