@@ -3,11 +3,7 @@ import Common
 struct WindowDetectedCallback: Equatable {
     var matcher: WindowDetectedCallbackMatcher = .command(.empty)
     var checkFurtherCallbacks: Bool = false
-    var rawRun: Shell<any Command>? = nil
-
-    var run: Shell<any Command> {
-        rawRun ?? dieT("ID-46D063B2 should have discarded nil")
-    }
+    var run: Shell<any Command>
 
     var debugJson: Json {
         var result: [String: Json] = [:]
@@ -15,15 +11,20 @@ struct WindowDetectedCallback: Equatable {
             case .command(let command): .string(command.shellOfCommandsDescription)
             case .legacy(let legacy): legacy.debugJson
         }
-        if let commands = rawRun {
-            result["commands"] = .string(commands.shellOfCommandsDescription)
-        }
+        result["commands"] = .string(run.shellOfCommandsDescription)
         return .dict(result)
     }
 
     static func == (lhs: WindowDetectedCallback, rhs: WindowDetectedCallback) -> Bool {
         lhs.matcher == rhs.matcher && lhs.checkFurtherCallbacks == rhs.checkFurtherCallbacks && lhs.run.strictEquals(rhs.run)
     }
+}
+
+/// The parsed TOML table before validation. `run` is mandatory, see ``parseWindowDetectedCallback``
+private struct RawWindowDetectedCallback {
+    var matcher: WindowDetectedCallbackMatcher = .command(.empty)
+    var checkFurtherCallbacks: Bool = false
+    var run: Shell<any Command>? = nil
 }
 
 struct LegacyWindowDetectedCallbackMatcher: Equatable {
@@ -67,10 +68,10 @@ enum WindowDetectedCallbackMatcher: Equatable {
     }
 }
 
-private let windowDetectedParser: [String: Parser<WindowDetectedCallback>] = [
+private let windowDetectedParser: [String: Parser<RawWindowDetectedCallback>] = [
     "if": Parser(\.matcher, parseMatcher),
     "check-further-callbacks": Parser(\.checkFurtherCallbacks, parseBool),
-    "run": Parser(\.rawRun, parseShellOfCommandsForConfig),
+    "run": Parser(\.run, parseShellOfCommandsForConfig),
 ]
 
 private let matcherParsers: [String: Parser<LegacyWindowDetectedCallbackMatcher>] = [
@@ -111,7 +112,7 @@ private func parseMatcher(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c:
 
 private func parseWindowDetectedCallback(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> WindowDetectedCallback? {
     var myContext = ConfigParserContext(configVersion: c.configVersion, errors: [], warnings: [])
-    let callback = parseTable(raw, WindowDetectedCallback(), windowDetectedParser, backtrace, &myContext)
+    let callback = parseTable(raw, RawWindowDetectedCallback(), windowDetectedParser, backtrace, &myContext)
 
     if callback.matcher == .command(.empty) && !callback.checkFurtherCallbacks {
         let msg = "Omitting 'if' is error prone. You can use `if = 'true'` to preserve the previous behavior.\n" +
@@ -119,15 +120,15 @@ private func parseWindowDetectedCallback(_ raw: OrderedJson, _ backtrace: Config
         myContext.errors.append(.init(backtrace, msg))
     }
 
-    if callback.rawRun == nil { // ID-46D063B2
+    if callback.run == nil {
         myContext.errors.append(.init(backtrace, "'run' is mandatory key"))
     }
 
-    if !myContext.errors.isEmpty {
+    guard let run = callback.run, myContext.errors.isEmpty else {
         c.errors += myContext.errors
         c.warnings += myContext.warnings
         return nil
     }
 
-    return callback
+    return WindowDetectedCallback(matcher: callback.matcher, checkFurtherCallbacks: callback.checkFurtherCallbacks, run: run)
 }

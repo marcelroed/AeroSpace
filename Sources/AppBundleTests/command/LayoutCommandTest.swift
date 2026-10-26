@@ -136,7 +136,7 @@ final class LayoutCommandTest: XCTestCase {
         config.onWindowDetected = [
             WindowDetectedCallback(
                 matcher: .command(.empty), // true
-                rawRun: parseCommand("layout floating tiling").cmdOrDie,
+                run: parseCommand("layout floating tiling").cmdOrDie,
             ),
         ]
 

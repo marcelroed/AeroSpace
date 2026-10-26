@@ -361,7 +361,7 @@ final class ConfigTest: XCTestCase {
             WindowDetectedCallback( // 0
                 matcher: .command(.cmd(TrueCommand.instance)),
                 checkFurtherCallbacks: true,
-                rawRun: .seq([
+                run: .seq([
                     .cmd(LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [.floating]))),
                     .cmd(MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "W"))),
                 ]),
@@ -370,32 +370,32 @@ final class ConfigTest: XCTestCase {
                 matcher: .legacy(LegacyWindowDetectedCallbackMatcher(
                     appId: "com.apple.systempreferences",
                 )),
-                rawRun: .empty,
+                run: .empty,
             ),
             WindowDetectedCallback( // 3
                 matcher: .command(.cmd(TrueCommand.instance)),
-                rawRun: .seq([
+                run: .seq([
                     .cmd(MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "S"))),
                     .cmd(LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [.tiling]))),
                 ]),
             ),
             WindowDetectedCallback( // 4
                 matcher: .command(.cmd(TrueCommand.instance)),
-                rawRun: .seq([
+                run: .seq([
                     .cmd(MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "S"))),
                     .cmd(MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "W"))),
                 ]),
             ),
             WindowDetectedCallback( // 5
                 matcher: .command(.cmd(TrueCommand.instance)),
-                rawRun: .seq([
+                run: .seq([
                     .cmd(MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "S"))),
                     .cmd(LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [.h_tiles]))),
                 ]),
             ),
             WindowDetectedCallback( // 6
                 matcher: .command(.cmd(TestCommand(args: matcher6Args))),
-                rawRun: .cmd(MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "T"))),
+                run: .cmd(MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "T"))),
             ),
         ])
 
@@ -418,7 +418,7 @@ final class ConfigTest: XCTestCase {
             WindowDetectedCallback(
                 matcher: .command(.empty),
                 checkFurtherCallbacks: true,
-                rawRun: .empty,
+                run: .empty,
             ),
         ])
 
