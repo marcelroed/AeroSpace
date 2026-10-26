@@ -1,5 +1,6 @@
 @testable import AppBundle
 import Common
+import os
 import XCTest
 
 final class AwaitableOneTimeBroadcastLatchTest: XCTestCase {
@@ -11,20 +12,33 @@ final class AwaitableOneTimeBroadcastLatchTest: XCTestCase {
 
     func testAwaitOnFreshLatchSuspendsUntilSignal() async throws {
         let latch = AwaitableOneTimeBroadcastLatch()
-        let task = Task.startUnstructured { try await latch.await() }
+        let returnedCount = OSAllocatedUnfairLock(initialState: 0)
+        let task = Task.startUnstructured {
+            try await latch.await()
+            returnedCount.withLock { $0 += 1 }
+        }
         try await Task.sleep(for: .milliseconds(50))
-        assertFalse(task.isCancelled)
+        assertEquals(returnedCount.withLock { $0 }, 0)
         await latch.signalToAll()
         try await task.value
+        assertEquals(returnedCount.withLock { $0 }, 1)
     }
 
     func testSignalReleasesAllPendingAwaiters() async throws {
         let latch = AwaitableOneTimeBroadcastLatch()
         let count = 20
-        let tasks = (0 ..< count).map { _ in Task.startUnstructured { try await latch.await() } }
+        let returnedCount = OSAllocatedUnfairLock(initialState: 0)
+        let tasks = (0 ..< count).map { _ in
+            Task.startUnstructured {
+                try await latch.await()
+                returnedCount.withLock { $0 += 1 }
+            }
+        }
         try await Task.sleep(for: .milliseconds(50))
+        assertEquals(returnedCount.withLock { $0 }, 0)
         await latch.signalToAll()
         for task in tasks { try await task.value }
+        assertEquals(returnedCount.withLock { $0 }, count)
     }
 
     func testSignalIsIdempotent() async throws {

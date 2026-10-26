@@ -315,11 +315,11 @@ final class ConfigTest: XCTestCase {
                 "w8": [],
             ],
         )
-        assertEquals([
+        assertEquals(result.strErrors, [
             "[ERROR] workspace-to-monitor-force-assignment.w7[0]: Empty string is an illegal monitor description",
             "[ERROR] workspace-to-monitor-force-assignment.w8: Monitor sequence numbers uses 1-based indexing. Values less than 1 are illegal",
-        ], result.strErrors)
-        assertEquals([:], defaultConfig.workspaceToMonitorForceAssignment)
+        ])
+        assertEquals(defaultConfig.workspaceToMonitorForceAssignment, [:])
     }
 
     func testParseOnWindowDetected() {
@@ -667,22 +667,21 @@ final class ConfigTest: XCTestCase {
         assertEquals(result.warnings.count, 1)
         XCTAssertTrue(result.warnings[0].message.contains("'config-version = 1' is outdated"))
 
-        // config-version = 2 (the current max) should not produce the outdated warning
-        let v2 = parseConfig(
+        // The current max config-version should not produce the outdated warning
+        let latest = parseConfig(
             """
-            config-version = 2
+            config-version = \(ConfigVersion.max)
             """,
         )
-        assertEquals(v2.errors, [])
-        assertEquals(v2.warnings, [])
+        assertEquals(latest.errors, [])
+        assertEquals(latest.warnings, [])
     }
 
-    func testTopLevelTypeIsNotTable() {
-        // TOML arrays at the root parse as a key error, but values returning a non-table json hit the
-        // preventConfigReload path. Use a doubled array-of-tables header to trigger TOML syntax failure
-        // and confirm that an unparsable TOML is flagged as preventing reload.
+    func testMissingValueIsSyntaxErrorThatPreventsReload() {
+        // The TOML root is always a table, so a TOML syntax error is the only way to get no root table
         let result = parseConfig("a = ")
         assertFalse(result.allowReloadConfig)
+        assertEquals(result.strErrors, ["[ERROR] (Line 1) Syntax error: syntax error."])
     }
 
     func testParseKeyMapping() {

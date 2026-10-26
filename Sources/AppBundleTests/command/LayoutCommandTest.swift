@@ -194,7 +194,7 @@ final class LayoutCommandTest: XCTestCase {
         assertEquals(root.orientation, .h)
     }
 
-    func testToggleBetween_allMatch_fails() async {
+    func testToggleBetween_allMatch_isNoop() async {
         let root = Workspace.get(byName: name).rootTilingContainer.apply {
             assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
             TestWindow.new(id: 2, parent: $0)
@@ -202,6 +202,7 @@ final class LayoutCommandTest: XCTestCase {
 
         let result = await parseCommand("layout h_tiles").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 0)
+        assertEquals(result.stderr, ["Already in the requested h_tiles mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
         assertEquals(root.layoutDescription, .h_tiles([.window(1), .window(2)]))
     }
 
@@ -227,13 +228,14 @@ final class LayoutCommandTest: XCTestCase {
         assertEquals(workspace.rootTilingContainer.orientation, .h)
     }
 
-    func testEmptyWorkspace_alreadyMatches_fails() async {
+    func testEmptyWorkspace_alreadyMatches_isNoop() async {
         let workspace = Workspace.get(byName: name)
         assertTrue(workspace.isEffectivelyEmpty)
 
         let result = await parseCommand("layout h_tiles").cmdOrDie
             .run(.defaultEnv.withWorkspaceName(name), .emptyStdin)
         assertEquals(result.exitCode.rawValue, 0)
+        assertEquals(result.stderr, ["Already in the requested h_tiles mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
         assertEquals(workspace.rootTilingContainer.layout, .tiles)
         assertEquals(workspace.rootTilingContainer.orientation, .h)
     }
@@ -247,7 +249,7 @@ final class LayoutCommandTest: XCTestCase {
         assertTrue(workspace.isEffectivelyEmpty)
     }
 
-    func testEmptyWorkspace_tiling_fails() async {
+    func testEmptyWorkspace_tiling_isNoop() async {
         let workspace = Workspace.get(byName: name)
         let result = await parseCommand("layout tiling").cmdOrDie
             .run(.defaultEnv.withWorkspaceName(name), .emptyStdin)
@@ -445,7 +447,7 @@ final class LayoutCommandTest: XCTestCase {
         ]))
     }
 
-    func testRoot_alreadyMatches_fails() async {
+    func testRoot_alreadyMatches_isNoop() async {
         let root = Workspace.get(byName: name).rootTilingContainer.apply {
             assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
             TestWindow.new(id: 2, parent: $0)
@@ -454,6 +456,7 @@ final class LayoutCommandTest: XCTestCase {
 
         let result = await parseCommand("layout --root h_tiles").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 0)
+        assertEquals(result.stderr, ["Already in the requested h_tiles mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
         assertEquals(root.layoutDescription, .h_tiles([.window(1), .window(2)]))
     }
 }

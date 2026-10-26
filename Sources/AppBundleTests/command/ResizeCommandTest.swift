@@ -156,11 +156,11 @@ final class ResizeCommandTest: XCTestCase {
 
     func testSingleChildParent_failsCleanly() async {
         // The root has only one tiling child; dividing the diff across 0 siblings must fail.
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0, adaptiveWeight: 4).focusWindow(), true)
-        }
+        let window = TestWindow.new(id: 1, parent: Workspace.get(byName: name).rootTilingContainer, adaptiveWeight: 4)
+        assertEquals(window.focusWindow(), true)
 
         let result = await parseCommand("resize width +2").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 2)
+        assertEquals(window.hWeight, 4)
     }
 }

@@ -11,7 +11,7 @@ final class TreeNodeTest: XCTestCase {
 
         XCTAssertTrue(window.parent != nil)
         workspace.rootTilingContainer.unbindFromParent()
-        XCTAssertTrue(window.parent == nil)
+        XCTAssertTrue(window.parent == nil) // TreeNode.parent is weak: nil means that the unbound root was deallocated
     }
 
     func testIsEffectivelyEmpty() {
@@ -55,8 +55,8 @@ final class TreeNodeTest: XCTestCase {
         }
         workspace.normalizeContainers()
         assertEquals(
-            .h_tiles([.window(0), .window(1)]),
             workspace.rootTilingContainer.layoutDescription,
+            .h_tiles([.window(0), .window(1)]),
         )
     }
 

@@ -59,18 +59,18 @@ final class ListWindowsTest: XCTestCase {
 
         Workspace.get(byName: name).rootTilingContainer.apply {
             let windows = [
-                AeroObj.window(.forTest(window: TestWindow.new(id: 2, parent: $0), title: "non-empty")),
+                AeroObj.window(.forTest(window: TestWindow.new(id: 3, parent: $0), title: "non-empty")),
                 AeroObj.window(.forTest(window: TestWindow.new(id: 10, parent: $0), title: "")),
             ]
-            assertSucc(windows.format([.interVar(.formatVar(.window(.windowId))), .interVar(.plainInterVar(.rightPadding)), .interVar(.formatVar(.window(.windowTitle)))]), ["2 non-empty", "10"])
+            assertSucc(windows.format([.interVar(.formatVar(.window(.windowId))), .interVar(.plainInterVar(.rightPadding)), .interVar(.formatVar(.window(.windowTitle)))]), ["3 non-empty", "10"])
         }
 
         Workspace.get(byName: name).rootTilingContainer.apply {
             let windows = [
-                AeroObj.window(.forTest(window: TestWindow.new(id: 2, parent: $0), title: "title1")),
-                AeroObj.window(.forTest(window: TestWindow.new(id: 10, parent: $0), title: "title2")),
+                AeroObj.window(.forTest(window: TestWindow.new(id: 4, parent: $0), title: "title1")),
+                AeroObj.window(.forTest(window: TestWindow.new(id: 11, parent: $0), title: "title2")),
             ]
-            assertSucc(windows.format([.interVar(.formatVar(.window(.windowId))), .interVar(.plainInterVar(.rightPadding)), .literal(" | "), .interVar(.formatVar(.window(.windowTitle)))]), ["2  | title1", "10 | title2"])
+            assertSucc(windows.format([.interVar(.formatVar(.window(.windowId))), .interVar(.plainInterVar(.rightPadding)), .literal(" | "), .interVar(.formatVar(.window(.windowTitle)))]), ["4  | title1", "11 | title2"])
         }
     }
 

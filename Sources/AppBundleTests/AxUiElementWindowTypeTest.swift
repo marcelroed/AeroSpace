@@ -4,17 +4,21 @@ import XCTest
 
 final class AxWindowKindTest: XCTestCase {
     func test() throws {
-        try checkAxDumpsRecursive(projectRoot.appending(path: "./axDumps"))
+        let checkedDumps = try checkAxDumpsRecursive(projectRoot.appending(path: "./axDumps"))
+        assertTrue(checkedDumps > 0)
     }
 }
 
-func checkAxDumpsRecursive(_ dir: URL) throws {
+/// Returns the number of checked dumps
+func checkAxDumpsRecursive(_ dir: URL) throws -> Int {
+    var checkedDumps = 0
     for file in try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) {
         if file.isDirectory {
-            try checkAxDumpsRecursive(file)
+            checkedDumps += try checkAxDumpsRecursive(file)
             continue
         }
         if file.pathExtension == "md" { continue }
+        checkedDumps += 1
 
         let rawJson = try JSONSerialization.jsonObject(with: Data.init(contentsOf: file), options: [.json5Allowed]) as! [String: Any]
         let json = Json.newOrDieRecursive(rawJson).asDictOrDie
@@ -33,6 +37,7 @@ func checkAxDumpsRecursive(_ dir: URL) throws {
             additionalMsg: "\(file.path()):0:0: AxUiElementWindowType_isDialogHeuristic doesn't match",
         )
     }
+    return checkedDumps
 }
 
 extension [String: Json]: AxUiElementMock {

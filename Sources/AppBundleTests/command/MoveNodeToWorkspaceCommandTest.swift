@@ -147,8 +147,8 @@ final class MoveNodeToWorkspaceCommandTest: XCTestCase {
     }
 
     func testRelativeNoNextWorkspace_failsToResolve() async {
-        // "a" is the only alive workspace besides the focused one. Calling `prev` from the first workspace without
-        // wrap-around has nowhere to go.
+        // "a" is the focused workspace, and it's the first one in the list. Calling `prev` from the first workspace
+        // without wrap-around has nowhere to go.
         Workspace.get(byName: "a").rootTilingContainer.apply {
             _ = TestWindow.new(id: 1, parent: $0).focusWindow()
         }

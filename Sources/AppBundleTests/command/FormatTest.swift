@@ -302,7 +302,7 @@ final class FormatTest: XCTestCase {
         assertTrue(msg.starts(with: "Unknown interpolation variable 'bogus'."))
         assertTrue(msg.contains("Possible values:"))
         // Workspace kind should include workspace + monitor vars + plain inter vars.
-        assertTrue(msg.contains("workspace"))
+        assertTrue(msg.contains("\n  workspace\n"))
         assertTrue(msg.contains("monitor-name"))
         assertTrue(msg.contains("right-padding"))
     }
@@ -437,21 +437,20 @@ final class FormatTest: XCTestCase {
     }
 
     func testFormatToJsonReturnsFirstFailureForMultipleObjects() {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            TestWindow.new(id: 1, parent: $0)
-        }
+        // Both objects fail, but with different messages: the possible values depend on the object kind
         let objs: [AeroObj] = [
             .workspace(Workspace.get(byName: name)),
-            .workspace(Workspace.get(byName: "other")),
+            .monitor(mainMonitorInfo),
         ]
         let result = objs.formatToJson(
             [.interVar(.formatVar(.window(.windowId)))],
             ignoreRightPaddingVar: true,
         )
-        assertFail(result)
+        assertFail(result, unknownInterpolationVariable(variable: "window-id", objs[0]))
     }
 
-    func testFormatToJsonOverlappingKeysKeepLastValue() {
+    // The same variable always has the same value, so it's impossible to tell whether the first or the last one is kept
+    func testFormatToJsonRepeatedVariableIsOutputOnce() {
         let window = TestWindow.new(id: 5, parent: Workspace.get(byName: name).rootTilingContainer)
         window.isFullscreen = false
         let objs: [AeroObj] = [.window(.forTest(window: window, title: nil))]
