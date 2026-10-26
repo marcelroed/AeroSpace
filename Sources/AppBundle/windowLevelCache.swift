@@ -1,12 +1,19 @@
 import CoreGraphics
 import Foundation
 
+/// On-screen windows only. nil until the first lookup of the refresh session
 @MainActor
-private var cache: [UInt32: MacOsWindowLevel] = [:]
+private var cache: [UInt32: MacOsWindowLevel]? = nil
+
+/// Every refresh session queries the levels again, so that they don't go stale
+@MainActor
+func resetWindowLevelCache() { cache = nil }
 
 @MainActor
 func getWindowLevel(for windowId: UInt32) -> MacOsWindowLevel? {
-    if let existing = cache[windowId] { return existing }
+    // A known window that is missing from the cache is off-screen (minimized, of a hidden app, ...). Don't query again
+    // for it in every lookup. Only a new window can be missing because it appeared after the cache was filled
+    if let cache, cache[windowId] != nil || MacWindow.allWindowsMap[windowId] != nil { return cache[windowId] }
 
     var result: [UInt32: MacOsWindowLevel] = [:]
     let options = CGWindowListOption(arrayLiteral: .excludeDesktopElements, .optionOnScreenOnly)
