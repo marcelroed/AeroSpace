@@ -3,7 +3,7 @@ import Common
 extension CmdArgs {
     func toCommand() -> ParsedCmd<any Command> {
         let command: any Command
-        switch Self.info.kind {
+        switch Self.parser.kind {
             case ._false:
                 command = FalseCommand(args: self as! FalseCmdArgs)
             case ._true:
@@ -95,7 +95,6 @@ extension CmdArgs {
             case .workspaceBackAndForth:
                 command = WorkspaceBackAndForthCommand(args: self as! WorkspaceBackAndForthCmdArgs)
         }
-        check(command.info == Self.info)
         return .cmd(command)
     }
 }

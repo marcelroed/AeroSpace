@@ -32,8 +32,6 @@ public struct CmdArgsCommonState: ConvenienceMutable, Equatable, Sendable {
 }
 
 extension CmdArgs {
-    public static var info: CmdStaticInfo { Self.parser.info }
-
     public var windowId: UInt32? {
         get { commonState.windowId }
         set(value) { commonState.windowId = value }
@@ -51,17 +49,18 @@ extension CmdArgs {
     }
 
     public var description: String {
-        switch Self.info.kind {
+        switch Self.parser.kind {
             case .execAndForget:
                 CmdKind.execAndForget.rawValue + " " + (self as! ExecAndForgetCmdArgs).bashScript
             default:
-                ([Self.info.kind.rawValue] + commonState.rawArgsForStrRepr.value.toArray()).joinArgs()
+                ([Self.parser.kind.rawValue] + commonState.rawArgsForStrRepr.value.toArray()).joinArgs()
         }
     }
 }
 
 public struct CmdParser<Root>: Sendable {
-    let info: CmdStaticInfo
+    public let kind: CmdKind
+    let help: String
     let flags: [String: any ArgParserProtocol<SubArgParserInput, Root, ()>]
     let positionalArgs: [any ArgParserProtocol<PosArgParserInput, Root, PosArgParserContext>]
     let conflictingOptions: [Set<String>]
@@ -76,23 +75,11 @@ public struct CmdParser<Root>: Sendable {
         conflictingOptions: [Set<String>] = [],
         negativeNumbersArePositional: Bool = false,
     ) {
-        self.info = CmdStaticInfo(help: help, kind: kind)
+        self.kind = kind
+        self.help = help
         self.flags = flags
         self.positionalArgs = posArgs
         self.conflictingOptions = conflictingOptions
         self.negativeNumbersArePositional = negativeNumbersArePositional
-    }
-}
-
-public struct CmdStaticInfo: Equatable, Sendable {
-    public let help: String
-    public let kind: CmdKind
-
-    public init(
-        help: String,
-        kind: CmdKind,
-    ) {
-        self.help = help
-        self.kind = kind
     }
 }

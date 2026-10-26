@@ -23,10 +23,6 @@ extension Command {
 }
 
 extension Command {
-    var info: CmdStaticInfo { T.info }
-}
-
-extension Command {
     @MainActor
     @discardableResult
     func run(_ env: CmdEnv, _ stdin: consuming CmdStdin) async -> CmdResult {
