@@ -77,8 +77,12 @@ func runLightSession<T>(
 
         let focusAfter = focus.windowOrNil
 
-        updateTrayText()
-        SecureInputPanel.shared.refresh()
+        // Runs at the next suspension point, so the layout dispatches the frames of the visible windows first
+        // (updateTrayText does launchservicesd IPC), and the tray doesn't wait for the AX calls that the layout awaits
+        Task.startUnstructured { @MainActor in
+            updateTrayText()
+            SecureInputPanel.shared.refresh()
+        }
         if !event.isFocusFollowsMouse { try await layoutWorkspaces() }
         if focusBefore != focusAfter {
             focusAfter?.nativeFocus() // syncFocusToMacOs
