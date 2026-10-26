@@ -39,7 +39,7 @@ swift-testing-issues-to-full-paths() {
 # 1. XCTest: drop the "started" and "passed" lines
 # 2. Swift Testing: drop the "started" and "passed" lines (but keep the summary and passed tests with warnings), and the preamble
 # 3. Replace colons with semicolons in dates to avoid treating these lines as files in vim
-if swift test \
+if swift test "${swift_build_system_args[@]}" "$@" \
     | sed -E '/^Test (Suite|Case).*(started|passed)/d' \
     | sed -E '/^[[:space:]]+Executed.*with 0 failures/d' \
     | sed -E -e '/^✔ Test run with /b' -e '/^✔ (Suite|Test) .* passed after [0-9.]+ seconds\.$/d' \

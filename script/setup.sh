@@ -57,6 +57,34 @@ if /bin/test -z "${NUKE_PATH:-}"; then
     export NUKE_PATH=1
 fi
 
+# Debug builds (build-debug.sh, swift-test.sh, lint.sh) use SwiftPM's native build system when the toolchain still has it.
+# It's deprecated, but its no-op and incremental builds are faster than with swiftbuild (the default since Swift 6.4).
+# Usage: swift build "${swift_build_system_args[@]}" ...
+# Override: AEROSPACE_SWIFT_BUILD_SYSTEM=swiftbuild ./test.sh
+if /bin/test -z "${AEROSPACE_SWIFT_BUILD_SYSTEM+x}"; then
+    if grep -qE '^ +native +- ' <<< "$(swift build --help 2>&1)"; then
+        export AEROSPACE_SWIFT_BUILD_SYSTEM=native
+    else
+        export AEROSPACE_SWIFT_BUILD_SYSTEM=
+    fi
+fi
+swift_build_system_args=()
+if /bin/test -n "$AEROSPACE_SWIFT_BUILD_SYSTEM"; then
+    swift_build_system_args=(--build-system "$AEROSPACE_SWIFT_BUILD_SYSTEM")
+fi
+
+# Usage: generate-content | write-if-changed file
+# Rewriting a source file with the same content bumps its mtime, and SwiftPM recompiles the module
+write-if-changed() {
+    local tmp
+    tmp="$(mktemp)"
+    cat > "$tmp"
+    if ! cmp -s "$tmp" "$1"; then
+        cat "$tmp" > "$1"
+    fi
+    rm "$tmp"
+}
+
 xcodebuild-pretty() {
     log_file="$1"
     shift

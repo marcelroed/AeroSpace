@@ -4,40 +4,68 @@ source ./script/setup.sh
 
 build_version="0.0.0-SNAPSHOT"
 codesign_identity="aerospace-codesign-certificate"
+local_build=0
 while test $# -gt 0; do
     case $1 in
         --build-version) build_version="$2"; shift 2;;
         --codesign-identity) codesign_identity="$2"; shift 2;;
+        # Faster build for running the app locally. Not suitable for publishing:
+        # incremental (no clean), host architecture only, no docs, shell completion, zip or brew casks
+        --local) local_build=1; shift 1;;
         *) echo "Unknown option $1" > /dev/stderr; exit 1 ;;
     esac
 done
+
+if test $local_build = 1; then
+    host_arch="$(uname -m)"
+    swift_build_cli=(build -c release --arch "$host_arch" --product aerospace)
+    xcodebuild_actions=(build)
+    xcodebuild_settings=(ARCHS="$host_arch" ONLY_ACTIVE_ARCH=YES)
+else
+    swift_build_cli=(build -c release --arch arm64 --arch x86_64 --product aerospace)
+    xcodebuild_actions=(clean build)
+    xcodebuild_settings=()
+fi
 
 #############
 ### BUILD ###
 #############
 
-./build-docs.sh --release
-./build-shell-completion.sh
+if test $local_build = 0; then
+    ./build-docs.sh --release
+    ./build-shell-completion.sh
+fi
 
 ./generate.sh
 ./script/check-uncommitted-files.sh
 ./generate.sh --build-version "$build_version" --codesign-identity "$codesign_identity" --generate-git-hash
 
-swift_build_cli=(build -c release --arch arm64 --arch x86_64 --product aerospace)
-swift "${swift_build_cli[@]}" -Xswiftc -warnings-as-errors # CLI
-cli_bin_path="$(swift "${swift_build_cli[@]}" --show-bin-path)"
+if test $local_build = 1; then
+    # The CLI and the app are independent builds. Build the CLI in parallel with the app
+    swift "${swift_build_cli[@]}" -Xswiftc -warnings-as-errors & # CLI
+    cli_build_pid=$!
+else
+    swift "${swift_build_cli[@]}" -Xswiftc -warnings-as-errors # CLI
+    cli_bin_path="$(swift "${swift_build_cli[@]}" --show-bin-path)"
+fi
 
 rm -rf .release && mkdir .release
 
 cd ./xcode
     xcode_configuration="Release"
     xcodebuild -version
-    xcodebuild-pretty ../.release/xcodebuild.log clean build \
+    xcodebuild-pretty ../.release/xcodebuild.log "${xcodebuild_actions[@]}" \
         -scheme AeroSpace \
         -destination "generic/platform=macOS" \
         -configuration "$xcode_configuration" \
-        -derivedDataPath .xcode-build
+        -derivedDataPath .xcode-build \
+        "${xcodebuild_settings[@]}"
 cd -
+
+if test $local_build = 1; then
+    wait "$cli_build_pid"
+    cli_bin_path="$(swift "${swift_build_cli[@]}" --show-bin-path)"
+fi
 
 git checkout .
 
@@ -91,14 +119,20 @@ check-contains-hash() {
     fi
 }
 
-check-universal-binary .release/AeroSpace.app/Contents/MacOS/AeroSpace
-check-universal-binary .release/aerospace
+if test $local_build = 0; then
+    check-universal-binary .release/AeroSpace.app/Contents/MacOS/AeroSpace
+    check-universal-binary .release/aerospace
+fi
 
 check-contains-hash .release/AeroSpace.app/Contents/MacOS/AeroSpace
 check-contains-hash .release/aerospace
 
 codesign -v .release/AeroSpace.app
 codesign -v .release/aerospace
+
+if test $local_build = 1; then
+    exit 0 # The rest is only needed for publishing
+fi
 
 ############
 ### PACK ###
