@@ -40,7 +40,7 @@ struct MenuBarLabel: View {
 
     var menuBarContent: some View {
         HStack(spacing: hStackSpacing) {
-            let style = style ?? viewModel.experimentalUISettings.displayStyle
+            let style = style ?? viewModel.menuBarStyle
             switch style {
                 case .monospacedText: getText(for: .monospaced)
                 case .systemText: getText(for: .default)

@@ -1,18 +1,5 @@
 import SwiftUI
 
-struct ExperimentalUISettings {
-    var displayStyle: MenuBarStyle {
-        get {
-            UserDefaults.standard.string(forKey: ExperimentalUISettingsItems.displayStyle.rawValue)
-                .flatMap(MenuBarStyle.init(rawValue:)) ?? .monospacedText
-        }
-        set {
-            UserDefaults.standard.set(newValue.rawValue, forKey: ExperimentalUISettingsItems.displayStyle.rawValue)
-            UserDefaults.standard.synchronize()
-        }
-    }
-}
-
 enum MenuBarStyle: String, CaseIterable, Identifiable {
     case monospacedText
     case systemText
@@ -29,10 +16,6 @@ enum MenuBarStyle: String, CaseIterable, Identifiable {
             case .i3Ordered: "i3 style ordered"
         }
     }
-}
-
-enum ExperimentalUISettingsItems: String {
-    case displayStyle
 }
 
 @MainActor
@@ -56,9 +39,9 @@ struct MenuBarStyleButton: View {
 
     var body: some View {
         Button {
-            viewModel.experimentalUISettings.displayStyle = style
+            viewModel.menuBarStyle = style
         } label: {
-            Toggle(isOn: .constant(viewModel.experimentalUISettings.displayStyle == style)) {
+            Toggle(isOn: .constant(viewModel.menuBarStyle == style)) {
                 MenuBarLabel(style: style, color: color)
                     .environmentObject(viewModel)
                 Text(" -  " + style.title)
