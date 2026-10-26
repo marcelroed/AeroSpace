@@ -1,4 +1,5 @@
 import Common
+import Foundation
 import os
 import Testing
 
@@ -44,6 +45,11 @@ extension Trait where Self == AeroSpaceGlobalStateTrait {
     /// Run every test case of the suite exclusively, with the global state reset. See ``AeroSpaceGlobalStateTrait``
     static var aeroSpaceGlobalState: Self { Self() }
 }
+
+/// `isUnitTest` looks this class up by name: it marks the test process for both XCTest and Swift Testing runs
+// periphery:ignore - only referenced by its Objective-C name
+@objc(AeroSpaceUnitTestMarker)
+final class AeroSpaceUnitTestMarker: NSObject {}
 
 /// Provides `name` for suites migrated from XCTest
 protocol AeroSpaceTestSuite {}
