@@ -9,11 +9,9 @@ public func getMessageWindow(messageModel: MessageModel) -> some Scene {
             .onAppear {
                 // Set activation policy; otherwise, AeroSpace windows won't be able to receive focus and accept keyboard input
                 NSApp.setActivationPolicy(.accessory)
-                NSApplication.shared.windows.forEach {
-                    if $0.identifier?.rawValue == messageWindowId {
-                        $0.level = .floating
-                        $0.styleMask.remove(.miniaturizable) // Disable minimize button, because we don't unminimize the window on config error
-                    }
+                for window in NSApp.windows where window.identifier?.rawValue == messageWindowId {
+                    window.level = .floating
+                    window.styleMask.remove(.miniaturizable) // Disable minimize button, because we don't unminimize the window on config error
                 }
             }
         // .windowMinimizeBehavior(WindowInteractionBehavior.disabled) // SwiftUI way of hiding minimize button. Available only since macOS 15
@@ -25,21 +23,21 @@ public func getMessageWindow(messageModel: MessageModel) -> some Scene {
 public let messageWindowId = "\(aeroSpaceAppName).messageView"
 
 struct MessageView: View {
-    @StateObject private var model: MessageModel
+    @ObservedObject private var model: MessageModel
     @Environment(\.dismiss) private var dismiss: DismissAction
-    @FocusState var focus: Bool
+    @FocusState private var focus: Bool
 
     init(model: MessageModel) {
-        self._model = .init(wrappedValue: model)
+        self.model = model
     }
 
-    public var body: some View {
+    var body: some View {
         VStack(alignment: .leading) {
             HStack(alignment: .center) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundColor(.yellow)
+                    .foregroundStyle(.yellow)
                     .font(.system(size: 48))
-                Text("\(model.message?.description ?? "")")
+                Text(model.message?.description ?? "")
                     .padding(.horizontal)
                     .focusable()
             }
@@ -110,7 +108,7 @@ public enum MessageType {
     case config
 }
 
-public struct Message: Hashable, Equatable {
+public struct Message: Hashable {
     public let type: MessageType
     public let title: String
     public let description: String
