@@ -97,10 +97,9 @@ extension WorkspaceCmdArgs {
 }
 
 extension MoveNodeToWorkspaceCmdArgs {
-    init(target: WorkspaceTarget, wrapAround: Bool? = nil) {
+    init(target: WorkspaceTarget) {
         self = MoveNodeToWorkspaceCmdArgs(rawArgs: [])
         self.target = .initialized(target)
-        self._wrapAround = wrapAround
     }
 
     init(workspace: String) {
