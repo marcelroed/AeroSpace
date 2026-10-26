@@ -96,7 +96,8 @@ open class TreeNode: Equatable, AeroAny {
     private func unbindIfBound(recordStacktrace: Bool) -> BindingData? {
         guard let parent else { return nil }
 
-        let index = parent.children.remove(element: self) ?? dieT("Can't find child in its parent")
+        let index = parent.children.firstIndex(of: self) ?? dieT("Can't find child in its parent")
+        parent.children.remove(at: index)
         check(parent._mruChildren.remove(self))
         self.parent = nil
         if recordStacktrace {

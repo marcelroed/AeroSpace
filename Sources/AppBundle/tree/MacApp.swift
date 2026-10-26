@@ -286,9 +286,12 @@ final class MacApp: AbstractApp {
             // Second line of defence against lock screen. See the first line of defence: closedWindowsCache
             // Second and third lines of defence are technically needed only to avoid potential flickering
             if frontmostAppBundleId != lockScreenAppBundleId {
-                (alive, dead) = try alive.partition {
+                for (id, window) in alive {
                     try job.checkCancellation()
-                    return $0.value.ax.containingWindowId() != nil
+                    if window.ax.containingWindowId() == nil {
+                        alive[id] = nil
+                        dead[id] = window
+                    }
                 }
             }
 
