@@ -1,6 +1,7 @@
 import AppKit
 import Darwin
 import Foundation
+import os
 
 public let socketPath = "/tmp/\(aeroSpaceAppId)-\(unixUserName).sock"
 public let unixUserName = NSUserName()
@@ -11,6 +12,15 @@ public var refreshSessionEvent: RefreshSessionEvent? = nil
 
 @TaskLocal
 private var recursionDetectorDuringTermination = false
+
+/// Threads that entered `dieT`. Such a thread never runs its run loop again: an AX app thread waits in `MainActor.runSync`
+/// until `beforeTermination` returns, so `beforeTermination` must not wait for a job on it
+private let dyingThreads = OSAllocatedUnfairLock(initialState: Set<ObjectIdentifier>())
+
+public func isDyingThread(_ thread: Thread) -> Bool {
+    let id = ObjectIdentifier(thread)
+    return dyingThreads.withLock { $0.contains(id) }
+}
 
 public func bugPrompt(
     _ __message: String = "",
@@ -59,6 +69,8 @@ public func dieT<T>(
     column: Int = #column,
     function: String = #function,
 ) -> T {
+    let id = ObjectIdentifier(Thread.current)
+    dyingThreads.withLock { _ = $0.insert(id) }
     let message = bugPrompt(__message, isDie: true, file: file, line: line, column: column, function: function)
     if !isUnitTest && isServer {
         showMessageInGui(

@@ -158,7 +158,8 @@ final class MacApp: AbstractApp {
 
     func setAxFrameForTermination(_ windowId: UInt32, _ topLeft: CGPoint?, _ size: CGSize?) {
         setFrameJobs.removeValue(forKey: windowId)?.cancel()
-        guard let thread else { return }
+        // A dying thread would never run the job. See isDyingThread
+        guard let thread, !isDyingThread(thread) else { return }
         let semaphore = DispatchSemaphore(value: 0)
         // Not withWindowAsync: it skips the body if the window is already gone from `windows`, and the wait would never end
         thread.runInLoopAsync(job: RunLoopJob(.nonCancellable)) { [axApp, windows] job in
@@ -184,7 +185,7 @@ final class MacApp: AbstractApp {
     }
 
     func getAxRectForTermination(_ windowId: UInt32) -> Rect? {
-        guard let thread else { return nil }
+        guard let thread, !isDyingThread(thread) else { return nil } // See setAxFrameForTermination
         let future = CompletableFuture<Rect?>()
         // Not withWindowAsync: see setAxFrameForTermination. Complete on every path
         thread.runInLoopAsync(job: RunLoopJob(.nonCancellable)) { [windows] job in
