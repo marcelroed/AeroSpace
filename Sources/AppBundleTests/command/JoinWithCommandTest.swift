@@ -1,11 +1,11 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
 @MainActor
-final class JoinWithCommandTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
-
+@Suite(.aeroSpaceGlobalState)
+struct JoinWithCommandTest: AeroSpaceTestSuite {
+    @Test
     func testMoveIn() async {
         let root = Workspace.get(byName: name).rootTilingContainer.apply {
             TestWindow.new(id: 0, parent: $0)
