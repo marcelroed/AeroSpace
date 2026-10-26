@@ -701,12 +701,8 @@ final class ConfigTest: XCTestCase {
             "q": .q,
             "unicorn": .u,
         ]))
-        let binding = HotkeyBinding(.option, .u, .cmd(WorkspaceCommand(args: WorkspaceCmdArgs(target: .direct(.parse("unicorn").getOrDie())))))
-        // todo(review): the expected workspace is "unicorn" but the config says "wonderland". This passed only
-        // because of the Lateinit == bug. See bugs-commands.md (ConfigTest.swift:704)
-        XCTExpectFailure("Wrong expected workspace name, hidden by the old Lateinit == bug") {
-            assertEquals(result.config.modes[mainModeId]?.bindings, [binding.descriptionWithKeyCode: binding])
-        }
+        let binding = HotkeyBinding(.option, .u, .cmd(WorkspaceCommand(args: WorkspaceCmdArgs(target: .direct(.parse("wonderland").getOrDie())))))
+        assertEquals(result.config.modes[mainModeId]?.bindings, [binding.descriptionWithKeyCode: binding])
 
         let errors1 = parseConfig(
             """
