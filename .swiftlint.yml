@@ -2,6 +2,7 @@ excluded:
   - .build
   - xcode
   - periphery
+  - .claude # Claude Code agent worktrees (full repo copies with their own .build)
 
 # https://realm.github.io/SwiftLint/rule-directory.html
 only_rules:
