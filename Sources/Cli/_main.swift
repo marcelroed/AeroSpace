@@ -24,43 +24,15 @@ struct Main {
         }
 
         if args.first == "--version" || args.first == "-v" {
-            let connection = NWConnection(to: NWEndpoint.unix(path: socketPath), using: .tcp)
-            let serverVersionAndHash: String?
-            switch await connection.initConnection().error {
-                case nil:
-                    let ans = await run(connection, [], stdin: "", windowId: nil, workspace: nil, failExitCode: EXIT_CODE_TWO)
-                    serverVersionAndHash = ans.serverVersionAndHash
-                case .nwError(let e):
-                    eprint(e.localizedDescription)
-                    serverVersionAndHash = nil
-                case .customError(let msg):
-                    exit(EXIT_CODE_TWO, err: msg)
-            }
-            print(
-                """
-                aerospace CLI client version: \(cliClientVersionAndHash)
-                AeroSpace.app server version: \(serverVersionAndHash ?? "Unknown. The server is not responding")
-                """,
-            )
-            if serverVersionAndHash != nil && cliClientVersionAndHash != serverVersionAndHash {
-                eprint(
-                    """
-                    Warning: AeroSpace client/server versions don't match. Possible fixes:
-                      - Restart AeroSpace.app (server restart is required after each update)
-                      - Reinstall and restart AeroSpace (corrupted installation)
-                    """,
-                )
-            }
-            exit(EXIT_CODE_ZERO)
+            await printVersionAndExit()
         }
 
-        let parsedArgs: any CmdArgs
-        switch parseCmdArgs(args) {
+        let parsedArgs: any CmdArgs = switch parseCmdArgs(args) {
             // Optimizations
             case .cmd(_ as TrueCmdArgs): exit(ConditionalExitCode._true.rawValue)
             case .cmd(_ as FalseCmdArgs): exit(ConditionalExitCode._false.rawValue)
 
-            case .cmd(let _parsedArgs): parsedArgs = _parsedArgs
+            case .cmd(let cmdArgs): cmdArgs
             case .help(let help): exit(EXIT_CODE_ZERO, out: help)
             case .failure(let e): exit(e.exitCode, err: e.msg)
         }
@@ -80,11 +52,9 @@ struct Main {
         var stdin = ""
         if parsedArgs.commonState.explicitStdinFlag == true ||
             // todo: drop after a couple of versions
-            (parsedArgs.commonState.explicitStdinFlag != false && (parsedArgs is WorkspaceCmdArgs && (parsedArgs as! WorkspaceCmdArgs).target.val.isRelatve || parsedArgs is MoveNodeToWorkspaceCmdArgs && (parsedArgs as! MoveNodeToWorkspaceCmdArgs).target.val.isRelatve) && hasStdin())
+            (parsedArgs.commonState.explicitStdinFlag != false && isRelativeWorkspaceTarget(parsedArgs) && hasStdin())
         {
-            if parsedArgs is WorkspaceCmdArgs && parsedArgs.commonState.explicitStdinFlag == nil ||
-                parsedArgs is MoveNodeToWorkspaceCmdArgs && parsedArgs.commonState.explicitStdinFlag == nil
-            {
+            if parsedArgs.commonState.explicitStdinFlag == nil && (parsedArgs is WorkspaceCmdArgs || parsedArgs is MoveNodeToWorkspaceCmdArgs) {
                 exit(
                     failExitCode,
                     err: """
@@ -95,14 +65,7 @@ struct Main {
                         """,
                 )
             }
-            var index = 0
-            while let line = readLine(strippingNewline: false) {
-                stdin += line
-                index += 1
-                if index > 1000 {
-                    exit(failExitCode, err: "stdin number of lines limit is exceeded")
-                }
-            }
+            stdin = readStdinOrExit(failExitCode: failExitCode)
         }
 
         let windowId = ProcessInfo.processInfo.environment[AEROSPACE_WINDOW_ID].flatMap(UInt32.init)
@@ -110,8 +73,7 @@ struct Main {
 
         // Handle subscribe command specially
         if parsedArgs is SubscribeCmdArgs {
-            await runSubscribe(connection, args, windowId: windowId, workspace: workspace, failExitCode: parsedArgs.failExitCode)
-            exit(EXIT_CODE_ZERO) // Should not reach here
+            await runSubscribe(connection, args, windowId: windowId, workspace: workspace, failExitCode: failExitCode)
         }
 
         let ans = await run(connection, args, stdin: stdin, windowId: windowId, workspace: workspace, failExitCode: failExitCode)
@@ -134,10 +96,66 @@ struct Main {
     }
 }
 
-func runSubscribe(_ connection: NWConnection, _ args: StrArrSlice, windowId: UInt32?, workspace: String?, failExitCode: Int32) async {
-    if let e = await connection.writeAtomic(ClientRequest(args: args.toArray(), stdin: "", windowId: windowId, workspace: workspace)).error {
+private func printVersionAndExit() async -> Never {
+    let connection = NWConnection(to: NWEndpoint.unix(path: socketPath), using: .tcp)
+    let serverVersionAndHash: String?
+    switch await connection.initConnection().error {
+        case nil:
+            let ans = await run(connection, [], stdin: "", windowId: nil, workspace: nil, failExitCode: EXIT_CODE_TWO)
+            serverVersionAndHash = ans.serverVersionAndHash
+        case .nwError(let e):
+            eprint(e.localizedDescription)
+            serverVersionAndHash = nil
+        case .customError(let msg):
+            exit(EXIT_CODE_TWO, err: msg)
+    }
+    print(
+        """
+        aerospace CLI client version: \(cliClientVersionAndHash)
+        AeroSpace.app server version: \(serverVersionAndHash ?? "Unknown. The server is not responding")
+        """,
+    )
+    if serverVersionAndHash != nil && cliClientVersionAndHash != serverVersionAndHash {
+        eprint(
+            """
+            Warning: AeroSpace client/server versions don't match. Possible fixes:
+              - Restart AeroSpace.app (server restart is required after each update)
+              - Reinstall and restart AeroSpace (corrupted installation)
+            """,
+        )
+    }
+    exit(EXIT_CODE_ZERO)
+}
+
+private func isRelativeWorkspaceTarget(_ args: any CmdArgs) -> Bool {
+    switch args {
+        case let args as WorkspaceCmdArgs: args.target.val.isRelatve
+        case let args as MoveNodeToWorkspaceCmdArgs: args.target.val.isRelatve
+        default: false
+    }
+}
+
+private func readStdinOrExit(failExitCode: Int32) -> String {
+    var stdin = ""
+    var index = 0
+    while let line = readLine(strippingNewline: false) {
+        stdin += line
+        index += 1
+        if index > 1000 {
+            exit(failExitCode, err: "stdin number of lines limit is exceeded")
+        }
+    }
+    return stdin
+}
+
+private func sendRequestOrExit(_ connection: NWConnection, _ request: ClientRequest, failExitCode: Int32) async {
+    if let e = await connection.writeAtomic(request).error {
         exit(failExitCode, err: "Failed to write to server socket: \(e)")
     }
+}
+
+func runSubscribe(_ connection: NWConnection, _ args: StrArrSlice, windowId: UInt32?, workspace: String?, failExitCode: Int32) async -> Never {
+    await sendRequestOrExit(connection, ClientRequest(args: args.toArray(), stdin: "", windowId: windowId, workspace: workspace), failExitCode: failExitCode)
 
     while true {
         switch await connection.readNonAtomic() {
@@ -155,9 +173,7 @@ func runSubscribe(_ connection: NWConnection, _ args: StrArrSlice, windowId: UIn
 }
 
 func run(_ connection: NWConnection, _ args: StrArrSlice, stdin: String, windowId: UInt32?, workspace: String?, failExitCode: Int32) async -> ServerAnswer {
-    if let e = await connection.writeAtomic(ClientRequest(args: args.toArray(), stdin: stdin, windowId: windowId, workspace: workspace)).error {
-        exit(failExitCode, err: "Failed to write to server socket: \(e)")
-    }
+    await sendRequestOrExit(connection, ClientRequest(args: args.toArray(), stdin: stdin, windowId: windowId, workspace: workspace), failExitCode: failExitCode)
 
     switch await connection.readNonAtomic() {
         case .success(let answer):
