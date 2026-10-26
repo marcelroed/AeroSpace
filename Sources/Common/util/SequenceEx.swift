@@ -1,4 +1,3 @@
-// periphery:ignore:all
 import OrderedCollections
 
 extension Sequence {
@@ -14,7 +13,7 @@ extension Sequence {
         return result
     }
 
-    public var first: Element? {
+    public var first: Element? { // Used by non-Collection sequences, e.g. OrderedDictionary
         var iter = makeIterator()
         return iter.next()
     }
@@ -67,14 +66,6 @@ extension Sequence {
         self.min(by: { a, b in selector(a) < selector(b) })
     }
 
-    @inlinable public func maxByOrDie(_ selector: (Self.Element) -> some Comparable) -> Self.Element {
-        self.maxBy(selector) ?? dieT("Empty sequence")
-    }
-
-    @inlinable public func maxBy(_ selector: (Self.Element) -> some Comparable) -> Self.Element? {
-        self.max(by: { a, b in selector(a) < selector(b) })
-    }
-
     @inlinable public func sortedBy(_ selector: (Self.Element) -> some Comparable) -> [Self.Element] {
         sorted(by: { a, b in selector(a) < selector(b) })
     }
@@ -117,14 +108,6 @@ extension Sequence {
             index += 1
             return (index, $0)
         }
-    }
-
-    public func minOrDie() -> Self.Element where Self.Element: Comparable {
-        self.min() ?? dieT("Empty sequence")
-    }
-
-    public func maxOrDie() -> Self.Element where Self.Element: Comparable {
-        self.max() ?? dieT("Empty sequence")
     }
 
     public func toSet() -> Set<Element> where Element: Hashable { Set(self) }

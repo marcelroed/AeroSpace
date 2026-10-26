@@ -1,4 +1,3 @@
-// periphery:ignore:all
 extension Result {
     public init(catching body: () async throws(Failure) -> Success) async {
         do {
@@ -51,13 +50,6 @@ extension Result {
         switch self {
             case .success(let it): return it
             case .failure(let err): return await handle(err)
-        }
-    }
-
-    public var failureOrNil: Failure? {
-        return switch self {
-            case .success: nil
-            case .failure(let f): f
         }
     }
 

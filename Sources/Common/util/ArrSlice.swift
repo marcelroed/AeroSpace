@@ -6,7 +6,7 @@ public typealias StrArrSlice = ArrSlice<String>
 // Their Slice is not properly encapsulated
 //
 // That's why we declare our own ArrSlice
-public struct ArrSlice<Element>: Sequence, AeroAny, ExpressibleByArrayLiteral, RandomAccessCollection {
+public struct ArrSlice<Element>: AeroAny, ExpressibleByArrayLiteral, RandomAccessCollection {
     fileprivate let backing: [Element]
     fileprivate let offsetInBacking: Int
     /*conforms*/ public let count: Int
@@ -33,7 +33,6 @@ public struct ArrSlice<Element>: Sequence, AeroAny, ExpressibleByArrayLiteral, R
     /*conforms*/ public var startIndex: Int { 0 }
     /*conforms*/ public var endIndex: Int { count }
     /*conforms*/ public func index(after i: Int) -> Int { i + 1 }
-    public func getOrNil(atIndex index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
     /*conforms*/ public var indices: Range<Int> { 0 ..< count }
     public func makeIterator() -> some IteratorProtocol<Element> { ArrSliceIterator(backing: self) }
     public func toArray() -> [Element] { Array(self) }
@@ -66,11 +65,9 @@ extension ArrSlice: Equatable where Element: Equatable {
     }
 }
 
-// periphery:ignore
 extension Array {
     public var slice: ArrSlice<Element> { slice(0 ..< count).orDie() }
     public func slice(_ range: PartialRangeFrom<Int>) -> ArrSlice<Element>? { slice(range.lowerBound ..< count) }
-    public func slice(_ range: PartialRangeUpTo<Int>) -> ArrSlice<Element>? { slice(0 ..< range.upperBound) }
 
     public func slice(_ range: Range<Int>) -> ArrSlice<Element>? { .new(self, range) }
 }
@@ -82,10 +79,8 @@ extension Range<Int> {
     }
 }
 
-// periphery:ignore
 extension ArrSlice {
     public func slice(_ range: PartialRangeFrom<Int>) -> ArrSlice<Element>? { slice(range.lowerBound ..< count) }
-    public func slice(_ range: PartialRangeUpTo<Int>) -> ArrSlice<Element>? { slice(0 ..< range.upperBound) }
 
     public func slice(_ range: Range<Int>) -> ArrSlice<Element>? {
         range.isSubRange(of: indices) ? .new(self.backing, range.shift(by: self.offsetInBacking)) : nil
