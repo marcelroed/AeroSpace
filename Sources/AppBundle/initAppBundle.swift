@@ -11,7 +11,6 @@ import Foundation
         if isDebug {
             await toggleReleaseServerIfDebug(.off)
             interceptTermination(SIGINT)
-            interceptTermination(SIGKILL)
         }
 
         await bootstrapConfig_nonCancellable()
