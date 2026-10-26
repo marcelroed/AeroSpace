@@ -1,9 +1,11 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
 @MainActor
-final class ConfigCharacterizationTest: XCTestCase {
+@Suite
+struct ConfigCharacterizationTest: AeroSpaceTestSuite {
+    @Test
     func testImplicitPersistentWorkspaces() {
         let result = parseConfig(
             """
@@ -21,6 +23,7 @@ final class ConfigCharacterizationTest: XCTestCase {
         assertEquals(result.config.persistentWorkspaces.sorted(), ["1", "2", "3", "4", "5"])
     }
 
+    @Test
     func testImplicitPersistentWorkspacesOrderWithinBinding() {
         let result = parseConfig(
             """
@@ -32,6 +35,7 @@ final class ConfigCharacterizationTest: XCTestCase {
         assertEquals(Array(result.config.persistentWorkspaces), ["3", "4"])
     }
 
+    @Test
     func testNoImplicitPersistentWorkspacesSinceVersion2() {
         let result = parseConfig(
             """
@@ -44,6 +48,7 @@ final class ConfigCharacterizationTest: XCTestCase {
         assertEquals(Array(result.config.persistentWorkspaces), [])
     }
 
+    @Test
     func testDynamicGapValueOfWrongScalarType() {
         let result = parseConfig(
             """
@@ -67,6 +72,7 @@ final class ConfigCharacterizationTest: XCTestCase {
         assertEquals(result.config.gaps, expectedGaps)
     }
 
+    @Test
     func testResolvedGaps() {
         let result = parseConfig(
             """
