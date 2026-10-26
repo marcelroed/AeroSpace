@@ -1,8 +1,10 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
-final class ListMonitorsTest: XCTestCase {
+@Suite
+struct ListMonitorsTest: AeroSpaceTestSuite {
+    @Test
     func testParseListMonitorsCommand() {
         testParseSingleCommandSucc("list-monitors", ListMonitorsCmdArgs(rawArgs: []))
         testParseSingleCommandSucc("list-monitors --focused", ListMonitorsCmdArgs(rawArgs: []).copy(\.focused, true))
@@ -10,6 +12,7 @@ final class ListMonitorsTest: XCTestCase {
         assertEquals(parseCommand("list-monitors --format %{monitor-id} --count").errorOrNil, "ERROR: Conflicting options: --count, --format")
     }
 
+    @Test
     func testParseMissingFormatListsPossibleValues() {
         assertEquals(
             parseCommand("list-monitors --format").errorOrNil,
