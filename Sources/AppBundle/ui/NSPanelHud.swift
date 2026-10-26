@@ -17,4 +17,9 @@ open class NSPanelHud: NSPanel {
         self.hasShadow = true
         self.backgroundColor = .clear
     }
+
+    /// A frame of the given size, 20pt away from the right edge of the main monitor
+    func rightEdgeFrame(size: CGSize, y: CGFloat) -> NSRect {
+        NSRect(x: mainMonitorInfo.width - size.width - 20, y: y, width: size.width, height: size.height)
+    }
 }
