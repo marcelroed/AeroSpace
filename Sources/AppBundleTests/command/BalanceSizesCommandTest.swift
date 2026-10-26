@@ -1,11 +1,11 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
 @MainActor
-final class BalanceSizesCommandTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
-
+@Suite(.aeroSpaceGlobalState)
+struct BalanceSizesCommandTest: AeroSpaceTestSuite {
+    @Test
     func testBalanceSizesCommand() async {
         let workspace = Workspace.get(byName: name).apply { wsp in
             wsp.rootTilingContainer.apply {
