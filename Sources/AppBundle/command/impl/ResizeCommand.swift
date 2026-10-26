@@ -12,28 +12,15 @@ struct ResizeCommand: Command {
             .filter { ($0.parent as? TilingContainer)?.layout == .tiles }
             ?? []
 
-        let orientation: Orientation?
-        let parent: TilingContainer?
-        let node: TreeNode?
-        switch args.dimension.val {
-            case .width:
-                orientation = .h
-                node = candidates.first(where: { ($0.parent as? TilingContainer)?.orientation == orientation })
-                parent = node?.parent as? TilingContainer
-            case .height:
-                orientation = .v
-                node = candidates.first(where: { ($0.parent as? TilingContainer)?.orientation == orientation })
-                parent = node?.parent as? TilingContainer
-            case .smart:
-                node = candidates.first
-                parent = node?.parent as? TilingContainer
-                orientation = parent?.orientation
-            case .smartOpposite:
-                orientation = (candidates.first?.parent as? TilingContainer)?.orientation.opposite
-                node = candidates.first(where: { ($0.parent as? TilingContainer)?.orientation == orientation })
-                parent = node?.parent as? TilingContainer
+        // All candidates have a TilingContainer parent, so for .smart, node is candidates.first
+        let orientation: Orientation? = switch args.dimension.val {
+            case .width: .h
+            case .height: .v
+            case .smart: (candidates.first?.parent as? TilingContainer)?.orientation
+            case .smartOpposite: (candidates.first?.parent as? TilingContainer)?.orientation.opposite
         }
-        guard let parent else {
+        let node = candidates.first(where: { ($0.parent as? TilingContainer)?.orientation == orientation })
+        guard let parent = node?.parent as? TilingContainer else {
             return .fail(io.err("resize command doesn't support floating windows yet https://github.com/nikitabobko/AeroSpace/issues/9"))
         }
         guard let orientation else { return .fail }
@@ -45,9 +32,9 @@ struct ResizeCommand: Command {
         }
 
         guard let childDiff = diff.div(parent.children.count - 1) else { return .fail }
-        parent.children.lazy
-            .filter { $0 != node }
-            .forEach { $0.setWeight(parent.orientation, $0.getWeight(parent.orientation) - childDiff) }
+        for child in parent.children where child != node {
+            child.setWeight(parent.orientation, child.getWeight(parent.orientation) - childDiff)
+        }
 
         node.setWeight(orientation, node.getWeight(orientation) + diff)
         return .succ
