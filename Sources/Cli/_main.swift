@@ -129,8 +129,8 @@ private func printVersionAndExit() async -> Never {
 
 private func isRelativeWorkspaceTarget(_ args: any CmdArgs) -> Bool {
     switch args {
-        case let args as WorkspaceCmdArgs: args.target.val.isRelatve
-        case let args as MoveNodeToWorkspaceCmdArgs: args.target.val.isRelatve
+        case let args as WorkspaceCmdArgs: args.target.val.isRelative
+        case let args as MoveNodeToWorkspaceCmdArgs: args.target.val.isRelative
         default: false
     }
 }

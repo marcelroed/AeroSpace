@@ -1,5 +1,5 @@
-let onitor = "<monitor>"
-let _monitors = "\(onitor)..."
+private let monitorPlaceholder = "<monitor>"
+private let monitorsPlaceholder = "\(monitorPlaceholder)..."
 
 public struct ListWorkspacesCmdArgs: CmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
@@ -74,9 +74,9 @@ func parseListWorkspacesCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ListWorkspaces
 
 func parseMonitorIds(input: SubArgParserInput) -> ParsedCliArgs<[MonitorId]> {
     let args = input.nonFlagArgs()
-    let possibleValues = "\(onitor) possible values: (<monitor-id>|focused|mouse|all)"
+    let possibleValues = "\(monitorPlaceholder) possible values: (<monitor-id>|focused|mouse|all)"
     if args.isEmpty {
-        return .fail("\(_monitors) is mandatory. \(possibleValues)", advanceBy: args.count)
+        return .fail("\(monitorsPlaceholder) is mandatory. \(possibleValues)", advanceBy: args.count)
     }
     var monitors: [MonitorId] = []
     var i = 0

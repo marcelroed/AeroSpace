@@ -124,7 +124,7 @@ struct FocusCommand: Command {
     defer {
         mruBefore?.markAsMostRecentChild()
     }
-    var _floatingWindows: [FloatingWindowData] = []
+    var unsortedFloatingWindows: [FloatingWindowData] = []
     for window in workspace.floatingWindows {
         // todo bug: we shouldn't access ax api here. What if the window was moved but it wasn't committed to ax yet?
         guard let center = try? await window.getCenter(.nonCancellable) else { continue }
@@ -135,8 +135,8 @@ struct FocusCommand: Command {
             .findWindowRecursively(in: workspace.rootTilingContainer, virtual: true, fullscreenCoversAll: false)
         {
             guard let targetCenter = try? await target.getCenter(.nonCancellable) else { continue }
-            guard let _tilingParent = target.parent as? TilingContainer else { continue }
-            tilingParent = _tilingParent
+            guard let parent = target.parent as? TilingContainer else { continue }
+            tilingParent = parent
             index = switch tilingParent.layout {
                 case .tiles:
                     center.getProjection(tilingParent.orientation) >= targetCenter.getProjection(tilingParent.orientation)
@@ -160,9 +160,9 @@ struct FocusCommand: Command {
             adaptiveWeight: data.adaptiveWeight,
             index: index,
         )
-        _floatingWindows.append(floatingWindowData)
+        unsortedFloatingWindows.append(floatingWindowData)
     }
-    let floatingWindows: [FloatingWindowData] = _floatingWindows.sortedBy { $0.center.getProjection($0.tilingParent.orientation) }.reversed()
+    let floatingWindows: [FloatingWindowData] = unsortedFloatingWindows.sortedBy { $0.center.getProjection($0.tilingParent.orientation) }.reversed()
 
     for floating in floatingWindows { // Make floating windows be seen as tiling
         floating.window.bind(to: floating.tilingParent, adaptiveWeight: 1, index: floating.index)
