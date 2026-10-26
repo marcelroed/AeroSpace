@@ -17,29 +17,21 @@ struct TestCommand: Command {
                 lhs = args.lhs.val.expandFormatVar(obj: .workspace(target.workspace))
         }
 
-        guard let lhs = lhs.getOrNil(onFailure: { err in
-            switch err {
-                case .unknownInterpolationVariable: io.err(noWindowIsFocused)
-                case .notPossible, .nullParent,
-                     .rightPaddingCannotBeExpanded, .windowParentIllegalRelation: io.err(err.description)
-            }
-        }) else { return .fail }
+        guard let lhs = lhs.getOrNil(onFailure: { err in io.err(err.cmdErrorMessage) }) else { return .fail }
 
         let infixOperator = args.infixOperator.val
         let rhs = args.rhs.val
         let lhsType = lhs.kind.rawValue
         let incompatibleLhsAndOperatorMsg = """
-            Interpolation variable: \(args.lhs.val.rawValue.singleQuoted) has a type of \(lhsType). The \(lhsType) type is not compatible with \(args.infixOperator.val.rawValue.singleQuoted) operator.
+            Interpolation variable: \(args.lhs.val.rawValue.singleQuoted) has a type of \(lhsType). The \(lhsType) type is not compatible with \(infixOperator.rawValue.singleQuoted) operator.
             """
 
         let result: Result<Bool, String> = switch (lhs, infixOperator) {
             case (.bool(let lhs), .equals):
                 Bool(rhs).toResult("Can't convert String \(rhs.singleQuoted) to Bool").map { rhs in lhs == rhs }
-            case (.bool, .matchesRegex):
-                .failure(incompatibleLhsAndOperatorMsg)
             case (.int(let lhs), .equals):
                 Int64(rhs).toResult("Can't convert String \(rhs.singleQuoted) to Int").map { rhs in lhs == rhs }
-            case (.int, .matchesRegex):
+            case (.bool, .matchesRegex), (.int, .matchesRegex):
                 .failure(incompatibleLhsAndOperatorMsg)
             case (.string(let lhs), .equals):
                 .success(lhs == rhs)

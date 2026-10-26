@@ -15,13 +15,7 @@ struct EchoCommand: Command {
         }
         for argWithInterVars in args.args.val {
             guard let strs = obj.format(argWithInterVars).getOrNil(onFailure: { errs in
-                for err in errs {
-                    switch err {
-                        case .unknownInterpolationVariable: io.err(noWindowIsFocused)
-                        case .notPossible, .nullParent,
-                             .rightPaddingCannotBeExpanded, .windowParentIllegalRelation: io.err(err.description)
-                    }
-                }
+                for err in errs { io.err(err.cmdErrorMessage) }
             }) else { return .fail }
             for str in strs {
                 switch args.isStderr {

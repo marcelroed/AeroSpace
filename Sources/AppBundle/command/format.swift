@@ -207,6 +207,15 @@ enum InterVarExpansionError: LocalizedError, CustomStringConvertible {
     }
 
     public var errorDescription: String? { description }
+
+    /// The error message that `echo` and `test` report
+    var cmdErrorMessage: String {
+        switch self {
+            case .unknownInterpolationVariable: noWindowIsFocused
+            case .notPossible, .nullParent,
+                 .rightPaddingCannotBeExpanded, .windowParentIllegalRelation: description
+        }
+    }
 }
 
 extension PlainInterVar {
