@@ -2,22 +2,29 @@ import Common
 import Foundation
 
 actor AwaitableOneTimeBroadcastLatch {
-    private var done = false
-    private var awaiters: [UniqueToken: Nullable<CheckedContinuation<(), any Error>>] = [:]
+    private enum Awaiter {
+        case suspended(CheckedContinuation<Void, any Error>)
+        /// The client must be cancelled right away when it suspends
+        case cancelledBeforeSuspension
+    }
+
+    private var isSignaled = false
+    private var awaiters: [Int: Awaiter] = [:]
+    private var nextAwaiterId = 0
 
     func await() async throws {
         try checkCancellation()
-        if done { return }
+        if isSignaled { return }
 
-        let id = UniqueToken()
+        let id = nextAwaiterId
+        nextAwaiterId += 1
         try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<(), any Error>) in
+            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, any Error>) in
                 switch awaiters.removeValue(forKey: id) {
-                    case let awaiter?:
-                        check(awaiter.isNull)
-                        cont.resume(throwing: CancellationError())
-                    case nil where done: cont.resume()
-                    case nil: awaiters[id] = .just(cont)
+                    case .cancelledBeforeSuspension: cont.resume(throwing: CancellationError())
+                    case .suspended: die("Awaiter \(id) is already suspended")
+                    case nil where isSignaled: cont.resume()
+                    case nil: awaiters[id] = .suspended(cont)
                 }
             }
         } onCancel: {
@@ -25,20 +32,19 @@ actor AwaitableOneTimeBroadcastLatch {
         }
     }
 
-    private func cancel(id: UniqueToken) {
+    private func cancel(id: Int) {
         switch awaiters.removeValue(forKey: id) {
-            case let awaiter?: awaiter.valueOrNil.orDie().resume(throwing: CancellationError())
-            case nil where !done:
-                // Indicate to 'await' that the client should be cancelled right away when it suspends
-                awaiters[id] = .null
+            case .suspended(let cont): cont.resume(throwing: CancellationError())
+            case .cancelledBeforeSuspension: die("Awaiter \(id) is already cancelled")
+            case nil where !isSignaled: awaiters[id] = .cancelledBeforeSuspension
             case nil: break
         }
     }
 
     func signalToAll() {
-        done = true
-        for (_, awaiter) in awaiters {
-            awaiter.valueOrNil?.resume()
+        isSignaled = true
+        for case .suspended(let cont) in awaiters.values {
+            cont.resume()
         }
         awaiters = [:]
     }
