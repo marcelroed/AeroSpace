@@ -1,8 +1,9 @@
 import AppKit
 import Common
 
+@MainActor
 public final class TrayMenuModel: ObservableObject {
-    @MainActor public static let shared = TrayMenuModel()
+    public static let shared = TrayMenuModel()
 
     private init() {}
 

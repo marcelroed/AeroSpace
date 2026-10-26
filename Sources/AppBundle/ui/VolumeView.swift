@@ -2,8 +2,8 @@ import AppKit
 import Common
 import SwiftUI
 
-public final class VolumePanel: NSPanelHud {
-    public static let shared = VolumePanel()
+final class VolumePanel: NSPanelHud {
+    static let shared = VolumePanel()
     private static let size = CGSize(width: 50, height: 206)
     private var timer: Timer?
     private let hostingView = NSHostingView(rootView: VolumeView(volume: 0))
@@ -14,7 +14,7 @@ public final class VolumePanel: NSPanelHud {
         self.contentView?.addSubview(hostingView)
     }
 
-    public func update(with volume: Float) {
+    func update(with volume: Float) {
         timer?.invalidate()
         hostingView.rootView = VolumeView(volume: volume)
         let y = (mainMonitorInfo.height - Self.size.height) / 2

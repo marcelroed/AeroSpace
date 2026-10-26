@@ -97,23 +97,24 @@ struct MessageView: View {
     }
 }
 
+@MainActor
 public final class MessageModel: ObservableObject {
-    @MainActor public static let shared = MessageModel()
+    public static let shared = MessageModel()
     @Published public var message: Message? = nil
 
     private init() {}
 }
 
-public enum MessageType {
+enum MessageType {
     case config
 }
 
 public struct Message: Hashable {
-    public let type: MessageType
-    public let title: String
-    public let description: String
-    public let body: String
-    public let containsWarnings: Bool
+    let type: MessageType
+    let title: String
+    let description: String
+    let body: String
+    let containsWarnings: Bool
 
     init(
         type: MessageType = .config,

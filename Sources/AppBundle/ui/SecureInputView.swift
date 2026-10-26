@@ -5,16 +5,15 @@ import SwiftUI
 private let iconSize = CGSize(width: 50, height: 50)
 private let textSize = CGSize(width: 440, height: 110)
 
-public final class SecureInputPanel: NSPanelHud {
-    public static let shared = SecureInputPanel()
+final class SecureInputPanel: NSPanelHud {
+    static let shared = SecureInputPanel()
     private var hostingView: NSHostingView<SecureInputView>?
 
     override private init() {
         super.init()
     }
 
-    @MainActor
-    public func refresh() {
+    func refresh() {
         if let activeMode, TrayMenuModel.shared.isEnabled &&
             config.modes[activeMode]?.bindings.isEmpty == false && IsSecureEventInputEnabled()
         {
@@ -31,7 +30,7 @@ public final class SecureInputPanel: NSPanelHud {
         }
     }
 
-    public func updateFrame(isMinimized: Bool) {
+    func updateFrame(isMinimized: Bool) {
         let size = isMinimized ? iconSize : textSize
         hostingView?.frame = NSRect(origin: .zero, size: size)
         self.setFrame(rightEdgeFrame(size: size, y: 20), display: true)
