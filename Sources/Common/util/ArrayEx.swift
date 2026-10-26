@@ -1,6 +1,8 @@
 extension Array {
+    /// The table must be rectangular: all rows have the same size
     public func transposed<T>() -> [[T]] where Self.Element == [T] {
         guard let firstRow = first else { return [] }
+        check(allSatisfy { $0.count == firstRow.count }, "transposed() needs a rectangular table. Row sizes: \(map(\.count))")
         return firstRow.indices.map { columnIndex in map { row in row.getOrNil(atIndex: columnIndex).orDie() } }
     }
 

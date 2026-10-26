@@ -49,7 +49,6 @@ struct CommonUtilTest: AeroSpaceTestSuite {
         assertEquals([[1]].transposed(), [[1]])
         assertEquals([[1, 2, 3], [4, 5, 6]].transposed(), [[1, 4], [2, 5], [3, 6]])
         assertEquals([[Int]]([[], []]).transposed(), [])
-        assertEquals([[1], [2, 3]].transposed(), [[1, 2]]) // The first row defines the column count
     }
 
     @Test
