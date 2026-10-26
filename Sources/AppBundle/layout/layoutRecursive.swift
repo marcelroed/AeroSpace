@@ -1,7 +1,6 @@
 import AppKit
 
 extension Workspace {
-    @MainActor
     func layoutWorkspace() async throws {
         if isEffectivelyEmpty { return }
         let monitor = workspaceMonitor
@@ -15,7 +14,6 @@ extension Workspace {
 }
 
 extension TreeNode {
-    @MainActor
     fileprivate func layoutRecursive(_ point: CGPoint, width: CGFloat, height: CGFloat, virtual: Rect, _ context: LayoutContext) async throws {
         let physicalRect = Rect(topLeftX: point.x, topLeftY: point.y, width: width, height: height)
         switch nodeCases {
@@ -70,7 +68,6 @@ private struct LayoutContext {
 }
 
 extension Window {
-    @MainActor
     fileprivate func layoutFloatingWindow(_ context: LayoutContext) async throws {
         let workspace = context.workspace
         let windowRect = try await getAxRect(.cancellable) // Probably not idempotent
@@ -97,7 +94,6 @@ extension Window {
         }
     }
 
-    @MainActor
     fileprivate func layoutFullscreen(_ context: LayoutContext) {
         let monitorRect = noOuterGapsInFullscreen
             ? context.workspace.workspaceMonitor.visibleRect
@@ -107,7 +103,6 @@ extension Window {
 }
 
 extension TilingContainer {
-    @MainActor
     fileprivate func layoutTiles(_ point: CGPoint, width: CGFloat, height: CGFloat, virtual: Rect, _ context: LayoutContext) async throws {
         var point = point
         var virtualPoint = virtual.topLeftCorner
@@ -143,7 +138,6 @@ extension TilingContainer {
         }
     }
 
-    @MainActor
     fileprivate func layoutAccordion(_ point: CGPoint, width: CGFloat, height: CGFloat, virtual: Rect, _ context: LayoutContext) async throws {
         guard let mruIndex: Int = mostRecentChild?.ownIndex else { return }
         let padding = CGFloat(config.accordionPadding)

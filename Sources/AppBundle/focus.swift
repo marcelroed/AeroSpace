@@ -77,7 +77,7 @@ private struct FrozenFocus: AeroAny, Equatable, Sendable {
     return status
 }
 extension Window {
-    @MainActor func focusWindow() -> Bool {
+    func focusWindow() -> Bool {
         if let focus = toLiveFocusOrNil() {
             return setFocus(to: focus)
         } else {
@@ -87,10 +87,10 @@ extension Window {
         }
     }
 
-    @MainActor func toLiveFocusOrNil() -> LiveFocus? { visualWorkspace.map { LiveFocus(windowOrNil: self, workspace: $0) } }
+    func toLiveFocusOrNil() -> LiveFocus? { visualWorkspace.map { LiveFocus(windowOrNil: self, workspace: $0) } }
 }
 extension Workspace {
-    @MainActor func focusWorkspace() -> Bool { setFocus(to: toLiveFocus()) }
+    func focusWorkspace() -> Bool { setFocus(to: toLiveFocus()) }
 
     func toLiveFocus() -> LiveFocus {
         // todo unfortunately mostRecentWindowRecursive may recursively reach empty rootTilingContainer

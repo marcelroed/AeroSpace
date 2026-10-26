@@ -165,7 +165,7 @@ extension TilingTreeNodeCases {
     }
 }
 
-func shouldFailBecauseFullscreen_nonCancellable(
+@MainActor func shouldFailBecauseFullscreen_nonCancellable(
     window: Window,
     failIfFullscreen: Bool,
     failIfMacosNativeFullscreen: Bool,

@@ -61,7 +61,6 @@ private func resizeWithMouse(_ window: Window) async throws { // todo cover with
 }
 
 extension TreeNode {
-    @MainActor
     fileprivate func getWeightBeforeResize(_ orientation: Orientation) -> CGFloat {
         let currentWeight = getWeight(orientation) // Check assertions
         return weightBeforeResizeWithMouse

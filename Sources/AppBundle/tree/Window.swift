@@ -2,14 +2,13 @@ import AppKit
 import Common
 
 open class Window: TreeNode, Hashable {
-    let windowId: UInt32
+    nonisolated let windowId: UInt32
     let app: any AbstractApp
     var lastFloatingSize: CGSize?
     var isFullscreen: Bool = false
     var noOuterGapsInFullscreen: Bool = false
     var layoutReason: LayoutReason = .standard
 
-    @MainActor
     init(id: UInt32, _ app: any AbstractApp, lastFloatingSize: CGSize?, parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) {
         self.windowId = id
         self.app = app
@@ -17,16 +16,15 @@ open class Window: TreeNode, Hashable {
         super.init(parent: parent, adaptiveWeight: adaptiveWeight, index: index)
     }
 
-    @MainActor static func get(byId windowId: UInt32) -> Window? { // todo make non optional
+    static func get(byId windowId: UInt32) -> Window? { // todo make non optional
         isUnitTest
             ? Workspace.all.flatMap { $0.allLeafWindowsRecursive }.first(where: { $0.windowId == windowId })
             : MacWindow.allWindowsMap[windowId]
     }
 
-    @MainActor
     func closeAxWindow() { die("Not implemented") }
 
-    public func hash(into hasher: inout Hasher) {
+    nonisolated public func hash(into hasher: inout Hasher) {
         hasher.combine(windowId)
     }
 
@@ -35,7 +33,7 @@ open class Window: TreeNode, Hashable {
     func isMacosFullscreen(_ cm: CancellationMode) async throws -> Bool { false }
     func isMacosMinimized(_ cm: CancellationMode) async throws -> Bool { false } // todo replace with enum MacOsWindowNativeState { normal, fullscreen, invisible }
     var isHiddenInCorner: Bool { die("Not implemented") }
-    @MainActor func nativeFocus() { die("Not implemented") }
+    func nativeFocus() { die("Not implemented") }
     func getAxRect(_ cm: CancellationMode) async throws -> Rect? { die("Not implemented") }
     func getCenter(_ cm: CancellationMode) async throws -> CGPoint? { try await getAxRect(cm)?.center }
 
@@ -62,7 +60,6 @@ extension Window {
     }
 
     @discardableResult
-    @MainActor
     func bindAsFloatingWindow(to workspace: Workspace) -> BindingData? {
         bind(to: workspace.floatingWindowsContainer, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
     }

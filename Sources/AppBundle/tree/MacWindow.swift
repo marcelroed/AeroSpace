@@ -5,16 +5,14 @@ final class MacWindow: Window {
     let macApp: MacApp
     private var prevUnhiddenProportionalPositionInsideWorkspaceRect: CGPoint?
 
-    @MainActor
     private init(_ id: UInt32, _ macApp: MacApp, lastFloatingSize: CGSize?, parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) {
         self.macApp = macApp
         super.init(id: id, macApp, lastFloatingSize: lastFloatingSize, parent: parent, adaptiveWeight: adaptiveWeight, index: index)
     }
 
-    @MainActor static var allWindowsMap: [UInt32: MacWindow] = [:]
-    @MainActor static var allWindows: [MacWindow] { Array(allWindowsMap.values) }
+    static var allWindowsMap: [UInt32: MacWindow] = [:]
+    static var allWindows: [MacWindow] { Array(allWindowsMap.values) }
 
-    @MainActor
     @discardableResult
     static func getOrRegister(windowId: UInt32, macApp: MacApp) async throws -> MacWindow {
         if let existing = allWindowsMap[windowId] { return existing }
@@ -63,7 +61,6 @@ final class MacWindow: Window {
 
     // skipClosedWindowsCache is an optimization when it's definitely not necessary to cache closed window.
     //                        If you are unsure, it's better to pass `false`
-    @MainActor
     func garbageCollect(skipClosedWindowsCache: Bool) {
         if MacWindow.allWindowsMap.removeValue(forKey: windowId) == nil {
             return
@@ -97,7 +94,7 @@ final class MacWindow: Window {
     override func isMacosFullscreen(_ cm: CancellationMode) async throws -> Bool { try await macApp.isMacosNativeFullscreen(windowId, cm) == true }
     override func isMacosMinimized(_ cm: CancellationMode) async throws -> Bool { try await macApp.isMacosNativeMinimized(windowId, cm) == true }
 
-    @MainActor override func nativeFocus() {
+    override func nativeFocus() {
         macApp.nativeFocus(windowId)
     }
 
@@ -107,7 +104,6 @@ final class MacWindow: Window {
     }
 
     // todo it's part of the window layout and should be moved to layoutRecursive.swift
-    @MainActor
     func hideInCorner(_ corner: OptimalHideCorner) async throws {
         guard let nodeMonitor else { return }
         // Don't accidentally override prevUnhiddenProportionalPositionInsideWorkspaceRect in case of subsequent `hideInCorner` calls
@@ -142,7 +138,6 @@ final class MacWindow: Window {
         setAxFrame(p, nil)
     }
 
-    @MainActor
     func unhideFromCorner() {
         guard let prevUnhiddenProportionalPositionInsideWorkspaceRect else { return }
         guard let nodeWorkspace else { return } // hiding only makes sense for workspace windows
@@ -188,7 +183,6 @@ final class MacWindow: Window {
 }
 
 extension Window {
-    @MainActor
     func relayoutWindow(on workspace: Workspace, _ cm: CancellationMode, forceTile: Bool = false) async throws {
         let data = forceTile
             ? unbindAndGetBindingDataForNewTilingWindow(workspace, window: self)

@@ -166,14 +166,14 @@ enum ChildParentRelation: Equatable {
     case shimContainerRelation
 }
 
-func getChildParentRelation(child: TreeNode, parent: NonLeafTreeNodeObject) -> ChildParentRelation {
+@MainActor func getChildParentRelation(child: TreeNode, parent: NonLeafTreeNodeObject) -> ChildParentRelation {
     if let relation = getChildParentRelationOrNil(child: child, parent: parent) {
         return relation
     }
     illegalChildParentRelation(child: child, parent: parent)
 }
 
-func illegalChildParentRelation(
+@MainActor func illegalChildParentRelation(
     child: TreeNode,
     parent: NonLeafTreeNodeObject?,
     file: StaticString = #fileID,
@@ -185,7 +185,7 @@ func illegalChildParentRelation(
     die(msg, file: file, line: line, column: column, function: function)
 }
 
-func getChildParentRelationOrNil(child: TreeNode, parent: NonLeafTreeNodeObject) -> ChildParentRelation? {
+@MainActor func getChildParentRelationOrNil(child: TreeNode, parent: NonLeafTreeNodeObject) -> ChildParentRelation? {
     return switch (child.nodeCases, parent.cases) {
         case (.workspace, _): nil
         case (.window, .workspace): nil

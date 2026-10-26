@@ -49,10 +49,8 @@ extension TreeNode {
     }
 
     /// Also see: workspace
-    @MainActor
     var visualWorkspace: Workspace? { nodeWorkspace ?? nodeMonitor?.activeWorkspace }
 
-    @MainActor
     var nodeMonitor: MonitorInfo? {
         switch self.nodeCases {
             case .workspace(let ws): ws.workspaceMonitor
@@ -86,13 +84,11 @@ extension TreeNode {
         anyLeafWindowRecursive == nil
     }
 
-    @MainActor
     var hWeight: CGFloat {
         get { getWeight(.h) }
         set { setWeight(.h, newValue) }
     }
 
-    @MainActor
     var vWeight: CGFloat {
         get { getWeight(.v) }
         set { setWeight(.v, newValue) }

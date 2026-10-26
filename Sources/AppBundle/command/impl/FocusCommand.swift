@@ -190,7 +190,6 @@ private struct FloatingWindowData {
 }
 
 extension TreeNode {
-    @MainActor
     func findLeafWindowRecursive(snappedTo direction: CardinalDirection) -> Window? {
         switch nodeCases {
             case .workspace(let workspace):

@@ -1,7 +1,7 @@
 import Common
 
 extension Workspace {
-    @MainActor var rootTilingContainer: TilingContainer {
+    var rootTilingContainer: TilingContainer {
         singleChild(TilingContainer.self, dieMessage: "Workspace must contain zero or one tiling container as its child") {
             let orientation: Orientation = switch config.defaultRootContainerOrientation {
                 case .horizontal: .h
@@ -12,25 +12,23 @@ extension Workspace {
         }
     }
 
-    @MainActor
     var floatingWindows: [Window] {
         floatingWindowsContainer.children.filterIsInstance(of: Window.self)
     }
 
-    @MainActor
     var floatingWindowsContainer: FloatingWindowsContainer {
         singleChild(FloatingWindowsContainer.self, dieMessage: "Workspace must contain zero or one FloatingWindowsContainer") {
             FloatingWindowsContainer(parent: self)
         }
     }
 
-    @MainActor var macOsNativeFullscreenWindowsContainer: MacosFullscreenWindowsContainer {
+    var macOsNativeFullscreenWindowsContainer: MacosFullscreenWindowsContainer {
         singleChild(MacosFullscreenWindowsContainer.self, dieMessage: "Workspace must contain zero or one MacosFullscreenWindowsContainer") {
             MacosFullscreenWindowsContainer(parent: self)
         }
     }
 
-    @MainActor var macOsNativeHiddenAppsWindowsContainer: MacosHiddenAppsWindowsContainer {
+    var macOsNativeHiddenAppsWindowsContainer: MacosHiddenAppsWindowsContainer {
         singleChild(MacosHiddenAppsWindowsContainer.self, dieMessage: "Workspace must contain zero or one MacosHiddenAppsWindowsContainer") {
             MacosHiddenAppsWindowsContainer(parent: self)
         }
@@ -47,7 +45,7 @@ extension Workspace {
         return result ?? create()
     }
 
-    @MainActor var forceAssignedMonitor: MonitorInfo? {
+    var forceAssignedMonitor: MonitorInfo? {
         guard let monitorDescriptions = config.workspaceToMonitorForceAssignment[name] else { return nil }
         let sortedMonitors = sortedMonitorInfos
         return monitorDescriptions.lazy

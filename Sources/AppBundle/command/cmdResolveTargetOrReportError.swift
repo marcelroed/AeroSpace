@@ -38,7 +38,6 @@ extension CmdArgs {
 }
 
 extension Window {
-    @MainActor
     func toLiveFocusOrReportError(_ io: CmdIo) -> LiveFocus? {
         if let result = toLiveFocusOrNil() {
             return result

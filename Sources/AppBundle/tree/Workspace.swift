@@ -36,18 +36,17 @@ final class Workspace: TreeNode, NonLeafTreeNodeObject, Hashable, Comparable {
     /// `assignedMonitorPoint` must be interpreted only when the workspace is invisible
     fileprivate var assignedMonitorPoint: CGPoint? = nil
 
-    @MainActor
     private init(_ name: String) {
         self.name = name
         self.nameLogicalSegments = name.toLogicalSegments()
         super.init(unboundRootWithAdaptiveWeight: 0)
     }
 
-    @MainActor static var all: [Workspace] {
+    static var all: [Workspace] {
         workspaceNameToWorkspace.values.sorted()
     }
 
-    @MainActor static func get(byName name: String) -> Workspace {
+    static func get(byName name: String) -> Workspace {
         if let existing = workspaceNameToWorkspace[name] {
             return existing
         } else {
@@ -69,7 +68,6 @@ final class Workspace: TreeNode, NonLeafTreeNodeObject, Hashable, Comparable {
         die("It's not possible to change weight of Workspace")
     }
 
-    @MainActor
     var description: String {
         let description = [
             ("name", name),
@@ -80,7 +78,6 @@ final class Workspace: TreeNode, NonLeafTreeNodeObject, Hashable, Comparable {
         return "Workspace(\(description))"
     }
 
-    @MainActor
     static func garbageCollectUnusedWorkspaces() {
         for name in config.persistentWorkspaces {
             _ = get(byName: name) // Make sure that all persistent workspaces are "cached"
@@ -102,9 +99,7 @@ final class Workspace: TreeNode, NonLeafTreeNodeObject, Hashable, Comparable {
 }
 
 extension Workspace {
-    @MainActor
     var isVisible: Bool { visibleWorkspaceToScreenPoint.keys.contains(self) }
-    @MainActor
     var workspaceMonitor: MonitorInfo {
         forceAssignedMonitor
             ?? visibleWorkspaceToScreenPoint[self]?.monitorApproximation

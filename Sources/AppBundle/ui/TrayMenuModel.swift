@@ -75,7 +75,7 @@ enum AxPermissionStatus: Equatable {
 }
 
 extension [Window] {
-    fileprivate var hasFullscreenWindows: Bool { contains { $0.isFullscreen } }
+    @MainActor fileprivate var hasFullscreenWindows: Bool { contains { $0.isFullscreen } }
 }
 
 struct WorkspaceViewModel: Hashable {

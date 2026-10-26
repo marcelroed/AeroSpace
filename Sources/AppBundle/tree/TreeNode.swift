@@ -1,6 +1,9 @@
 import AppKit
 import Common
 
+/// The tree is main actor state. Subclasses and extensions inherit the isolation (async members too),
+/// so a member that must not be isolated has to be marked `nonisolated`
+@MainActor
 open class TreeNode: Equatable, AeroAny {
     private var _children: [TreeNode] = []
     var children: [TreeNode] { _children }
@@ -24,7 +27,6 @@ open class TreeNode: Equatable, AeroAny {
     private var unboundStacktrace: String? = nil
     var isBound: Bool { parent != nil } // todo drop, once https://github.com/nikitabobko/AeroSpace/issues/1215 is fixed
 
-    @MainActor
     init(parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) {
         self.adaptiveWeight = adaptiveWeight
         bind(to: parent, adaptiveWeight: adaptiveWeight, index: index)
@@ -53,7 +55,6 @@ open class TreeNode: Equatable, AeroAny {
     }
 
     /// Weight itself doesn't make sense. The parent container controls semantics of weight
-    @MainActor
     func getWeight(_ targetOrientation: Orientation) -> CGFloat {
         guard let parent else { die("Weight doesn't make sense for containers without parent") }
         return switch getChildParentRelation(child: self, parent: parent) {
@@ -68,7 +69,6 @@ open class TreeNode: Equatable, AeroAny {
         }
     }
 
-    @MainActor
     @discardableResult
     func bind(to newParent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) -> BindingData? {
         // bind() overwrites unboundStacktrace below, so don't spend time on recording it
