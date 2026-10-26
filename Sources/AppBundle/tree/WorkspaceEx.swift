@@ -35,11 +35,19 @@ extension Workspace {
     }
 
     /// Returns the only child of type `T`, or creates it if there is none
-    private func singleChild<T: TreeNode>(_: T.Type, dieMessage: String, orCreate create: () -> T) -> T {
+    private func singleChild<T: TreeNode>(
+        _: T.Type,
+        dieMessage: String,
+        file: StaticString = #fileID,
+        line: Int = #line,
+        column: Int = #column,
+        function: String = #function,
+        orCreate create: () -> T,
+    ) -> T {
         var result: T? = nil
         for child in children {
             guard let child = child as? T else { continue }
-            if result != nil { die(dieMessage) }
+            if result != nil { die(dieMessage, file: file, line: line, column: column, function: function) }
             result = child
         }
         return result ?? create()
