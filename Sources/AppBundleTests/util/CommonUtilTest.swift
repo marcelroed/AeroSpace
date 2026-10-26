@@ -80,12 +80,6 @@ final class CommonUtilTest: XCTestCase {
         assertEquals("".prefixLines(with: "> "), "> ")
     }
 
-    func testPrependLines() {
-        assertEquals("a\n\nb".prependLines("> "), "> a\n> b")
-        assertEquals("a\n".prependLines("> "), "> a")
-        assertEquals("".prependLines("> "), "")
-    }
-
     func testArrSlice() {
         let arr = [10, 20, 30, 40]
         assertEquals(arr.slice.toArray(), arr)

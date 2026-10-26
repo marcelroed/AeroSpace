@@ -240,7 +240,7 @@ extension InterVar {
 
 func unknownInterpolationVariable(variable: String, _ obj: AeroObj) -> String {
     "Unknown interpolation variable '\(variable)'. " +
-        "Possible values:\n\(getAvailableInterVars(for: obj.kind).joined(separator: "\n").prependLines("  "))"
+        "Possible values:\n\(getAvailableInterVars(for: obj.kind).joined(separator: "\n").prefixLines(with: "  "))"
 }
 
 private func toLayoutString(tc: TilingContainer) -> String {

@@ -87,7 +87,7 @@ func formatParser<Root>(
                 case .failure(let err): .fail("Failed to parse <output-format>. \(err)", advanceBy: 1)
             }
         } else {
-            let values = getAvailableInterVars(for: kind).joined(separator: "\n").prependLines("  ")
+            let values = getAvailableInterVars(for: kind).joined(separator: "\n").prefixLines(with: "  ")
             return .fail("<output-format> is mandatory. Possible values:\n\(values)", advanceBy: 0)
         }
     }
