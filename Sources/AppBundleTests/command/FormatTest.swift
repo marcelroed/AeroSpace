@@ -307,6 +307,15 @@ final class FormatTest: XCTestCase {
         assertTrue(msg.contains("right-padding"))
     }
 
+    func testUnknownInterpolationVariableMessageListsPossibleValues() {
+        assertEquals(
+            unknownInterpolationVariable(variable: "bogus", .monitor(mainMonitorInfo)),
+            "Unknown interpolation variable 'bogus'. Possible values:\n" +
+                "  monitor-id\n  monitor-appkit-nsscreen-screens-id\n  monitor-name\n  monitor-is-main\n" +
+                "  right-padding\n  newline\n  tab",
+        )
+    }
+
     func testFormatToJsonEmptyInput() {
         let result: [AeroObj] = []
         assertSucc(
