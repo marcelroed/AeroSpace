@@ -13,7 +13,7 @@ private func _shellLexerTokens(_ str: String) throws(String) -> [LexerToken] {
 
     var index = 0
     var wordLocation = Location(line: 1, column: 1)
-    let array: [Char] = locateChars(Array(str + " ")) // synthetic trailing space to flush the last word
+    let array = locateChars(str + " ") // synthetic trailing space to flush the last word
 
     func flushWord(_ wordKind: WordKind) throws(String) {
         if wordKind == .bare, word != "~=", let reservedChar = word.first(where: { reservedChars.contains($0) }) {
@@ -110,25 +110,27 @@ private func _shellLexerTokens(_ str: String) throws(String) -> [LexerToken] {
             throw "\(endLocation): Last quote \(quoteChar) isn't closed."
     }
     result.append(.init(endLocation, .end))
-    let binaryOperators: [LexerToken.Payload?] = [.and, .or, .pipe]
-    for (index, token) in result.enumerated() {
-        if token.payload == .newline && binaryOperators.contains(result.getOrNil(atIndex: index + 1)?.payload) {
-            throw "\(token.location): Please escape newline with backslash character."
-        }
-    }
+    try checkNoNewlineBeforeBinaryOperator(result)
     return result
 }
 
-struct Char {
+private func checkNoNewlineBeforeBinaryOperator(_ tokens: [LexerToken]) throws(String) {
+    let binaryOperators: [LexerToken.Payload] = [.and, .or, .pipe]
+    for (token, next) in zip(tokens, tokens.dropFirst()) where token.payload == .newline && binaryOperators.contains(next.payload) {
+        throw "\(token.location): Please escape newline with backslash character."
+    }
+}
+
+private struct LocatedChar {
     let value: Character
     let location: Location
 }
 
-private func locateChars(_ chars: [Character]) -> [Char] {
-    var result = [Char]()
+private func locateChars(_ str: String) -> [LocatedChar] {
+    var result = [LocatedChar]()
     var location = Location(line: 1, column: 1)
-    for char in chars {
-        result.append(Char(value: char, location: location))
+    for char in str {
+        result.append(LocatedChar(value: char, location: location))
         location.column += 1
         if char == "\n" {
             location.line += 1
