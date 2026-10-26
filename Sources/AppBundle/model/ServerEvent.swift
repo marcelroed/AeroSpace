@@ -3,21 +3,13 @@ import Common
 struct ServerEvent: Codable, Sendable {
     private let _event: ServerEventType
 
-    // periphery:ignore - false positive unused warning. The var properties are serialized to JSON
     private var windowId: UInt32?
-    // periphery:ignore - false positive unused warning. The var properties are serialized to JSON
     private var workspace: String?
-    // periphery:ignore - false positive unused warning. The var properties are serialized to JSON
     private var prevWorkspace: String?
-    // periphery:ignore - false positive unused warning. The var properties are serialized to JSON
     private var monitorId: Int? // 1-based
-    // periphery:ignore - false positive unused warning. The var properties are serialized to JSON
     private var appBundleId: String?
-    // periphery:ignore - false positive unused warning. The var properties are serialized to JSON
     private var appName: String?
-    // periphery:ignore - false positive unused warning. The var properties are serialized to JSON
     private var mode: String?
-    // periphery:ignore - false positive unused warning. The var properties are serialized to JSON
     private var binding: String?
 
     var eventType: ServerEventType { _event }
