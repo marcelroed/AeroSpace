@@ -1,7 +1,8 @@
 import AppKit
 import Common
 
-/// Alternative name: AttrAddressibleStorage
+/// An AX element whose attributes can be read. Despite the name, it's not test-only: ``AXUIElement`` conforms in
+/// production, and unit tests use elements parsed from JSON dumps (see ``axUiElementMockFromTestDump(_:)``)
 protocol AxUiElementMock {
     func get<Attr: ReadableAttr>(_ attr: Attr) -> Attr.T?
     func containingWindowId() -> CGWindowID?
