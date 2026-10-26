@@ -14,49 +14,16 @@ public func menuBar(viewModel: TrayMenuModel) -> some Scene { // todo should it 
 
         if viewModel.axPermissionStatus == .granted {
             if let token: RunSessionGuard = .isServerEnabled, viewModel.lastReloadConfigContainedWarnings {
-                Button {
-                    Task.startUnstructured {
-                        try await runLightSession(.menuBarButton, token) {
-                            let args: ReloadConfigCmdArgs = ReloadConfigCmdArgs(rawArgs: []).copy(\.warningsAsErrors, true)
-                            _ = await reloadConfig_nonCancellable(args: args)
-                        }
-                    }
-                } label: {
-                    Label("Config contains warnings...", systemImage: "exclamationmark.triangle.fill")
-                }
+                configWarningsButton(token)
                 Divider()
             }
             if let token: RunSessionGuard = .isServerEnabled {
-                Text("Workspaces:")
-                ForEach(viewModel.workspaces, id: \.name) { workspace in
-                    Button {
-                        Task.startUnstructured {
-                            try await runLightSession(.menuBarButton, token) { _ = Workspace.get(byName: workspace.name).focusWorkspace() }
-                        }
-                    } label: {
-                        Toggle(isOn: .constant(workspace.isFocused)) {
-                            Text(workspace.name + workspace.suffix).font(.system(.body, design: .monospaced))
-                        }
-                    }
-                }
+                workspacesSection(viewModel, token)
                 Divider()
             }
-            Button {
-                NSWorkspace.shared.open(URL(string: "https://github.com/sponsors/nikitabobko").orDie())
-                viewModel.sponsorshipMessage = sponsorshipPrompts.randomElement().orDie()
-            } label: {
-                Text("Sponsor AeroSpace on GitHub")
-                Text(viewModel.sponsorshipMessage)
-            }
+            sponsorButton(viewModel)
             Divider()
-            Button(viewModel.isEnabled ? "Disable" : "Enable") {
-                Task.startUnstructured {
-                    try await runLightSession(.menuBarButton, .forceRun) {
-                        _ = await EnableCommand(args: EnableCmdArgs(rawArgs: [], targetState: .toggle))
-                            .run(.defaultEnv, .emptyStdin)
-                    }
-                }
-            }.keyboardShortcut("E", modifiers: .command)
+            enableToggleButton(viewModel)
             getExperimentalUISettingsMenu(viewModel: viewModel)
             openConfigButton()
             reloadConfigButton(warningsAsErrors: false)
@@ -65,25 +32,83 @@ public func menuBar(viewModel: TrayMenuModel) -> some Scene { // todo should it 
                 viewModel.axPermissionStatus = .waitingWithPrompt
             }
         }
-        Button("Quit \(aeroSpaceAppName)") {
-            Task.startUnstructured {
-                terminationHandler?.beforeTermination()
-                terminateApp()
-            }
-        }.keyboardShortcut("Q", modifiers: .command)
+        quitButton()
     } label: {
-        switch (viewModel.axPermissionStatus, viewModel.isEnabled) {
-            case (.granted, true):
-                MenuBarLabel().environmentObject(viewModel)
-            case (.granted, false):
-                Image(systemName: "pause.circle.fill")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-            case (_, _):
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+        menuBarIcon(viewModel)
+    }
+}
+
+@MainActor
+private func configWarningsButton(_ token: RunSessionGuard) -> some View {
+    Button {
+        reloadConfigFromMenu(token, warningsAsErrors: true)
+    } label: {
+        Label("Config contains warnings...", systemImage: "exclamationmark.triangle.fill")
+    }
+}
+
+@MainActor @ViewBuilder
+private func workspacesSection(_ viewModel: TrayMenuModel, _ token: RunSessionGuard) -> some View {
+    Text("Workspaces:")
+    ForEach(viewModel.workspaces, id: \.name) { workspace in
+        Button {
+            Task.startUnstructured {
+                try await runLightSession(.menuBarButton, token) { _ = Workspace.get(byName: workspace.name).focusWorkspace() }
+            }
+        } label: {
+            Toggle(isOn: .constant(workspace.isFocused)) {
+                Text(workspace.name + workspace.suffix).font(.system(.body, design: .monospaced))
+            }
         }
+    }
+}
+
+@MainActor
+private func sponsorButton(_ viewModel: TrayMenuModel) -> some View {
+    Button {
+        NSWorkspace.shared.open(URL(string: "https://github.com/sponsors/nikitabobko").orDie())
+        viewModel.sponsorshipMessage = sponsorshipPrompts.randomElement().orDie()
+    } label: {
+        Text("Sponsor AeroSpace on GitHub")
+        Text(viewModel.sponsorshipMessage)
+    }
+}
+
+@MainActor
+private func enableToggleButton(_ viewModel: TrayMenuModel) -> some View {
+    Button(viewModel.isEnabled ? "Disable" : "Enable") {
+        Task.startUnstructured {
+            try await runLightSession(.menuBarButton, .forceRun) {
+                _ = await EnableCommand(args: EnableCmdArgs(rawArgs: [], targetState: .toggle))
+                    .run(.defaultEnv, .emptyStdin)
+            }
+        }
+    }.keyboardShortcut("E", modifiers: .command)
+}
+
+@MainActor
+private func quitButton() -> some View {
+    Button("Quit \(aeroSpaceAppName)") {
+        Task.startUnstructured {
+            terminationHandler?.beforeTermination()
+            terminateApp()
+        }
+    }.keyboardShortcut("Q", modifiers: .command)
+}
+
+@MainActor @ViewBuilder
+private func menuBarIcon(_ viewModel: TrayMenuModel) -> some View {
+    switch (viewModel.axPermissionStatus, viewModel.isEnabled) {
+        case (.granted, true):
+            MenuBarLabel().environmentObject(viewModel)
+        case (.granted, false):
+            Image(systemName: "pause.circle.fill")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+        default:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
     }
 }
 
@@ -112,16 +137,21 @@ func openConfigButton(showShortcutGroup: Bool = false) -> some View {
 func reloadConfigButton(showShortcutGroup: Bool = false, warningsAsErrors: Bool) -> some View {
     if let token: RunSessionGuard = .isServerEnabled {
         let button = Button("Reload config") {
-            Task.startUnstructured {
-                try await runLightSession(.menuBarButton, token) {
-                    let args: ReloadConfigCmdArgs = ReloadConfigCmdArgs(rawArgs: []).copy(\.warningsAsErrors, warningsAsErrors)
-                    _ = await reloadConfig_nonCancellable(args: args)
-                }
-            }
+            reloadConfigFromMenu(token, warningsAsErrors: warningsAsErrors)
         }.keyboardShortcut("R", modifiers: .command)
         switch showShortcutGroup {
             case true: shortcutGroup(label: Text("⌘ R"), content: button)
             case false: button
+        }
+    }
+}
+
+@MainActor
+private func reloadConfigFromMenu(_ token: RunSessionGuard, warningsAsErrors: Bool) {
+    Task.startUnstructured {
+        try await runLightSession(.menuBarButton, token) {
+            let args: ReloadConfigCmdArgs = ReloadConfigCmdArgs(rawArgs: []).copy(\.warningsAsErrors, warningsAsErrors)
+            _ = await reloadConfig_nonCancellable(args: args)
         }
     }
 }
