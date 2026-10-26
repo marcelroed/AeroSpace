@@ -8,25 +8,19 @@ struct Mode: Equatable, Sendable {
 }
 
 func parseModes(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext, _ mapping: [String: Key]) -> [String: Mode] {
-    guard let rawTable = raw.asDictOrNil else {
-        c.errors += [expectedActualTypeDiagnostic(expected: .table, actual: raw.tomlType, backtrace)]
-        return [:]
-    }
+    guard let rawTable = parseTomlTable(raw, backtrace).getOrNil(appendErrorTo: &c.errors) else { return [:] }
     var result: [String: Mode] = [:]
     for (key, value) in rawTable {
         result[key] = parseMode(value, backtrace + .key(key), &c, mapping)
     }
     if !result.keys.contains(mainModeId) {
-        c.errors += [.init(backtrace, "Please specify '\(mainModeId)' mode")]
+        c.errors.append(.init(backtrace, "Please specify '\(mainModeId)' mode"))
     }
     return result
 }
 
 func parseMode(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext, _ mapping: [String: Key]) -> Mode {
-    guard let rawTable: OrderedJson.JsonDict = raw.asDictOrNil else {
-        c.errors += [expectedActualTypeDiagnostic(expected: .table, actual: raw.tomlType, backtrace)]
-        return .zero
-    }
+    guard let rawTable = parseTomlTable(raw, backtrace).getOrNil(appendErrorTo: &c.errors) else { return .zero }
 
     var result: Mode = .zero
     for (key, value) in rawTable {
@@ -35,7 +29,7 @@ func parseMode(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout Conf
             case "binding":
                 result.bindings = parseBindings(value, backtrace, &c, mapping)
             default:
-                c.errors += [unknownKeyDiagnostic(backtrace)]
+                c.errors.append(unknownKeyDiagnostic(backtrace))
         }
     }
     return result

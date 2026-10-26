@@ -1,10 +1,7 @@
 import Common
 
 func parseWorkspaceToMonitorAssignment(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> [String: [MonitorDescription]] {
-    guard let rawTable = raw.asDictOrNil else {
-        c.errors += [expectedActualTypeDiagnostic(expected: .table, actual: raw.tomlType, backtrace)]
-        return [:]
-    }
+    guard let rawTable = parseTomlTable(raw, backtrace).getOrNil(appendErrorTo: &c.errors) else { return [:] }
     var result: [String: [MonitorDescription]] = [:]
     for (workspaceName, rawMonitorDescription) in rawTable {
         result[workspaceName] = parseMonitorDescriptions(rawMonitorDescription, backtrace + .key(workspaceName), &c)

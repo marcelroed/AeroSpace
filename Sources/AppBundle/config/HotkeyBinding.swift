@@ -81,10 +81,7 @@ struct HotkeyBinding: Equatable, Sendable {
 }
 
 func parseBindings(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext, _ mapping: [String: Key]) -> [String: HotkeyBinding] {
-    guard let rawTable = raw.asDictOrNil else {
-        c.errors += [expectedActualTypeDiagnostic(expected: .table, actual: raw.tomlType, backtrace)]
-        return [:]
-    }
+    guard let rawTable = parseTomlTable(raw, backtrace).getOrNil(appendErrorTo: &c.errors) else { return [:] }
     var result: [String: HotkeyBinding] = [:]
     for (binding, rawCommand): (String, OrderedJson) in rawTable {
         let backtrace = backtrace + .key(binding)

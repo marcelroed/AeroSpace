@@ -88,12 +88,8 @@ private func upcast<T>(
 }
 
 func parseOnWindowDetectedArray(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> [WindowDetectedCallback] {
-    if let array = raw.asArrayOrNil {
-        return array.enumerated().map { (index, raw) in parseWindowDetectedCallback(raw, backtrace + .index(index), &c) }.filterNotNil()
-    } else {
-        c.errors += [expectedActualTypeDiagnostic(expected: .array, actual: raw.tomlType, backtrace)]
-        return []
-    }
+    guard let array = parseTomlArray(raw, backtrace).getOrNil(appendErrorTo: &c.errors) else { return [] }
+    return array.enumerated().compactMap { (index, raw) in parseWindowDetectedCallback(raw, backtrace + .index(index), &c) }
 }
 
 private func parseCasInsensitiveRegex(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<CaseInsensitiveRegex> {
@@ -105,7 +101,7 @@ private func parseMatcher(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c:
         case .dict(let raw):
             return .legacy(raw.parseTable(LegacyWindowDetectedCallbackMatcher(), matcherParsers, backtrace, &c))
         case .string(let raw):
-            return .command(parseCommand(raw, allowExecAndForget: false, allowEval: false).toResult().toParsedConfig(backtrace).getOrNil(appendErrorTo: &c.errors) ?? .empty)
+            return .command(parseCommandForConfig(raw, allowExecAndForget: false, backtrace, &c))
         default:
             // Intentionally skip Table type from the list of expected types
             c.errors.append(.init(backtrace, expectedActualTypeError(expected: .string, actual: raw.tomlType)))

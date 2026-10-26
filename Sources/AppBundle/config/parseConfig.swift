@@ -172,13 +172,13 @@ func parseDeprecatedAfterLoginCommand(_ raw: OrderedJson, _ backtrace: ConfigBac
 
 func parseShellOfCommandsForConfig(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> Shell<any Command> {
     if let rawString = raw.asStringOrNil {
-        return parseCommand(rawString, allowExecAndForget: true, allowEval: false).toResult().toParsedConfig(backtrace).getOrNil(appendErrorTo: &c.errors) ?? .empty
+        return parseCommandForConfig(rawString, allowExecAndForget: true, backtrace, &c)
     } else if let rawArray = raw.asArrayOrNil {
         var result = [Shell<any Command>]()
         for (index, elem) in rawArray.enumerated() {
             let backtrace = backtrace + .index(index)
             if let elem = elem.asStringOrNil {
-                result.append(parseCommand(elem, allowExecAndForget: true, allowEval: false).toResult().toParsedConfig(backtrace).getOrNil(appendErrorTo: &c.errors) ?? .empty)
+                result.append(parseCommandForConfig(elem, allowExecAndForget: true, backtrace, &c))
             } else {
                 c.errors.append(.init(backtrace, expectedActualTypeError(expected: .string, actual: elem.tomlType)))
             }
@@ -188,6 +188,16 @@ func parseShellOfCommandsForConfig(_ raw: OrderedJson, _ backtrace: ConfigBacktr
         c.errors.append(.init(backtrace, expectedActualTypeError(expected: [.string, .array], actual: raw.tomlType)))
         return .empty
     }
+}
+
+func parseCommandForConfig(
+    _ raw: String,
+    allowExecAndForget: Bool,
+    _ backtrace: ConfigBacktrace,
+    _ c: inout ConfigParserContext,
+) -> Shell<any Command> {
+    parseCommand(raw, allowExecAndForget: allowExecAndForget, allowEval: false).toResult().toParsedConfig(backtrace)
+        .getOrNil(appendErrorTo: &c.errors) ?? .empty
 }
 
 func tomlAnyToOrderedJsonRecursive(
@@ -264,7 +274,7 @@ struct ParseConfigResult {
 
     if config.configVersion <= ._1 {
         if rawTable.keys.contains(persistentWorkspacesKey) {
-            c.errors += [.init(.rootKey(persistentWorkspacesKey), "This config option is only available since 'config-version = 2'")]
+            c.errors.append(.init(.rootKey(persistentWorkspacesKey), "This config option is only available since 'config-version = 2'"))
         }
         config.persistentWorkspaces = (config.modes.values.lazy
             .flatMap { (mode: Mode) -> [HotkeyBinding] in Array(mode.bindings.values) }
@@ -282,7 +292,7 @@ struct ParseConfigResult {
             .flatMap { $0.commands.flatten() }
             .contains { $0 is SplitCommand }
         if containsSplitCommand {
-            c.errors += [.init(
+            c.errors.append(.init(
                 .emptyRoot, // todo Make 'split' + flatten normalization prettier
                 """
                 The config contains:
@@ -292,7 +302,7 @@ struct ParseConfigResult {
 
                 My recommendation: keep the normalizations enabled, and prefer 'join-with' over 'split'.
                 """,
-            )]
+            ))
         }
     }
     if config.configVersion < .max {
@@ -352,6 +362,10 @@ func parseTomlArray(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrCo
     raw.asArrayOrNil.toResult(expectedActualTypeDiagnostic(expected: .array, actual: raw.tomlType, backtrace))
 }
 
+func parseTomlTable(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<OrderedJson.JsonDict> {
+    raw.asDictOrNil.toResult(expectedActualTypeDiagnostic(expected: .table, actual: raw.tomlType, backtrace))
+}
+
 func parseTable<T>(
     _ raw: OrderedJson,
     _ initial: T,
@@ -359,13 +373,8 @@ func parseTable<T>(
     _ backtrace: ConfigBacktrace,
     _ c: inout ConfigParserContext,
 ) -> T {
-    switch raw {
-        case .dict(let table):
-            return table.parseTable(initial, fieldsParser, backtrace, &c)
-        default:
-            c.errors.append(expectedActualTypeDiagnostic(expected: .table, actual: raw.tomlType, backtrace))
-            return initial
-    }
+    guard let table = parseTomlTable(raw, backtrace).getOrNil(appendErrorTo: &c.errors) else { return initial }
+    return table.parseTable(initial, fieldsParser, backtrace, &c)
 }
 
 private func parseStartupRootContainerLayout(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<Void> {
