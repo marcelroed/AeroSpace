@@ -1,42 +1,44 @@
 @testable import AppBundle
-import XCTest
+import Testing
 
 @MainActor
-final class TreeNodeTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
-
+@Suite(.aeroSpaceGlobalState)
+struct TreeNodeTest: AeroSpaceTestSuite {
+    @Test
     func testChildParentCyclicReferenceMemoryLeak() {
         let workspace = Workspace.get(byName: name) // Don't cache root node
         let window = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
 
-        XCTAssertTrue(window.parent != nil)
+        assertTrue(window.parent != nil)
         workspace.rootTilingContainer.unbindFromParent()
-        XCTAssertTrue(window.parent == nil) // TreeNode.parent is weak: nil means that the unbound root was deallocated
+        assertTrue(window.parent == nil) // TreeNode.parent is weak: nil means that the unbound root was deallocated
     }
 
+    @Test
     func testIsEffectivelyEmpty() {
         let workspace = Workspace.get(byName: name)
 
-        XCTAssertTrue(workspace.isEffectivelyEmpty)
+        assertTrue(workspace.isEffectivelyEmpty)
         weak let window: TestWindow? = .new(id: 1, parent: workspace.rootTilingContainer)
-        XCTAssertNotEqual(window, nil)
-        XCTAssertTrue(!workspace.isEffectivelyEmpty)
+        assertNotNil(window)
+        assertTrue(!workspace.isEffectivelyEmpty)
         window!.unbindFromParent()
-        XCTAssertTrue(workspace.isEffectivelyEmpty)
+        assertTrue(workspace.isEffectivelyEmpty)
 
         // Don't save to local variable
         TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
-        XCTAssertTrue(!workspace.isEffectivelyEmpty)
+        assertTrue(!workspace.isEffectivelyEmpty)
     }
 
+    @Test
     func testNormalizeContainers_dontRemoveRoot() {
         let workspace = Workspace.get(byName: name)
         weak let root = workspace.rootTilingContainer
         func test() {
-            XCTAssertNotEqual(root, nil)
-            XCTAssertTrue(root!.isEffectivelyEmpty)
+            assertNotNil(root)
+            assertTrue(root!.isEffectivelyEmpty)
             workspace.normalizeContainers()
-            XCTAssertNotEqual(root, nil)
+            assertNotNil(root)
         }
         test()
 
@@ -44,6 +46,7 @@ final class TreeNodeTest: XCTestCase {
         test()
     }
 
+    @Test
     func testNormalizeContainers_singleWindowChild() {
         config.enableNormalizationFlattenContainers = true
         let workspace = Workspace.get(byName: name)
@@ -60,6 +63,7 @@ final class TreeNodeTest: XCTestCase {
         )
     }
 
+    @Test
     func testNormalizeContainers_removeEffectivelyEmpty() {
         let workspace = Workspace.get(byName: name)
         workspace.rootTilingContainer.apply {
@@ -72,6 +76,7 @@ final class TreeNodeTest: XCTestCase {
         assertEquals(workspace.rootTilingContainer.children.count, 0)
     }
 
+    @Test
     func testNormalizeContainers_flattenContainers() {
         let workspace = Workspace.get(byName: name) // Don't cache root node
         workspace.rootTilingContainer.apply {
@@ -80,10 +85,10 @@ final class TreeNodeTest: XCTestCase {
             }
         }
         workspace.normalizeContainers()
-        XCTAssertTrue(workspace.rootTilingContainer.children.singleOrNil() is TilingContainer)
+        assertTrue(workspace.rootTilingContainer.children.singleOrNil() is TilingContainer)
 
         config.enableNormalizationFlattenContainers = true
         workspace.normalizeContainers()
-        XCTAssertTrue(workspace.rootTilingContainer.children.singleOrNil() is TestWindow)
+        assertTrue(workspace.rootTilingContainer.children.singleOrNil() is TestWindow)
     }
 }
