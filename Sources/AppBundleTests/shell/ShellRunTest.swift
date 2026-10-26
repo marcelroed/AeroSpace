@@ -1,11 +1,11 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
 @MainActor
-final class ShellRunTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
-
+@Suite(.aeroSpaceGlobalState)
+struct ShellRunTest: AeroSpaceTestSuite {
+    @Test
     func testOrFirstSucceeds_shortCircuits() async {
         assertTrue(Workspace.get(byName: "a").focusWorkspace())
 
@@ -14,6 +14,7 @@ final class ShellRunTest: XCTestCase {
         assertEquals(focus.workspace.name, "a")
     }
 
+    @Test
     func testOrFirstFails_runsNext() async {
         assertTrue(Workspace.get(byName: "a").focusWorkspace())
 
@@ -22,11 +23,13 @@ final class ShellRunTest: XCTestCase {
         assertEquals(focus.workspace.name, "b")
     }
 
+    @Test
     func testOrAllFail_returnsLastExitCode() async {
         let result = await parseCommand("false || false || false").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 1)
     }
 
+    @Test
     func testOrChainStopsOnFirstSuccess() async {
         assertTrue(Workspace.get(byName: "a").focusWorkspace())
 
@@ -35,6 +38,7 @@ final class ShellRunTest: XCTestCase {
         assertEquals(focus.workspace.name, "b")
     }
 
+    @Test
     func testAndFirstFails_shortCircuits() async {
         assertTrue(Workspace.get(byName: "a").focusWorkspace())
 
@@ -43,6 +47,7 @@ final class ShellRunTest: XCTestCase {
         assertEquals(focus.workspace.name, "a")
     }
 
+    @Test
     func testAndAllSucceed_returnsZero() async {
         assertTrue(Workspace.get(byName: "a").focusWorkspace())
 
@@ -51,6 +56,7 @@ final class ShellRunTest: XCTestCase {
         assertEquals(focus.workspace.name, "b")
     }
 
+    @Test
     func testAndChainStopsOnFirstFailure() async {
         assertTrue(Workspace.get(byName: "a").focusWorkspace())
 
@@ -59,11 +65,13 @@ final class ShellRunTest: XCTestCase {
         assertEquals(focus.workspace.name, "b")
     }
 
+    @Test
     func testAndReturnsLastSuccessExitCode() async {
         let result = await parseCommand("true && true && true").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 0)
     }
 
+    @Test
     func testSeqRunsAllRegardlessOfExitCode() async {
         assertTrue(Workspace.get(byName: "a").focusWorkspace())
 
@@ -72,6 +80,7 @@ final class ShellRunTest: XCTestCase {
         assertEquals(focus.workspace.name, "b")
     }
 
+    @Test
     func testSeqReturnsLastCommandExitCode() async {
         let succThenFail = await parseCommand("true; false").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(succThenFail.exitCode.rawValue, 1)
@@ -80,12 +89,14 @@ final class ShellRunTest: XCTestCase {
         assertEquals(failThenSucc.exitCode.rawValue, 0)
     }
 
+    @Test
     func testSeqConcatenatesStdout() async {
         let result = await parseCommand("echo -- foo; echo -- bar; echo -- baz").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 0)
         assertEquals(result.stdout, ["foo", "bar", "baz"])
     }
 
+    @Test
     func testPipeForwardsStdoutAsStdin() async {
         assertTrue(Workspace.get(byName: "a").focusWorkspace())
 
@@ -94,12 +105,14 @@ final class ShellRunTest: XCTestCase {
         assertEquals(focus.workspace.name, "b")
     }
 
+    @Test
     func testPipeReturnsOnlyLastStdout() async {
         let result = await parseCommand("echo -- foo | echo -- bar").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 0)
         assertEquals(result.stdout, ["bar"])
     }
 
+    @Test
     func testPipeForwardsIntermediateStderr() async {
         let result = await parseCommand("echo --stderr -- err1 | echo -- out2").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 0)
@@ -107,6 +120,7 @@ final class ShellRunTest: XCTestCase {
         assertEquals(result.stderr, ["err1"])
     }
 
+    @Test
     func testPipePipefailReturnsRightmostNonZero() async {
         let leftFails = await parseCommand("false | true").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(leftFails.exitCode.rawValue, 1)
@@ -118,6 +132,7 @@ final class ShellRunTest: XCTestCase {
         assertEquals(allSucceed.exitCode.rawValue, 0)
     }
 
+    @Test
     func testPipeForwardsOriginalStdin() async {
         assertTrue(Workspace.get(byName: "a").focusWorkspace())
 
