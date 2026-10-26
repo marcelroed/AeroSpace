@@ -129,16 +129,15 @@ extension TreeNode {
 
 extension NonLeafTreeNodeObject {
     var cases: NonLeafTreeNodeCases {
-        switch self {
-            case is Window: die("Windows are leaf nodes. They can't have children")
-            case let workspace as Workspace: .workspace(workspace)
-            case let tilingContainer as TilingContainer: .tilingContainer(tilingContainer)
-            case let container as MacosMinimizedWindowsContainer: .macosMinimizedWindowsContainer(container)
-            case let container as MacosHiddenAppsWindowsContainer: .macosHiddenAppsWindowsContainer(container)
-            case let container as MacosFullscreenWindowsContainer: .macosFullscreenWindowsContainer(container)
-            case let container as MacosPopupWindowsContainer: .macosPopupWindowsContainer(container)
-            case let container as FloatingWindowsContainer: .floatingWindowsContainer(container)
-            default: die("Unknown tree \(self)")
+        switch nodeCases {
+            case .window: die("Windows are leaf nodes. They can't have children")
+            case .workspace(let workspace): .workspace(workspace)
+            case .tilingContainer(let tilingContainer): .tilingContainer(tilingContainer)
+            case .macosMinimizedWindowsContainer(let container): .macosMinimizedWindowsContainer(container)
+            case .macosHiddenAppsWindowsContainer(let container): .macosHiddenAppsWindowsContainer(container)
+            case .macosFullscreenWindowsContainer(let container): .macosFullscreenWindowsContainer(container)
+            case .macosPopupWindowsContainer(let container): .macosPopupWindowsContainer(container)
+            case .floatingWindowsContainer(let container): .floatingWindowsContainer(container)
         }
     }
 
