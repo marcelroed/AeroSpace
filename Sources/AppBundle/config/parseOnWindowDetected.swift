@@ -102,7 +102,7 @@ private func parseMatcher(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c:
 }
 
 private func parseWindowDetectedCallback(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> WindowDetectedCallback? {
-    var myContext = ConfigParserContext(configVersion: c.configVersion, errors: [], warnings: [])
+    var myContext = ConfigParserContext(errors: [], warnings: [])
     let callback = parseTable(raw, RawWindowDetectedCallback(), windowDetectedParser, backtrace, &myContext)
 
     if callback.matcher == .command(.empty) && !callback.checkFurtherCallbacks {

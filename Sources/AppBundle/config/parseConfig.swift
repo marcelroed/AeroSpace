@@ -76,7 +76,6 @@ struct ConfigParseDiagnostic: Error, Equatable {
 typealias ResOrConfigParseDiagnostic<T> = Result<T, ConfigParseDiagnostic>
 
 struct ConfigParserContext {
-    var configVersion: ConfigVersion
     var errors: [ConfigParseDiagnostic]
     var warnings: [ConfigParseDiagnostic]
 }
@@ -245,14 +244,12 @@ struct ParseConfigResult {
 }
 
 @MainActor func parseConfig(_ rawToml: String) -> ParseConfigResult {
-    var errors = NonCopyable([ConfigParseDiagnostic]())
-    let rawTable = parseTomlRootTable(rawToml, &errors.value)
+    var c = ConfigParserContext(errors: [], warnings: [])
+    let rawTable = parseTomlRootTable(rawToml, &c.errors)
 
     let configVersion: ConfigVersion = rawTable[configVersionConfigRootKey]
-        .flatMap { parseConfigVersion($0, .rootKey(configVersionConfigRootKey)).getOrNil(appendErrorTo: &errors.value) }
+        .flatMap { parseConfigVersion($0, .rootKey(configVersionConfigRootKey)).getOrNil(appendErrorTo: &c.errors) }
         ?? .min
-
-    var c = ConfigParserContext(configVersion: configVersion, errors: errors.consume(), warnings: [ConfigParseDiagnostic]())
 
     var config = parseTable(.dict(rawTable), Config(), configParser, .emptyRoot, &c)
     config.configVersion = configVersion
