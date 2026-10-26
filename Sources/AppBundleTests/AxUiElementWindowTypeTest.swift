@@ -15,6 +15,15 @@ struct AxUiElementWindowTypeTest: AeroSpaceTestSuite {
     func testAxDump(_ path: String) throws {
         try checkAxDump(axDumpsDir.appending(path: path))
     }
+
+    // debug-windows writes the activation policy with prettyDescription, and the dumps are read back with from(string:)
+    @Test
+    func testActivationPolicyRoundTrip() {
+        for policy: NSApplication.ActivationPolicy in [.regular, .accessory, .prohibited] {
+            let string = policy.prettyDescription
+            assertEquals(NSApplication.ActivationPolicy.from(string: string), policy, additionalMsg: string.singleQuoted)
+        }
+    }
 }
 
 private let axDumpsDir = projectRoot.appending(path: "./axDumps")
