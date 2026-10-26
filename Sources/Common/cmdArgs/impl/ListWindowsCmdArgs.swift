@@ -124,41 +124,13 @@ public enum FormatVar: RawRepresentable, Equatable, CaseIterable, Sendable {
     case app(AppFormatVar)
     case monitor(MonitorFormatVar)
 
-    // periphery:ignore
-    private var kind: AeroObjKind {
-        switch self {
-            case .app: .app
-            case .monitor: .monitor
-            case .window: .window
-            case .workspace: .workspace
-        }
-    }
-
-    public static var allCases: [FormatVar] {
-        AeroObjKind.allCases.flatMap {
-            switch $0 {
-                case .app: AppFormatVar.allCases.map(FormatVar.app)
-                case .monitor: MonitorFormatVar.allCases.map(FormatVar.monitor)
-                case .window: WindowFormatVar.allCases.map(FormatVar.window)
-                case .workspace: WorkspaceFormatVar.allCases.map(FormatVar.workspace)
-            }
-        }
-    }
+    public static let allCases: [FormatVar] =
+        WindowFormatVar.allCases.map(FormatVar.window) + WorkspaceFormatVar.allCases.map(FormatVar.workspace) +
+        AppFormatVar.allCases.map(FormatVar.app) + MonitorFormatVar.allCases.map(FormatVar.monitor)
 
     public init?(rawValue: String) {
-        let value = AeroObjKind.allCases.map { kind in
-            switch kind {
-                case .app: AppFormatVar(rawValue: rawValue).map(FormatVar.app)
-                case .monitor: MonitorFormatVar(rawValue: rawValue).map(FormatVar.monitor)
-                case .window: WindowFormatVar(rawValue: rawValue).map(FormatVar.window)
-                case .workspace: WorkspaceFormatVar(rawValue: rawValue).map(FormatVar.workspace)
-            }
-        }.filterNotNil()
-        switch value.sequencePattern {
-            case .empty: return nil
-            case .one(let it): self = it
-            default: die("FormatVar clash: \(value)")
-        }
+        guard let value = Self.allCases.first(where: { $0.rawValue == rawValue }) else { return nil }
+        self = value
     }
 
     public var rawValue: String {
@@ -211,40 +183,11 @@ public enum InterVar: RawRepresentable, Equatable, CaseIterable, Sendable {
     case formatVar(FormatVar)
     case plainInterVar(PlainInterVar)
 
-    private enum Kind: CaseIterable, Equatable, Sendable {
-        case formatVar
-        case plainInterVar
-    }
-
-    // periphery:ignore
-    private var kind: Kind {
-        switch self {
-            case .formatVar: .formatVar
-            case .plainInterVar: .plainInterVar
-        }
-    }
-
-    public static var allCases: [InterVar] {
-        Kind.allCases.flatMap { kind in
-            switch kind {
-                case .formatVar: FormatVar.allCases.map(InterVar.formatVar)
-                case .plainInterVar: PlainInterVar.allCases.map(InterVar.plainInterVar)
-            }
-        }
-    }
+    public static let allCases: [InterVar] = FormatVar.allCases.map(InterVar.formatVar) + PlainInterVar.allCases.map(InterVar.plainInterVar)
 
     public init?(rawValue: String) {
-        let this: [Self] = Kind.allCases.map { kind in
-            switch kind {
-                case .formatVar: FormatVar(rawValue: rawValue).map(InterVar.formatVar)
-                case .plainInterVar: PlainInterVar(rawValue: rawValue).map(InterVar.plainInterVar)
-            }
-        }.filterNotNil()
-        switch this.sequencePattern {
-            case .empty: return nil
-            case .one(let it): self = it
-            default: die("Clashed cases: \(this)")
-        }
+        guard let value = Self.allCases.first(where: { $0.rawValue == rawValue }) else { return nil }
+        self = value
     }
 
     public var rawValue: String {
