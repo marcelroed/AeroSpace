@@ -8,7 +8,7 @@ extension TreeNode {
             case .floatingWindowsContainer(let container): .floatingWindowsContainer(container.children.map(\.layoutDescription))
             case .macosMinimizedWindowsContainer: .macosMinimized
             case .macosFullscreenWindowsContainer: .macosFullscreen
-            case .macosHiddenAppsWindowsContainer: .macosHiddeAppWindow
+            case .macosHiddenAppsWindowsContainer: .macosHiddenAppWindow
             case .macosPopupWindowsContainer: .macosPopupWindowsContainer
             case .tilingContainer(let container):
                 switch container.layout {
@@ -35,6 +35,6 @@ enum LayoutDescription: Equatable {
     case window(UInt32)
     case macosPopupWindowsContainer
     case macosMinimized
-    case macosHiddeAppWindow
+    case macosHiddenAppWindow
     case macosFullscreen
 }
