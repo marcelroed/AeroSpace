@@ -13,7 +13,7 @@ indirect enum Shell<T> {
     static func newCompound(_ elems: [Self], _ constructor: ([Self]) -> Self) -> Self {
         switch elems.count {
             case 0: .empty
-            case 1: elems.first.orDie()
+            case 1: elems[0]
             default: constructor(elems)
         }
     }
@@ -31,12 +31,9 @@ indirect enum Shell<T> {
 
     func flatten() -> [T] {
         switch self {
-            case .empty: return []
-            case .cmd(let it): return [it]
-            case .and(let it): return it.flatMap { $0.flatten() }
-            case .or(let it): return it.flatMap { $0.flatten() }
-            case .pipe(let it): return it.flatMap { $0.flatten() }
-            case .seq(let it): return it.flatMap { $0.flatten() }
+            case .empty: []
+            case .cmd(let it): [it]
+            case .pipe(let it), .and(let it), .or(let it), .seq(let it): it.flatMap { $0.flatten() }
         }
     }
 
@@ -75,17 +72,10 @@ extension Shell where T == any Command {
         return switch (self, other) {
             case (.empty, .empty): true
             case (.cmd(let a), .cmd(let b)): a.equals(b)
-            case (.and(let a), .and(let b)): zipIfCountsAreEqual(a, b)?.allSatisfy { a, b in a.strictEquals(b) } == true
-            case (.or(let a), .or(let b)): zipIfCountsAreEqual(a, b)?.allSatisfy { a, b in a.strictEquals(b) } == true
-            case (.pipe(let a), .pipe(let b)): zipIfCountsAreEqual(a, b)?.allSatisfy { a, b in a.strictEquals(b) } == true
-            case (.seq(let a), .seq(let b)): zipIfCountsAreEqual(a, b)?.allSatisfy { a, b in a.strictEquals(b) } == true
-
-            case (.empty, _): false
-            case (.cmd, _): false
-            case (.and, _): false
-            case (.or, _): false
-            case (.pipe, _): false
-            case (.seq, _): false
+            case (.pipe(let a), .pipe(let b)), (.and(let a), .and(let b)), (.or(let a), .or(let b)), (.seq(let a), .seq(let b)):
+                zipIfCountsAreEqual(a, b)?.allSatisfy { a, b in a.strictEquals(b) } == true
+            // Exhaustive without 'default' on purpose: a new case must be handled explicitly
+            case (.empty, _), (.cmd, _), (.pipe, _), (.and, _), (.or, _), (.seq, _): false
         }
     }
 }
@@ -98,15 +88,15 @@ extension Shell where T == any Command {
 extension Shell where T == any Command {
     @MainActor func run(_ env: CmdEnv, _ io: CmdIo) async -> Int32ExitCode {
         switch self {
+            case .empty: return Int32ExitCode(rawValue: EXIT_CODE_ZERO)
             case .cmd(let command):
                 let exitCode = Int32ExitCode(rawValue: await command.run(env, io).rawValue)
                 if command.shouldResetClosedWindowsCache { resetClosedWindowsCache() }
                 await refreshModel_nonCancellable()
                 return exitCode
-            case .and(let commands): return await runShellAnd(commands, env, io)
-            case .empty: return Int32ExitCode(rawValue: EXIT_CODE_ZERO)
-            case .or(let commands): return await runShellOr(commands, env, io)
             case .pipe(let commands): return await runShellPipe(commands, env, io)
+            case .and(let commands): return await runShellAnd(commands, env, io)
+            case .or(let commands): return await runShellOr(commands, env, io)
             case .seq(let commands): return await runShellSeq(commands, env, io)
         }
     }
