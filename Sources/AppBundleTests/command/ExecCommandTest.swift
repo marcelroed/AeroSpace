@@ -1,11 +1,11 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
 @MainActor
-final class ExecCommandTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
-
+@Suite(.aeroSpaceGlobalState)
+struct ExecCommandTest: AeroSpaceTestSuite {
+    @Test
     func testParseExecCommand() {
         testParseSingleCommandSucc("exec-and-forget echo 'foo'", ExecAndForgetCmdArgs(bashScript: " echo 'foo'"))
     }
