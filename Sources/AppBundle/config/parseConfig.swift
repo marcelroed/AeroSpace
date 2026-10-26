@@ -211,41 +211,24 @@ func parseCommandForConfig(
 private func parseTomlRootTable(_ rawToml: String, _ errors: inout [ConfigParseDiagnostic]) -> OrderedJson.JsonDict {
     do {
         let dict: [String: Any] = try .init(try TOMLTable(source: rawToml))
-        return tomlTableToJsonDict(dict, .emptyRoot, &errors)
+        return tomlToOrderedJson(dict, .emptyRoot, &errors)?.asDictOrNil ?? [:]
     } catch {
         errors.append(.init(.emptyRoot, error.description, preventConfigReload: true))
         return [:]
     }
 }
 
-private func tomlTableToJsonDict(
-    _ dict: [String: Any],
-    _ backtrace: ConfigBacktrace,
-    _ errors: inout [ConfigParseDiagnostic],
-) -> OrderedJson.JsonDict {
-    var json = OrderedJson.JsonDict()
-    for (key, tomlValue) in dict.sortedEntries {
-        json[key] = tomlAnyToOrderedJsonRecursive(any: tomlValue, backtrace + .key(key), &errors)
-    }
-    return json
-}
-
-private func tomlAnyToOrderedJsonRecursive(
-    any: Any,
-    _ backtrace: ConfigBacktrace,
-    _ errors: inout [ConfigParseDiagnostic],
-) -> OrderedJson? {
+/// Tables are converted with sorted keys. Values of unsupported types are reported and dropped
+private func tomlToOrderedJson(_ any: Any, _ backtrace: ConfigBacktrace, _ errors: inout [ConfigParseDiagnostic]) -> OrderedJson? {
     switch any {
         case let dict as [String: Any]:
-            return .dict(tomlTableToJsonDict(dict, backtrace, &errors))
-        case let array as [Any]:
-            var json = OrderedJson.JsonArray()
-            for (index, tomlValue) in array.enumerated() {
-                let element = tomlAnyToOrderedJsonRecursive(any: tomlValue, backtrace + .index(index), &errors)
-                guard let element else { continue }
-                json.append(element)
+            var json = OrderedJson.JsonDict()
+            for (key, tomlValue) in dict.sortedEntries {
+                json[key] = tomlToOrderedJson(tomlValue, backtrace + .key(key), &errors)
             }
-            return .array(json)
+            return .dict(json)
+        case let array as [Any]:
+            return .array(array.enumerated().compactMap { index, tomlValue in tomlToOrderedJson(tomlValue, backtrace + .index(index), &errors) })
         default:
             if let value = OrderedJson.newScalarOrNil(any) { return value }
             errors.append(.init(backtrace, "Unsupported TOML type: \(type(of: any))"))
