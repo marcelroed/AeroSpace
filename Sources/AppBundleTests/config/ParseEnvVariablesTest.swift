@@ -1,9 +1,11 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
 @MainActor
-final class ParseEnvVariablesTest: XCTestCase {
+@Suite
+struct ParseEnvVariablesTest: AeroSpaceTestSuite {
+    @Test
     func testInterpolation() {
         testSucInterpolation("echo ${foo}", ["foo": "bar"], expected: "echo bar")
         testSucInterpolation("echo $foo", expected: "echo $foo")
@@ -17,6 +19,7 @@ final class ParseEnvVariablesTest: XCTestCase {
         testFailInterpolation("echo ${foo}")
     }
 
+    @Test
     func testInherit() {
         let result1 = parseConfig("exec.inherit-env-vars = false")
         assertEquals(result1.errors, [])
@@ -27,6 +30,7 @@ final class ParseEnvVariablesTest: XCTestCase {
         assertEquals(result2.config.execConfig.envVariables, testEnv)
     }
 
+    @Test
     func testAddVars() {
         let result = parseConfig(
             """
@@ -38,6 +42,7 @@ final class ParseEnvVariablesTest: XCTestCase {
         assertEquals(result.config.execConfig.envVariables, testEnv + ["FOO": "BAR"])
     }
 
+    @Test
     func testCyclicDep() {
         let errors = parseConfig(
             """
@@ -52,6 +57,7 @@ final class ParseEnvVariablesTest: XCTestCase {
         ])
     }
 
+    @Test
     func testForbidPwd() {
         let errors = parseConfig(
             """
