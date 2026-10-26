@@ -1,12 +1,12 @@
 import Common
 
-struct Gaps: ConvenienceMutable, Equatable, Sendable {
+struct Gaps: Equatable, Sendable {
     var inner: Inner
     var outer: Outer
 
     static let zero = Gaps(inner: .zero, outer: .zero)
 
-    struct Inner: ConvenienceMutable, Equatable, Sendable {
+    struct Inner: Equatable, Sendable {
         var vertical: DynamicConfigValue<Int>
         var horizontal: DynamicConfigValue<Int>
 
@@ -23,7 +23,7 @@ struct Gaps: ConvenienceMutable, Equatable, Sendable {
         }
     }
 
-    struct Outer: ConvenienceMutable, Equatable, Sendable {
+    struct Outer: Equatable, Sendable {
         var left: DynamicConfigValue<Int>
         var bottom: DynamicConfigValue<Int>
         var top: DynamicConfigValue<Int>
@@ -82,17 +82,17 @@ struct ResolvedGaps {
     }
 }
 
-private let gapsParser: [String: any ParserProtocol<Gaps>] = [
+private let gapsParser: [String: Parser<Gaps>] = [
     "inner": Parser(\.inner, parseInner),
     "outer": Parser(\.outer, parseOuter),
 ]
 
-private let innerParser: [String: any ParserProtocol<Gaps.Inner>] = [
+private let innerParser: [String: Parser<Gaps.Inner>] = [
     "vertical": Parser(\.vertical, parseIntDynamicValue),
     "horizontal": Parser(\.horizontal, parseIntDynamicValue),
 ]
 
-private let outerParser: [String: any ParserProtocol<Gaps.Outer>] = [
+private let outerParser: [String: Parser<Gaps.Outer>] = [
     "left": Parser(\.left, parseIntDynamicValue),
     "bottom": Parser(\.bottom, parseIntDynamicValue),
     "top": Parser(\.top, parseIntDynamicValue),

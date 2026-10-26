@@ -6,7 +6,7 @@ private var env: [String: String] {
     isUnitTest ? testEnv : ProcessInfo.processInfo.environment
 }
 
-private let rawExecConfigParser: [String: any ParserProtocol<RawExecConfig>] = [
+private let rawExecConfigParser: [String: Parser<RawExecConfig>] = [
     "inherit-env-vars": Parser(\.inheritEnvVariables, parseBool),
     "env-vars": Parser(\.overriddenVars, parseEnvVariables),
 ]
@@ -17,7 +17,7 @@ struct ExecConfig: Equatable {
     var envVariables: [String: String] = env + defaultOverriddenEnvVars
 }
 
-struct RawExecConfig: ConvenienceMutable, Equatable {
+struct RawExecConfig: Equatable {
     var inheritEnvVariables = true
     // Already interpolated value of overridden vars
     var overriddenVars: [String: String] = [:]

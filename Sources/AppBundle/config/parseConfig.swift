@@ -76,45 +76,34 @@ struct ConfigParseDiagnostic: Error, Equatable {
 
 typealias ResOrConfigParseDiagnostic<T> = Result<T, ConfigParseDiagnostic>
 
-extension ParserProtocol {
-    func transformRawConfig(_ raw: S,
-                            _ value: OrderedJson,
-                            _ backtrace: ConfigBacktrace,
-                            _ c: inout ConfigParserContext) -> S
-    {
-        if let value = parse(value, backtrace, &c).getOrNil(appendErrorTo: &c.errors) {
-            return raw.copy(keyPath, value)
-        }
-        return raw
-    }
-}
-
 struct ConfigParserContext {
     var configVersion: ConfigVersion
     var errors: [ConfigParseDiagnostic]
     var warnings: [ConfigParseDiagnostic]
 }
 
-protocol ParserProtocol<S>: Sendable {
-    associatedtype T
-    associatedtype S where S: ConvenienceMutable
-    var keyPath: SendableWritableKeyPath<S, T> { get }
-    var parse: @Sendable (OrderedJson, ConfigBacktrace, inout ConfigParserContext) -> ResOrConfigParseDiagnostic<T> { get }
-}
+/// Parses a value of a TOML table key and writes it to the corresponding field of `S`
+struct Parser<S>: Sendable {
+    fileprivate let parseInto: @Sendable (_ target: inout S, OrderedJson, ConfigBacktrace, inout ConfigParserContext) -> Void
 
-struct Parser<S: ConvenienceMutable, T>: ParserProtocol {
-    let keyPath: SendableWritableKeyPath<S, T>
-    let parse: @Sendable (OrderedJson, ConfigBacktrace, inout ConfigParserContext) -> ResOrConfigParseDiagnostic<T>
-
-    init(_ keyPath: SendableWritableKeyPath<S, T>, _ parse: @escaping @Sendable (OrderedJson, ConfigBacktrace, inout ConfigParserContext) -> T) {
-        self.keyPath = keyPath
-        self.parse = { raw, backtrace, errors -> ResOrConfigParseDiagnostic<T> in .success(parse(raw, backtrace, &errors)) }
+    private init(parseInto: @escaping @Sendable (_ target: inout S, OrderedJson, ConfigBacktrace, inout ConfigParserContext) -> Void) {
+        self.parseInto = parseInto
     }
 
-    init(_ keyPath: SendableWritableKeyPath<S, T>, _ parse: @escaping @Sendable (OrderedJson, ConfigBacktrace) -> ResOrConfigParseDiagnostic<T>) {
-        self.keyPath = keyPath
-        self.parse = { raw, backtrace, _ -> ResOrConfigParseDiagnostic<T> in parse(raw, backtrace) }
+    init<T>(_ keyPath: SendableWritableKeyPath<S, T>, _ parse: @escaping @Sendable (OrderedJson, ConfigBacktrace, inout ConfigParserContext) -> T) {
+        parseInto = { target, raw, backtrace, c in target[keyPath: keyPath] = parse(raw, backtrace, &c) }
     }
+
+    init<T>(_ keyPath: SendableWritableKeyPath<S, T>, _ parse: @escaping @Sendable (OrderedJson, ConfigBacktrace) -> ResOrConfigParseDiagnostic<T>) {
+        parseInto = { target, raw, backtrace, c in
+            if let value = parse(raw, backtrace).getOrNil(appendErrorTo: &c.errors) {
+                target[keyPath: keyPath] = value
+            }
+        }
+    }
+
+    /// The key is known, but its value is parsed separately. The field keeps its initial value
+    static var parsedManually: Self { Parser(parseInto: { _, _, _, _ in }) }
 }
 
 private let keyMappingConfigRootKey = "key-mapping"
@@ -125,8 +114,8 @@ private let persistentWorkspacesKey = "persistent-workspaces"
 // For every new config option you add, think:
 // 1. Does it make sense to have different value
 // 2. Prefer commands and commands flags over toml options if possible
-private let configParser: [String: any ParserProtocol<Config>] = [
-    configVersionConfigRootKey: Parser(\.configVersion, skipParsing(Config().configVersion)), // Parsed manually
+private let configParser: [String: Parser<Config>] = [
+    configVersionConfigRootKey: .parsedManually,
 
     "after-login-command": Parser(\._afterLoginCommand, parseDeprecatedAfterLoginCommand),
     "after-startup-command": Parser(\.afterStartupCommand, parseShellOfCommandsForConfig),
@@ -150,8 +139,8 @@ private let configParser: [String: any ParserProtocol<Config>] = [
     "exec-on-workspace-change": Parser(\.execOnWorkspaceChange, parseArrayOfStrings),
     "exec": Parser(\.execConfig, parseExecConfig),
 
-    keyMappingConfigRootKey: Parser(\.keyMapping, skipParsing(Config().keyMapping)), // Parsed manually
-    modeConfigRootKey: Parser(\.modes, skipParsing(Config().modes)), // Parsed manually
+    keyMappingConfigRootKey: .parsedManually,
+    modeConfigRootKey: .parsedManually,
 
     "gaps": Parser(\.gaps, parseGaps),
     "focus-follows-mouse": Parser(\.focusFollowsMouse, parseFocusFollowsMouse),
@@ -363,10 +352,10 @@ func parseTomlArray(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrCo
     raw.asArrayOrNil.toResult(expectedActualTypeDiagnostic(expected: .array, actual: raw.tomlType, backtrace))
 }
 
-func parseTable<T: ConvenienceMutable>(
+func parseTable<T>(
     _ raw: OrderedJson,
     _ initial: T,
-    _ fieldsParser: [String: any ParserProtocol<T>],
+    _ fieldsParser: [String: Parser<T>],
     _ backtrace: ConfigBacktrace,
     _ c: inout ConfigParserContext,
 ) -> T {
@@ -388,10 +377,6 @@ private func parseStartupRootContainerLayout(_ raw: OrderedJson, _ backtrace: Co
 private func parseLayout(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<Layout> {
     parseString(raw, backtrace)
         .flatMap { $0.parseLayout().toResult(.init(backtrace, "Can't parse layout '\($0)'")) }
-}
-
-private func skipParsing<T: Sendable>(_ value: T) -> @Sendable (_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<T> {
-    { _, _ in .success(value) }
 }
 
 private func parsePersistentWorkspaces(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<OrderedSet<String>> {
@@ -471,23 +456,23 @@ enum TomlBacktraceItem: Equatable {
 }
 
 extension OrderedJson.JsonDict {
-    func parseTable<T: ConvenienceMutable>(
+    func parseTable<T>(
         _ initial: T,
-        _ fieldsParser: [String: any ParserProtocol<T>],
+        _ fieldsParser: [String: Parser<T>],
         _ backtrace: ConfigBacktrace,
         _ c: inout ConfigParserContext,
     ) -> T {
-        var raw = initial
+        var result = initial
 
         for (key, value) in self {
             let backtrace: ConfigBacktrace = backtrace + .key(key)
             switch fieldsParser[key] {
-                case let parser?: raw = parser.transformRawConfig(raw, value, backtrace, &c)
+                case let parser?: parser.parseInto(&result, value, backtrace, &c)
                 case nil: c.errors.append(unknownKeyDiagnostic(backtrace))
             }
         }
 
-        return raw
+        return result
     }
 }
 

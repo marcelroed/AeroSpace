@@ -1,4 +1,4 @@
-private let focusFollowsMouseParserTable: [String: any ParserProtocol<FocusFollowsMouse>] = [
+private let focusFollowsMouseParserTable: [String: Parser<FocusFollowsMouse>] = [
     "enabled": Parser(\.enabled, parseBool),
 ]
 

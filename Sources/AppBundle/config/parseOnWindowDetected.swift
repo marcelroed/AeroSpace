@@ -1,6 +1,6 @@
 import Common
 
-struct WindowDetectedCallback: ConvenienceMutable, Equatable {
+struct WindowDetectedCallback: Equatable {
     var matcher: WindowDetectedCallbackMatcher = .command(.empty)
     var checkFurtherCallbacks: Bool = false
     var rawRun: Shell<any Command>? = nil
@@ -26,7 +26,7 @@ struct WindowDetectedCallback: ConvenienceMutable, Equatable {
     }
 }
 
-struct LegacyWindowDetectedCallbackMatcher: ConvenienceMutable, Equatable {
+struct LegacyWindowDetectedCallbackMatcher: Equatable {
     var appId: String?
     var appNameRegexSubstring: CaseInsensitiveRegex?
     var windowTitleRegexSubstring: CaseInsensitiveRegex?
@@ -67,13 +67,13 @@ enum WindowDetectedCallbackMatcher: Equatable {
     }
 }
 
-private let windowDetectedParser: [String: any ParserProtocol<WindowDetectedCallback>] = [
+private let windowDetectedParser: [String: Parser<WindowDetectedCallback>] = [
     "if": Parser(\.matcher, parseMatcher),
     "check-further-callbacks": Parser(\.checkFurtherCallbacks, parseBool),
     "run": Parser(\.rawRun, parseShellOfCommandsForConfig),
 ]
 
-private let matcherParsers: [String: any ParserProtocol<LegacyWindowDetectedCallbackMatcher>] = [
+private let matcherParsers: [String: Parser<LegacyWindowDetectedCallbackMatcher>] = [
     "app-id": Parser(\.appId, upcast(parseString)),
     "workspace": Parser(\.workspace, upcast(parseString)),
     "app-name-regex-substring": Parser(\.appNameRegexSubstring, upcast(parseCasInsensitiveRegex)),

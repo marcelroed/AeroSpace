@@ -1,12 +1,12 @@
 import Common
 import HotKey
 
-private let keyMappingParser: [String: any ParserProtocol<KeyMapping>] = [
+private let keyMappingParser: [String: Parser<KeyMapping>] = [
     "preset": Parser(\.preset, parsePreset),
     "key-notation-to-key-code": Parser(\.rawKeyNotationToKeyCode, parseKeyNotationToKeyCode),
 ]
 
-struct KeyMapping: ConvenienceMutable, Equatable, Sendable {
+struct KeyMapping: Equatable, Sendable {
     enum Preset: String, CaseIterable, Sendable {
         case qwerty, dvorak, colemak
     }
