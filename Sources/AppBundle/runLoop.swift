@@ -1,5 +1,6 @@
 import Common
 import Foundation
+import os
 
 extension Thread {
     @discardableResult
@@ -59,24 +60,20 @@ private final class RunLoopAction: NSObject, Sendable {
 }
 
 final class RunLoopJob: Sendable, AeroAny {
-    // Alternative 1. In macOS 15, it's possible to use `Atomic<Bool>` from `Synchronization` module
-    // Alternative 2. https://github.com/apple/swift-atomics/tree/main but I don't want to add one more dependency just for
-    //                AtomicBool
-    nonisolated(unsafe) private var _isCancelled: Int32 = 0
-    var isCancelled: Bool { unsafe _isCancelled == 1 }
+    // Alternative: In macOS 15, it's possible to use `Atomic<Bool>` from `Synchronization` module
+    private let _isCancelled = OSAllocatedUnfairLock(initialState: false)
+    var isCancelled: Bool { _isCancelled.withLock { $0 } }
     func cancel() {
         if cm == .nonCancellable { return }
-        while !isCancelled {
-            unsafe OSAtomicCompareAndSwapInt(0, 1, &_isCancelled)
-        }
+        _isCancelled.withLock { $0 = true }
     }
 
     let cm: CancellationMode
-    public init(_ cm: CancellationMode) { self.cm = cm }
+    init(_ cm: CancellationMode) { self.cm = cm }
 
     static let cancelled: RunLoopJob = RunLoopJob(.cancellable).also { $0.cancel() }
 
-    func checkCancellation() throws {
+    func checkCancellation() throws(CancellationError) {
         if cm == .cancellable && isCancelled {
             throw CancellationError()
         }
