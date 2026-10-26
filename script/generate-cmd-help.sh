@@ -2,10 +2,10 @@
 cd "$(dirname "$0")/.."
 source ./script/setup.sh
 
-# Generates CmdKind.help and CmdKind.purpose from the :manpurpose: and the synopsis of docs/aerospace-*.adoc
+# Generates the CmdKind enum, one case per docs/aerospace-<subcommand>.adoc, with its help (the synopsis) and purpose
 # Bash string ops instead of sed pipes: build-debug.sh runs this every time, and the processes add up
 
-help_cases=() purpose_cases=()
+cases=() help_cases=() purpose_cases=()
 for file in docs/aerospace-*.adoc; do
     subcommand="${file#docs/aerospace-}"
     subcommand="${subcommand%.adoc}"
@@ -14,6 +14,7 @@ for file in docs/aerospace-*.adoc; do
     for word in "${words[@]:1}"; do kind+="${word^}"; done # balance-sizes -> balanceSizes
     if [[ $kind == true || $kind == false ]]; then kind="_$kind"; fi # Swift keywords
 
+    cases+=("    case $kind = \"$subcommand\"")
     help_cases+=("            case .$kind:" '                """')
     in_synopsis=0
     usage_prefix='USAGE:' # The first `aerospace` line becomes `USAGE:`, the others `   OR:`
@@ -40,7 +41,9 @@ write-if-changed Sources/Common/cmdHelpGenerated.swift << EOF
 // FILE IS GENERATED FROM docs/aerospace-*.adoc files
 // TO REGENERATE THE FILE RUN generate.sh
 
-extension CmdKind {
+public enum CmdKind: String, CaseIterable, Equatable, Sendable {
+$(printf '%s\n' "${cases[@]}")
+
     public var help: String {
         switch self {
 $(printf '%s\n' "${help_cases[@]}")
