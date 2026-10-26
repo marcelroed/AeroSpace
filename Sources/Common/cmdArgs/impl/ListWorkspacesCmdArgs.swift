@@ -26,6 +26,7 @@ public struct ListWorkspacesCmdArgs: CmdArgs {
             ["--count", "--json"],
         ],
     )
+    public static let defaultFormat: [InterToken<InterVar>] = [.interVar(.formatVar(.workspace(.workspaceName)))]
 
     fileprivate var all: Bool = false // Alias
     fileprivate var focused: Bool = false // Alias
@@ -40,10 +41,6 @@ public struct ListWorkspacesCmdArgs: CmdArgs {
         public var visible: Bool?
         public var empty: Bool?
     }
-}
-
-extension ListWorkspacesCmdArgs {
-    public var format: [InterToken<InterVar>] { _format.isEmpty ? [.interVar(.formatVar(.workspace(.workspaceName)))] : _format }
 }
 
 func parseListWorkspacesCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ListWorkspacesCmdArgs> {

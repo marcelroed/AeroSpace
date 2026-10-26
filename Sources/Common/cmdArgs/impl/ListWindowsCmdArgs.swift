@@ -27,6 +27,11 @@ public struct ListWindowsCmdArgs: CmdArgs {
             ["--count", "--json"],
         ],
     )
+    public static let defaultFormat: [InterToken<InterVar>] = [
+        .interVar(.formatVar(.window(.windowId))), .interVar(.plainInterVar(.rightPadding)), .literal(" | "),
+        .interVar(.formatVar(.app(.appName))), .interVar(.plainInterVar(.rightPadding)), .literal(" | "),
+        .interVar(.formatVar(.window(.windowTitle))),
+    ]
 
     fileprivate var allAlias: Bool = false
 
@@ -41,18 +46,6 @@ public struct ListWindowsCmdArgs: CmdArgs {
         public var workspaces: [WorkspaceFilter] = []
         public var pidFilter: Int32?
         public var appIdFilter: String?
-    }
-}
-
-extension ListWindowsCmdArgs {
-    public var format: [InterToken<InterVar>] {
-        _format.isEmpty
-            ? [
-                .interVar(.formatVar(.window(.windowId))), .interVar(.plainInterVar(.rightPadding)), .literal(" | "),
-                .interVar(.formatVar(.app(.appName))), .interVar(.plainInterVar(.rightPadding)), .literal(" | "),
-                .interVar(.formatVar(.window(.windowTitle))),
-            ]
-            : _format
     }
 }
 

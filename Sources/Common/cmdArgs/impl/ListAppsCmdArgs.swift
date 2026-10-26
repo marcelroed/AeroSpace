@@ -16,23 +16,16 @@ public struct ListAppsCmdArgs: CmdArgs {
             ["--count", "--json"],
         ],
     )
+    public static let defaultFormat: [InterToken<InterVar>] = [
+        .interVar(.formatVar(.app(.appPid))), .interVar(.plainInterVar(.rightPadding)), .literal(" | "),
+        .interVar(.formatVar(.app(.appBundleId))), .interVar(.plainInterVar(.rightPadding)), .literal(" | "),
+        .interVar(.formatVar(.app(.appName))),
+    ]
 
     public var macosHidden: Bool?
     public var _format: [InterToken<InterVar>] = []
     public var outputOnlyCount: Bool = false
     public var json: Bool = false
-}
-
-extension ListAppsCmdArgs {
-    public var format: [InterToken<InterVar>] {
-        _format.isEmpty
-            ? [
-                .interVar(.formatVar(.app(.appPid))), .interVar(.plainInterVar(.rightPadding)), .literal(" | "),
-                .interVar(.formatVar(.app(.appBundleId))), .interVar(.plainInterVar(.rightPadding)), .literal(" | "),
-                .interVar(.formatVar(.app(.appName))),
-            ]
-            : _format
-    }
 }
 
 func parseListAppsCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ListAppsCmdArgs> {

@@ -1,9 +1,13 @@
 /// Common shape of `list-*` commands that support `--format` and `--json`
 public protocol FormattedListCmdArgs: CmdArgs {
     var _format: [InterToken<InterVar>] { get }
-    /// `_format` or the command-specific default format
-    var format: [InterToken<InterVar>] { get }
+    /// The format used when `_format` is empty
+    static var defaultFormat: [InterToken<InterVar>] { get }
     var json: Bool { get }
+}
+
+extension FormattedListCmdArgs {
+    public var format: [InterToken<InterVar>] { _format.isEmpty ? Self.defaultFormat : _format }
 }
 
 extension ListAppsCmdArgs: FormattedListCmdArgs {}
