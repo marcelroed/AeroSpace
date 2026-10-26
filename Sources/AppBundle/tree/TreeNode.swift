@@ -27,8 +27,9 @@ open class TreeNode: Equatable, AeroAny {
         bind(to: parent, adaptiveWeight: adaptiveWeight, index: index)
     }
 
-    fileprivate init() {
-        adaptiveWeight = 0
+    /// Creates a node that is never bound to a parent (Workspace and the global macOS unconventional windows containers)
+    init(unboundRootWithAdaptiveWeight adaptiveWeight: CGFloat) {
+        self.adaptiveWeight = adaptiveWeight
     }
 
     /// See: ``getWeight(_:)``
@@ -69,9 +70,6 @@ open class TreeNode: Equatable, AeroAny {
     func bind(to newParent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) -> BindingData? {
         let result = unbindIfBound()
 
-        if newParent === NilTreeNode.instance {
-            return result
-        }
         let relation = getChildParentRelation(child: self, parent: newParent) // Side effect: verify relation
         if adaptiveWeight == WEIGHT_AUTO {
             self.adaptiveWeight = switch relation {
@@ -152,11 +150,4 @@ struct BindingData {
     let parent: NonLeafTreeNodeObject
     let adaptiveWeight: CGFloat
     let index: Int
-}
-
-final class NilTreeNode: TreeNode, NonLeafTreeNodeObject {
-    override private init() {
-        super.init()
-    }
-    @MainActor static let instance = NilTreeNode()
 }

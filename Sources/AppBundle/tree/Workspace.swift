@@ -40,7 +40,7 @@ final class Workspace: TreeNode, NonLeafTreeNodeObject, Hashable, Comparable {
     private init(_ name: String) {
         self.name = name
         self.nameLogicalSegments = name.toLogicalSegments()
-        super.init(parent: NilTreeNode.instance, adaptiveWeight: 0, index: 0)
+        super.init(unboundRootWithAdaptiveWeight: 0)
     }
 
     @MainActor static var all: [Workspace] {

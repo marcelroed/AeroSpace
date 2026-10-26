@@ -19,7 +19,7 @@ final class MacosHiddenAppsWindowsContainer: TreeNode, NonLeafTreeNodeObject {
 final class MacosMinimizedWindowsContainer: TreeNode, NonLeafTreeNodeObject {
     @MainActor
     fileprivate init() {
-        super.init(parent: NilTreeNode.instance, adaptiveWeight: 1, index: INDEX_BIND_LAST)
+        super.init(unboundRootWithAdaptiveWeight: 1)
     }
 }
 
@@ -29,6 +29,6 @@ final class MacosMinimizedWindowsContainer: TreeNode, NonLeafTreeNodeObject {
 final class MacosPopupWindowsContainer: TreeNode, NonLeafTreeNodeObject {
     @MainActor
     fileprivate init() {
-        super.init(parent: NilTreeNode.instance, adaptiveWeight: 1, index: INDEX_BIND_LAST)
+        super.init(unboundRootWithAdaptiveWeight: 1)
     }
 }
