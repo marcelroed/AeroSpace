@@ -49,10 +49,7 @@ struct FocusCommand: Command {
                 guard let currentIndex = windows.firstIndex(where: { $0 == target.windowOrNil }) else {
                     return .fail
                 }
-                var targetIndex = switch nextPrev {
-                    case .dfsNext: currentIndex + 1
-                    case .dfsPrev: currentIndex - 1
-                }
+                var targetIndex = currentIndex + nextPrev.indexOffset
                 if !(0 ..< windows.count).contains(targetIndex) {
                     switch args.boundariesAction {
                         case .stop: return .succ

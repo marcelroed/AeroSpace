@@ -20,6 +20,15 @@ extension ToggleEnum {
     }
 }
 
+extension DfsNextPrev {
+    var indexOffset: Int {
+        switch self {
+            case .dfsNext: 1
+            case .dfsPrev: -1
+        }
+    }
+}
+
 extension EnableCmdArgs.State {
     func resolve(current: Bool) -> Bool {
         switch self {

@@ -55,13 +55,7 @@ struct MoveCommand: Command {
 ) -> BinaryExitCode {
     switch args.boundaries {
         case .workspace:
-            switch args.boundariesAction {
-                case .stop: return .succ
-                case .fail: return .fail
-                case .createImplicitContainer:
-                    createImplicitContainerAndMoveWindow(window, workspace, direction)
-                    return .succ
-            }
+            return applyBoundariesAction(window, workspace, args, direction)
         case .allMonitorsOuterFrame:
             guard let (monitors, index) = window.nodeMonitor?.findRelativeMonitor(inDirection: direction) else {
                 return .fail(io.err("Should never happen. Can't find the current monitor"))
@@ -74,12 +68,12 @@ struct MoveCommand: Command {
 
                 return MoveNodeToMonitorCommand(args: moveNodeToMonitorArgs).run(env, io)
             } else {
-                return hitAllMonitorsOuterFrameBoundaries(window, workspace, args, direction)
+                return applyBoundariesAction(window, workspace, args, direction)
             }
     }
 }
 
-@MainActor private func hitAllMonitorsOuterFrameBoundaries(
+@MainActor private func applyBoundariesAction(
     _ window: Window,
     _ workspace: Workspace,
     _ args: MoveCmdArgs,
