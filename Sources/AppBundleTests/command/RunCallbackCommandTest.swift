@@ -57,4 +57,23 @@ struct RunCallbackCommandTest: AeroSpaceTestSuite {
             exitCode: 2,
         )
     }
+
+    @Test
+    func testOnWindowDetectedWithoutCallbacksSucceeds() async {
+        // RB-05: when no callback ran, the exit code was Int32ExitCode.succ, which used to be 2
+        Workspace.get(byName: name).rootTilingContainer.apply {
+            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
+        }
+        assertEquals(config.onWindowDetected.count, 0)
+
+        assertEquals(
+            await parseCommand("run-callback on-window-detected").cmdOrDie.run(.defaultEnv, .emptyStdin),
+            CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)),
+        )
+        assertEquals(MacWindow.allWindows.count, 0)
+        assertEquals(
+            await parseCommand("run-callback --for-every-window on-window-detected").cmdOrDie.run(.defaultEnv, .emptyStdin),
+            CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)),
+        )
+    }
 }
