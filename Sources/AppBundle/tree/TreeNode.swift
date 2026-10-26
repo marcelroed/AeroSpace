@@ -123,7 +123,7 @@ open class TreeNode: Equatable, AeroAny {
 
     @discardableResult
     func unbindFromParent() -> BindingData {
-        unbindIfBound(recordStacktrace: true) ?? dieT("\(self) is already unbound. The stacktrace where it was unbound:\n\(unboundStacktrace.prettyDescription)")
+        unbindIfBound(recordStacktrace: true) ?? dieT("\(prettyDescription) is already unbound. The stacktrace where it was unbound:\n\(unboundStacktrace.prettyDescription)")
     }
 
     nonisolated public static func == (lhs: TreeNode, rhs: TreeNode) -> Bool {
@@ -143,4 +143,15 @@ struct BindingData {
     let parent: NonLeafTreeNodeObject
     let adaptiveWeight: CGFloat
     let index: Int
+}
+
+extension TreeNode {
+    /// For crash messages. TreeNode isn't CustomStringConvertible, so "\(node)" prints only the type name
+    var prettyDescription: String {
+        switch self {
+            case let window as Window: "Window(id: \(window.windowId), workspace: \(window.nodeWorkspace?.name.singleQuoted ?? "nil"))"
+            case let workspace as Workspace: "Workspace(\(workspace.name.singleQuoted))"
+            default: "\(type(of: self))(workspace: \(nodeWorkspace?.name.singleQuoted ?? "nil"))"
+        }
+    }
 }

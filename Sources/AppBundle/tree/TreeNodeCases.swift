@@ -181,7 +181,7 @@ enum ChildParentRelation: Equatable {
     column: Int = #column,
     function: String = #function,
 ) -> Never {
-    let msg = "Illegal child-parent relation. Child: \(child), Parent: \((parent ?? child.parent).prettyDescription)"
+    let msg = "Illegal child-parent relation. Child: \(child.prettyDescription), Parent: \((parent ?? child.parent)?.prettyDescription ?? "nil")"
     die(msg, file: file, line: line, column: column, function: function)
 }
 

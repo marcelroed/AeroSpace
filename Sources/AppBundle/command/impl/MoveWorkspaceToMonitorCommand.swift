@@ -19,7 +19,7 @@ struct MoveWorkspaceToMonitorCommand: Command {
                     let stubWorkspace = getStubWorkspace(for: prevMonitor)
                     check(
                         prevMonitor.setActiveWorkspace(stubWorkspace),
-                        "getStubWorkspace generated incompatible stub workspace (\(stubWorkspace)) for the monitor (\(prevMonitor)",
+                        "getStubWorkspace generated incompatible stub workspace (\(stubWorkspace.description)) for the monitor (\(prevMonitor))",
                     )
                     return .succ
                 } else {

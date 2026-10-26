@@ -91,7 +91,7 @@ final class Workspace: TreeNode, NonLeafTreeNodeObject, Hashable, Comparable {
     }
 
     nonisolated static func == (lhs: Workspace, rhs: Workspace) -> Bool {
-        check((lhs === rhs) == (lhs.name == rhs.name), "lhs: \(lhs) rhs: \(rhs)")
+        check((lhs === rhs) == (lhs.name == rhs.name), "lhs: \(lhs.name) rhs: \(rhs.name)")
         return lhs === rhs
     }
 
@@ -198,7 +198,7 @@ private func rearrangeWorkspacesOnMonitors() {
         }
         let stubWorkspace = getStubWorkspace(forPoint: newScreen)
         check(newScreen.setActiveWorkspace(stubWorkspace),
-              "getStubWorkspace generated incompatible stub workspace (\(stubWorkspace)) for the monitor (\(newScreen)")
+              "getStubWorkspace generated incompatible stub workspace (\(stubWorkspace.description)) for the monitor (\(newScreen))")
     }
 }
 
