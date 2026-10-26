@@ -63,6 +63,11 @@ struct CommonUtilTest: AeroSpaceTestSuite {
             [["a", "b"], ["cc", "d"]].toPaddingTable(columnSeparator: "   "),
             ["a    b", "cc   d"],
         )
+        // Characters made of several UTF-16 code units (a combining accent, emoji) are padded by Character count
+        assertEquals(
+            [["e\u{301}", "x"], ["🙂🙂", "y"], ["abc", "z"]].toPaddingTable(),
+            ["e\u{301}   | x", "🙂🙂  | y", "abc | z"],
+        )
     }
 
     @Test

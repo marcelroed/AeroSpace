@@ -69,7 +69,7 @@ extension [[String]] {
         return self.map { (row: [String]) in
             zip(row.enumerated(), pads)
                 .map { (elem: (Int, String), pad: Int) in
-                    elem.0 != row.count - 1 ? elem.1.padding(toLength: pad, withPad: " ", startingAt: 0) : elem.1
+                    elem.0 != row.count - 1 ? elem.1 + String(repeating: " ", count: pad - elem.1.count) : elem.1
                 }
                 .joined(separator: columnSeparator)
         }
