@@ -78,13 +78,10 @@ private struct FrozenFocus: AeroAny, Equatable, Sendable {
 }
 extension Window {
     func focusWindow() -> Bool {
-        if let focus = toLiveFocusOrNil() {
-            return setFocus(to: focus)
-        } else {
-            // todo We should also exit-native-hidden/unminimize[/exit-native-fullscreen?] window if we want to fix ID-B6E178F2
-            //      and retry to focus the window. Otherwise, it's not possible to focus minimized/hidden windows
-            return false
-        }
+        // todo We should also exit-native-hidden/unminimize[/exit-native-fullscreen?] window if we want to fix ID-B6E178F2
+        //      and retry to focus the window. Otherwise, it's not possible to focus minimized/hidden windows
+        guard let focus = toLiveFocusOrNil() else { return false }
+        return setFocus(to: focus)
     }
 
     func toLiveFocusOrNil() -> LiveFocus? { visualWorkspace.map { LiveFocus(windowOrNil: self, workspace: $0) } }
@@ -95,11 +92,7 @@ extension Workspace {
     func toLiveFocus() -> LiveFocus {
         // todo unfortunately mostRecentWindowRecursive may recursively reach empty rootTilingContainer
         //      while floating or macos unconventional windows might be presented
-        if let wd = mostRecentWindowRecursive ?? anyLeafWindowRecursive {
-            LiveFocus(windowOrNil: wd, workspace: self)
-        } else {
-            LiveFocus(windowOrNil: nil, workspace: self) // emptyWorkspace
-        }
+        LiveFocus(windowOrNil: mostRecentWindowRecursive ?? anyLeafWindowRecursive, workspace: self) // nil window: empty workspace
     }
 }
 
@@ -126,20 +119,12 @@ extension Workspace {
     }
     let focus = focus
     let frozenFocus = focus.frozen
-    var hasFocusChanged = false
-    var hasFocusedWorkspaceChanged = false
-    var hasFocusedMonitorChanged = false
-    if frozenFocus != _lastKnownFocus {
-        _prevFocus = _lastKnownFocus
-        hasFocusChanged = true
-    }
-    if frozenFocus.workspaceName != _lastKnownFocus.workspaceName {
-        _prevFocusedWorkspaceName = _lastKnownFocus.workspaceName
-        hasFocusedWorkspaceChanged = true
-    }
-    if frozenFocus.monitorId_oneBased != _lastKnownFocus.monitorId_oneBased {
-        hasFocusedMonitorChanged = true
-    }
+    let lastKnownFocus = _lastKnownFocus
+    let hasFocusChanged = frozenFocus != lastKnownFocus
+    let hasFocusedWorkspaceChanged = frozenFocus.workspaceName != lastKnownFocus.workspaceName
+    let hasFocusedMonitorChanged = frozenFocus.monitorId_oneBased != lastKnownFocus.monitorId_oneBased
+    if hasFocusChanged { _prevFocus = lastKnownFocus }
+    if hasFocusedWorkspaceChanged { _prevFocusedWorkspaceName = lastKnownFocus.workspaceName }
     _lastKnownFocus = frozenFocus
 
     if onFocusChangedRecursionGuard { return }
