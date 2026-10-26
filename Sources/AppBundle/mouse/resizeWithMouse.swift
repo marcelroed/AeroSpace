@@ -1,26 +1,10 @@
 import AppKit
 import Common
 
-@MainActor
-private var resizeWithMouseTask: Task<(), any Error>? = nil
+private let resizeWithMouseTask = LatestTaskSlot()
 
 func resizedObs(_: AXObserver, ax: AXUIElement, notif: CFString, _: UnsafeMutableRawPointer?) {
-    let notif = notif as String
-    let windowId = ax.containingWindowId()
-    Task.startUnstructured { @MainActor in
-        guard let token: RunSessionGuard = .isServerEnabled else { return }
-        guard let windowId, let window = Window.get(byId: windowId), try await isManipulatedWithMouse(window) else {
-            scheduleCancellableCompleteRefreshSession(.ax(notif))
-            return
-        }
-        resizeWithMouseTask?.cancel()
-        resizeWithMouseTask = Task.startUnstructured {
-            try checkCancellation()
-            try await runLightSession(.ax(notif), token) {
-                try await resizeWithMouse(window)
-            }
-        }
-    }
+    onMouseManipulationAxNotif(ax: ax, notif: notif, resizeWithMouseTask, resizeWithMouse)
 }
 
 @MainActor

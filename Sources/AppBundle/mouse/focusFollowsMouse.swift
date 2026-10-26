@@ -1,7 +1,7 @@
 import AppKit
 
 @MainActor private var focusFollowsMouseMonitor: Any? = nil
-@MainActor private var focusFollowsTask: Task<(), any Error>? = nil
+@MainActor private let focusFollowsTask = LatestTaskSlot()
 
 @MainActor func syncFocusFollowsMouse(_ config: Config) {
     if config.focusFollowsMouse.enabled == (focusFollowsMouseMonitor != nil) {
@@ -11,8 +11,7 @@ import AppKit
     if !config.focusFollowsMouse.enabled {
         NSEvent.removeMonitor(focusFollowsMouseMonitor.orDie())
         focusFollowsMouseMonitor = nil
-        focusFollowsTask?.cancel()
-        focusFollowsTask = nil
+        focusFollowsTask.cancel()
         return
     }
 
@@ -20,8 +19,7 @@ import AppKit
     // because this is how I want it to work for windows/tabs/files dragging
     focusFollowsMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { @MainActor event in
         let location = event.locationInWindow.withYAxisFlipped
-        focusFollowsTask?.cancel()
-        focusFollowsTask = Task.startUnstructured { @MainActor in
+        focusFollowsTask.replace {
             guard let token: RunSessionGuard = .isServerEnabled else { return }
             try checkCancellation()
             // Ignores macOS menubar dropdown, but, unfortunately, it doesn't ignore non-native menu-like fake windows.
