@@ -401,7 +401,7 @@ func parseTable<T>(
         let backtrace: ConfigBacktrace = backtrace + .key(key)
         switch fieldsParser[key] {
             case let parser?: parser.parseInto(&result, value, backtrace, &c)
-            case nil: c.errors.append(unknownKeyDiagnostic(backtrace))
+            case nil: c.errors.append(.init(backtrace, backtrace.isRootKey ? "Unknown top-level key" : "Unknown key"))
         }
     }
     return result
@@ -492,10 +492,6 @@ enum TomlBacktraceItem: Equatable {
             case .index: false
         }
     }
-}
-
-func unknownKeyDiagnostic(_ backtrace: ConfigBacktrace) -> ConfigParseDiagnostic {
-    .init(backtrace, backtrace.isRootKey ? "Unknown top-level key" : "Unknown key")
 }
 
 func expectedActualTypeDiagnostic(expected: TomlType, actual: TomlType, _ backtrace: ConfigBacktrace) -> ConfigParseDiagnostic {
