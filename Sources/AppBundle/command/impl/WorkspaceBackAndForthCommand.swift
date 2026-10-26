@@ -6,6 +6,9 @@ struct WorkspaceBackAndForthCommand: Command {
     /*conforms*/ let shouldResetClosedWindowsCache = false
 
     func run(_ env: CmdEnv, _ io: CmdIo) -> BinaryExitCode {
-        return .from(bool: prevFocusedWorkspace?.focusWorkspace() != nil)
+        switch prevFocusedWorkspace {
+            case let prevFocusedWorkspace?: .from(bool: prevFocusedWorkspace.focusWorkspace())
+            case nil: .fail(io.err("There is no previously focused workspace"))
+        }
     }
 }
