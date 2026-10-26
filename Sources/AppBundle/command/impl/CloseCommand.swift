@@ -6,10 +6,7 @@ struct CloseCommand: Command {
     /*conforms*/ let shouldResetClosedWindowsCache = false
 
     func run(_ env: CmdEnv, _ io: CmdIo) async -> BinaryExitCode {
-        guard let target = args.resolveTargetOrReportError(env, io) else { return .fail }
-        guard let window = target.windowOrNil else {
-            return .fail(io.err("Empty workspace"))
-        }
+        guard let window = args.resolveWindowOrReportError(env, io, noWindowMsg: "Empty workspace") else { return .fail }
         // Access ax directly. Not cool :(
         if await args.quitIfLastWindow.andAsync({ @MainActor @Sendable in (try? await window.asMacWindow().macApp.getAxWindowsCount(.nonCancellable)) == 1 }) {
             let app = window.asMacWindow().macApp

@@ -6,10 +6,7 @@ struct FullscreenCommand: Command {
     /*conforms*/ let shouldResetClosedWindowsCache = false
 
     func run(_ env: CmdEnv, _ io: CmdIo) -> BinaryExitCode {
-        guard let target = args.resolveTargetOrReportError(env, io) else { return .fail }
-        guard let window = target.windowOrNil else {
-            return .fail(io.err(noWindowIsFocused))
-        }
+        guard let window = args.resolveWindowOrReportError(env, io) else { return .fail }
         let newState = args.toggle.resolve(current: window.isFullscreen)
         if newState == window.isFullscreen {
             return .noop(io, failIfNoop: args.failIfNoop, newState

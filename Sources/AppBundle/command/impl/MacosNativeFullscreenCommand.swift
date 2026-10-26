@@ -11,10 +11,7 @@ struct MacosNativeFullscreenCommand: Command {
     /*conforms*/ let shouldResetClosedWindowsCache = false
 
     func run(_ env: CmdEnv, _ io: CmdIo) async -> BinaryExitCode {
-        guard let target = args.resolveTargetOrReportError(env, io) else { return .fail }
-        guard let window = target.windowOrNil else {
-            return .fail(io.err(noWindowIsFocused))
-        }
+        guard let window = args.resolveWindowOrReportError(env, io) else { return .fail }
         guard let prevState = try? await window.isMacosFullscreen(.nonCancellable) else { return .fail(io.err(bugPrompt())) }
         let newState = args.toggle.resolve(current: prevState)
         if newState == prevState {

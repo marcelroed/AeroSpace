@@ -7,10 +7,7 @@ struct MoveCommand: Command {
 
     func run(_ env: CmdEnv, _ io: CmdIo) async -> BinaryExitCode {
         let direction = args.direction.val
-        guard let target = args.resolveTargetOrReportError(env, io) else { return .fail }
-        guard let currentWindow = target.windowOrNil else {
-            return .fail(io.err(noWindowIsFocused))
-        }
+        guard let currentWindow = args.resolveWindowOrReportError(env, io) else { return .fail }
         if await shouldFailBecauseFullscreen_nonCancellable(
             window: currentWindow,
             failIfFullscreen: args.failIfFullscreen,

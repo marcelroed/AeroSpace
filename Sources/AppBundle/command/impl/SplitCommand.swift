@@ -9,10 +9,7 @@ struct SplitCommand: Command {
         if config.enableNormalizationFlattenContainers {
             return .fail(io.err("'split' has no effect when 'enable-normalization-flatten-containers' normalization enabled. My recommendation: keep the normalizations enabled, and prefer 'join-with' over 'split'."))
         }
-        guard let target = args.resolveTargetOrReportError(env, io) else { return .fail }
-        guard let window = target.windowOrNil else {
-            return .fail(io.err(noWindowIsFocused))
-        }
+        guard let window = args.resolveWindowOrReportError(env, io) else { return .fail }
         guard let parent = window.parent else { return .fail(io.err(bugPrompt())) }
         switch parent.cases {
             case .floatingWindowsContainer:
