@@ -3,10 +3,10 @@ import Common
 
 /// The subscription is active as long as you keep this class in memory
 final class AxSubscription {
-    let obs: AXObserver
-    let ax: AXUIElement
-    let axThreadToken: AxAppThreadToken = axTaskLocalAppThreadToken ?? dieT("axTaskLocalAppThreadToken is not initialized")
-    var notifKeys: Set<String> = []
+    private let obs: AXObserver
+    private let ax: AXUIElement
+    private let axThreadToken: AxAppThreadToken = axTaskLocalAppThreadToken ?? dieT("axTaskLocalAppThreadToken is not initialized")
+    private var notifKeys: Set<String> = []
 
     private init(obs: AXObserver, ax: AXUIElement) {
         axThreadToken.checkEquals(axTaskLocalAppThreadToken)
@@ -14,7 +14,7 @@ final class AxSubscription {
         self.ax = ax
     }
 
-    private func subscribe(_ key: String) throws -> Bool {
+    private func subscribe(_ key: String) -> Bool {
         axThreadToken.checkEquals(axTaskLocalAppThreadToken)
         if AXObserverAddNotification(obs, ax, key as CFString, nil) == .success {
             notifKeys.insert(key)
@@ -36,10 +36,10 @@ final class AxSubscription {
             try job.checkCancellation()
             guard let obs = unsafe AXObserver.new(nsApp.processIdentifier, handler) else { return [] }
             let subscription = AxSubscription(obs: obs, ax: ax)
-            for key: String in notifKeys {
+            for key in notifKeys {
                 try job.checkCancellation()
                 assert(visitedNotifKeys.insert(key).inserted)
-                if try !subscription.subscribe(key) { return [] }
+                if !subscription.subscribe(key) { return [] }
             }
             CFRunLoopAddSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(obs), .defaultMode)
             result.append(subscription)

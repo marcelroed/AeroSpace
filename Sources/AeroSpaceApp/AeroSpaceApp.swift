@@ -5,9 +5,9 @@ import SwiftUI
 
 @main
 struct AeroSpaceApp: App {
-    @StateObject var viewModel = TrayMenuModel.shared
-    @StateObject var messageModel = MessageModel.shared
-    @Environment(\.openWindow) var openWindow: OpenWindowAction
+    @StateObject private var viewModel = TrayMenuModel.shared
+    @StateObject private var messageModel = MessageModel.shared
+    @Environment(\.openWindow) private var openWindow: OpenWindowAction
 
     init() {
         initAppBundle()

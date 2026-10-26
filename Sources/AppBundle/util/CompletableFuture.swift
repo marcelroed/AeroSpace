@@ -1,6 +1,6 @@
 import Dispatch
 
-final class CompletableFuture<T>: Sendable {
+final class CompletableFuture<T: Sendable>: Sendable {
     nonisolated(unsafe) private var value: T?
     private let semaphore = DispatchSemaphore(value: 0)
 
