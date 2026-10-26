@@ -1,8 +1,7 @@
 @testable import AppBundle
+import AppKit
 import Common
-import Foundation
 import HotKey
-import XCTest
 
 let projectRoot: URL = {
     var url = URL(filePath: #filePath).absoluteURL
@@ -53,13 +52,21 @@ extension ParsedCmd {
     var cmdOrDie: T { cmdOrNil ?? dieT("\(self)") }
 }
 
-func testParseCommandFail(_ command: String, msg expectedMsg: String, exitCode expectedExitCode: Int32, file: StaticString = #filePath, line: UInt = #line) {
+func testParseCommandFail(
+    _ command: String,
+    msg expectedMsg: String,
+    exitCode expectedExitCode: Int32,
+    fileID: String = #fileID,
+    filePath: String = #filePath,
+    line: Int = #line,
+    column: Int = #column,
+) {
     let parsed = parseCommand(command)
     switch parsed {
-        case .cmd(let command): XCTFail("\(command) isn't supposed to be parcelable")
-        case .help: die() // todo test help
+        case .cmd(let command): fail("\(command) isn't supposed to be parcelable", fileID: fileID, filePath: filePath, line: line, column: column)
+        case .help: fail("'\(command)' isn't supposed to be parsed as help", fileID: fileID, filePath: filePath, line: line, column: column)
         case .failure(let failure):
-            assertEquals(failure, .init(expectedMsg, expectedExitCode), file: file, line: line)
+            assertEquals(failure, .init(expectedMsg, expectedExitCode), fileID: fileID, filePath: filePath, line: line, column: column)
     }
 }
 

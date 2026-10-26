@@ -63,16 +63,24 @@ final class ParseEnvVariablesTest: XCTestCase {
     }
 }
 
-private func testSucInterpolation(_ str: String, _ vars: [String: String] = [:], expected: String) {
+private func testSucInterpolation(
+    _ str: String,
+    _ vars: [String: String] = [:],
+    expected: String,
+    fileID: String = #fileID,
+    filePath: String = #filePath,
+    line: Int = #line,
+    column: Int = #column,
+) {
     switch str.interpolate(with: vars) {
-        case .success(let actual): assertEquals(actual, expected)
-        case .failure(let actual): assertEquals(actual, [])
+        case .success(let actual): assertEquals(actual, expected, fileID: fileID, filePath: filePath, line: line, column: column)
+        case .failure(let actual): assertEquals(actual, [], fileID: fileID, filePath: filePath, line: line, column: column)
     }
 }
 
-private func testFailInterpolation(_ str: String, _ vars: [String: String] = [:]) {
+private func testFailInterpolation(_ str: String, _ vars: [String: String] = [:], fileID: String = #fileID, filePath: String = #filePath, line: Int = #line, column: Int = #column) {
     switch str.interpolate(with: vars) {
-        case .success(let actual): failExpectedActual(nil, actual)
+        case .success(let actual): failExpectedActual(nil, actual, fileID: fileID, filePath: filePath, line: line, column: column)
         case .failure: break
     }
 }

@@ -3,12 +3,12 @@ import Common
 import Foundation
 import XCTest
 
-private func assertPrimitive(_ actual: Result<Primitive, InterVarExpansionError>, _ expected: Primitive, file: StaticString = #filePath, line: UInt = #line) {
+private func assertPrimitive(_ actual: Result<Primitive, InterVarExpansionError>, _ expected: Primitive, fileID: String = #fileID, filePath: String = #filePath, line: Int = #line, column: Int = #column) {
     switch actual {
-        case .failure: failExpectedActual("Result.success(\(expected.toString()))", actual, file: file, line: line)
+        case .failure: failExpectedActual("Result.success(\(expected.toString()))", actual, fileID: fileID, filePath: filePath, line: line, column: column)
         case .success(let primitive):
             if primitive.kind != expected.kind || primitive.toString() != expected.toString() {
-                failExpectedActual("\(expected.kind.rawValue)(\(expected.toString()))", "\(primitive.kind.rawValue)(\(primitive.toString()))", file: file, line: line)
+                failExpectedActual("\(expected.kind.rawValue)(\(expected.toString()))", "\(primitive.kind.rawValue)(\(primitive.toString()))", fileID: fileID, filePath: filePath, line: line, column: column)
             }
     }
 }
