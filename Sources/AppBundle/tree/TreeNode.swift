@@ -18,7 +18,7 @@ open class TreeNode: Equatable, AeroAny {
     // - move-mouse command
     // - focus-follows-mouse
     var lastAppliedLayoutPhysicalRect: Rect? = nil // with real inner gaps
-    final var unboundStacktrace: String? = nil
+    private var unboundStacktrace: String? = nil
     var isBound: Bool { parent != nil } // todo drop, once https://github.com/nikitabobko/AeroSpace/issues/1215 is fixed
 
     @MainActor
@@ -68,7 +68,8 @@ open class TreeNode: Equatable, AeroAny {
     @MainActor
     @discardableResult
     func bind(to newParent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) -> BindingData? {
-        let result = unbindIfBound()
+        // bind() overwrites unboundStacktrace below, so don't spend time on recording it
+        let result = unbindIfBound(recordStacktrace: false)
 
         let relation = getChildParentRelation(child: self, parent: newParent) // Side effect: verify relation
         if adaptiveWeight == WEIGHT_AUTO {
@@ -94,13 +95,15 @@ open class TreeNode: Equatable, AeroAny {
         return result
     }
 
-    private func unbindIfBound() -> BindingData? {
+    private func unbindIfBound(recordStacktrace: Bool) -> BindingData? {
         guard let _parent else { return nil }
 
         let index = _parent._children.remove(element: self) ?? dieT("Can't find child in its parent")
         check(_parent._mruChildren.remove(self))
         self._parent = nil
-        unboundStacktrace = getStringStacktrace()
+        if recordStacktrace {
+            unboundStacktrace = getStringStacktrace()
+        }
 
         return BindingData(parent: _parent, adaptiveWeight: adaptiveWeight, index: index)
     }
@@ -117,7 +120,7 @@ open class TreeNode: Equatable, AeroAny {
 
     @discardableResult
     func unbindFromParent() -> BindingData {
-        unbindIfBound() ?? dieT("\(self) is already unbound. The stacktrace where it was unbound:\n\(unboundStacktrace.prettyDescription)")
+        unbindIfBound(recordStacktrace: true) ?? dieT("\(self) is already unbound. The stacktrace where it was unbound:\n\(unboundStacktrace.prettyDescription)")
     }
 
     nonisolated public static func == (lhs: TreeNode, rhs: TreeNode) -> Bool {
