@@ -32,7 +32,7 @@ func runHeavyCompleteRefreshSession(
     if !TrayMenuModel.shared.isEnabled { return }
     // No screens (e.g., during display reconfiguration). Skip the session: the model and the layout would be refreshed
     // against the fake mainMonitorInfo. The next session catches up when the screens come back
-    if monitorInfos.isEmpty { return }
+    if !hasScreens { return }
     let res = await Result {
         try await $refreshSessionEvent.withValue(event) {
             let nativeFocused = try await getNativeFocusedWindow(.cancellable)

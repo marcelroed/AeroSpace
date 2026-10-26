@@ -7,7 +7,9 @@
     if nativeFocused?.parent is MacosPopupWindowsContainer {
         return
     }
-    if nativeFocused?.windowId != lastKnownNativeFocusedWindowId {
+    // No screens (e.g., during display reconfiguration): setFocus can't show invisible workspaces meanwhile. Don't consume
+    // the native focus change, the first session after the screens come back takes it
+    if nativeFocused?.windowId != lastKnownNativeFocusedWindowId && hasScreens {
         _ = nativeFocused?.focusWindow()
         lastKnownNativeFocusedWindowId = nativeFocused?.windowId
     }
