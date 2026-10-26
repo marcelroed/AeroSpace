@@ -52,11 +52,11 @@ final class MacWindow: Window {
     }
 
     func setNativeFullscreen(_ value: Bool) {
-        macApp.setNativeFullscreen(windowId, value)
+        macApp.setAxAttr(windowId, Ax.isFullscreenAttr, value)
     }
 
     func setNativeMinimized(_ value: Bool) {
-        macApp.setNativeMinimized(windowId, value)
+        macApp.setAxAttr(windowId, Ax.minimizedAttr, value)
     }
 
     // skipClosedWindowsCache is an optimization when it's definitely not necessary to cache closed window.
@@ -90,9 +90,9 @@ final class MacWindow: Window {
         }
     }
 
-    override func getTitle(_ cm: CancellationMode) async throws -> String { try await macApp.getAxTitle(windowId, cm) ?? "" }
-    override func isMacosFullscreen(_ cm: CancellationMode) async throws -> Bool { try await macApp.isMacosNativeFullscreen(windowId, cm) == true }
-    override func isMacosMinimized(_ cm: CancellationMode) async throws -> Bool { try await macApp.isMacosNativeMinimized(windowId, cm) == true }
+    override func getTitle(_ cm: CancellationMode) async throws -> String { try await macApp.getAxAttr(windowId, Ax.titleAttr, cm) ?? "" }
+    override func isMacosFullscreen(_ cm: CancellationMode) async throws -> Bool { try await macApp.getAxAttr(windowId, Ax.isFullscreenAttr, cm) == true }
+    override func isMacosMinimized(_ cm: CancellationMode) async throws -> Bool { try await macApp.getAxAttr(windowId, Ax.minimizedAttr, cm) == true }
 
     override func nativeFocus() {
         macApp.nativeFocus(windowId)
@@ -166,7 +166,7 @@ final class MacWindow: Window {
     }
 
     override func getAxSize(_ cm: CancellationMode) async throws -> CGSize? {
-        try await macApp.getAxSize(windowId, cm)
+        try await macApp.getAxAttr(windowId, Ax.sizeAttr, cm)
     }
 
     override func setAxFrame(_ topLeft: CGPoint?, _ size: CGSize?) {
