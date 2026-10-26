@@ -2,19 +2,13 @@ import Common
 
 extension Workspace {
     @MainActor var rootTilingContainer: TilingContainer {
-        let containers = children.filterIsInstance(of: TilingContainer.self)
-        switch containers.count {
-            case 0:
-                let orientation: Orientation = switch config.defaultRootContainerOrientation {
-                    case .horizontal: .h
-                    case .vertical: .v
-                    case .auto: workspaceMonitor.then { $0.width >= $0.height } ? .h : .v
-                }
-                return TilingContainer(parent: self, adaptiveWeight: 1, orientation, config.defaultRootContainerLayout, index: INDEX_BIND_LAST)
-            case 1:
-                return containers.singleOrNil().orDie()
-            default:
-                die("Workspace must contain zero or one tiling container as its child")
+        singleChild(TilingContainer.self, dieMessage: "Workspace must contain zero or one tiling container as its child") {
+            let orientation: Orientation = switch config.defaultRootContainerOrientation {
+                case .horizontal: .h
+                case .vertical: .v
+                case .auto: workspaceMonitor.then { $0.width >= $0.height } ? .h : .v
+            }
+            return TilingContainer(parent: self, adaptiveWeight: 1, orientation, config.defaultRootContainerLayout, index: INDEX_BIND_LAST)
         }
     }
 
@@ -25,30 +19,32 @@ extension Workspace {
 
     @MainActor
     var floatingWindowsContainer: FloatingWindowsContainer {
-        let containers = children.filterIsInstance(of: FloatingWindowsContainer.self)
-        return switch containers.count {
-            case 0: FloatingWindowsContainer(parent: self)
-            case 1: containers.singleOrNil().orDie()
-            default: dieT("Workspace must contain zero or one FloatingWindowsContainer")
+        singleChild(FloatingWindowsContainer.self, dieMessage: "Workspace must contain zero or one FloatingWindowsContainer") {
+            FloatingWindowsContainer(parent: self)
         }
     }
 
     @MainActor var macOsNativeFullscreenWindowsContainer: MacosFullscreenWindowsContainer {
-        let containers = children.filterIsInstance(of: MacosFullscreenWindowsContainer.self)
-        return switch containers.count {
-            case 0: MacosFullscreenWindowsContainer(parent: self)
-            case 1: containers.singleOrNil().orDie()
-            default: dieT("Workspace must contain zero or one MacosFullscreenWindowsContainer")
+        singleChild(MacosFullscreenWindowsContainer.self, dieMessage: "Workspace must contain zero or one MacosFullscreenWindowsContainer") {
+            MacosFullscreenWindowsContainer(parent: self)
         }
     }
 
     @MainActor var macOsNativeHiddenAppsWindowsContainer: MacosHiddenAppsWindowsContainer {
-        let containers = children.filterIsInstance(of: MacosHiddenAppsWindowsContainer.self)
-        return switch containers.count {
-            case 0: MacosHiddenAppsWindowsContainer(parent: self)
-            case 1: containers.singleOrNil().orDie()
-            default: dieT("Workspace must contain zero or one MacosHiddenAppsWindowsContainer")
+        singleChild(MacosHiddenAppsWindowsContainer.self, dieMessage: "Workspace must contain zero or one MacosHiddenAppsWindowsContainer") {
+            MacosHiddenAppsWindowsContainer(parent: self)
         }
+    }
+
+    /// Returns the only child of type `T`, or creates it if there is none
+    private func singleChild<T: TreeNode>(_: T.Type, dieMessage: String, orCreate create: () -> T) -> T {
+        var result: T? = nil
+        for child in children {
+            guard let child = child as? T else { continue }
+            if result != nil { die(dieMessage) }
+            result = child
+        }
+        return result ?? create()
     }
 
     @MainActor var forceAssignedMonitor: MonitorInfo? {
