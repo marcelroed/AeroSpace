@@ -75,7 +75,7 @@ struct FocusCommand: Command {
                 case .stop: .succ
                 case .fail: .fail
                 case .wrapAroundTheWorkspace: wrapAroundTheWorkspace(target, io, direction)
-                case .wrapAroundAllMonitors: .fail(io.err("Must be discarded by args parser"))
+                case .wrapAroundAllMonitors: .fail(io.err(bugPrompt("Must be discarded by args parser")))
             }
         case .allMonitorsOuterFrame:
             let currentMonitor = target.workspace.workspaceMonitor

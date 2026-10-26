@@ -58,7 +58,7 @@ struct MoveCommand: Command {
             return applyBoundariesAction(window, workspace, args, direction)
         case .allMonitorsOuterFrame:
             guard let (monitors, index) = window.nodeMonitor?.findRelativeMonitor(inDirection: direction) else {
-                return .fail(io.err("Should never happen. Can't find the current monitor"))
+                return .fail(io.err(bugPrompt("Should never happen. Can't find the current monitor")))
             }
 
             if monitors.indices.contains(index) {
