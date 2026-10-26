@@ -5,7 +5,6 @@ public struct ListWindowsCmdArgs: CmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
     public static let parser: CmdParser<Self> = .init(
         kind: .listWindows,
-        help: list_windows_help_generated,
         flags: [
             "--all": trueBoolFlag(\.allAlias),
 

@@ -5,7 +5,6 @@ public struct SubscribeCmdArgs: CmdArgs {
     }
     public static let parser: CmdParser<Self> = .init(
         kind: .subscribe,
-        help: subscribe_help_generated,
         flags: [
             "--all": trueBoolFlag(\.allAlias),
             "--no-send-initial": falseBoolFlag(\.sendInitial),

@@ -3,7 +3,6 @@ public struct RunCallbackCmdArgs: CmdArgs {
     public init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
     public static let parser: CmdParser<Self> = .init(
         kind: .runCallback,
-        help: run_callback_help_generated,
         flags: [
             "--for-every-window": trueBoolFlag(\.forEveryWindow),
             "--window-id": windowIdSubArgParser(),

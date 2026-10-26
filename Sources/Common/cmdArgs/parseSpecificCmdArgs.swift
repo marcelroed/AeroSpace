@@ -12,7 +12,7 @@ func parseSpecificCmdArgs<T: CmdArgs>(_ raw: T, _ args: StrArrSlice) -> ParsedCm
 
         switch (positionalOnly, arg) {
             case (false, "-h"), (false, "--help"):
-                return .help(T.parser.help)
+                return .help(T.parser.kind.help)
             case (false, _) where arg.isCliDashFlag && !(T.parser.negativeNumbersArePositional && isNegativeNumber(arg)):
                 if let optionParser = T.parser.flags[arg] {
                     index += 1

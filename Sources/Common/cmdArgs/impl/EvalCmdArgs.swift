@@ -3,7 +3,6 @@ public struct EvalCmdArgs: CmdArgs {
     public init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
     public static let parser: CmdParser<Self> = .init(
         kind: .eval,
-        help: eval_help_generated,
         flags: [
             "--stdin": ArgParser(\.commonState.explicitStdinFlag, constSubArgParserFun(true)),
         ],

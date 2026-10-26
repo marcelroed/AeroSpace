@@ -8,8 +8,14 @@ let usage =
     USAGE: \(CommandLine.arguments.first ?? "aerospace") [-h|--help] [-v|--version] <subcommand> [<args>...]
 
     SUBCOMMANDS:
-    \(subcommandDescriptions.sortedBy { $0[0] }.toPaddingTable(columnSeparator: "   ").joined(separator: "\n"))
+    \(subcommandTable.joined(separator: "\n"))
     """
+
+private let subcommandTable = CmdKind.allCases
+    .filter { $0 != .execAndForget } // exec-and-forget isn't a CLI subcommand
+    .map { ["  " + $0.rawValue, $0.purpose] }
+    .sortedBy { $0[0] }
+    .toPaddingTable(columnSeparator: "   ")
 
 @main
 struct Main {

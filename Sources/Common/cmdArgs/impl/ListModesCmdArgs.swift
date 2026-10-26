@@ -5,7 +5,6 @@ public struct ListModesCmdArgs: CmdArgs {
     }
     public static let parser: CmdParser<Self> = .init(
         kind: .listModes,
-        help: list_modes_help_generated,
         flags: [
             "--count": trueBoolFlag(\.outputOnlyCount),
             "--current": trueBoolFlag(\.current),

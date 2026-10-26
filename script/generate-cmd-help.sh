@@ -2,37 +2,56 @@
 cd "$(dirname "$0")/.."
 source ./script/setup.sh
 
-out_file='./Sources/Common/cmdHelpGenerated.swift'
+# Generates CmdKind.help and CmdKind.purpose from the :manpurpose: and the synopsis of docs/aerospace-*.adoc
+# Bash string ops instead of sed pipes: build-debug.sh runs this every time, and the processes add up
 
-aerospace_prefix="aerospace"
-____usage_prefix="   USAGE:"
-_______or_prefix="      OR:"
-____strip_prefix="   "
+help_cases=() purpose_cases=()
+for file in docs/aerospace-*.adoc; do
+    subcommand="${file#docs/aerospace-}"
+    subcommand="${subcommand%.adoc}"
+    IFS=- read -ra words <<< "$subcommand"
+    kind="${words[0]}"
+    for word in "${words[@]:1}"; do kind+="${word^}"; done # balance-sizes -> balanceSizes
+    if [[ $kind == true || $kind == false ]]; then kind="_$kind"; fi # Swift keywords
 
-triple_quote='"""'
+    help_cases+=("            case .$kind:" '                """')
+    in_synopsis=0
+    usage_prefix='USAGE:' # The first `aerospace` line becomes `USAGE:`, the others `   OR:`
+    while IFS= read -r line; do
+        if [[ $line == ':manpurpose: '* ]]; then
+            purpose_cases+=("            case .$kind: \"${line#:manpurpose: }\"")
+        elif [[ $line == *tag::synopsis* ]]; then
+            in_synopsis=1
+        elif [[ $line == *end::synopsis* ]]; then
+            break
+        elif [[ $in_synopsis == 1 && -n $line ]]; then
+            line="${line#   }"
+            if [[ $line == aerospace* ]]; then
+                line="$usage_prefix${line#aerospace}"
+                usage_prefix='   OR:'
+            fi
+            help_cases+=("                $line")
+        fi
+    done < "$file"
+    help_cases+=('                """')
+done
 
-generate() {
-    cat << EOF
+write-if-changed Sources/Common/cmdHelpGenerated.swift << EOF
 // FILE IS GENERATED FROM docs/aerospace-*.adoc files
 // TO REGENERATE THE FILE RUN generate.sh
 
-EOF
+extension CmdKind {
+    public var help: String {
+        switch self {
+$(printf '%s\n' "${help_cases[@]}")
+        }
+    }
 
-    for file in docs/aerospace-*.adoc; do
-        subcommand="${file#docs/aerospace-}"
-        subcommand="${subcommand%.adoc}"
-        subcommand="${subcommand//-/_}"
-        sed -n -E '/tag::synopsis/, /end::synopsis/ p' "$file" | \
-            sed '1d' | \
-            sed '$d' | \
-            sed '/^$/ d' | \
-            sed "1   s/^$aerospace_prefix/$____usage_prefix/" | \
-            sed "2,$ s/^$aerospace_prefix/$_______or_prefix/" | \
-            sed     "s/^$____strip_prefix//" | \
-            sed "1 s/^/let ${subcommand}_help_generated = $triple_quote\n/" | \
-            sed "\$ s/$/\n${triple_quote}/" | \
-            sed '2,$ s/^/    /'
-    done
+    /// One-line description in the \`aerospace --help\` subcommand list
+    public var purpose: String {
+        switch self {
+$(printf '%s\n' "${purpose_cases[@]}")
+        }
+    }
 }
-
-generate | write-if-changed "$out_file"
+EOF

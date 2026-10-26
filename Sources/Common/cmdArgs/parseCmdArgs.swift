@@ -60,7 +60,6 @@ extension CmdArgs {
 
 public struct CmdParser<Root>: Sendable {
     public let kind: CmdKind
-    let help: String
     let flags: [String: any ArgParserProtocol<SubArgParserInput, Root, ()>]
     let positionalArgs: [any ArgParserProtocol<PosArgParserInput, Root, PosArgParserContext>]
     let conflictingOptions: [Set<String>]
@@ -69,14 +68,12 @@ public struct CmdParser<Root>: Sendable {
 
     init(
         kind: CmdKind,
-        help: String,
         flags: [String: any ArgParserProtocol<SubArgParserInput, Root, ()>],
         posArgs: [any ArgParserProtocol<PosArgParserInput, Root, PosArgParserContext>],
         conflictingOptions: [Set<String>] = [],
         negativeNumbersArePositional: Bool = false,
     ) {
         self.kind = kind
-        self.help = help
         self.flags = flags
         self.positionalArgs = posArgs
         self.conflictingOptions = conflictingOptions

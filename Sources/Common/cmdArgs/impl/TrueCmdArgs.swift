@@ -3,7 +3,6 @@ public struct TrueCmdArgs: CmdArgs {
     public init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
     public static let parser: CmdParser<Self> = .init(
         kind: ._true,
-        help: true_help_generated,
         flags: [:],
         posArgs: [],
     )
