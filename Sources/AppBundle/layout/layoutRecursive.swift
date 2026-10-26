@@ -130,8 +130,8 @@ extension TilingContainer {
                 virtual: Rect(
                     topLeftX: virtualPoint.x,
                     topLeftY: virtualPoint.y,
-                    width: orientation == .h ? weight : width,
-                    height: orientation == .v ? weight : height,
+                    width: orientation == .h ? weight : virtual.width,
+                    height: orientation == .v ? weight : virtual.height,
                 ),
                 context,
             )
