@@ -2,17 +2,17 @@ import AppKit
 import Common
 
 extension TreeNode {
-    private func visit(node: TreeNode, result: inout [Window]) {
-        if let node = node as? Window {
-            result.append(node)
+    private func collectLeafWindows(into result: inout [Window]) {
+        if let window = self as? Window {
+            result.append(window)
         }
-        for child in node.children {
-            visit(node: child, result: &result)
+        for child in children {
+            child.collectLeafWindows(into: &result)
         }
     }
     var allLeafWindowsRecursive: [Window] {
         var result: [Window] = []
-        visit(node: self, result: &result)
+        collectLeafWindows(into: &result)
         return result
     }
 
@@ -21,8 +21,27 @@ extension TreeNode {
         return parent.children.firstIndex(of: self).orDie()
     }
 
-    var parents: [NonLeafTreeNodeObject] { parent.flatMap { [$0] + $0.parents } ?? [] }
-    var parentsWithSelf: [TreeNode] { parent.flatMap { [self] + $0.parentsWithSelf } ?? [self] }
+    /// From the closest parent to the root
+    var parents: [NonLeafTreeNodeObject] {
+        var result: [NonLeafTreeNodeObject] = []
+        var current = parent
+        while let node = current {
+            result.append(node)
+            current = node.parent
+        }
+        return result
+    }
+
+    /// `self` followed by ``parents``
+    var parentsWithSelf: [TreeNode] {
+        var result: [TreeNode] = [self]
+        var current = parent
+        while let node = current {
+            result.append(node)
+            current = node.parent
+        }
+        return result
+    }
 
     /// Also see visualWorkspace
     var nodeWorkspace: Workspace? {
