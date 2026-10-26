@@ -14,7 +14,6 @@ public protocol CmdArgs:
     ConvenienceMutable,
     Equatable,
     CustomStringConvertible,
-    AeroAny,
     Sendable
 {
     associatedtype ExitCodeType: ExitCode = BinaryExitCode
@@ -55,8 +54,8 @@ extension CmdArgs {
 
 public struct CmdParser<Root>: Sendable {
     public let kind: CmdKind
-    var flags: [String: any ArgParserProtocol<SubArgParserInput, Root, ()>] = [:]
-    var posArgs: [any ArgParserProtocol<PosArgParserInput, Root, PosArgParserContext>] = []
+    var flags: [String: SubArgParser<Root>] = [:]
+    var posArgs: [PosArgParser<Root>] = []
     var conflictingOptions: [Set<String>] = []
     /// Whether args like `-10` are positional arguments rather than unknown flags
     var negativeNumbersArePositional = false

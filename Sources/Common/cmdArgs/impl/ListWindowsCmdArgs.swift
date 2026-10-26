@@ -77,7 +77,7 @@ func parseListWindowsCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ListWindowsCmdArg
 func formatParser<Root>(
     _ keyPath: SendableWritableKeyPath<Root, [InterToken<InterVar>]>,
     for kind: AeroObjKind,
-) -> SubArgParser<Root, [InterToken<InterVar>]> {
+) -> SubArgParser<Root> {
     return ArgParser(keyPath) { input in
         if let arg = input.nonFlagArgOrNil() {
             return switch arg.interpolationTokens(interpolationChar: "%", ofInterVarType: InterVar.self) {
