@@ -28,7 +28,7 @@ extension HotKey {
 @MainActor var activeMode: String? = mainModeId
 @MainActor func activateMode_nonCancellable(_ targetMode: String?) async {
     let targetBindings = targetMode.flatMap { config.modes[$0] }?.bindings ?? [:]
-    for binding in targetBindings.values where !hotkeys.keys.contains(binding.descriptionWithKeyCode) {
+    for binding in targetBindings.values where hotkeys[binding.descriptionWithKeyCode] == nil {
         hotkeys[binding.descriptionWithKeyCode] = HotKey(key: binding.keyCode, modifiers: binding.modifiers, keyDownHandler: {
             Task.startUnstructured {
                 if let activeMode {
@@ -110,9 +110,5 @@ func parseBinding(_ raw: String, _ backtrace: ConfigBacktrace, _ mapping: [Strin
         .map { NSEvent.ModifierFlags($0) }
     let key: ResOrConfigParseDiagnostic<Key> = rawKeys.last.flatMap { mapping[String($0)] }
         .toResult(.init(backtrace, "Can't parse the key in '\(raw)' binding"))
-    return modifiers.flatMap { modifiers -> ResOrConfigParseDiagnostic<(NSEvent.ModifierFlags, Key)> in
-        key.flatMap { key -> ResOrConfigParseDiagnostic<(NSEvent.ModifierFlags, Key)> in
-            .success((modifiers, key))
-        }
-    }
+    return modifiers.flatMap { modifiers in key.map { key in (modifiers, key) } }
 }

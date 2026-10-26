@@ -45,13 +45,13 @@ private func parseEnvVariables(_ raw: OrderedJson, _ backtrace: ConfigBacktrace,
         let backtrace = backtrace + .key(key)
         if key == "PWD" { c.errors.append(.init(backtrace, "Changing 'PWD' is not allowed")) }
         guard let rawStr = parseString(value, backtrace).getOrNil(appendErrorTo: &c.errors) else { continue }
-        var env = baseEnv
+        var interpolationEnv = baseEnv
         if let add: String = fullEnv[key] {
-            env[key] = add
+            interpolationEnv[key] = add
         }
-        switch rawStr.interpolate(with: env) {
+        switch rawStr.interpolate(with: interpolationEnv) {
             case .success(let interpolated): result[key] = interpolated
-            case .failure(let _errros): c.errors += _errros.map { .init(backtrace, $0) }
+            case .failure(let errors): c.errors += errors.map { .init(backtrace, $0) }
         }
     }
     return result

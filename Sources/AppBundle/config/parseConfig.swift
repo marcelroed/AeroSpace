@@ -52,7 +52,7 @@ struct ConfigParseDiagnostic: Error, Equatable {
     let message: String
     let preventConfigReload: Bool // for severe config errors (like TOML parse error)
 
-    public init(_ backtrace: ConfigBacktrace, _ message: String, preventConfigReload: Bool = false) {
+    init(_ backtrace: ConfigBacktrace, _ message: String, preventConfigReload: Bool = false) {
         check(!message.isEmpty)
         self.backtrace = backtrace
         self.message = message
@@ -61,7 +61,6 @@ struct ConfigParseDiagnostic: Error, Equatable {
 
     func description(_ severity: Severity) -> String {
         let backtraceDesc = backtrace.description
-        // todo Make 'split' + flatten normalization prettier
         return switch backtraceDesc.isEmpty {
             case true: "[\(severity.rawValue)] \(message)"
             case false: "[\(severity.rawValue)] \(backtraceDesc): \(message)"
@@ -355,16 +354,16 @@ extension OrderedJson {
         guard let asDictOrNil else {
             return .failure(expectedActualTypeDiagnostic(expected: .table, actual: tomlType, backtrace))
         }
-        let singleKeyError: ConfigParseDiagnostic = .init(
-            backtrace,
-            expectedKey != nil
-                ? "The table is expected to have a single key '\(expectedKey.orDie())'"
-                : "The table is expected to have a single key",
-        )
-        guard let (actualKey, value): (String, OrderedJson) = asDictOrNil.count == 1 ? asDictOrNil.first : nil else {
+        let singleKeyMessage = if let expectedKey {
+            "The table is expected to have a single key '\(expectedKey)'"
+        } else {
+            "The table is expected to have a single key"
+        }
+        let singleKeyError = ConfigParseDiagnostic(backtrace, singleKeyMessage)
+        guard let (actualKey, value) = asDictOrNil.elements.singleOrNil() else {
             return .failure(singleKeyError)
         }
-        if expectedKey != nil && expectedKey != actualKey {
+        if let expectedKey, expectedKey != actualKey {
             return .failure(singleKeyError)
         }
         backtrace = backtrace + .key(actualKey)
@@ -461,7 +460,7 @@ struct ConfigBacktrace: CustomStringConvertible, Equatable {
     var isRootKey: Bool { path.singleOrNil().map(\.isKey) == true }
 
     static func + (lhs: consuming Self, rhs: TomlBacktraceItem) -> Self {
-        lhs.path += [rhs]
+        lhs.path.append(rhs)
         return lhs
     }
 }

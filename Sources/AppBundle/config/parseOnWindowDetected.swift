@@ -76,8 +76,8 @@ private let windowDetectedParser: [String: Parser<WindowDetectedCallback>] = [
 private let matcherParsers: [String: Parser<LegacyWindowDetectedCallbackMatcher>] = [
     "app-id": Parser(\.appId, upcast(parseString)),
     "workspace": Parser(\.workspace, upcast(parseString)),
-    "app-name-regex-substring": Parser(\.appNameRegexSubstring, upcast(parseCasInsensitiveRegex)),
-    "window-title-regex-substring": Parser(\.windowTitleRegexSubstring, upcast(parseCasInsensitiveRegex)),
+    "app-name-regex-substring": Parser(\.appNameRegexSubstring, upcast(parseCaseInsensitiveRegex)),
+    "window-title-regex-substring": Parser(\.windowTitleRegexSubstring, upcast(parseCaseInsensitiveRegex)),
     "during-aerospace-startup": Parser(\.duringAeroSpaceStartup, upcast(parseBool)),
 ]
 
@@ -92,7 +92,7 @@ func parseOnWindowDetectedArray(_ raw: OrderedJson, _ backtrace: ConfigBacktrace
     return array.enumerated().compactMap { (index, raw) in parseWindowDetectedCallback(raw, backtrace + .index(index), &c) }
 }
 
-private func parseCasInsensitiveRegex(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<CaseInsensitiveRegex> {
+private func parseCaseInsensitiveRegex(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<CaseInsensitiveRegex> {
     parseString(raw, backtrace).flatMap { CaseInsensitiveRegex.new($0).toParsedConfig(backtrace) }
 }
 
