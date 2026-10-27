@@ -21,28 +21,6 @@ struct NoScreensTest {
         expectEqual(world.monitors.all.map(\.activeWorkspace), [left, right])
     }
 
-    @Test
-    func focusingAnotherWorkspaceWhileThereAreNoScreensKeepsTheVisibleWorkspaces() {
-        let visible = focus.workspace
-        let other = Workspace.get(byName: "other")
-        updateMonitors([])
-        #expect(!other.focusWorkspace())
-        expectEqual(focus.workspace, visible)
-        #expect(visible.isVisible)
-        #expect(!other.isVisible)
-    }
-
-    @Test
-    func summoningWorkspaceWhileThereAreNoScreensKeepsTheVisibleWorkspaces() async {
-        let visible = focus.workspace
-        updateMonitors([])
-        let output = await runCmd("summon-workspace other")
-        expectEqual(output, .fail("Can't summon workspace 'other' while there are no screens"))
-        #expect(visible.isVisible)
-        #expect(!Workspace.get(byName: "other").isVisible)
-        expectEqual(focus.workspace, visible)
-    }
-
     /// No screens is a normal state, not a bug (RB-40): the commands that need them fail with a message and change nothing.
     /// Window 3 of the invisible workspace `other` had the focus before window 1
     @Test(arguments: [
@@ -62,6 +40,7 @@ struct NoScreensTest {
         // Only the visible workspaces can be focused (RB-31: the command used to succeed)
         ("workspace-back-and-forth", "Can't focus workspace 'prev' while there are no screens"),
         ("workspace other", "Can't focus workspace 'other' while there are no screens"),
+        ("summon-workspace other", "Can't summon workspace 'other' while there are no screens"),
         // The same for the windows (RB-121: these failed without a message)
         ("focus --window-id 3", "Can't focus window '3' while there are no screens"),
         ("focus-back-and-forth", "Can't focus window '3' while there are no screens"),
@@ -78,6 +57,8 @@ struct NoScreensTest {
         expectEqual(output, .fail(error))
         expectEqual(describeTree(), "h_tiles(*1 2)")
         expectEqual(focus.workspace, workspace)
+        #expect(workspace.isVisible)
+        #expect(!Workspace.get(byName: "other").isVisible)
         #expect(world.isEnabled)
     }
 
