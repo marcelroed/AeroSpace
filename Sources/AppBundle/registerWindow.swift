@@ -1,27 +1,16 @@
 import AppKit
 
-/// The window of `windowId`: registers it if it's new. A new window goes where its kind goes (see
-/// ``unbindAndGetSlotForNewWindow(_:_:window:)``), then the closed-windows cache or on-window-detected place it
-@discardableResult
-func registerWindow(_ windowId: WindowId, _ app: AppInfo) async throws(CancellationError) -> Window {
-    if let existing = Window.get(byId: windowId) { return existing }
-    let detected = try await world.platform.classify([app: [windowId]])[windowId]
-    let rect = detected?.rect
-    let type = detected?.kind ?? .window
-    // After the suspension points above: they can change the monitors and the focus
-    let monitor = rect.map { world.monitors.approximation($0.center) } ?? world.monitors.main
-    let workspace = isStartup ? monitor.activeWorkspace : focus.workspace
-    let slot = unbindAndGetSlotForNewWindow(type, workspace, window: nil)
-
-    // atomic synchronous section
-    if let existing = Window.get(byId: windowId) { return existing }
-    let window = Window(id: windowId, app, parent: slot.parent, weight: nil, index: slot.index)
-
-    await debugWindowsIfRecording(window)
-    if !restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: window) {
-        await runOnWindowDetected(ifConventional: window)
+/// Registers a new window where its kind goes (see ``unbindAndGetSlotForNewWindow(_:_:window:)``). At startup, on the
+/// workspace of the monitor under the window's center, otherwise on the focused workspace. Sync, so the workspace is read
+/// when the window is bound (RB-86). The closed-windows cache or on-window-detected may move it afterwards
+func registerWindow(_ id: WindowId, _ app: AppInfo, _ detected: DetectedWindow, isStartup: Bool) -> Window {
+    let workspace = if isStartup {
+        (detected.rect.map { world.monitors.approximation($0.center) } ?? world.monitors.main).activeWorkspace
+    } else {
+        focus.workspace
     }
-    return window
+    let slot = unbindAndGetSlotForNewWindow(detected.kind, workspace, window: nil)
+    return Window(id: id, app, parent: slot.parent, weight: nil, index: slot.index)
 }
 
 extension Window {
@@ -55,7 +44,8 @@ private func unbindAndGetSlotForNewWindow(_ type: AxUiElementWindowType, _ works
     }
 }
 
-func runOnWindowDetected(ifConventional window: Window) async {
+/// The on-window-detected callbacks of a new window, with `layout`'s layout for the next detected window around them
+func runOnWindowDetected(ifConventional window: Window, isStartup: Bool) async {
     guard window.shouldRunOnWindowDetected else { return }
     let layout = world.layoutForNextDetectedWindow
     world.layoutForNextDetectedWindow = nil
@@ -67,7 +57,7 @@ func runOnWindowDetected(ifConventional window: Window) async {
     }
     // The layout is applied both before and after the on-window-detected callbacks on purpose
     await applyLayoutForNextDetectedWindow()
-    _ = await onWindowDetected(.defaultEnv, CmdIo.emptyStdinIgnoringOut, window)
+    _ = await onWindowDetected(.defaultEnv, CmdIo.emptyStdinIgnoringOut, window, isStartup: isStartup)
     await applyLayoutForNextDetectedWindow()
 }
 

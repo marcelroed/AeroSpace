@@ -105,22 +105,22 @@ struct WindowParentTest {
         world.layoutForNextDetectedWindow = .floating
 
         let popup = TestWindow.new(id: 1, parent: macosPopupWindowsContainer)
-        await runOnWindowDetected(ifConventional: popup)
+        await runOnWindowDetected(ifConventional: popup, isStartup: false)
         let unbound = TestWindow.new(id: 2, parent: workspace.rootTilingContainerCreatingIfNeeded())
         unbound.unbindFromParent()
-        await runOnWindowDetected(ifConventional: unbound)
+        await runOnWindowDetected(ifConventional: unbound, isStartup: false)
         expectEqual(world.layoutForNextDetectedWindow, .floating)
         expectEqual(focus.workspace, workspace)
         #expect(popup.parent === macosPopupWindowsContainer)
         expectEqual(unbound.parent, nil)
 
         let minimized = TestWindow.new(id: 3, parent: macosMinimizedWindowsContainer)
-        await runOnWindowDetected(ifConventional: minimized)
+        await runOnWindowDetected(ifConventional: minimized, isStartup: false)
         expectEqual(world.layoutForNextDetectedWindow, nil)
 
         world.layoutForNextDetectedWindow = .floating
         let tiling = TestWindow.new(id: 4, parent: workspace.rootTilingContainerCreatingIfNeeded())
-        await runOnWindowDetected(ifConventional: tiling)
+        await runOnWindowDetected(ifConventional: tiling, isStartup: false)
         expectEqual(world.layoutForNextDetectedWindow, nil)
         #expect(tiling.isFloating)
         expectEqual(focus.workspace.name, "callback-ran")

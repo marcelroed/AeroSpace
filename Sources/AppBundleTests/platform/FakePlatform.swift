@@ -71,6 +71,10 @@ final class FakePlatform: Platform {
         return ids.reduce(into: [:]) { result, id in result[id] = answering(id)?.facts }
     }
 
+    func debugInfos(_ windows: [AppInfo: [WindowId]]) -> [WindowId: WindowDebugInfo] {
+        windows.values.flatMap(\.self).reduce(into: [:]) { result, id in result[id] = debugInfo(id) }
+    }
+
     func observedRect(_ id: WindowId) -> Rect? { read(.observedRect(id), id)?.rect }
 
     // MARK: Single reads

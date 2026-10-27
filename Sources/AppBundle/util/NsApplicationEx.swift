@@ -1,7 +1,7 @@
 import AppKit
 
 extension NSApplication.ActivationPolicy {
-    var prettyDescription: String {
+    nonisolated var prettyDescription: String {
         switch self {
             case .accessory: "accessory"
             case .prohibited: "prohibited"

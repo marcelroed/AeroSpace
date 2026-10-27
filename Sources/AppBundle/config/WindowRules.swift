@@ -16,7 +16,8 @@ struct WindowDetectedCallback: Equatable {
         return .dict(result)
     }
 
-    func matches(_ window: Window) async -> Bool {
+    /// `isStartup`: the window was detected by the first refresh after the launch
+    func matches(_ window: Window, isStartup: Bool) async -> Bool {
         switch self.matcher {
             case .legacy(let matcher):
                 if let startupMatcher = matcher.duringAeroSpaceStartup, startupMatcher != isStartup {
@@ -77,7 +78,7 @@ enum WindowDetectedCallbackMatcher: Equatable {
     }
 }
 
-func onWindowDetected(_ env: CmdEnv, _ io: CmdIo, _ window: Window) async -> Int32 {
+func onWindowDetected(_ env: CmdEnv, _ io: CmdIo, _ window: Window, isStartup: Bool) async -> Int32 {
     broadcastEvent(.windowDetected(
         windowId: window.windowId.raw,
         workspace: window.nodeWorkspace?.name,
@@ -85,7 +86,7 @@ func onWindowDetected(_ env: CmdEnv, _ io: CmdIo, _ window: Window) async -> Int
         appName: window.app.name,
     ))
     var lastExitCode = EXIT_CODE_ZERO
-    for callback in config.onWindowDetected where await callback.matches(window) {
+    for callback in config.onWindowDetected where await callback.matches(window, isStartup: isStartup) {
         if !window.isAlive { break } // The window closed at a suspension point
         lastExitCode = await callback.run.run(env.withWindowId(window.windowId), io)
         if !callback.checkFurtherCallbacks {

@@ -58,8 +58,6 @@ private func smartLayoutAtStartup() {
     root.layout = root.children.count <= 3 ? .tiles : .accordion
 }
 
-var isStartup: Bool { refreshSessionEvent?.isStartup == true }
-
 struct ServerArgs: Sendable {
     var configLocation: String? = nil
     var isReadOnly: Bool = false

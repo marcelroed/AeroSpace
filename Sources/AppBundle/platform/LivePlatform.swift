@@ -143,6 +143,14 @@ final class LivePlatform: Platform {
         }
     }
 
+    func debugInfos(_ windows: [AppInfo: [WindowId]]) async throws(CancellationError) -> [WindowId: WindowDebugInfo] {
+        let levels = onScreenWindowLevels()
+        return try await observe(windows) { app in
+            let read = debugInfoRead(app, levels)
+            return { @Sendable axApp, raws in raws.compactMap { raw in read(axApp, raw).map { (raw, $0) } } }
+        }
+    }
+
     func observedRect(_ id: WindowId) async throws(CancellationError) -> Rect? {
         guard let ax = liveApp(of: id)?.ax else { return nil }
         let raw = id.raw
@@ -179,33 +187,9 @@ final class LivePlatform: Platform {
 
     func debugInfo(_ id: WindowId) async -> WindowDebugInfo? {
         guard let app = liveApp(of: id), let ax = app.ax else { return nil }
-        let nsApp = app.nsApp
-        let appInfoDic: [String: Any] = nsApp.bundleURL.flatMap { Bundle(url: $0) }?.infoDictionary ?? [:]
-        let windowLevel = onScreenWindowLevels()[id.raw]
-        let classifier = app.classifier
+        let read = debugInfoRead(app, onScreenWindowLevels())
         let raw = id.raw
-        let dump: (window: OrderedJson.JsonDict, app: OrderedJson.JsonDict, isDialog: Bool, isWindow: Bool)? = await ax.run { app in
-            guard let window = app.window(raw) else { return nil }
-            return (
-                dumpAxRecursive(window, .window),
-                dumpAxRecursive(app.element, .app),
-                window.isDialogHeuristic(classifier.appId, windowLevel),
-                window.isWindowHeuristic(axApp: app.element, classifier.appId, classifier.nsApp.activationPolicy, windowLevel),
-            )
-        }
-        guard let dump else { return nil }
-        return WindowDebugInfo(
-            axWindow: dump.window,
-            axApp: dump.app,
-            windowLevel: windowLevel,
-            appVersionShort: appInfoDic["CFBundleShortVersionString"] as? String,
-            appVersion: appInfoDic["CFBundleVersion"] as? String,
-            activationPolicy: nsApp.activationPolicy.prettyDescription,
-            execUrl: nsApp.executableURL?.description,
-            bundleUrl: nsApp.bundleURL?.description,
-            isDialog: dump.isDialog,
-            isWindow: dump.isWindow,
-        )
+        return await ax.run { axApp in read(axApp, raw) }
     }
 
     // MARK: Effects
@@ -415,6 +399,34 @@ final class LivePlatform: Platform {
             }
         } catch {
             throw CancellationError() // The only error of the reads
+        }
+    }
+
+    /// The dump of a window for `debug-windows`: what main knows about the app, captured for the app's thread
+    private func debugInfoRead(_ app: LiveApp, _ levels: [UInt32: MacOsWindowLevel]) -> @Sendable (isolated AxApp, UInt32) -> WindowDebugInfo? {
+        let nsApp = app.nsApp
+        let appInfoDic: [String: Any] = nsApp.bundleURL.flatMap { Bundle(url: $0) }?.infoDictionary ?? [:]
+        let appVersionShort = appInfoDic["CFBundleShortVersionString"] as? String
+        let appVersion = appInfoDic["CFBundleVersion"] as? String
+        let execUrl = nsApp.executableURL?.description
+        let bundleUrl = nsApp.bundleURL?.description
+        let classifier = app.classifier
+        return { @Sendable axApp, raw in
+            guard let window = axApp.window(raw) else { return nil }
+            let windowLevel = levels[raw]
+            let activationPolicy = classifier.nsApp.activationPolicy // An XPC
+            return WindowDebugInfo(
+                axWindow: dumpAxRecursive(window, .window),
+                axApp: dumpAxRecursive(axApp.element, .app),
+                windowLevel: windowLevel,
+                appVersionShort: appVersionShort,
+                appVersion: appVersion,
+                activationPolicy: activationPolicy.prettyDescription,
+                execUrl: execUrl,
+                bundleUrl: bundleUrl,
+                isDialog: window.isDialogHeuristic(classifier.appId, windowLevel),
+                isWindow: window.isWindowHeuristic(axApp: axApp.element, classifier.appId, activationPolicy, windowLevel),
+            )
         }
     }
 

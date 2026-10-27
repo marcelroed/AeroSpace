@@ -1,10 +1,9 @@
-/// Runs at the start of every session.
+/// Takes the focus from macOS: the window that has the native focus becomes the focused window, once per change of the
+/// native focus. A popup doesn't take the focus.
 /// The data should flow (from nativeFocused to focused) and
 ///                      (from nativeFocused to lastKnownNativeFocusedWindowId)
 /// Alternative names: takeFocusFromMacOs, updateFocusCache
-func syncFocusFromMacOs() async throws(CancellationError) {
-    let nativeFocused = try await getNativeFocusedWindow()
-    if let nativeFocused { await debugWindowsIfRecording(nativeFocused) }
+func syncFocusFromMacOs(_ nativeFocused: Window?) {
     if case .macosPopup = nativeFocused?.placement {
         return
     }

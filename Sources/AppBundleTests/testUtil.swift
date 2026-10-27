@@ -26,7 +26,7 @@ func setUpWorkspacesForTests() {
 
     updateMonitors([testMonitor])
     check(Workspace.get(byName: "setUpWorkspacesForTests").focusWorkspace())
-    markFocusAsKnownForTests()
+    armFocusChangedCallbacks()
     Workspace.garbageCollectUnusedWorkspaces()
     check(focus.workspace.isEffectivelyEmpty)
     check(focus.workspace === Workspace.all.singleOrNil(), Workspace.all.map(\.description).joined(separator: ", "))

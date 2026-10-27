@@ -41,10 +41,11 @@ func cacheClosedWindowIfNeeded() {
     )
 }
 
-func restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: Window) -> Bool {
-    if !world.closedWindowsCache.windowIds.contains(newlyDetectedWindow.windowId) {
-        return false
-    }
+/// Restores the cached tree if any of the new windows is in it: windows that closed together (e.g. at the lock screen)
+/// come back where they were. Returns the new windows that the cache knows: they skip on-window-detected
+func restoreClosedWindowsCacheIfNeeded(newWindows: [Window]) -> Set<WindowId> {
+    let cached = newWindows.map(\.windowId).filter(world.closedWindowsCache.windowIds.contains).toSet()
+    if cached.isEmpty { return [] }
     let topLeftCornerToMonitor = Dictionary(grouping: world.monitors.all, by: { $0.rect.topLeftCorner })
 
     for frozenWorkspace in world.closedWindowsCache.workspaces {
@@ -72,7 +73,7 @@ func restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: Window) -> Bool {
             .singleOrNil()?
             .setActiveWorkspace(Workspace.get(byName: monitor.visibleWorkspace))
     }
-    return true
+    return cached
 }
 
 @discardableResult

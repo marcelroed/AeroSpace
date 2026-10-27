@@ -10,5 +10,5 @@ func isManipulatedWithMouse(_ window: Window) async -> Bool {
           world.mouseManipulatedWindowId == nil || window.windowId == world.mouseManipulatedWindowId
     else { return false }
     // Only a cancelled session throws, and nothing cancels the AX event's task that awaits this
-    return (try? await getNativeFocusedWindow()) == window
+    return (try? await world.platform.focusedWindow())?.windowId == window.windowId
 }

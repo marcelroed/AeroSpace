@@ -7,9 +7,6 @@ public let socketPath: String = "/tmp/\(aeroSpaceAppId)-\(unixUserName).sock"
 public let unixUserName = NSUserName()
 public let mainModeId = "main"
 
-@TaskLocal
-public var refreshSessionEvent: RefreshSessionEvent? = nil
-
 /// The thread that terminates the process: the first one to die, quit or get SIGINT/SIGTERM. Only it restores the windows
 /// (RB-06, RB-07)
 private let terminatingThreadId: Mutex<UInt64?> = Mutex(nil)
@@ -69,7 +66,6 @@ public func bugPrompt(
         Message: \(_message)
         Version: \(aeroSpaceAppVersion)
         Git hash: \(gitHash)
-        refreshSessionEvent: \(refreshSessionEvent.prettyDescription)
         Date: \(Date.now)
         Thread name: \(thread.name.prettyDescription)
         Is main thread: \(thread.isMainThread)
@@ -108,42 +104,6 @@ public func dieT<T>(
         }
     }
     fatalError("\n" + message)
-}
-
-public enum RefreshSessionEvent: Sendable, CustomStringConvertible {
-    case configAutoReload
-    case globalObserver(String)
-    case globalObserverLeftMouseUp
-    case menuBarButton
-    case hotkeyBinding
-    case startup
-    case socketServer([String])
-    case resetManipulatedWithMouse
-    case ax(String)
-    case focusFollowsMouse
-
-    public var isStartup: Bool {
-        if case .startup = self { return true } else { return false }
-    }
-
-    public var isFocusFollowsMouse: Bool {
-        if case .focusFollowsMouse = self { return true } else { return false }
-    }
-
-    public var description: String {
-        switch self {
-            case .ax(let str): "ax(\(str))"
-            case .configAutoReload: "configAutoReload"
-            case .globalObserver(let str): "globalObserver(\(str))"
-            case .globalObserverLeftMouseUp: "globalObserverLeftMouseUp"
-            case .hotkeyBinding: "hotkeyBinding"
-            case .menuBarButton: "menuBarButton"
-            case .resetManipulatedWithMouse: "resetManipulatedWithMouse"
-            case .socketServer(let args): "socketServer: \(args.joinArgs())"
-            case .startup: "startup"
-            case .focusFollowsMouse: "focusFollowsMouse"
-        }
-    }
 }
 
 public func getStringStacktrace() -> String { Thread.callStackSymbols.joined(separator: "\n") }

@@ -10,7 +10,7 @@ struct ClosedWindowsCacheTest {
         setUpTree("h_tiles(1)")
         let workspace = setUpTree("floating(2)", workspace: "a")
         cacheClosedWindowIfNeeded()
-        expectEqual(restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: testWindow(2)), true)
+        expectEqual(restoreClosedWindowsCacheIfNeeded(newWindows: [testWindow(2)]), [2])
         expectEqual(workspace.existingRootTilingContainer, nil)
         expectEqual(describeTree("a"), "h_tiles() floating(2)")
     }
@@ -31,10 +31,10 @@ struct ClosedWindowsCacheTest {
             testWindow(id).move(to: workspace.rootTilingContainerCreatingIfNeeded(), weight: .value(1))
         }
         let orphan = TestWindow.new(id: 7, parent: workspace.rootTilingContainerCreatingIfNeeded()) // Not cached
-        expectEqual(restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: orphan), false)
+        expectEqual(restoreClosedWindowsCacheIfNeeded(newWindows: [orphan]), [])
         expectEqual(describeTree(), "h_tiles(v_accordion() 4 5 *7) macos_hidden(6)")
 
-        expectEqual(restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: testWindow(1)), true)
+        expectEqual(restoreClosedWindowsCacheIfNeeded(newWindows: [testWindow(1)]), [1])
         // The orphan is bound next to the most recent window
         expectEqual(describeTree(weights: true), "h_tiles(1:2 v_accordion:3(2:1 3:1 *7:1)) floating(4 6 5)")
         // The restored workspace children are in the order of the cache, not in the canonical order of describeTree

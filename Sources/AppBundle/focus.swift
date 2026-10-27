@@ -54,7 +54,8 @@ private struct FrozenFocus: Equatable, Sendable {
 struct FocusStore {
     /// nil until the first read, see `_focus`
     fileprivate var current: FrozenFocus? = nil
-    /// What the last on-focus-changed check saw. nil until the first check reads it: then it's the current focus
+    /// What the last on-focus-changed check saw. nil until the callbacks are armed at the end of the startup: until then,
+    /// no check reports a change
     fileprivate var lastKnown: FrozenFocus? = nil
     /// Used by focus-back-and-forth
     fileprivate var prev: FrozenFocus? = nil
@@ -138,40 +139,56 @@ var prevFocus: LiveFocus? {
     return prev
 }
 
-/// Tests only: the focus that the test set up is the last known one. Otherwise, the first on-focus-changed check of the
-/// test sees no change
-func markFocusAsKnownForTests() {
+/// The end of the startup: the focus callbacks report the changes from now on. Tests arm them in
+/// setUpWorkspacesForTests
+func armFocusChangedCallbacks() {
     world.focusStore.lastKnown = _focus
 }
 
-// Should be called in refreshSession
+/// Runs the callbacks of a focus change since the last check. Every session runs it in its model refresh
 func checkOnFocusChangedCallbacks_nonCancellable() async {
-    if refreshSessionEvent?.isStartup == true {
-        return
-    }
+    if let change = recordFocusChange() { await runFocusChangedCallbacks(change) }
+}
+
+/// A focus change, see ``recordFocusChange()``
+struct RecordedFocusChange {
+    fileprivate let focus: FrozenFocus
+    /// The workspace that the focus left. nil if the focused workspace didn't change
+    fileprivate let prevWorkspaceName: String?
+    fileprivate let isMonitorChanged: Bool
+}
+
+/// The bookkeeping half of the focus check: remembers the previous focus (focus-back-and-forth) and the previous
+/// workspace (workspace-back-and-forth, the GC's refocus rule #1089). nil if nothing changed or the callbacks aren't armed
+func recordFocusChange() -> RecordedFocusChange? {
     // No screens (e.g., during display reconfiguration): keep the last known focus and defer the callbacks until the screens
     // come back. Their commands would mostly fail meanwhile (focus-monitor, summon-workspace, focusing a hidden workspace)
-    if !world.monitors.hasScreens { return }
-    let focus = focus
+    guard let lastKnownFocus = world.focusStore.lastKnown, world.monitors.hasScreens else { return nil }
     let frozenFocus = focus.frozen
-    let lastKnownFocus = world.focusStore.lastKnown ?? _focus
-    let hasFocusChanged = frozenFocus != lastKnownFocus
-    let hasFocusedWorkspaceChanged = frozenFocus.workspaceName != lastKnownFocus.workspaceName
-    let hasFocusedMonitorChanged = frozenFocus.monitorId_oneBased != lastKnownFocus.monitorId_oneBased
-    if hasFocusChanged { world.focusStore.prev = lastKnownFocus }
-    if hasFocusedWorkspaceChanged { world.focusStore.prevWorkspaceName = lastKnownFocus.workspaceName }
+    if frozenFocus == lastKnownFocus { return nil }
+    world.focusStore.prev = lastKnownFocus
+    let isWorkspaceChanged = frozenFocus.workspaceName != lastKnownFocus.workspaceName
+    if isWorkspaceChanged { world.focusStore.prevWorkspaceName = lastKnownFocus.workspaceName }
     world.focusStore.lastKnown = frozenFocus
+    return RecordedFocusChange(
+        focus: frozenFocus,
+        prevWorkspaceName: isWorkspaceChanged ? lastKnownFocus.workspaceName : nil,
+        isMonitorChanged: frozenFocus.monitorId_oneBased != lastKnownFocus.monitorId_oneBased,
+    )
+}
 
+/// The callbacks half of the focus check: on-focus-changed, exec-on-workspace-change, on-focused-monitor-changed. Not
+/// while they run already: a callback's own session records its changes without running them again
+func runFocusChangedCallbacks(_ change: RecordedFocusChange) async {
     if world.focusStore.isRunningOnFocusChangedCallbacks { return }
     world.focusStore.isRunningOnFocusChangedCallbacks = true
     defer { world.focusStore.isRunningOnFocusChangedCallbacks = false }
-    if hasFocusChanged {
-        _ = await onFocusChanged(.defaultEnv, CmdIo.emptyStdinIgnoringOut, focus)
+    let focus = change.focus.live
+    _ = await onFocusChanged(.defaultEnv, CmdIo.emptyStdinIgnoringOut, focus)
+    if let prevWorkspaceName = change.prevWorkspaceName {
+        onWorkspaceChanged(prevWorkspaceName, change.focus.workspaceName, focus)
     }
-    if let prevWorkspaceName = world.focusStore.prevWorkspaceName, hasFocusedWorkspaceChanged {
-        onWorkspaceChanged(prevWorkspaceName, frozenFocus.workspaceName, focus)
-    }
-    if hasFocusedMonitorChanged {
+    if change.isMonitorChanged {
         _ = await onFocusedMonitorChanged(.defaultEnv, CmdIo.emptyStdinIgnoringOut, focus)
     }
 }

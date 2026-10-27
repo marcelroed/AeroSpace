@@ -6,15 +6,15 @@ import Common
 /// - GlobalObserver calls ``onWorkspaceNotification(_:)``, ``onAppHidden()`` and ``onLeftMouseUp()``.
 /// - The AX observer callbacks call ``onAxEvent(pid:_:)``, the focus-follows-mouse monitor calls ``onMouseMoved(to:)``.
 ///
-/// A light session runs a command-like body between two model refreshes, lays out the workspaces and schedules a heavy
-/// refresh. A heavy refresh also re-reads the windows of all apps from macOS (it registers new windows and garbage
-/// collects closed ones), then lays out the workspaces.
+/// A light session runs a command-like body between two model refreshes, presents and schedules a heavy refresh. A heavy
+/// refresh re-reads the windows of all apps from macOS (it registers new windows and garbage collects closed ones), then
+/// presents. Reconcile.swift has their phases.
 ///
 /// How concurrent work coalesces. The code follows this table:
 ///
 /// | Work                          | Mechanism                                             | Preempted by                          |
 /// |-------------------------------|-------------------------------------------------------|---------------------------------------|
-/// | Heavy refresh                 | `heavy`, a ``LatestTaskSlot``                         | A newer heavy refresh, a light session |
+/// | Heavy refresh                 | `heavy`, a ``LatestTaskSlot``                         | A newer heavy refresh, a light session: P1 stops, P3 runs to the end, P4 is skipped |
 /// | Light session                 | Runs at once in its caller's task, cancels `heavy`    | — (but see the next row)              |
 /// | ffm, mouse move, mouse resize | One ``LatestTaskSlot`` per kind around a light session | A newer event of the same kind       |
 /// | AX read of a heavy refresh    | An observe read of ``Platform`` (`AxApp.call`): abandonable | Cancellation of the heavy refresh: it returns at once |
@@ -24,8 +24,8 @@ import Common
 /// | App registration              | One pending task per pid (`LivePlatform.pendingRegistrations`); a failed one backs off 1–60 s | — |
 /// | Order within an app           | FIFO on its actor's thread (posts and awaited calls share one queue): one job per layout: the visible workspaces' placements, then the parks; then focus | — |
 ///
-/// A cancelled heavy refresh stops at its next cancellation check: an observe read or the layout. Nothing is
-/// queued for retry: the tree is the desired state, and every heavy refresh lays out every window again.
+/// A cancelled heavy refresh stops at its next observe read or at the end of P1, and skips P4. Nothing is queued for
+/// retry: the tree is the desired state, and every heavy refresh lays out every window again.
 final class Sessions {
     private let heavy = LatestTaskSlot()
     private let focusFollowsMouse = LatestTaskSlot()
@@ -34,8 +34,10 @@ final class Sessions {
 
     // MARK: Light sessions and heavy refreshes
 
-    /// Runs `body` as a light session. It cancels the scheduled heavy refresh, and schedules a new one after the layout
-    /// (except for focus-follows-mouse)
+    /// Runs `body` as a light session (design-m2.md D4): it cancels the scheduled heavy refresh, takes the native focus
+    /// (``Reconcile/syncFocus(isStartup:)``), refreshes the model, runs `body`, refreshes the model again, presents
+    /// (``Reconcile/present(nativeFocusBaseline:isTrayDeferred:isLayout:)``) and schedules a heavy refresh. Focus follows
+    /// mouse doesn't lay out and doesn't schedule one
     func light<T>(
         _ event: RefreshSessionEvent,
         _: RunSessionGuard,
@@ -43,83 +45,48 @@ final class Sessions {
     ) async throws -> T {
         let state = signposter.beginInterval(#function, "event: \(event)")
         defer { signposter.endInterval(#function, state) }
+        let isFocusFollowsMouse = event.isFocusFollowsMouse
         cancelHeavy() // Give priority to the light session
         updateMonitors() // While there are no screens, the commands fail with a message or work on the last monitors
-        return try await $refreshSessionEvent.withValue(event) {
-            try await syncFocusFromMacOs()
-            let focusBefore = focus.windowOrNil
+        try await Reconcile.syncFocus(isStartup: event.isStartup)
+        let focusBefore = focus.windowOrNil
 
+        await refreshModel(isFocusFollowsMouse)
+        let result = try await body()
+        await refreshModel(isFocusFollowsMouse)
+
+        try Reconcile.present(nativeFocusBaseline: focusBefore, isTrayDeferred: true, isLayout: !isFocusFollowsMouse)
+        if !isFocusFollowsMouse { scheduleHeavy(event) }
+        return result
+    }
+
+    /// Focus follows mouse only runs the focus callbacks: it changes nothing else
+    private func refreshModel(_ isFocusFollowsMouse: Bool) async {
+        if isFocusFollowsMouse {
+            await checkOnFocusChangedCallbacks_nonCancellable()
+        } else {
             await refreshModel_nonCancellable()
-            let result = try await body()
-            await refreshModel_nonCancellable()
-
-            let focusAfter = focus.windowOrNil
-
-            // Runs at the next suspension point, so the layout dispatches its placements first (updateTrayText does
-            // launchservicesd IPC)
-            Task.startUnstructured {
-                updateTrayText()
-                world.ui.secureInputPanel.refresh()
-            }
-            if !event.isFocusFollowsMouse { try layoutWorkspaces() }
-            if focusBefore != focusAfter {
-                focusAfter?.nativeFocus() // syncFocusToMacOs
-            }
-            if !event.isFocusFollowsMouse { scheduleHeavy(event) }
-            return result
         }
     }
 
     /// Replaces the scheduled heavy refresh with a new one. `preLayout`: lay out the workspaces before the windows are
     /// re-read too, so that an app activation shows its workspace without waiting for all apps
     func scheduleHeavy(_ event: RefreshSessionEvent, preLayout: Bool = false) {
-        heavy.replace { [self] in
+        heavy.replace {
             try checkCancellation()
-            await runHeavy(event, isCancellable: true, preLayout: preLayout)
+            await Reconcile.heavy(event, preLayout: preLayout)
         }
     }
 
     func cancelHeavy() { heavy.cancel() }
 
-    /// The first sessions after the launch. The heavy refresh registers the windows that are already open without
-    /// moving them. It isn't cancellable, so that `isStartup` reaches every on-window-detected callback. Then a light
-    /// session lays them out and runs `body`
+    /// The first sessions after the launch. The heavy refresh registers the windows that are already open, each on the
+    /// workspace of its monitor, without moving them. Nothing cancels it, so every window that it finds gets the startup's
+    /// on-window-detected callbacks. Then a light session lays them out and runs `body`. The focus callbacks start after it
     func startup(_ body: () async throws -> ()) async throws {
-        await runHeavy(.startup, isCancellable: false, layoutWorkspaces: false)
+        defer { armFocusChangedCallbacks() }
+        await Reconcile.heavy(.startup)
         try await light(.startup, .forceRun, body: body)
-    }
-
-    private func runHeavy(
-        _ event: RefreshSessionEvent,
-        isCancellable: Bool,
-        layoutWorkspaces shouldLayoutWorkspaces: Bool = true,
-        preLayout: Bool = false,
-    ) async {
-        let state = signposter.beginInterval(#function, "event: \(event)")
-        defer { signposter.endInterval(#function, state) }
-        if !world.isEnabled { return }
-        // No screens (e.g., during display reconfiguration): nothing can be laid out. Skip the session, the next one catches
-        // up when the screens come back
-        if !updateMonitors() { return }
-        do {
-            try await $refreshSessionEvent.withValue(event) {
-                try await syncFocusFromMacOs()
-
-                if shouldLayoutWorkspaces && preLayout { try layoutWorkspaces() }
-
-                await refreshModel_nonCancellable()
-                try await refresh()
-
-                updateTrayText()
-                world.ui.secureInputPanel.refresh()
-                try await normalizeLayoutReason()
-                if shouldLayoutWorkspaces { try layoutWorkspaces() }
-            }
-        } catch let err as CancellationError {
-            check(isCancellable, "Non cancellable refresh session was canceled: \(err) (\(type(of: err)))")
-        } catch {
-            die("Illegal error: \(error)")
-        }
     }
 
     // MARK: AX notifications
@@ -219,6 +186,43 @@ struct RunSessionGuard: Sendable {
     }
     static let forceRun = RunSessionGuard()
     private init() {}
+}
+
+/// What started a session. Sessions pass it explicitly; it also names the session in the signposts
+nonisolated enum RefreshSessionEvent: Sendable, CustomStringConvertible {
+    case configAutoReload
+    case globalObserver(String)
+    case globalObserverLeftMouseUp
+    case menuBarButton
+    case hotkeyBinding
+    case startup
+    case socketServer([String])
+    case resetManipulatedWithMouse
+    case ax(String)
+    case focusFollowsMouse
+
+    var isStartup: Bool {
+        if case .startup = self { return true } else { return false }
+    }
+
+    var isFocusFollowsMouse: Bool {
+        if case .focusFollowsMouse = self { return true } else { return false }
+    }
+
+    var description: String {
+        switch self {
+            case .ax(let str): "ax(\(str))"
+            case .configAutoReload: "configAutoReload"
+            case .globalObserver(let str): "globalObserver(\(str))"
+            case .globalObserverLeftMouseUp: "globalObserverLeftMouseUp"
+            case .hotkeyBinding: "hotkeyBinding"
+            case .menuBarButton: "menuBarButton"
+            case .resetManipulatedWithMouse: "resetManipulatedWithMouse"
+            case .socketServer(let args): "socketServer: \(args.joinArgs())"
+            case .startup: "startup"
+            case .focusFollowsMouse: "focusFollowsMouse"
+        }
+    }
 }
 
 /// An AX notification, as an app's AX observer reports it to ``Sessions/onAxEvent(pid:_:)``. It crosses from the app's AX

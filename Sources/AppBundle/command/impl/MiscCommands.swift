@@ -71,7 +71,7 @@ struct DebugWindowsCommand: nonisolated Command {
                 )
                 // Make sure that the Terminal window that started the recording is recorded first
                 if let window = target.windowOrNil {
-                    await debugWindowsIfRecording(window)
+                    await recordDebugWindow(window.windowId) { await dumpWindowDebugInfo(window) }
                 }
             case .aborted:
                 cx.out(
@@ -89,6 +89,11 @@ struct DebugWindowsCommand: nonisolated Command {
 /// nil if the window closed
 private func dumpWindowDebugInfo(_ window: Window) async -> String? {
     guard let info = await world.platform.debugInfo(window.windowId) else { return nil }
+    return await dumpWindowDebugInfo(window, info)
+}
+
+/// The dump of `info` (the platform's part), completed with the model's
+func dumpWindowDebugInfo(_ window: Window, _ info: WindowDebugInfo) async -> String {
     var result: OrderedJson.JsonDict = info.axWindow
     result["Aero.windowLevel"] = info.windowLevel?.toJson() ?? .null
     result["Aero.axWindowId"] = .int(window.windowId.raw)
@@ -109,17 +114,13 @@ private func dumpWindowDebugInfo(_ window: Window) async -> String? {
     result["Aero.axCallCounts"] = .dict(OrderedJson.JsonDict(uniqueKeysWithValues: world.platform.counters.sorted { $0.key < $1.key }.map { ($0.key, .int($0.value)) }))
 
     var matchingCallbacks: [OrderedJson] = []
-    for callback in config.onWindowDetected where await callback.matches(window) {
+    for callback in config.onWindowDetected where await callback.matches(window, isStartup: false) {
         matchingCallbacks.append(callback.debugJson)
     }
     result["Aero.on-window-detected"] = .array(matchingCallbacks)
 
     return JSONEncoder.aeroSpaceDefault.encodeToString(OrderedJson.dict(result)).prettyDescription
         .prefixLines(with: "\(window.app.bundleId ?? "nil-bundle-id").\(window.windowId) ||| ")
-}
-
-func debugWindowsIfRecording(_ window: Window) async {
-    await recordDebugWindow(window.windowId) { await dumpWindowDebugInfo(window) }
 }
 
 /// Adds the window's dump to the running recording, unless the recording has it already. A window that closed meanwhile

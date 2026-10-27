@@ -130,7 +130,7 @@ struct RunCallbackCommand: nonisolated Command {
                 exitCode = await onWindowDetected(cx.env, cx.io, forEvery: Array(world.windows.values))
             case .onWindowDetected:
                 guard let window = target.windowOrNil else { throw CmdFail(noWindowIsFocused) }
-                exitCode = await onWindowDetected(cx.env, cx.io, window)
+                exitCode = await onWindowDetected(cx.env, cx.io, window, isStartup: false)
             case .onFocusChanged:
                 exitCode = await onFocusChanged(cx.env, cx.io, target)
             case .onFocusedMonitorChanged:
@@ -143,7 +143,7 @@ struct RunCallbackCommand: nonisolated Command {
 func onWindowDetected(_ env: CmdEnv, _ io: CmdIo, forEvery windows: [Window]) async -> Int32 {
     var exitCode = EXIT_CODE_ZERO
     for window in windows.sortedBy({ $0.windowId }) where window.shouldRunOnWindowDetected {
-        let windowExitCode = await onWindowDetected(env, io, window)
+        let windowExitCode = await onWindowDetected(env, io, window, isStartup: false)
         if exitCode == EXIT_CODE_ZERO { exitCode = windowExitCode } // Report the first failure
     }
     return exitCode
