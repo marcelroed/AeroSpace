@@ -15,17 +15,23 @@ struct MoveWorkspaceToMonitorCommand: Command {
         if targetMonitor.monitorId_oneBased == prevMonitor.monitorId_oneBased {
             return .succ
         }
-        if targetMonitor.setActiveWorkspace(focusedWorkspace) {
-            let stubWorkspace = getStubWorkspace(for: prevMonitor)
-            check(
-                prevMonitor.setActiveWorkspace(stubWorkspace),
-                "getStubWorkspace generated incompatible stub workspace (\(stubWorkspace)) for the monitor (\(prevMonitor)",
-            )
-            return .succ
-        } else {
-            return .fail(io.err(
-                "Can't move workspace '\(focusedWorkspace.name)' to monitor '\(targetMonitor.name)'. workspace-to-monitor-force-assignment doesn't allow it",
-            ))
-        }
+        return .from(bool: moveWorkspace(focusedWorkspace, to: targetMonitor, stubbing: prevMonitor, io))
     }
+}
+
+/// Shows `workspace` on `monitor` and a stub workspace on `prevMonitor`. Returns false with an error if force assignment forbids it
+@MainActor
+func moveWorkspace(_ workspace: Workspace, to monitor: MonitorInfo, stubbing prevMonitor: MonitorInfo?, _ io: CmdIo) -> Bool {
+    guard monitor.setActiveWorkspace(workspace) else {
+        io.err("Can't move workspace '\(workspace.name)' to monitor '\(monitor.name)'. workspace-to-monitor-force-assignment doesn't allow it")
+        return false
+    }
+    if let prevMonitor {
+        let stubWorkspace = getStubWorkspace(for: prevMonitor)
+        check(
+            prevMonitor.setActiveWorkspace(stubWorkspace),
+            "getStubWorkspace generated incompatible stub workspace (\(stubWorkspace)) for the monitor (\(prevMonitor)",
+        )
+    }
+    return true
 }
