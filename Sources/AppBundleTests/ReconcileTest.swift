@@ -160,6 +160,7 @@ struct ReconcileTest {
         openWindow(2)
         try readTitlesOnWindowDetected()
         var heavy: Task<(), Never>? = nil
+        var (framesOfTheRefresh, isAnotherRefreshScheduled) = ([PlatformCall](), false)
         var isCancelledInCallbacks: [Bool] = []
         fake.onRead = { call in
             guard call.kind == .title else { return }
@@ -167,12 +168,41 @@ struct ReconcileTest {
             isCancelledInCallbacks.append(Task.isCancelled)
         }
 
-        heavy = Task.startUnstructured { await heavyRefresh() }
+        heavy = Task.startUnstructured {
+            await heavyRefresh()
+            (framesOfTheRefresh, isAnotherRefreshScheduled) = (fake.calls(of: .frame), !world.sessions.isHeavyIdle)
+            world.sessions.cancelHeavy()
+        }
         await heavy?.value
         expectEqual(fake.calls(of: .title), [.title(1), .title(2)])
         expectEqual(isCancelledInCallbacks, [false, false]) // Shielded: the callbacks' commands don't see the cancellation
-        expectEqual(fake.calls(of: .frame), [])
+        expectEqual(framesOfTheRefresh, [])
+        #expect(isAnotherRefreshScheduled) // It presents what the callbacks did (R2b L1)
         expectEqual(describeTree(), "h_tiles(1 *2)")
+    }
+
+    @Test
+    func aCallbackThatMovesAWindowAfterThePreemptionIsPresented() async throws { // R2b L1
+        setUpTree("h_tiles(*1)")
+        fake.focused = 1
+        await heavyRefresh()
+        let matcher = LegacyWindowDetectedCallbackMatcher(windowTitleRegexSubstring: try CaseInsensitiveRegex("window"))
+        let run = parseCommand("move-node-to-workspace x").cmdOrDie
+        world.config.onWindowDetected = [WindowDetectedCallback(matcher: .legacy(matcher), run: run)]
+        let gate = Gate()
+        fake.beforeTitle = { _ in await gate.wait() }
+
+        openWindow(2)
+        world.sessions.scheduleHeavy(.ax("test"))
+        await gate.untilWaiting() // The refresh has registered 2 and runs its on-window-detected
+        _ = try await world.sessions.light(.hotkeyBinding, .forceRun) {} // Cancels the refresh, presents, schedules another
+        for _ in 0 ..< 100 where !world.sessions.isHeavyIdle { await Task.yield() }
+        #expect(world.sessions.isHeavyIdle) // The light session and its heavy refresh have presented 2 on the focused workspace
+        expectEqual(fake.calls(of: .park), [])
+
+        gate.open() // The callback moves 2 to workspace x
+        for _ in 0 ..< 100 where fake.calls(of: .park).isEmpty { await Task.yield() }
+        expectEqual(fake.calls(of: .park).map(\.windowId), [2])
     }
 
     @Test
@@ -212,6 +242,7 @@ struct ReconcileTest {
         await a.value
         gate4.open()
         await b.value
+        world.sessions.cancelHeavy() // The one that the cancelled A scheduled for its callbacks (R2b L1)
         expectEqual(focus.windowOrNil?.windowId, 3)
         expectEqual(fake.focused, 3)
     }

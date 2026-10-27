@@ -84,6 +84,9 @@ final class Sessions {
 
     func cancelHeavy() { heavy.cancel() }
 
+    /// No heavy refresh is scheduled or running (a cancelled one may still run its P3)
+    var isHeavyIdle: Bool { heavy.isIdle }
+
     /// The first sessions after the launch. The heavy refresh registers the windows that are already open, each on the
     /// workspace of its monitor, without moving them. Nothing cancels it, so every window that it finds gets the startup's
     /// on-window-detected callbacks. Then a light session lays them out and runs `body`. The focus callbacks start after it.

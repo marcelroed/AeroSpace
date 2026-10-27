@@ -37,6 +37,9 @@ enum Reconcile {
             // P3. A task that the refresh's cancellation doesn't reach
             let nativeFocusBaseline = await Task.immediate { @MainActor in await runCallbacks(committed, isStartup: isStartup) }.value
             if isStartup { return }
+            // P3's callbacks may have changed the tree after the session that cancelled this refresh presented (R2b L1).
+            // A heavy refresh that is scheduled or running presents anyway
+            if Task.isCancelled && committed.hasCallbacks && world.sessions.isHeavyIdle { world.sessions.scheduleHeavy(event) }
             try present(nativeFocusBaseline: nativeFocusBaseline, isTrayDeferred: false) // P4
         } catch {
             // Cancelled by a newer heavy refresh or by a light session. Only P1 and P4 stop: the tree is as P2 left it
@@ -162,6 +165,9 @@ enum Reconcile {
         /// The focus as macOS sees it after P2 (the GC's refocus rule gives the native focus itself)
         let nativeFocusBaseline: Window?
         let debugInfos: [(id: WindowId, info: WindowDebugInfo)]
+
+        /// P3 runs callbacks whose commands may change the tree
+        var hasCallbacks: Bool { !detected.isEmpty || newFocusedWindow != nil || focusChange != nil }
     }
 
     /// P2. Sync: nothing else changes the tree meanwhile, and the objects it resolves stay valid until it returns
