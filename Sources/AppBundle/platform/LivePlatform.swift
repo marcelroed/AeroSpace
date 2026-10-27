@@ -215,8 +215,8 @@ final class LivePlatform: Platform {
     /// The native focus goes right after the writes. An activation that reaches the app before them keeps its main thread
     /// busy: cmux then takes ~10 ms for the size write and ~30 ms for the position write instead of ~1 ms each, and shows
     /// ~80 ms after the command instead of ~33 ms. Not after the on-screen wait either: the focus would wait for the app's
-    /// lag (cmux: ~25 ms). Without a shown job of its app, the focus runs as ``focus(_:)``. If a busy app holds its shown
-    /// job, see `NativeFocus.activateIfNotRun(by:)`
+    /// lag (cmux: ~25 ms). Without a shown job of its app, the focus runs as ``focus(_:)``. If a hung app holds its shown
+    /// job, see `NativeFocus.activateIfHung()`
     func apply(_ batch: [Placement], focus: WindowId?, trustsLastSeen: Bool) {
         var shown: [pid_t: (ax: AxApp, placements: [Placement])] = [:]
         var parks: [pid_t: (ax: AxApp, placements: [Placement])] = [:]
@@ -240,7 +240,7 @@ final class LivePlatform: Platform {
         }
         guard let nativeFocus, let focusRoute else { return }
         switch focusRoute {
-            case .shownJob: nativeFocus.activateIfNotRun(by: shownJobs.deadline)
+            case .shownJob: nativeFocus.activateIfHung()
             case .alone: nativeFocus.runAlone()
         }
     }
@@ -509,11 +509,12 @@ private struct NativeFocus {
         }
     }
 
-    /// In its app's shown job, which a busy app may hold up to the AX timeout: the fast path activates the app from main
-    /// once the parks stop waiting, unless the job ran the focus first. The slow path waits for the job, as at r4.2
-    func activateIfNotRun(by deadline: DispatchTime) {
+    /// In its app's shown job, which a hung app may hold up to the AX timeout while the keys go to the previous app, whose
+    /// windows park: the fast path activates the app from main after ``hungAppActivationDelay``, unless the job ran the
+    /// focus first. The slow path waits for the job, as at r4.2
+    func activateIfHung() {
         guard activatesOnly else { return }
-        DispatchQueue.main.asyncAfter(deadline: deadline) { [nsApp = app.nsApp, generation] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + hungAppActivationDelay) { [nsApp = app.nsApp, generation] in
             if takeNativeFocus(generation) { nsApp.activateForNativeFocus() }
         }
     }
@@ -527,6 +528,12 @@ private struct NativeFocus {
 /// - at or above the shown jobs' 100 ms wait for the window server (`onScreenWaitLimit`, AxApp.swift), which this deadline
 ///   cuts short: no park waits for it then
 nonisolated private let parkWaitLimit: DispatchTimeInterval = .milliseconds(200)
+
+/// How long a native focus waits in its app's shown job before main activates the app (``NativeFocus/activateIfHung()``).
+/// Longer than a slow app's shown job: an activation that reaches a busy app before its writes can cost it one more busy
+/// period before the window moves. With the parks' 200 ms instead, an app busy 400 ms of every 410 ms showed its window
+/// at ~790 ms instead of ~400 ms, and the desktop for ~570 ms instead of ~180 ms
+nonisolated private let hungAppActivationDelay: DispatchTimeInterval = .seconds(1)
 
 /// A registered app, main's side. Its AX state and calls live in ``AxApp``, on the app's own thread
 private final class LiveApp {
