@@ -238,32 +238,37 @@ struct VolumeCommand: nonisolated Command {
     }
 
     func run(_ cx: CmdContext) throws(CmdFail) {
-        checkIsAeroSpaceApp("volume")
-        // swiftlint:disable live_effect
+        let output = soundOutput()
         switch action {
             case .up:
-                Sound.output.increaseVolume(by: 0.0625, autoMuteUnmute: true)
+                output.increaseVolume(by: 0.0625, autoMuteUnmute: true)
             case .down:
-                Sound.output.decreaseVolume(by: 0.0625, autoMuteUnmute: true)
+                output.decreaseVolume(by: 0.0625, autoMuteUnmute: true)
             case .muteToggle:
-                Sound.output.isMuted.toggle()
+                output.isMuted.toggle()
             case .muteOn:
-                Sound.output.isMuted = true
+                output.isMuted = true
             case .muteOff:
-                Sound.output.isMuted = false
+                output.isMuted = false
             case .set(let int):
-                Sound.output.setVolume(Float(int) / 100, autoMuteUnmute: true)
+                output.setVolume(Float(int) / 100, autoMuteUnmute: true)
         }
         if gui {
             do {
-                let volume: Float = Sound.output.isMuted ? 0 : try Sound.output.readVolume()
+                let volume: Float = output.isMuted ? 0 : try output.readVolume()
                 world.ui.volumePanel.update(with: volume)
             } catch {
                 throw CmdFail("Can't read the volume: \(error)")
             }
         }
-        // swiftlint:enable live_effect
     }
+}
+
+/// The system's sound output. It isn't behind ``Platform``: a test dies here instead of changing the user's volume
+private func soundOutput() -> Sound.SoundOutputManager {
+    checkIsAeroSpaceApp("volume")
+    // swiftlint:disable:next live_effect
+    return Sound.output
 }
 
 struct EnableCommand: nonisolated Command {
