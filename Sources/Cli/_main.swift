@@ -38,9 +38,12 @@ struct Main {
         if args == [CmdKind._true.rawValue] { exit(EXIT_CODE_ZERO) }
         if args == [CmdKind._false.rawValue] { exit(1) }
 
-        // The server rejects --stdin for the other subcommands, so don't wait for stdin first. Neither wait on a terminal,
-        // which has nothing to send
-        let readsStdin = kind?.takesStdin == true && options.contains("--stdin") && isatty(STDIN_FILENO) == 0
+        // The server rejects --stdin for the other subcommands, so don't wait for stdin first
+        let readsStdin = kind?.takesStdin == true && options.contains("--stdin")
+        if readsStdin && isatty(STDIN_FILENO) != 0 {
+            // Nothing would end the input. An empty one would fail later, with a message that doesn't say why
+            exit(EXIT_CODE_TWO, err: "--stdin needs piped input, but stdin is a terminal")
+        }
         let stdin = readsStdin ? readStdinOrExit() : ""
         let connection = await connectOrExit()
         let env = ProcessInfo.processInfo.environment
