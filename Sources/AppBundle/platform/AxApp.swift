@@ -219,20 +219,27 @@ actor AxApp {
         return .facts(NativeFacts(isFullscreen: isFullscreen, isMinimized: !isFullscreen && isMinimized))
     }
 
-    /// See ``postPlacements(_:before:after:)``. The app's animations are off from the batch's first write to its end
+    /// See ``postPlacements(_:before:after:)``. The app's animations are off from the batch's first write to its end. The
+    /// job ends once the window server shows the tiles that it unparked
     private func place(_ placements: [Placement], _ generations: [UInt64]) {
+        var unparkedTiles: [(windowId: UInt32, topLeft: CGPoint)] = []
         let animations = AnimationsOff(element)
-        defer { animations.restore() }
         for (placement, generation) in zip(placements, generations) {
             let windowId = placement.windowId.raw
             if let ax = windows[windowId]?.ax {
                 let window = AxPlacementWindow(ax: ax, animations: animations) { @Sendable [self] in
                     self.generations.withLock { $0.isLatest(windowId, generation) } && !isTerminatingNow()
                 }
+                let wasParked = windows[windowId]?.placement.isParked == true
                 windows[windowId]?.placement.apply(placement, to: window)
+                if wasParked, windows[windowId]?.placement.isParked == false, case .frame(_, let topLeft, _) = placement {
+                    unparkedTiles.append((windowId, topLeft))
+                }
             }
             self.generations.withLock { $0.finish(windowId, generation) }
         }
+        animations.restore()
+        waitUntilOnScreen(unparkedTiles)
     }
 
     /// `layout tiling` and `enable on`, see ``PlacementState/rememberFloatingSize(of:)``
@@ -384,6 +391,33 @@ nonisolated private func axRect(_ window: AXUIElement) -> Rect? {
 
 /// Termination started: the restore job waits behind the app's jobs, so they stop before their next AX call
 nonisolated private func isTerminatingNow() -> Bool { isTerminating.load(ordering: .sequentiallyConsistent) }
+
+/// An app can answer the AX writes of a window before it moves the window on screen: cmux moves it ~25 ms later. The parks
+/// that wait for the job (LivePlatform.apply) would uncover the desktop in between, so the job waits until the window
+/// server shows each tile at its top left corner, at most ``onScreenWaitLimit``
+nonisolated private func waitUntilOnScreen(_ tiles: [(windowId: UInt32, topLeft: CGPoint)]) {
+    let deadline: DispatchTime = .now() + onScreenWaitLimit
+    var pending = tiles
+    while true {
+        pending.removeAll { tile in
+            guard let shown = windowServerTopLeft(tile.windowId) else { return true } // Closed
+            return abs(shown.x - tile.topLeft.x) < 1 && abs(shown.y - tile.topLeft.y) < 1
+        }
+        if pending.isEmpty || DispatchTime.now() >= deadline || isTerminatingNow() { return }
+        Thread.sleep(forTimeInterval: 0.001)
+    }
+}
+
+nonisolated private let onScreenWaitLimit: DispatchTimeInterval = .milliseconds(100)
+
+/// The window's top left corner as the window server shows it. nil once the window is gone
+nonisolated private func windowServerTopLeft(_ windowId: UInt32) -> CGPoint? {
+    guard let info = (CGWindowListCopyWindowInfo(.optionIncludingWindow, windowId) as? [NSDictionary])?.first,
+          let bounds = info[kCGWindowBounds] as? NSDictionary,
+          let rect = CGRect(dictionaryRepresentation: bounds)
+    else { return nil }
+    return rect.origin
+}
 
 /// A window of the app for ``PlacementState``, on the app's thread
 nonisolated private struct AxPlacementWindow: PlacementWindow {
