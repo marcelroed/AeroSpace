@@ -119,7 +119,7 @@ func runCliArgs(_ args: [String], stdin: String = "") async -> CmdOutput {
             case .invalid(let msg): CmdOutput(stderr: [msg], exitCode: EXIT_CODE_TWO)
         }
     }
-    let result = await command.run(CmdEnv(windowId: nil, workspaceName: nil), CmdStdin(stdin))
+    let result = await Shell.cmd(command).run(CmdEnv(windowId: nil, workspaceName: nil), CmdStdin(stdin))
     return CmdOutput(stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode)
 }
 

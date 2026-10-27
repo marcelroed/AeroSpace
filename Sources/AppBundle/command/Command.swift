@@ -105,12 +105,6 @@ func nativeFacts(of window: Window) async throws(CmdFail) -> NativeFacts {
 }
 
 extension Command {
-    /// `Shell.cmd(self).run(env, stdin)`. Only testUtil's runCliArgs calls it: it goes once that calls the shell
-    @discardableResult
-    func run(_ env: CmdEnv, _ stdin: consuming CmdStdin) async -> CmdResult {
-        await Shell.cmd(self).run(env, stdin)
-    }
-
     /// Runs `command` as a part of this command, in `cx`. The only way for a command to run another command outside of
     /// a Shell: `command` gets no closed-windows cache reset and no model refresh of its own. The Shell that runs this
     /// command decides by this command's flag, so the flag must be true whenever the flag of `command` is

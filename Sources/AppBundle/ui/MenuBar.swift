@@ -78,8 +78,7 @@ private func enableToggleButton(_ viewModel: TrayMenuModel) -> some View {
     Button(viewModel.isEnabled ? "Disable" : "Enable") {
         Task.startUnstructured {
             try await world.sessions.light(.menuBarButton, .forceRun) {
-                _ = await EnableCommand(targetState: .toggle)
-                    .run(.defaultEnv, .emptyStdin)
+                _ = await Shell.cmd(EnableCommand(targetState: .toggle)).run(.defaultEnv, .emptyStdin)
             }
         }
     }.keyboardShortcut("E", modifiers: .command)
