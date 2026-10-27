@@ -32,13 +32,19 @@ extension Workspace {
         existingRootTilingContainer?.allLeafWindowsRecursive ?? []
     }
 
-    /// Where a new tiling window goes: right after the most recent window if that one is tiling, else at the end of the root
-    /// container, which is created if there is none. Unbind a window before it moves there: otherwise it could land next
-    /// to itself
+    /// Where a new tiling window goes: right after the most recent shown window if that one is tiling, else at the end of
+    /// the root container, which is created if there is none. Unbind a window before it moves there: otherwise it could
+    /// land next to itself
     func newTilingWindowSlot() -> (parent: TilingContainer, index: Int) {
-        if let (parent, index) = mostRecentWindowRecursive?.tilingSlot { return (parent, index + 1) }
+        if let (parent, index) = shownMruChildren.first?.mostRecentWindowRecursive?.tilingSlot { return (parent, index + 1) }
         let root = rootTilingContainerCreatingIfNeeded()
         return (root, root.children.count)
+    }
+
+    /// The children, most recent first, without the hidden apps' container. Normalization moves a hidden app's windows
+    /// there, and that makes them the most recent ones, though the user didn't focus them (RB-145)
+    var shownMruChildren: [TreeNode] {
+        mruChildren.filter { ($0 as? Container)?.kind != .macosHiddenApp }
     }
 
     var floatingWindows: [Window] {

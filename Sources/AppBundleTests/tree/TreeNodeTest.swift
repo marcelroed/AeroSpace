@@ -147,20 +147,23 @@ struct TreeNodeTest {
     }
 
     /// Where a new tiling window goes (`layout tiling` on a floating window uses the same slot): after the most recent
-    /// window if it's tiling, else at the end of the root
+    /// shown window if it's tiling, else at the end of the root. `mostRecent` becomes the most recent window after 2, and
+    /// closes if `closes`
     @Test(arguments: [
-        ("h_tiles(1 v_tiles(2 3) 4)", nil, "h_tiles(1 v_tiles(2 5 3) 4)"),
+        ("h_tiles(1 v_tiles(2 3) 4)", nil, false, "h_tiles(1 v_tiles(2 5 3) 4)"),
         // The only floating window (a dialog) closed. The empty floating container is the most recent child
-        ("h_tiles(1 v_tiles(2 3) 4) floating(6)", 6, "h_tiles(1 v_tiles(2 3) 4 5)"),
+        ("h_tiles(1 v_tiles(2 3) 4) floating(6)", 6, true, "h_tiles(1 v_tiles(2 3) 4 5)"),
         // The most recent window is floating
-        ("h_tiles(1 v_tiles(2 3) 4) floating(6 7)", 6, "h_tiles(1 v_tiles(2 3) 4 5) floating(7)"),
-    ] as [(String, WindowId?, String)])
-    func newTilingWindowSlot(tree: String, closedWindowId: WindowId?, after: String) {
+        ("h_tiles(1 v_tiles(2 3) 4) floating(6 7)", 6, true, "h_tiles(1 v_tiles(2 3) 4 5) floating(7)"),
+        // RB-147: moving a hidden app's window into macos_hidden made it the most recent one (normalizeLayoutReason)
+        ("h_tiles(1 v_tiles(2 3) 4) macos_hidden(6)", 6, false, "h_tiles(1 v_tiles(2 5 3) 4) macos_hidden(6)"),
+    ] as [(String, WindowId?, Bool, String)])
+    func newTilingWindowSlot(tree: String, mostRecent: WindowId?, closes: Bool, after: String) {
         let workspace = setUpTree(tree, workspace: "a")
         testWindow(2).markAsMostRecentChild()
-        if let closedWindowId {
-            testWindow(closedWindowId).markAsMostRecentChild()
-            testWindow(closedWindowId).unbindFromParent()
+        if let mostRecent {
+            testWindow(mostRecent).markAsMostRecentChild()
+            if closes { testWindow(mostRecent).unbindFromParent() }
         }
         let window = TestWindow.new(id: 5, parent: macosPopupWindowsContainer)
         window.relayoutWindow(on: workspace, as: .window)

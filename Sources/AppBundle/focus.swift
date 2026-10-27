@@ -140,11 +140,10 @@ extension Workspace {
     /// The workspace with its most recent window. Never a window of a hidden app: the native focus would unhide the app,
     /// and moving the window to macos_hidden made it the most recent one (RB-145)
     func toLiveFocus() -> LiveFocus {
-        func isShown(_ child: TreeNode) -> Bool { (child as? Container)?.kind != .macosHiddenApp }
-        let mostRecentFirst = mruChildren.filter(isShown)
+        let mostRecentFirst = shownMruChildren
         let window = mostRecentFirst.first?.mostRecentWindowRecursive
             ?? mostRecentWindow(pastEmptyRoot: mostRecentFirst)
-            ?? children.lazy.filter(isShown).compactMap(\.anyLeafWindowRecursive).first
+            ?? children.lazy.filter { mostRecentFirst.contains($0) }.compactMap(\.anyLeafWindowRecursive).first
         // The window is on this workspace, so it has a workspace placement. No window: the workspace is empty
         return window?.toLiveFocusOrNil() ?? LiveFocus(workspace: self, windowAndPlacement: nil)
     }
