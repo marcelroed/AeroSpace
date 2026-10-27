@@ -23,7 +23,8 @@ final class MacApp: nonisolated AbstractApp { // nonisolated: Hashable compares 
     static var allAppsMap: [pid_t: MacApp] = [:]
     /// Registrations in progress. Everyone who asks for the app meanwhile awaits the same task
     private static var pendingRegistrations: [pid_t: Task<Void, Never>] = [:]
-    private static var failedRegistrations: [pid_t: RegistrationBackoff] = [:]
+    /// Internal for tests
+    static var failedRegistrations: [pid_t: RegistrationBackoff] = [:]
     private static var backoffObservers: [any NSObjectProtocol] = []
     /// The latest-wins slot of the native focus's slow path: a newer focus request makes a pending one stale
     nonisolated private static let nativeFocusGeneration: Atomic<UInt64> = Atomic(0)
@@ -90,7 +91,8 @@ final class MacApp: nonisolated AbstractApp { // nonisolated: Hashable compares 
         }
     }
 
-    nonisolated private static func forgetFailedRegistration(_ notification: Notification) {
+    /// Internal for tests
+    nonisolated static func forgetFailedRegistration(_ notification: Notification) {
         guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
         let pid = app.processIdentifier
         MainActor.assumeIsolated { // The observers' queue is .main

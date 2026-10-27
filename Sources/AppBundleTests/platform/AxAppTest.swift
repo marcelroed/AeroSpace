@@ -1,4 +1,5 @@
 @testable import AppBundle
+import AppKit
 import Common
 import Foundation
 import Synchronization
@@ -12,13 +13,27 @@ struct AxAppTest {
     func postsAndAwaitedCallsRunInFifoOrderOnTheAppThread() async throws {
         let app = AxApp(pid: 0, threadName: "AxAppTest")
         let log = Log<String>()
-        for i in 0 ..< 1000 {
-            app.post { _ in log.append("\(i) \(Thread.current.name ?? "")") }
+        // A second poster on another thread meanwhile. Its posts keep their own order
+        DispatchQueue.global().async {
+            for i in 0 ..< 5000 {
+                app.post { _ in log.append("other \(i) \(Thread.current.name ?? "")") }
+            }
         }
-        // An awaited call runs after the posts before it
-        expectEqual(await app.run { _ in Thread.current.name }, "AxAppTest")
-        expectEqual(log.items, (0 ..< 1000).map { "\($0) AxAppTest" })
-        expectEqual(try await app.call { _, _ in Thread.current.name }, "AxAppTest")
+        // Like a layout: a write, then a read that must see it (hideInCorner), then a write again
+        var expected: [String] = []
+        for i in 0 ..< 300 {
+            app.post { _ in log.append("post \(i) \(Thread.current.name ?? "")") }
+            if i.isMultiple(of: 2) {
+                await app.run { _ in log.append("run \(i) \(Thread.current.name ?? "")") }
+                expected += ["post \(i) AxAppTest", "run \(i) AxAppTest"]
+            } else {
+                try await app.call { _, _ in log.append("call \(i) \(Thread.current.name ?? "")") }
+                expected += ["post \(i) AxAppTest", "call \(i) AxAppTest"]
+            }
+        }
+        try await waitUntil { log.items.count == expected.count + 5000 }
+        expectEqual(log.items.filter { !$0.hasPrefix("other") }, expected)
+        expectEqual(log.items.filter { $0.hasPrefix("other") }, (0 ..< 5000).map { "other \($0) AxAppTest" })
     }
 
     @Test
@@ -37,6 +52,28 @@ struct AxAppTest {
             CFRunLoopAddTimer(CFRunLoopGetCurrent(), timer, .defaultMode)
         }
         try await waitUntil { timerCallbackEnteredTheActor.load(ordering: .sequentiallyConsistent) }
+    }
+
+    @Test
+    func theLastReleaseOnMainRunsTheDeinitOnTheAppThread() async throws {
+        // Its own pid: the test watches the retain count of the app's element
+        var app: AxApp? = AxApp(pid: 99999, threadName: "AxAppTest")
+        let element: ElementRef? = await app?.run { ElementRef(element: $0.element) }
+        let thread: ThreadRef? = await app?.run { _ in ThreadRef(thread: Thread.current) }
+        // Block the app thread with a run loop timer: unlike a post, it doesn't retain the actor
+        await app?.run { _ in
+            let timer = unsafe CFRunLoopTimerCreate(nil, CFAbsoluteTimeGetCurrent(), 0, 0, 0, blockTheAppThread, nil)
+            CFRunLoopAddTimer(CFRunLoopGetCurrent(), timer, .defaultMode)
+        }
+        try await waitUntil { isAppThreadBlocked.load(ordering: .sequentiallyConsistent) }
+        let retainCount = element.map { CFGetRetainCount($0.element) }
+        app = nil // The last reference, dropped on main
+        // The deinit didn't run here: the actor's storage (which holds the element) is still alive
+        expectEqual(element.map { CFGetRetainCount($0.element) }, retainCount)
+        appThreadGate.signal()
+        try await waitUntil { thread?.thread.isFinished == true }
+        // It ran on the app thread after the timer, then stopped the thread
+        expectEqual(element.map { CFGetRetainCount($0.element) }, retainCount.map { $0 - 1 })
     }
 
     @Test
@@ -118,6 +155,18 @@ struct AxAppTest {
     }
 
     @Test
+    func anActivationForgetsTheFailedRegistrationsOfItsApp() { // RB-113
+        let pid = NSRunningApplication.current.processIdentifier
+        MacApp.failedRegistrations[pid] = RegistrationBackoff(after: nil, now: .now)
+        defer { MacApp.failedRegistrations[pid] = nil }
+        MacApp.forgetFailedRegistration(Notification(
+            name: NSWorkspace.didActivateApplicationNotification,
+            userInfo: [NSWorkspace.applicationUserInfoKey: NSRunningApplication.current],
+        ))
+        expectEqual(MacApp.failedRegistrations[pid], nil)
+    }
+
+    @Test
     func failedRegistrationsBackOffFrom1To60Seconds() { // RB-113
         let now: ContinuousClock.Instant = .now
         var backoff: RegistrationBackoff? = nil
@@ -139,6 +188,19 @@ nonisolated private func enterTheActor(_: CFRunLoopTimer?, _ info: UnsafeMutable
     // Traps unless the executor tells the runtime that this thread is the actor's (P1)
     let windowIds = unsafe Unmanaged<AxApp>.fromOpaque(info).takeUnretainedValue().assumeIsolated { $0.windowIds }
     timerCallbackEnteredTheActor.store(windowIds.isEmpty, ordering: .sequentiallyConsistent)
+}
+
+nonisolated private let isAppThreadBlocked: Atomic<Bool> = Atomic(false)
+nonisolated private let appThreadGate: DispatchSemaphore = DispatchSemaphore(value: 0)
+
+nonisolated private func blockTheAppThread(_: CFRunLoopTimer?, _: UnsafeMutableRawPointer?) {
+    isAppThreadBlocked.store(true, ordering: .sequentiallyConsistent)
+    appThreadGate.wait()
+}
+
+/// `AXUIElement` isn't Sendable. The test only reads its retain count, which is thread-safe
+nonisolated private struct ElementRef: @unchecked Sendable {
+    let element: AXUIElement
 }
 
 /// `Thread` isn't Sendable, but `isFinished` is safe to read from any thread
