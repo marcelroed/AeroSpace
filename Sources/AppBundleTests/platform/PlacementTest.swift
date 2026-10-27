@@ -122,7 +122,7 @@ struct PlacementTest {
 
         let stale = StaleAfter(calls: 0)
         state.apply(.park(1, parkTarget(.bottomRightCorner, testMonitor)), to: stale, isZoom: false)
-        state.apply(.frame(1, topLeft: .zero, size: nil), to: stale, isZoom: false)
+        state.apply(.frame(1, topLeft: .zero, size: CGSize(width: 400, height: 300)), to: stale, isZoom: false)
         state.apply(.floating(1, target), to: stale, isZoom: false)
         expectEqual(stale.log.items, [])
 
@@ -157,14 +157,9 @@ private struct StaleAfter: @MainActor PlacementWindow {
         return log.isCurrentCalls <= calls
     }
 
-    func topLeft() -> CGPoint? {
-        log.append("topLeft")
-        return CGPoint(x: 100, y: 100)
-    }
-
-    func size() -> CGSize? {
-        log.append("size")
-        return CGSize(width: 400, height: 300)
+    func rect() -> Rect? {
+        log.append("rect")
+        return Rect(topLeftX: 100, topLeftY: 100, width: 400, height: 300)
     }
 
     func setFrame(topLeft: CGPoint?, size: CGSize?) -> Bool {

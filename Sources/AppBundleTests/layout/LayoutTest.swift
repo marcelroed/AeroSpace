@@ -197,6 +197,29 @@ struct LayoutTest {
         expectEqual(testWindow(4).hWeight, 640)
     }
 
+    /// A layout reads where each tile is and writes only the tiles that aren't at their frame, within a point: a layout
+    /// without changes writes nothing, and a window that the app moved goes back
+    @Test
+    func aLayoutWritesOnlyTheTilesThatAreNotAtTheirFrame() {
+        let workspace = setUpTree("h_tiles(1 2 3)", workspace: "a")
+        let (w1, w2, w3) = (testWindow(1), testWindow(2), testWindow(3))
+        for window in [w1, w2, w3] {
+            window.rect = rect(0, 0, 100, 100)
+        }
+        workspace.layoutWorkspace()
+        expectEqual([w1, w2, w3].map(\.setAxFrameHistory.count), [1, 1, 1])
+
+        fake.resetCalls()
+        w2.rect = rect(640.4, 0.3, 639.6, 1079) // The app rounded its frame
+        w3.rect = rect(1300, 0, 640, 1079) // The app moved it
+        workspace.layoutWorkspace()
+
+        expectEqual(fake.calls(of: .axRead).map(\.windowId), [1, 2, 3])
+        expectEqual(w1.setAxFrameHistory, [])
+        expectEqual(w2.setAxFrameHistory, [])
+        expectEqual(w3.setAxFrameHistory, [frame(1280, 0, 640, 1079)])
+    }
+
     @Test
     func emptyWorkspaceIsNotLaidOut() {
         let workspace = setUpTree("h_tiles(v_tiles())", workspace: "a")

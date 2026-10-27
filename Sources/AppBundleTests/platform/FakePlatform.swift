@@ -228,14 +228,9 @@ private struct FakeAxWindow: @MainActor PlacementWindow {
 
     func isCurrent() -> Bool { true }
 
-    func topLeft() -> CGPoint? {
+    func rect() -> Rect? {
         platform.log(.axRead(id))
-        return window?.rect?.topLeftCorner
-    }
-
-    func size() -> CGSize? {
-        platform.log(.axRead(id))
-        return window?.rect?.size
+        return window?.rect
     }
 
     @discardableResult
@@ -321,7 +316,8 @@ enum PlatformCall: Equatable {
     case rect(WindowId), title(WindowId), facts(WindowId), kind(WindowId), windowCount(pid_t), debugInfo(WindowId)
     /// The placements but `.frame`, whose frame write is its entry
     case floating(WindowId, FloatingTarget), park(WindowId, ParkTarget), leave(WindowId)
-    /// What the placements do: one AX attribute read, a frame write (size, position, size: up to 3 AX writes)
+    /// What the placements do: one AX read (the position and the size in one call), a frame write (size, position, size:
+    /// up to 3 AX writes)
     case axRead(WindowId), frame(WindowId, topLeft: CGPoint?, size: CGSize?)
     case rememberFloatingSize(WindowId), restoreFloatingSize(WindowId)
     case focus(WindowId), close(WindowId), setNative(WindowId, NativeChange), unhideApp(pid_t), quit(pid_t)

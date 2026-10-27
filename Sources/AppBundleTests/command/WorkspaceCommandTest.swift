@@ -35,8 +35,8 @@ struct WorkspaceCommandTest {
     }
 
     /// The AX work of a switch: each window of the shown workspace gets one frame write, each window of the hidden one is
-    /// parked once (a read of its frame and a write of its position), and no window gets both. A layout without changes
-    /// writes the tiles again, but doesn't move the parked windows
+    /// parked once (a write of its position), and no window gets both. Each placement reads the window's frame first. A
+    /// layout without changes only reads
     @Test
     func switchingWorkspacesWritesTheShownWindowsAndParksTheHiddenOnes() async {
         setUpTree("h_tiles(1 2)", workspace: "a")
@@ -54,14 +54,14 @@ struct WorkspaceCommandTest {
         expectEqual(fake.calls(of: .park).map(\.windowId), [1, 2])
         expectEqual(fake.calls(of: .frame).map(\.windowId), [3, 1, 2]) // 3's tile, then 1 and 2 in their corner
         expectEqual(([1, 2, 3] as [WindowId]).map { fake.isParked($0) }, [true, true, false])
-        // The parks read where the windows were, to put them back there. Nothing else reads
-        expectEqual(fake.calls(of: .axRead).map(\.windowId), [1, 1, 2, 2])
-        expectEqual(fake.calls.count, 3 + 2 + 4)
+        // The tile is read to compare it with its frame, the parks read where the windows were to put them back there
+        expectEqual(fake.calls(of: .axRead).map(\.windowId), [3, 1, 2])
+        expectEqual(fake.calls.count, 3 + 2 + 3)
 
         fake.resetCalls()
         world.platform.apply(placements())
-        // The bottom right corner: a parked window's position is read, and it's already there
-        expectEqual(fake.calls.filter { $0.kind != .park }, [.frame(3, topLeft: CGPoint(x: 0, y: 0), size: CGSize(width: 1920, height: 1079)), .axRead(1), .axRead(2)])
+        // The tile is at its frame, and the parked windows are in their corner
+        expectEqual(fake.calls.filter { $0.kind != .park }, [.axRead(3), .axRead(1), .axRead(2)])
     }
 
     /// From the focused workspace `from`, with the previous workspace `prev`, the command focuses the workspace `to`. The

@@ -11,19 +11,20 @@ import Testing
 struct AxCallCountTest {
     @Test
     func scenarios() async throws {
-        var results: [(scenario: String, phases: [Phase])] = []
+        var results: [(scenario: String, phases: [Phase], convergence: Convergence)] = []
         for scenario in allScenarios {
             setUpWorkspacesForTests()
             setUpRealisticWorld()
-            results.append((scenario.name, try await scenario.run()))
+            let phases: [Phase] = try await scenario.run()
+            results.append((scenario.name, phases, await convergence()))
         }
-        for (scenario, phases) in results {
+        for (scenario, phases, convergence) in results {
+            expectEqual(convergence.notBack, [], "\(scenario): moved behind AeroSpace's back")
             for phase in phases {
                 expectEqual(phase.waste.focusOfFocused, 0, "\(scenario): \(phase.name)")
                 if !phase.isIdle { continue }
-                // An idle phase moves, parks and focuses nothing
-                expectEqual(phase.movedWindows, [], "\(scenario): \(phase.name)")
-                expectEqual(phase.calls.filter(\.isEffectBesidesPlacement), [], "\(scenario): \(phase.name)")
+                // An idle phase only reads: no frame writes, parks or focus
+                expectEqual(phase.calls.filter(\.isEffect), [], "\(scenario): \(phase.name)")
             }
         }
         let idle = results.first { $0.scenario == idleScenario }?.phases ?? []
@@ -214,6 +215,28 @@ private func settled(_ body: () async throws -> [Phase]) async throws -> [Phase]
     return try await body()
 }
 
+/// After a scenario: the world settles, then the apps move and resize every tile and move every parked window behind
+/// AeroSpace's back. The next heavy refresh reads where they are, so it puts each one back
+private func convergence() async -> Convergence {
+    await Reconcile.heavy(.ax("settle"))
+    await Reconcile.heavy(.ax("settle"))
+    var expected: [WindowId: Rect] = [:]
+    for window in world.windows.values {
+        let isTile = window.parent is TilingContainer && !fake.isParked(window.windowId)
+        guard isTile || fake.isParked(window.windowId), let fakeWindow = fake.windows[window.windowId], let rect = fakeWindow.rect
+        else { continue }
+        expected[window.windowId] = rect
+        fakeWindow.rect = Rect(topLeftX: rect.topLeftX + 37, topLeftY: rect.topLeftY + 37, width: rect.width - (isTile ? 50 : 0), height: rect.height)
+    }
+    await Reconcile.heavy(.ax("moved behind AeroSpace's back"))
+    return Convergence(moved: expected.count, notBack: expected.keys.filter { fake.windows[$0]?.rect != expected[$0] }.sorted())
+}
+
+private struct Convergence {
+    let moved: Int
+    let notBack: [WindowId]
+}
+
 /// A hotkey that runs `command`
 private func command(_ command: String) async throws -> [Phase] {
     try await session("`\(command)` light session") {
@@ -285,8 +308,6 @@ private struct Phase {
     let after: MacosState
     let listings: [Listing]
 
-    var movedWindows: [WindowId] { before.rects.keys.filter { before.rects[$0] != after.rects[$0] }.sorted() }
-
     /// The AX calls that LivePlatform makes for the log. From LivePlatform.swift, AxApp.swift, Placement.swift, and the
     /// getters of accessibility.swift (`windowsAttr` and `focusedWindowAttr` call `_AXUIElementGetWindow` per element)
     /// and AxUiElementWindowType.swift (`getWindowType` of a standard window: the close button, the subrole twice, the
@@ -307,14 +328,14 @@ private struct Phase {
                         }
                     }
                 case .focusedWindow: cost.appReads += 2 // AXFocusedWindow, _AXUIElementGetWindow
-                case .classify(let ids): for id in ids { cost.read(id, 5 + 2) } // getWindowType, then the position and size
+                case .classify(let ids): for id in ids { cost.read(id, 5 + 1) } // getWindowType, then the position and size
                 case .nativeFacts(let ids): for id in ids { cost.read(id, 1) } // AXUIElementCopyMultipleAttributeValues
-                case .observedRect(let id), .rect(let id): cost.read(id, 2)
+                case .observedRect(let id), .rect(let id): cost.read(id, 1) // The position and size in one call
                 case .title(let id), .facts(let id), .debugInfo(let id): cost.read(id, 1) // debugInfo: more, unused here
                 case .kind(let id): cost.read(id, 5)
                 case .windowCount(let pid): cost.appReads += 1 + after.appOf.values.count { $0 == pid }
                 case .floating, .park, .leave, .rememberFloatingSize, .restoreFloatingSize: break // See .axRead and .frame
-                case .axRead(let id): cost.read(id, 1)
+                case .axRead(let id): cost.read(id, 1) // The position and size in one call
                 case .frame(let id, let topLeft, let size):
                     cost.write(id, axWrites(topLeft: topLeft, size: size))
                     if index > 0, calls[index - 1] == .restoreFloatingSize(id) {
@@ -346,13 +367,14 @@ private struct Phase {
         for (id, writes) in frameWrites where before.rects[id] != nil && before.rects[id] == after.rects[id] {
             waste.sameFrame[id] = writes
         }
+        for case .axRead(let id) in calls where !written.contains(id) {
+            waste.checkReads += 1
+        }
         var focused = before.focused
         var hiddenApps = before.hiddenApps
         var reads: [String: Int] = [:]
         for call in calls {
             switch call {
-                case .park(let id, _), .floating(let id, _):
-                    if !written.contains(id) { waste.checkReads += calls.count { $0 == .axRead(id) } }
                 case .focus(let id):
                     if focused == id { waste.focusOfFocused += 1 }
                     focused = id
@@ -397,7 +419,7 @@ private struct AxCost {
 private struct Waste {
     /// The AX writes of each window whose frame writes left it where it was
     var sameFrame: [WindowId: Int] = [:]
-    /// The AX reads of the parks and floating placements that wrote nothing: a parked window still in its corner, a
+    /// The AX reads of the windows that the phase didn't write: a tile at its frame, a parked window still in its corner, a
     /// floating window still on its monitor
     var checkReads = 0
     /// Native focus of the window that macOS focuses already
@@ -408,10 +430,10 @@ private struct Waste {
 }
 
 extension PlatformCall {
-    /// AeroSpace's effects on macOS besides placing windows
-    fileprivate var isEffectBesidesPlacement: Bool {
+    /// AeroSpace's effects on macOS: a frame write, a focus, ...
+    fileprivate var isEffect: Bool {
         switch self {
-            case .focus, .close, .setNative, .unhideApp, .quit, .restoreFloatingSize: true
+            case .frame, .focus, .close, .setNative, .unhideApp, .quit, .restoreFloatingSize: true
             default: false
         }
     }
@@ -436,7 +458,7 @@ extension PlatformCall {
 
 // MARK: The table
 
-private func axCallTable(_ results: [(scenario: String, phases: [Phase])]) -> String {
+private func axCallTable(_ results: [(scenario: String, phases: [Phase], convergence: Convergence)]) -> String {
     var lines: [String] = [
         "# AX calls per scenario (FakePlatform)",
         "",
@@ -448,13 +470,14 @@ private func axCallTable(_ results: [(scenario: String, phases: [Phase])]) -> St
         "LivePlatform makes for it (AxCallCountTest.swift, `Phase.cost`): a frame write with a position and a size is 3",
         "writes, a native focus is 2 (AXMain, AXRaise) plus an activation. `XPC`: NSRunningApplication calls (activate,",
         "unhide), not AX. `Same-frame writes`: the AX writes of the windows whose writes left them where they were",
-        "(`writes/windows`). `Check reads`: the reads of parks and floating placements that wrote nothing. `repeated`:",
-        "reads made more than once in the phase.",
+        "(`writes/windows`). `Check reads`: the reads of the windows that the phase didn't write (tiles at their frame,",
+        "parked windows in their corner, floating windows on their monitor). `repeated`: reads made more than once in the",
+        "phase.",
         "",
         "| Scenario | Phase | Fake calls | AX reads | AX writes | XPC | Same-frame writes | Check reads | Other waste |",
         "|---|---|---:|---:|---:|---:|---:|---:|---|",
     ]
-    for (scenario, phases) in results {
+    for (scenario, phases, _) in results {
         for (index, phase) in phases.enumerated() {
             let cost = phase.cost
             let waste = phase.waste
@@ -479,13 +502,28 @@ private func axCallTable(_ results: [(scenario: String, phases: [Phase])]) -> St
     }
     lines += [
         "",
+        "## Convergence",
+        "",
+        "After each scenario, the world settles (two heavy refreshes). Then the apps move every tile by (37, 37) and make it",
+        "50 pt narrower, and move every parked window by (37, 37), behind AeroSpace's back. The next heavy refresh must put",
+        "each one back.",
+        "",
+        "| Scenario | Windows moved | Not back after one heavy refresh |",
+        "|---|---:|---|",
+    ]
+    for (scenario, _, convergence) in results {
+        let notBack = convergence.notBack.isEmpty ? "none" : convergence.notBack.map(\.description).joined(separator: ", ")
+        lines.append("| \(scenario) | \(convergence.moved) | \(notBack) |")
+    }
+    lines += [
+        "",
         "## Per window",
         "",
         "Each cell is `reads/writes` of one window; `=` marks writes that left the window where it was, `p` a window",
         "that is parked after the phase. `app` is the reads of no single window. `Calls` is the fake's log by kind.",
     ]
     let ids: [WindowId] = (1 ... 13).map { WindowId(raw: $0) }
-    for (scenario, phases) in results {
+    for (scenario, phases, _) in results {
         lines += ["", "### \(scenario)", ""]
         lines.append("| Phase | app | " + ids.map(\.description).joined(separator: " | ") + " | Calls |")
         lines.append("|---|---:|" + String(repeating: "---:|", count: ids.count) + "---|")

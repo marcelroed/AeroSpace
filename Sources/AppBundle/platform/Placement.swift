@@ -4,8 +4,9 @@ import AppKit
 /// shown workspaces' placements, then the parks), latest wins per window. AxApp and FakePlatform run them with the same
 /// code: ``PlacementState``
 nonisolated enum Placement: Equatable, Sendable {
-    /// nil keeps the position or the size. Writing the position unparks the window
-    case frame(WindowId, topLeft: CGPoint?, size: CGSize?)
+    /// The layout's frame of a window. It's written only if the window isn't there already, see
+    /// ``PlacementState/apply(_:to:isZoom:)``
+    case frame(WindowId, topLeft: CGPoint, size: CGSize)
     /// A floating window of a workspace: it unparks to where it was, then it stays where it is unless it's off the
     /// workspace's monitor, see ``floatingTopLeft(current:target:)``
     case floating(WindowId, FloatingTarget)
@@ -49,19 +50,12 @@ nonisolated struct ParkTarget: Equatable, Sendable {
 nonisolated protocol PlacementWindow {
     /// false once a newer write of the window was posted or termination started: stop before the next AX call
     func isCurrent() -> Bool
-    func topLeft() -> CGPoint?
-    func size() -> CGSize?
+    /// The position and the size, in one AX call. nil unless AX tells both
+    func rect() -> Rect?
     /// Writes the size, then the position, then the size again (#143, #335), and stops once it's not current. true if it
     /// wrote the position
     @discardableResult
     func setFrame(topLeft: CGPoint?, size: CGSize?) -> Bool
-}
-
-nonisolated extension PlacementWindow {
-    func rect() -> Rect? {
-        guard let topLeft = topLeft(), let size = size() else { return nil }
-        return Rect(topLeftX: topLeft.x, topLeftY: topLeft.y, width: size.width, height: size.height)
-    }
 }
 
 /// The state of a window's placements, which AxApp keeps per window on the app's thread (FakePlatform keeps the same). A
@@ -84,7 +78,10 @@ nonisolated struct PlacementState {
         guard window.isCurrent() else { return } // Before any AX call: termination waits for this job (R-PLAT L4)
         switch placement {
             case .frame(_, let topLeft, let size):
-                if window.setFrame(topLeft: topLeft, size: size) {
+                // Every present reads where the window is, so a window that the app or the user moved goes back. It writes
+                // only a window that isn't there: each write makes the app lay out the window again
+                let isThere = window.rect().map { $0.isAt(topLeft: topLeft, size: size) } == true
+                if isThere || window.setFrame(topLeft: topLeft, size: size) {
                     parkedAt = nil
                 }
             case .floating(_, let target):
@@ -110,11 +107,10 @@ nonisolated struct PlacementState {
                     window.setFrame(topLeft: parkTopLeft(size: rect.size, target: target, isZoom: isZoom), size: nil)
                 } else {
                     // Parked already: the window moves only if it isn't in the corner (e.g., the app moved it). The bottom
-                    // left corner re-reads the size: the app may have resized the window
-                    let current = window.topLeft()
-                    let size = target.corner == .bottomLeftCorner ? window.size() : nil
-                    let topLeft = parkTopLeft(size: size, target: target, isZoom: isZoom)
-                    if current != topLeft {
+                    // left corner uses the size read now: the app may have resized the window
+                    let rect = window.rect()
+                    let topLeft = parkTopLeft(size: rect?.size, target: target, isZoom: isZoom)
+                    if rect?.topLeftCorner != topLeft {
                         window.setFrame(topLeft: topLeft, size: nil)
                     }
                 }
@@ -125,14 +121,22 @@ nonisolated struct PlacementState {
 
     /// `layout tiling` and `enable on`: the size of the window now is its floating size
     mutating func rememberFloatingSize(of window: some PlacementWindow) {
-        guard window.isCurrent(), let size = window.size() else { return }
-        lastFloatingSize = size
+        guard window.isCurrent(), let rect = window.rect() else { return }
+        lastFloatingSize = rect.size
     }
 
     /// `layout floating`
     func restoreFloatingSize(to window: some PlacementWindow) {
         guard let lastFloatingSize else { return }
         window.setFrame(topLeft: nil, size: lastFloatingSize)
+    }
+}
+
+nonisolated extension Rect {
+    /// Within a point of the frame: AX gives whole points, and the layout's frames have fractions
+    fileprivate func isAt(topLeft: CGPoint, size: CGSize) -> Bool {
+        let differences: [CGFloat] = [topLeftX - topLeft.x, topLeftY - topLeft.y, width - size.width, height - size.height]
+        return differences.allSatisfy { abs($0) < 1 }
     }
 }
 

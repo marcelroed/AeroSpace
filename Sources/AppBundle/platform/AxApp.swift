@@ -411,10 +411,21 @@ nonisolated func axObserverCallback(
     }
 }
 
+/// The window's position and size in one AX call. An app that can't answer both at once gets a read of each
 nonisolated private func axRect(_ window: AXUIElement) -> Rect? {
-    guard let topLeftCorner = window.get(Ax.topLeftCornerAttr) else { return nil }
-    guard let size = window.get(Ax.sizeAttr) else { return nil }
-    return Rect(topLeftX: topLeftCorner.x, topLeftY: topLeftCorner.y, width: size.width, height: size.height)
+    let (error, values) = window.getMultiple([Ax.topLeftCornerAttr.key, Ax.sizeAttr.key])
+    let topLeft: CGPoint?
+    let size: CGSize?
+    if error == .success, let values, values.count == 2 {
+        // A failed attribute comes back as an AXValue error, which the getters map to nil
+        (topLeft, size) = (Ax.topLeftCornerAttr.getter(values[0]), Ax.sizeAttr.getter(values[1]))
+    } else if error == .cannotComplete {
+        return nil // The AX timeout of a busy app: each further read would wait as long
+    } else {
+        (topLeft, size) = (window.get(Ax.topLeftCornerAttr), window.get(Ax.sizeAttr))
+    }
+    guard let topLeft, let size else { return nil }
+    return Rect(topLeftX: topLeft.x, topLeftY: topLeft.y, width: size.width, height: size.height)
 }
 
 /// A window of the app for ``PlacementState``, on the app's thread
@@ -424,8 +435,7 @@ nonisolated private struct AxPlacementWindow: PlacementWindow {
     let isCurrentNow: @Sendable () -> Bool
 
     func isCurrent() -> Bool { isCurrentNow() }
-    func topLeft() -> CGPoint? { ax.get(Ax.topLeftCornerAttr) }
-    func size() -> CGSize? { ax.get(Ax.sizeAttr) }
+    func rect() -> Rect? { axRect(ax) }
 
     @discardableResult
     func setFrame(topLeft: CGPoint?, size: CGSize?) -> Bool {
