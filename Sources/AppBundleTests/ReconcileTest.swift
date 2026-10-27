@@ -197,6 +197,57 @@ struct ReconcileTest {
     }
 
     @Test
+    func twoAppsSlowerThanTheCapGetTheirWindows() async { // R2d M1
+        fake.apps = [appA, appB]
+        await heavyRefresh()
+        // Both apps answer slower than the cap: a deadline up to the cap passes at once. A longer deadline (after a late
+        // answer) passes only at the end, so a listing with it answers in time
+        let longDeadline = Gate()
+        let deadlines = ListingDeadlines(minDeadline: .nanoseconds(1), maxDeadline: .nanoseconds(1)) { deadline in
+            if deadline > .nanoseconds(1) { await longDeadline.wait() }
+        }
+        fake.listingDeadlines = deadlines
+        let (answersOfA, answersOfB) = ((0 ..< 4).map { _ in Gate() }, (0 ..< 4).map { _ in Gate() })
+        var listings: [String] = []
+        fake.beforeListing = { app in
+            let name = app == appA ? "A" : "B"
+            let answers = app == appA ? answersOfA : answersOfB
+            let index = listings.count { $0 == name }
+            listings.append(name)
+            if index < answers.count { await answers[index].wait() }
+        }
+        openWindow(1, appA)
+        openWindow(2, appB)
+
+        world.sessions.scheduleHeavy(.ax("test")) // Both apps miss the deadline
+        await answersOfA[0].untilWaiting()
+        await answersOfB[0].untilWaiting()
+        for _ in 0 ..< 100 where !world.sessions.isHeavyIdle { await Task.yield() }
+        expectEqual(Set(world.windows.keys), [])
+
+        answersOfA[0].open() // A answers late, and a refresh lists it with the longer deadline. B's listing still runs
+        await answersOfA[1].untilWaiting()
+        answersOfB[0].open() // B answers late. Its refresh replaces A's before A answers, and lists both apps
+        await answersOfA[2].untilWaiting()
+        await answersOfB[1].untilWaiting()
+        #expect(deadlines.deadline(appA.pid) > .nanoseconds(1)) // The cancelled refresh didn't use up A's longer deadline
+
+        answersOfA[2].open()
+        answersOfB[1].open()
+        for _ in 0 ..< 100 where !world.sessions.isHeavyIdle { await Task.yield() }
+        expectEqual(Set(world.windows.keys), [1, 2])
+        expectEqual(listings, ["A", "B", "A", "A", "B"])
+        expectEqual(deadlines.deadline(appA.pid), .nanoseconds(1)) // Each longer deadline was used once
+        expectEqual(deadlines.deadline(appB.pid), .nanoseconds(1))
+
+        for gate in answersOfA + answersOfB { gate.open() } // The replaced refresh's listing of A answers: nothing to do
+        longDeadline.open()
+        for _ in 0 ..< 100 { await Task.yield() }
+        #expect(world.sessions.isHeavyIdle)
+        expectEqual(listings.count, 5)
+    }
+
+    @Test
     func anOffScreenPopupStaysAPopup() async { // R2a M1
         openWindow(1)
         openWindow(2)
