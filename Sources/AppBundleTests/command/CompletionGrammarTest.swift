@@ -9,23 +9,26 @@ import Testing
 struct CompletionGrammarTest {
     @Test(arguments: CmdKind.allCases.filter { $0 != CmdKind.execAndForget }) // The config shell only
     func grammarHasTheOptionsOfTheHelp(kind: CmdKind) throws {
-        let grammar = try CompletionGrammar.load()
+        let grammar = try completionGrammar.get()
         let helpOptions = options(in: kind.help).subtracting(["--help"])
         expectEqual(grammar.options(of: kind.rawValue), helpOptions)
     }
 
     @Test
     func grammarHasNoOtherSubcommands() throws {
-        let subcommands = try CompletionGrammar.load().alternatives.keys
+        let subcommands = try completionGrammar.get().alternatives.keys
         expectEqual(Set(subcommands), Set(CmdKind.allCases.map(\.rawValue)).subtracting(["exec-and-forget"]))
     }
 
     @Test
     func grammarHasTheSubscribeEvents() throws {
-        let events = try #require(CompletionGrammar.load().rules["event"]).split(separator: "|")
+        let events = try #require(completionGrammar.get().rules["event"]).split(separator: "|")
         expectEqual(events.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }, ServerEventType.cliArgsCases)
     }
 }
+
+/// Read once, not once per case
+private let completionGrammar = Result { try CompletionGrammar.load() }
 
 /// The parts of the grammar that the test checks: the alternatives of `<subcommand>` and the other rules
 private struct CompletionGrammar {
