@@ -1,14 +1,18 @@
 import AppKit
 import Common
 
-struct ListExecEnvVarsCommand: Command {
-    let args: ListExecEnvVarsCmdArgs
-    /*conforms*/ let shouldResetClosedWindowsCache = false
+struct ListExecEnvVarsCommand: nonisolated Command {
+    static let resetsClosedWindowsCache = false
+    var source: SourceWords = []
 
-    func run(_ env: CmdEnv, _ io: CmdIo) -> BinaryExitCode {
+    static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
+        try a.noArgs()
+        return Self()
+    }
+
+    func run(_ cx: CmdContext) {
         for (key, value) in config.execConfig.envVariables.sorted(by: { $0.key < $1.key }) {
-            io.out("\(key)=\(value)")
+            cx.out("\(key)=\(value)")
         }
-        return .succ
     }
 }

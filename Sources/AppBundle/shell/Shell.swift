@@ -33,11 +33,11 @@ indirect enum Shell<T> {
         }
     }
 
-    func flatMap<R>(_ mapper: (T) -> ParsedCmd<R>) -> ParsedCmd<Shell<R>> {
+    func map<R, E: Error>(_ transform: (T) throws(E) -> R) throws(E) -> Shell<R> {
         switch self {
-            case .empty: .cmd(.empty)
-            case .cmd(let it): mapper(it).map(Shell<R>.cmd)
-            case .op(let op, let it): it.mapAllOrFailure { $0.flatMap(mapper) }.map { .op(op, $0) }
+            case .empty: .empty
+            case .cmd(let it): .cmd(try transform(it))
+            case .op(let op, let it): .op(op, try it.map { (it) throws(E) in try it.map(transform) })
         }
     }
 
@@ -85,11 +85,11 @@ extension Shell where T == any Command {
 // 3. on-window-detected callback
 // 4. Tray icon buttons
 extension Shell where T == any Command {
-    func run(_ env: CmdEnv, _ io: CmdIo) async -> Int32ExitCode {
+    func run(_ env: CmdEnv, _ io: CmdIo) async -> Int32 {
         switch self {
-            case .empty: return Int32ExitCode(rawValue: EXIT_CODE_ZERO)
+            case .empty: return EXIT_CODE_ZERO
             case .cmd(let command):
-                let exitCode = Int32ExitCode(rawValue: await command.run(env, io).rawValue)
+                let exitCode = await command.run(env, io)
                 if command.shouldResetClosedWindowsCache { resetClosedWindowsCache() }
                 await refreshModel_nonCancellable()
                 return exitCode
@@ -108,11 +108,11 @@ extension Shell where T == any Command {
 }
 
 /// Runs `commands` in order and stops after the first exit code for which `stop` is true
-private func runSequentially(_ commands: [Shell<any Command>], _ env: CmdEnv, _ io: CmdIo, initial: Int32, stop: (Int32) -> Bool) async -> Int32ExitCode {
-    var exitCode = Int32ExitCode(rawValue: initial)
+private func runSequentially(_ commands: [Shell<any Command>], _ env: CmdEnv, _ io: CmdIo, initial: Int32, stop: (Int32) -> Bool) async -> Int32 {
+    var exitCode = initial
     for command in commands {
         exitCode = await command.run(env, io)
-        if stop(exitCode.rawValue) { break }
+        if stop(exitCode) { break }
     }
     return exitCode
 }
@@ -121,8 +121,8 @@ private func runSequentially(_ commands: [Shell<any Command>], _ env: CmdEnv, _ 
 /// For long-running or streaming commands this would matter, but AeroSpace's commands are short and synchronous, so this is fine
 ///
 /// The semantics is similar to 'set -o pipefail'
-private func runShellPipe(_ commands: [Shell<any Command>], _ env: CmdEnv, _ originalIo: CmdIo) async -> Int32ExitCode {
-    var rightmostNonZeroExitCode = Int32ExitCode(rawValue: EXIT_CODE_ZERO)
+private func runShellPipe(_ commands: [Shell<any Command>], _ env: CmdEnv, _ originalIo: CmdIo) async -> Int32 {
+    var rightmostNonZeroExitCode = EXIT_CODE_ZERO
     var io = CmdIo(forwardingStdinOf: originalIo)
     var lastStdout = [String]()
     for command in commands {
@@ -130,10 +130,10 @@ private func runShellPipe(_ commands: [Shell<any Command>], _ env: CmdEnv, _ ori
         originalIo.stderr += io.stderr
         lastStdout = io.stdout
         io = CmdIo(stdin: .init(lastStdout.joined(separator: "\n")))
-        if exitCode.rawValue != 0 {
+        if exitCode != 0 {
             rightmostNonZeroExitCode = exitCode
         }
     }
-    originalIo.out(lastStdout)
+    originalIo.stdout += lastStdout
     return rightmostNonZeroExitCode
 }

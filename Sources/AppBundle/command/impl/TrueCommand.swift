@@ -1,11 +1,25 @@
-import AppKit
 import Common
 
-struct TrueCommand: Command {
-    let args: TrueCmdArgs
-    /*conforms*/ let shouldResetClosedWindowsCache: Bool = false
+struct TrueCommand: nonisolated Command {
+    static let resetsClosedWindowsCache = false
+    var source: SourceWords = []
 
-    func run(_ env: CmdEnv, _ io: CmdIo) async -> ConditionalExitCode { ._true }
+    static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
+        try a.noArgs()
+        return Self()
+    }
 
-    static let instance = TrueCommand(args: TrueCmdArgs(rawArgs: []))
+    func run(_ cx: CmdContext) {}
+}
+
+struct FalseCommand: nonisolated Command {
+    static let resetsClosedWindowsCache = false
+    var source: SourceWords = []
+
+    static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
+        try a.noArgs()
+        return Self()
+    }
+
+    func run(_ cx: CmdContext) throws(CmdFail) { throw .no }
 }

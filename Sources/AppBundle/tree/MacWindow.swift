@@ -211,7 +211,7 @@ func runOnWindowDetected(ifConventional window: Window) async {
     global_layoutForNextDetectedWindow = nil
     func applyLayoutForNextDetectedWindow() async {
         if let layout {
-            await LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [layout]))
+            await LayoutCommand(toggleBetween: [layout])
                 .run(.defaultEnv.withWindowId(window.windowId), .emptyStdin)
         }
     }

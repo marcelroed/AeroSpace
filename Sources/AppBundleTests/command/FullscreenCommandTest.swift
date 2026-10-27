@@ -2,13 +2,12 @@
 import Common
 import Testing
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct FullscreenCommandTest {
     @Test(arguments: [
-        ("fullscreen off --no-outer-gaps", "ERROR: --no-outer-gaps is incompatible with 'off' argument"),
-        ("fullscreen --fail-if-noop", "ERROR: --fail-if-noop requires 'on' or 'off' argument"),
-        ("fullscreen foo", "ERROR: Can't parse 'foo'. Possible values: on|off"),
+        ("fullscreen off --no-outer-gaps", "--no-outer-gaps is incompatible with 'off' argument"),
+        ("fullscreen --fail-if-noop", "--fail-if-noop requires 'on' or 'off' argument"),
+        ("fullscreen foo", "Can't parse 'foo'.\nPossible values: (on|off)"),
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)

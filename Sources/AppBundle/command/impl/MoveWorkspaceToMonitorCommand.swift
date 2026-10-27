@@ -1,29 +1,42 @@
 import AppKit
 import Common
 
-struct MoveWorkspaceToMonitorCommand: Command {
-    let args: MoveWorkspaceToMonitorCmdArgs
-    /*conforms*/ let shouldResetClosedWindowsCache = true
+struct MoveWorkspaceToMonitorCommand: nonisolated Command {
+    static let resetsClosedWindowsCache = true
+    var source: SourceWords = []
+    var target: MonitorTarget
+    var wrapAround = false
+    var workspace: WorkspaceName? = nil
 
-    func run(_ env: CmdEnv, _ io: CmdIo) -> BinaryExitCode {
-        guard let target = args.resolveTargetOrReportError(env, io) else { return .fail }
-        let focusedWorkspace = target.workspace
-        let prevMonitor = focusedWorkspace.workspaceMonitor
-
-        guard let targetMonitor = args.target.val.resolve(target.workspace.workspaceMonitor, wrapAround: args.wrapAround)
-            .getOrNil(appendErrorTo: &io.stderr) else { return .fail }
-        if targetMonitor.monitorId_oneBased == prevMonitor.monitorId_oneBased {
-            return .succ
+    static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
+        var wrapAround = false
+        var workspace: WorkspaceName? = nil
+        while let option = try a.nextOption() {
+            switch option {
+                case "--wrap-around": wrapAround = true
+                case "--workspace": workspace = try a.workspace(of: option)
+                default: throw .unknownOption(option)
+            }
         }
-        return .from(bool: moveWorkspace(focusedWorkspace, to: targetMonitor, stubbing: prevMonitor, io))
+        let target = try MonitorTarget.parse(&a)
+        try a.end()
+        if wrapAround && target.isPatterns { throw "--wrap-around is incompatible with <monitor-pattern> argument" }
+        return Self(target: target, wrapAround: wrapAround, workspace: workspace)
+    }
+
+    func run(_ cx: CmdContext) async throws(CmdFail) {
+        let focusedWorkspace = try cx.target(workspace: workspace).workspace
+        let prevMonitor = focusedWorkspace.workspaceMonitor
+        let targetMonitor = try target.resolve(prevMonitor, wrapAround: wrapAround)
+        if targetMonitor.monitorId_oneBased == prevMonitor.monitorId_oneBased { return }
+        try moveWorkspace(focusedWorkspace, to: targetMonitor, stubbing: prevMonitor)
     }
 }
 
-/// Shows `workspace` on `monitor` and a stub workspace on `prevMonitor`. Returns false with an error if force assignment forbids it
-func moveWorkspace(_ workspace: Workspace, to monitor: MonitorInfo, stubbing prevMonitor: MonitorInfo?, _ io: CmdIo) -> Bool {
+/// Shows `workspace` on `monitor` and a stub workspace on `prevMonitor`. Fails if force assignment forbids it
+func moveWorkspace(_ workspace: Workspace, to monitor: MonitorInfo, stubbing prevMonitor: MonitorInfo?) throws(CmdFail) {
     guard monitor.setActiveWorkspace(workspace) else {
-        io.err("Can't move workspace '\(workspace.name)' to monitor '\(monitor.name)'. workspace-to-monitor-force-assignment doesn't allow it")
-        return false
+        throw "Can't move workspace '\(workspace.name)' to monitor '\(monitor.name)'. workspace-to-monitor-force-assignment doesn't allow it"
     }
     if let prevMonitor {
         let stubWorkspace = getStubWorkspace(for: prevMonitor)
@@ -32,5 +45,4 @@ func moveWorkspace(_ workspace: Workspace, to monitor: MonitorInfo, stubbing pre
             "getStubWorkspace generated incompatible stub workspace (\(stubWorkspace.description)) for the monitor (\(prevMonitor))",
         )
     }
-    return true
 }

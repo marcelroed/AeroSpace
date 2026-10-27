@@ -32,7 +32,7 @@ struct SubcommandHelpTest: AeroSpaceTestSuite {
 
     @Test
     func testEverySubcommandIsCovered() {
-        let expected = Set(CmdKind.allCases.map(\.rawValue)).subtracting(["exec-and-forget"]).union(["move-through", "move-workspace-to-display"])
+        let expected = Set(CmdKind.allCases.map(\.rawValue)).subtracting(["exec-and-forget"])
         assertEquals(Set(expectedHelp.map(\.subcommand)), expected)
     }
 
@@ -40,27 +40,34 @@ struct SubcommandHelpTest: AeroSpaceTestSuite {
     func testHelp(subcommand: String, help: String) {
         for flag in ["--help", "-h"] {
             assertEquals(parseCommand("\(subcommand) \(flag)").helpOrNil, help)
-            assertEquals(parseCmdArgs([subcommand, flag].slice).helpOrNil, help)
+            // The CLI answers the help itself, the server parses the args without the shell
+            assertEquals(Result { () throws(CmdParseError) in try parseSubcommand([subcommand, flag]) }.failureOrNil?.message, help)
         }
     }
 
     @Test
     func testExecAndForgetHelp() {
         // The server shell treats everything after exec-and-forget as a bash script, the CLI doesn't know the subcommand
-        assertEquals(parsedArgs("exec-and-forget --help", as: ExecAndForgetCmdArgs.self)?.description, "exec-and-forget --help")
-        assertEquals(parsedArgs("exec-and-forget -h", as: ExecAndForgetCmdArgs.self)?.description, "exec-and-forget -h")
-        assertEquals(parseCmdArgs(["exec-and-forget", "--help"].slice).errorOrNil, "Unrecognized subcommand 'exec-and-forget'")
+        assertEquals(parsedCmd("exec-and-forget --help", as: ExecAndForgetCommand.self)?.description, "exec-and-forget --help")
+        assertEquals(parsedCmd("exec-and-forget -h", as: ExecAndForgetCommand.self)?.description, "exec-and-forget -h")
         assertEquals(
-            parseCommand("exec-and-forget --help", allowExecAndForget: false, allowEval: true).errorOrNil,
-            "Unrecognized subcommand 'exec-and-forget'",
+            Result { () throws(CmdParseError) in try parseSubcommand(["exec-and-forget", "--help"]) }.failureOrNil,
+            .invalid("Unrecognized subcommand 'exec-and-forget'"),
+        )
+        assertEquals(
+            Result { () throws(CmdParseError) in try parseShell("exec-and-forget --help", allowExecAndForget: false, allowEval: true) }.failureOrNil,
+            .invalid("Unrecognized subcommand 'exec-and-forget'"),
         )
     }
 
     @Test
-    func testDeprecatedMoveWorkspaceToDisplayChecksWrapAround() {
-        for subcommand in ["move-workspace-to-display", "move-workspace-to-monitor"] {
-            assertEquals(parseCommand("\(subcommand) --wrap-around main").errorOrNil, "ERROR: --wrap-around is incompatible with <monitor-pattern> argument")
-        }
+    func testMoveWorkspaceToMonitorChecksWrapAround() {
+        assertEquals(parseCommand("move-workspace-to-monitor --wrap-around main").errorOrNil, "--wrap-around is incompatible with <monitor-pattern> argument")
+    }
+
+    @Test(arguments: ["move-through", "move-workspace-to-display"])
+    func testDeprecatedAliasesAreGone(alias: String) {
+        assertEquals(parseCommand("\(alias) --help").errorOrNil, "Unrecognized subcommand '\(alias)'")
     }
 }
 
@@ -186,26 +193,10 @@ nonisolated private let expectedHelp: [(subcommand: String, help: String)] = [
         "move-node-to-workspace",
         """
         USAGE: move-node-to-workspace [-h|--help] [--focus-follows-window] [--wrap-around]
-                                      [--stdin|--no-stdin]
+                                      [--stdin]
                                       (next|prev)
            OR: move-node-to-workspace [-h|--help] [--focus-follows-window] [--fail-if-noop]
                                       [--window-id <window-id>] [--] <workspace-name>
-        """,
-    ),
-    (
-        "move-through", // Deprecated alias of move
-        """
-        USAGE: move [-h|--help] [--window-id <window-id>] [--boundaries <boundary>]
-                    [--boundaries-action <boundary-action>] [--fail-if-fullscreen]
-                    [--fail-if-macos-native-fullscreen] (left|down|up|right)
-        """,
-    ),
-    (
-        "move-workspace-to-display", // Deprecated alias of move-workspace-to-monitor
-        """
-        USAGE: move-workspace-to-monitor [-h|--help] [--workspace <workspace>] [--wrap-around] (left|down|up|right)
-           OR: move-workspace-to-monitor [-h|--help] [--workspace <workspace>] [--wrap-around] (next|prev)
-           OR: move-workspace-to-monitor [-h|--help] [--workspace <workspace>] [--] <monitor-pattern>...
         """,
     ),
     (
@@ -263,7 +254,7 @@ nonisolated private let expectedHelp: [(subcommand: String, help: String)] = [
         "workspace",
         """
         USAGE: workspace [-h|--help] [--auto-back-and-forth] [--fail-if-noop] [--] <workspace-name>
-           OR: workspace [-h|--help] [--wrap-around] [--stdin|--no-stdin] (next|prev)
+           OR: workspace [-h|--help] [--wrap-around] [--stdin] (next|prev)
         """,
     ),
     ("workspace-back-and-forth", "USAGE: workspace-back-and-forth [-h|--help]"),

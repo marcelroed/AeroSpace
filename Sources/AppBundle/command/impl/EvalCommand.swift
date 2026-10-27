@@ -1,19 +1,32 @@
 import Common
 
-struct EvalCommand: Command {
-    let args: EvalCmdArgs
-    /*conforms*/ let shouldResetClosedWindowsCache = true
+struct EvalCommand: nonisolated Command {
+    static let resetsClosedWindowsCache = true
+    var source: SourceWords = []
+    var shellExpr: String
 
-    func run(_ env: CmdEnv, _ io: CmdIo) async -> Int32ExitCode {
-        switch parseCommand(args.shellExpr.val, allowExecAndForget: false, allowEval: false) {
-            case .failure(let cmdParsingFailure):
-                io.err(cmdParsingFailure.msg)
-                return Int32ExitCode(rawValue: cmdParsingFailure.exitCode)
-            case .help:
-                io.err("--help is not supported inside eval command")
-                return .fail
-            case .cmd(let cmd):
-                return await cmd.run(env, io)
+    static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
+        while let option = try a.nextOption() {
+            switch option {
+                case "--stdin": break // For the CLI: it sends its stdin, which the commands of the expression can read
+                default: throw .unknownOption(option)
+            }
         }
+        let result = Self(shellExpr: try a.positional("<aerospace-shell-expr>"))
+        try a.end()
+        return result
+    }
+
+    func run(_ cx: CmdContext) async throws(CmdFail) {
+        let shell: Shell<any Command>
+        do {
+            shell = try parseShell(shellExpr, allowExecAndForget: false, allowEval: false)
+        } catch .help {
+            throw "--help is not supported inside eval command"
+        } catch {
+            throw CmdFail(error.message)
+        }
+        let exitCode = await shell.run(cx.env, cx.io)
+        if exitCode != EXIT_CODE_ZERO { throw CmdFail(nil, exitCode: exitCode) }
     }
 }

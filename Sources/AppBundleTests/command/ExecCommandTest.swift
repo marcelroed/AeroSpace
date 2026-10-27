@@ -2,12 +2,11 @@
 import Common
 import Testing
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct ExecCommandTest: AeroSpaceTestSuite {
     @Test
     func testParseExecCommand() {
-        testParseSingleCommandSucc("exec-and-forget echo 'foo'", ExecAndForgetCmdArgs(bashScript: " echo 'foo'"))
+        testParseSingleCommandSucc("exec-and-forget echo 'foo'", ExecAndForgetCommand(bashScript: " echo 'foo'"))
     }
 
     @Test
@@ -33,5 +32,5 @@ struct ExecCommandTest: AeroSpaceTestSuite {
 }
 
 private func parseBashScript(_ raw: String) -> String? {
-    parsedArgs(raw, as: ExecAndForgetCmdArgs.self)?.bashScript
+    parsedCmd(raw, as: ExecAndForgetCommand.self)?.bashScript
 }

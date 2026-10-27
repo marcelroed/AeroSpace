@@ -6,6 +6,12 @@ import Testing
 @Suite(.aeroSpaceGlobalState)
 struct ReloadConfigCommandTest: AeroSpaceTestSuite {
     @Test
+    func warningsAsErrorsIsAcceptedWithoutEffect() {
+        // The Raycast extension runs `reload-config --dry-run --warnings-as-errors`
+        #expect(parsedCmd("reload-config --dry-run --warnings-as-errors", as: ReloadConfigCommand.self) == ReloadConfigCommand(dryRun: true))
+    }
+
+    @Test
     func testErrors() async throws {
         let (url, result, message) = try await dryRunReloadConfig("foo = 1\nbar = 2")
         let errors = "[ERROR] bar: Unknown top-level key\n\n[ERROR] foo: Unknown top-level key"
@@ -38,7 +44,7 @@ private func dryRunReloadConfig(_ toml: String, noGui: Bool = false) async throw
     defer { try? FileManager.default.removeItem(at: url) }
     MessageModel.shared.message = Message(body: "untouched")
     defer { MessageModel.shared.message = nil }
-    let args = ReloadConfigCmdArgs(rawArgs: []).copy(\.dryRun, true).copy(\.noGui, noGui)
+    let args = ReloadConfigCommand(noGui: noGui, dryRun: true)
     let result = await reloadConfig_nonCancellable(args: args, forceConfigUrl: url)
     return (url, result, MessageModel.shared.message)
 }

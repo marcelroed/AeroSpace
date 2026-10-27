@@ -45,22 +45,22 @@ struct CommonUtilTest: AeroSpaceTestSuite {
 
     @Test
     func testInterpolationTokens() {
-        func tokens(_ str: String) -> Result<[InterToken<InterVar>], String> {
-            str.interpolationTokens(interpolationChar: "%", ofInterVarType: InterVar.self)
+        func tokens(_ str: String) -> Result<[FormatToken], CmdParseError> {
+            Result { () throws(CmdParseError) in try parseFormat(str) }
         }
         assertEquals(tokens(""), .success([]))
         assertEquals(
             tokens("id: %{window-id}%{newline}%%{app-name}%"),
             .success([
                 .literal("id: "),
-                .interVar(.formatVar(.window(.windowId))),
-                .interVar(.plainInterVar(.newline)),
+                .interVar(.windowId),
+                .interVar(.newline),
                 .literal("%"),
-                .interVar(.formatVar(.app(.appName))),
+                .interVar(.appName),
                 .literal("%"),
             ]),
         )
-        assertEquals(tokens("%{foo} %{bar}"), .failure("Can't parse 'foo'.\nPossible values: \(InterVar.unionLiteral)"))
+        assertEquals(tokens("%{foo} %{bar}"), .failure("Can't parse 'foo'.\nPossible values: \(FormatVar.unionLiteral)"))
         assertEquals(tokens("%{window-id} %{foo"), .failure("Unbalanced curly braces"))
     }
 

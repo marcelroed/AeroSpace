@@ -2,12 +2,44 @@ import AppKit
 import Common
 import ISSoundAdditions
 
-struct VolumeCommand: Command {
-    let args: VolumeCmdArgs
-    /*conforms*/ let shouldResetClosedWindowsCache = false
+struct VolumeCommand: nonisolated Command {
+    static let resetsClosedWindowsCache = false
+    var source: SourceWords = []
+    var action: VolumeAction
+    var gui = true
 
-    func run(_ env: CmdEnv, _ io: CmdIo) -> BinaryExitCode {
-        switch args.action.val {
+    nonisolated enum VolumeAction: Equatable, Sendable {
+        case up, down, muteToggle, muteOn, muteOff
+        case set(Int)
+    }
+
+    static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
+        var gui = true
+        while let option = try a.nextOption() {
+            switch option {
+                case "--no-gui": gui = false
+                default: throw .unknownOption(option)
+            }
+        }
+        let action: VolumeAction = switch try a.positional("(up|down|mute-toggle|mute-on|mute-off|set)") {
+            case "up": .up
+            case "down": .down
+            case "mute-toggle": .muteToggle
+            case "mute-on": .muteOn
+            case "mute-off": .muteOff
+            case "set":
+                switch Int(try a.positional("<number>")) {
+                    case let int? where (0 ... 100).contains(int): .set(int)
+                    default: throw "<number> must be an integer from 0 to 100"
+                }
+            case let arg: throw "Can't parse '\(arg)'.\nPossible values: (up|down|mute-toggle|mute-on|mute-off|set)"
+        }
+        try a.end()
+        return Self(action: action, gui: gui)
+    }
+
+    func run(_ cx: CmdContext) throws(CmdFail) {
+        switch action {
             case .up:
                 Sound.output.increaseVolume(by: 0.0625, autoMuteUnmute: true)
             case .down:
@@ -21,13 +53,12 @@ struct VolumeCommand: Command {
             case .set(let int):
                 Sound.output.setVolume(Float(int) / 100, autoMuteUnmute: true)
         }
-        if args.gui {
+        if gui {
             do {
                 VolumePanel.shared.update(with: Sound.output.isMuted ? 0 : try Sound.output.readVolume())
             } catch {
-                return .fail(io.err(bugPrompt(String(describing: error))))
+                throw CmdFail(bugPrompt(String(describing: error)))
             }
         }
-        return .succ
     }
 }

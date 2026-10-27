@@ -38,10 +38,6 @@ struct WorkspaceNameTest {
         assertFail(parseMonitorDescription("0"), "Monitor sequence numbers uses 1-based indexing. Values less than 1 are illegal")
         assertFail(parseMonitorDescription("-1"), "Monitor sequence numbers uses 1-based indexing. Values less than 1 are illegal")
         assertFail(parseMonitorDescription(""), "Empty string is an illegal monitor description")
-        switch parseMonitorDescription("(") {
-            case .success(let actual): failExpectedActual("Result.failure", actual)
-            // The rest of the message contains an unstable type name
-            case .failure(let msg): assertTrue(msg.hasPrefix("Can't parse '(' regex: The operation couldn’t be completed. "))
-        }
+        assertFail(parseMonitorDescription("("), "Can't parse '(' regex: expected ')'")
     }
 }

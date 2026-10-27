@@ -1,14 +1,17 @@
 import AppKit
 import Common
 
-struct WorkspaceBackAndForthCommand: Command {
-    let args: WorkspaceBackAndForthCmdArgs
-    /*conforms*/ let shouldResetClosedWindowsCache = false
+struct WorkspaceBackAndForthCommand: nonisolated Command {
+    static let resetsClosedWindowsCache = false
+    var source: SourceWords = []
 
-    func run(_ env: CmdEnv, _ io: CmdIo) -> BinaryExitCode {
-        switch prevFocusedWorkspace {
-            case let prevFocusedWorkspace?: .from(bool: prevFocusedWorkspace.focusWorkspace())
-            case nil: .fail(io.err("There is no previously focused workspace"))
-        }
+    static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
+        try a.noArgs()
+        return Self()
+    }
+
+    func run(_ cx: CmdContext) throws(CmdFail) {
+        guard let prevFocusedWorkspace else { throw "There is no previously focused workspace" }
+        if !prevFocusedWorkspace.focusWorkspace() { throw .silent }
     }
 }

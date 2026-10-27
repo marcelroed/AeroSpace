@@ -1,154 +1,160 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
-nonisolated final class TestCommandTest: XCTestCase {} // XCTestCase's initializers are nonisolated
+private let possibleLhsValues = "(window-id|window-is-fullscreen|window-title|window-layout|window-parent-container-layout|workspace|" +
+    "workspace-is-focused|workspace-is-visible|workspace-root-container-layout|app-bundle-id|app-name|app-pid|app-exec-path|" +
+    "app-bundle-path|monitor-id|monitor-appkit-nsscreen-screens-id|monitor-name|monitor-is-main)"
 
-@MainActor
-extension TestCommandTest {
-    override func setUp() async throws { setUpWorkspacesForTests() }
+@Suite(.aeroSpaceGlobalState)
+struct TestCommandTest {
+    @Test
+    func parse() {
+        testParseSingleCommandSucc("test %{app-bundle-id} = foo", TestCommand(negated: false, lhs: .appBundleId, infixOperator: .equals, rhs: "foo"))
+        testParseSingleCommandSucc("test-not %{app-bundle-id} ~= foo", TestCommand(negated: true, lhs: .appBundleId, infixOperator: .matchesRegex, rhs: "foo"))
 
-    func testParse() {
-        testParseSingleCommandSucc(
-            "test %{app-bundle-id} = foo",
-            TestCmdArgs(rawArgs: [])
-                .copy(\.lhs, .initialized(.app(.appBundleId)))
-                .copy(\.infixOperator, .initialized(.equals))
-                .copy(\.rhs, .initialized("foo")),
-        )
-        testParseSingleCommandSucc(
-            "test-not %{app-bundle-id} ~= foo",
-            TestNotCmdArgs(rawArgs: [])
-                .copy(\.testArgs.lhs, .initialized(.app(.appBundleId)))
-                .copy(\.testArgs.infixOperator, .initialized(.matchesRegex))
-                .copy(\.testArgs.rhs, .initialized("foo")),
-        )
-
-        testParseCommandFail("test %{foo} = foo", msg: "ERROR: Can\'t parse \'foo\'.\n       Possible values: (window-id|window-is-fullscreen|window-title|window-layout|window-parent-container-layout|workspace|workspace-is-focused|workspace-is-visible|workspace-root-container-layout|app-bundle-id|app-name|app-pid|app-exec-path|app-bundle-path|monitor-id|monitor-appkit-nsscreen-screens-id|monitor-name|monitor-is-main)")
-        testParseCommandFail("test foo = foo", msg: "ERROR: Left hand side must be a single interpolation variable")
-        testParseCommandFail("test foo%{app-bundle-id} = foo", msg: "ERROR: Left hand side must be a single interpolation variable")
-        testParseCommandFail("test", msg: "ERROR: Argument \'<lhs>\' is mandatory\nERROR: Argument \'<operator>\' is mandatory\nERROR: Argument \'<rhs>\' is mandatory")
-        testParseCommandFail("test foo = %{app-bundle-id}", msg: "ERROR: Left hand side must be a single interpolation variable\nERROR: Right hand side doesn\'t allow interpolation variables")
-        testParseCommandFail("test %{app-bundle-id} = %{app-bundle-id}", msg: "ERROR: Right hand side doesn\'t allow interpolation variables")
-        testParseCommandFail("test %{newline} = foo", msg: "ERROR: Can\'t parse \'newline\'.\n       Possible values: (window-id|window-is-fullscreen|window-title|window-layout|window-parent-container-layout|workspace|workspace-is-focused|workspace-is-visible|workspace-root-container-layout|app-bundle-id|app-name|app-pid|app-exec-path|app-bundle-path|monitor-id|monitor-appkit-nsscreen-screens-id|monitor-name|monitor-is-main)")
-        testParseCommandFail("test %{window-id} = %{invalid}", msg: "ERROR: Right hand side doesn\'t allow interpolation variables")
+        testParseCommandFail("test %{foo} = foo", msg: "Can't parse 'foo'.\nPossible values: \(possibleLhsValues)")
+        testParseCommandFail("test foo = foo", msg: "Left hand side must be a single interpolation variable")
+        testParseCommandFail("test foo%{app-bundle-id} = foo", msg: "Left hand side must be a single interpolation variable")
+        testParseCommandFail("test", msg: "Argument '<lhs>' is mandatory")
+        testParseCommandFail("test %{app-bundle-id}", msg: "Argument '<operator>' is mandatory")
+        testParseCommandFail("test %{app-bundle-id} =", msg: "Argument '<rhs>' is mandatory")
+        testParseCommandFail("test foo = %{app-bundle-id}", msg: "Left hand side must be a single interpolation variable")
+        testParseCommandFail("test %{app-bundle-id} = %{app-bundle-id}", msg: "Right hand side doesn't allow interpolation variables")
+        testParseCommandFail("test %{newline} = foo", msg: "Can't parse 'newline'.\nPossible values: \(possibleLhsValues)")
+        testParseCommandFail("test %{window-id} = %{invalid}", msg: "Right hand side doesn't allow interpolation variables")
+        testParseCommandFail("test %{window-id} '!=' 1", msg: "Can't parse '!='.\nPossible values: (=|~=)")
     }
 
-    func testParseHelpPrintsOwnUsage() {
-        // test-not parses its arguments with TestCmdArgs, but its help must still be its own (RB-11)
-        for (command, expectedHelp) in [("test --help", TestCmdArgs.parser.kind.help), ("test-not --help", TestNotCmdArgs.parser.kind.help), ("test-not -h", TestNotCmdArgs.parser.kind.help)] {
-            assertEquals(parseCommand(command).helpOrNil, expectedHelp, additionalMsg: command)
+    @Test
+    func parseHelpPrintsOwnUsage() {
+        // test-not parses its arguments like test, but its help must still be its own (RB-11)
+        for (command, expectedHelp) in [("test --help", CmdKind.test.help), ("test-not --help", CmdKind.testNot.help), ("test-not -h", CmdKind.testNot.help)] {
+            #expect(parseCommand(command).helpOrNil == expectedHelp, "\(command)")
         }
-        assertTrue(TestNotCmdArgs.parser.kind.help.hasPrefix("USAGE: test-not "))
+        #expect(CmdKind.testNot.help.hasPrefix("USAGE: test-not "))
     }
 
-    func testExec() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-        }
+    @Test
+    func exec() async {
+        setUpTree("h_tiles(*1)")
+        var output = await runCmd("test %{window-id} = 1")
+        #expect(output == .ok)
 
-        await assertRun("test %{window-id} = 1", exitCode: 0, stdout: [], stderr: [])
+        output = await runCmd("test %{window-id} = 2")
+        #expect(output == CmdOutput(exitCode: 1))
 
-        await assertRun("test %{window-id} = 2", exitCode: 1, stdout: [], stderr: [])
+        output = await runCmd("test %{workspace-is-focused} = foo")
+        #expect(output == .fail("Can't convert String 'foo' to Bool"))
 
-        await assertRun("test %{workspace-is-focused} = foo", exitCode: 2, stdout: [], stderr: ["Can\'t convert String \'foo\' to Bool"])
-
-        await assertRun(
-            "test %{workspace-is-focused} ~= foo",
-            exitCode: 2,
-            stdout: [],
-            stderr: ["Interpolation variable: \'workspace-is-focused\' has a type of Bool. The Bool type is not compatible with \'~=\' operator."],
-        )
+        output = await runCmd("test %{workspace-is-focused} ~= foo")
+        #expect(output == .fail("Interpolation variable: 'workspace-is-focused' has a type of Bool. The Bool type is not compatible with '~=' operator."))
     }
 
-    func testExecNoWindow() async {
-        assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
-
-        await assertRun("test %{window-id} = 1", exitCode: 2, stdout: [], stderr: ["No window is focused"])
+    @Test
+    func execNoWindow() async {
+        #expect(Workspace.get(byName: "a").focusWorkspace())
+        let output = await runCmd("test %{window-id} = 1")
+        #expect(output == .fail("No window is focused"))
     }
 
-    func testExecWorkspaceContextSuccess() async {
-        // Exercises the workspace-only branch of `_lhs` where no window is focused
-        // and the lhs interpolation variable resolves against the workspace target.
-        assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
-
-        await assertRun("test %{workspace-is-focused} = true", exitCode: 0, stdout: [], stderr: [])
+    @Test
+    func execWorkspaceContextSuccess() async {
+        // Without a focused window, the lhs interpolation variable resolves against the workspace
+        #expect(Workspace.get(byName: "a").focusWorkspace())
+        let output = await runCmd("test %{workspace-is-focused} = true")
+        #expect(output == .ok)
     }
 
-    func testExecBoolEquals() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-        }
+    @Test
+    func execWorkspaceEnvNamesAnotherWorkspace() async {
+        // AEROSPACE_WORKSPACE makes the command look at its workspace, not at the focused one
+        setUpTree("h_tiles(*1)", workspace: "a")
+        setUpTree("h_tiles(2)", workspace: "b")
+        #expect(Workspace.get(byName: "a").focusWorkspace())
 
-        await assertRun("test %{workspace-is-focused} = true", exitCode: 0, stdout: [], stderr: [])
-
-        await assertRun("test %{workspace-is-focused} = false", exitCode: 1, stdout: [], stderr: [])
+        var output = await runCmd("test %{workspace} = b", workspaceEnv: "b")
+        #expect(output == .ok)
+        output = await runCmd("test %{workspace-is-focused} = false", workspaceEnv: "b")
+        #expect(output == .ok)
+        output = await runCmd("test %{window-id} = 2", workspaceEnv: "b")
+        #expect(output == .ok)
+        output = await runCmd("test %{workspace} = a")
+        #expect(output == .ok)
     }
 
-    func testExecIntEqualsRhsNotInt() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-        }
+    @Test
+    func execBoolEquals() async {
+        setUpTree("h_tiles(*1)")
+        var output = await runCmd("test %{workspace-is-focused} = true")
+        #expect(output == .ok)
 
-        await assertRun("test %{window-id} = abc", exitCode: 2, stdout: [], stderr: ["Can\'t convert String \'abc\' to Int"])
+        output = await runCmd("test %{workspace-is-focused} = false")
+        #expect(output == CmdOutput(exitCode: 1))
     }
 
-    func testExecIntMatchesRegexIncompatible() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-        }
-
-        await assertRun("test %{window-id} ~= 1", exitCode: 2, stdout: [], stderr: ["Interpolation variable: \'window-id\' has a type of Int. The Int type is not compatible with \'~=\' operator."])
+    @Test
+    func execIntEqualsRhsNotInt() async {
+        setUpTree("h_tiles(*1)")
+        let output = await runCmd("test %{window-id} = abc")
+        #expect(output == .fail("Can't convert String 'abc' to Int"))
     }
 
-    func testExecStringEquals() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-        }
-
-        await assertRun("test %{app-bundle-id} = bobko.AeroSpace.test-app", exitCode: 0, stdout: [], stderr: [])
-
-        await assertRun("test %{app-bundle-id} = other.bundle.id", exitCode: 1, stdout: [], stderr: [])
+    @Test
+    func execIntMatchesRegexIncompatible() async {
+        setUpTree("h_tiles(*1)")
+        let output = await runCmd("test %{window-id} ~= 1")
+        #expect(output == .fail("Interpolation variable: 'window-id' has a type of Int. The Int type is not compatible with '~=' operator."))
     }
 
-    func testExecStringMatchesRegex() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-        }
+    @Test
+    func execStringEquals() async {
+        setUpTree("h_tiles(*1)")
+        var output = await runCmd("test %{app-bundle-id} = bobko.AeroSpace.test-app")
+        #expect(output == .ok)
 
-        await assertRun("test %{app-bundle-id} ~= AERO", exitCode: 0, stdout: [], stderr: [])
-
-        await assertRun("test %{app-bundle-id} ~= zzzzz", exitCode: 1, stdout: [], stderr: [])
+        output = await runCmd("test %{app-bundle-id} = other.bundle.id")
+        #expect(output == CmdOutput(exitCode: 1))
     }
 
-    func testExecStringMatchesRegexInvalidPattern() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-        }
+    @Test
+    func execStringMatchesRegex() async {
+        setUpTree("h_tiles(*1)")
+        var output = await runCmd("test %{app-bundle-id} ~= AERO")
+        #expect(output == .ok)
 
-        let result = await assertRun("test %{app-bundle-id} ~= [", exitCode: 2, stdout: [])
-        assertTrue(result.stderr.first?.contains("Can\'t parse \'[\' regex") ?? false)
+        output = await runCmd("test %{app-bundle-id} ~= zzzzz")
+        #expect(output == CmdOutput(exitCode: 1))
     }
 
-    func testExecTargetResolutionFailure() async {
-        assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
-        let env = CmdEnv.defaultEnv.withWindowId(9999)
-
-        await assertRun("test %{window-id} = 1", env: env, exitCode: 2, stdout: [], stderr: ["Invalid <window-id> 9999 specified in AEROSPACE_WINDOW_ID env variable"])
+    @Test
+    func execStringMatchesRegexInvalidPattern() async {
+        setUpTree("h_tiles(*1)")
+        let output = await runCmd("test %{app-bundle-id} ~= [")
+        #expect(output == .fail("Can't parse '[' regex: expected custom character class members"))
     }
 
-    func testNotExec() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-        }
+    @Test
+    func execTargetResolutionFailure() async {
+        #expect(Workspace.get(byName: "a").focusWorkspace())
+        let output = await runCmd("test %{window-id} = 1", windowIdEnv: 9999)
+        #expect(output == .fail("Invalid <window-id> 9999 specified in AEROSPACE_WINDOW_ID env variable"))
+    }
+
+    @Test
+    func notExec() async {
+        setUpTree("h_tiles(*1)")
 
         // test inner=true → test-not=false
-        await assertRun("test-not %{window-id} = 1", exitCode: 1, stdout: [], stderr: [])
+        var output = await runCmd("test-not %{window-id} = 1")
+        #expect(output == CmdOutput(exitCode: 1))
 
         // test inner=false → test-not=true
-        await assertRun("test-not %{window-id} = 2", exitCode: 0, stdout: [], stderr: [])
+        output = await runCmd("test-not %{window-id} = 2")
+        #expect(output == .ok)
 
         // test inner=fail → test-not=fail (propagates without inverting)
-        await assertRun("test-not %{workspace-is-focused} = foo", exitCode: 2, stdout: [], stderr: ["Can\'t convert String \'foo\' to Bool"])
+        output = await runCmd("test-not %{workspace-is-focused} = foo")
+        #expect(output == .fail("Can't convert String 'foo' to Bool"))
     }
 }

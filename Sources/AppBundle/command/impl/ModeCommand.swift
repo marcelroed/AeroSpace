@@ -1,12 +1,19 @@
 import AppKit
 import Common
 
-struct ModeCommand: Command {
-    let args: ModeCmdArgs
-    /*conforms*/ let shouldResetClosedWindowsCache = false
+struct ModeCommand: nonisolated Command {
+    static let resetsClosedWindowsCache = false
+    var source: SourceWords = []
+    var targetMode: String
 
-    func run(_ env: CmdEnv, _ io: CmdIo) async -> BinaryExitCode {
-        await activateMode_nonCancellable(args.targetMode.val)
-        return .succ
+    static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
+        try a.noOptions()
+        let result = Self(targetMode: try a.positional("<binding-mode>"))
+        try a.end()
+        return result
+    }
+
+    func run(_ cx: CmdContext) async {
+        await activateMode_nonCancellable(targetMode)
     }
 }

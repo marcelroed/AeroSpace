@@ -20,37 +20,34 @@ import Testing
 // action: focus up
 // expected: mru(window3, window4) is focused
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct FocusCommandTest {
     @Test
     func parse() {
-        var expected = FocusCmdArgs(rawArgs: [], cardinalOrDfsDirection: .direction(.left))
-        expected.rawBoundaries = .workspace
-        testParseSingleCommandSucc("focus --boundaries workspace left", expected)
-
-        var expectedDfs = FocusCmdArgs(rawArgs: [], cardinalOrDfsDirection: .dfsRelative(.dfsPrev))
-        expectedDfs.rawBoundariesAction = .wrapAroundTheWorkspace
-        testParseSingleCommandSucc("focus --boundaries-action wrap-around-the-workspace dfs-prev", expectedDfs)
+        testParseSingleCommandSucc("focus --boundaries workspace left", FocusCommand(target: .direction(.left), boundaries: .workspace))
+        testParseSingleCommandSucc(
+            "focus --boundaries-action wrap-around-the-workspace dfs-prev",
+            FocusCommand(target: .dfsRelative(.dfsPrev), boundariesAction: .wrapAroundTheWorkspace),
+        )
 
         #expect(parseCommand("focus --fail-if-fullscreen --fail-if-macos-native-fullscreen left").errorOrNil == nil)
         #expect(parseCommand("focus --boundaries left").errorOrNil?.contains("Possible values") == true)
     }
 
     @Test(arguments: [
-        ("focus --boundaries workspace --boundaries workspace left", "ERROR: Duplicated option '--boundaries'"),
-        ("focus --window-id 42 --ignore-floating", "ERROR: --window-id is incompatible with other options"),
-        ("focus --boundaries all-monitors-outer-frame dfs-next", "ERROR: (dfs-next|dfs-prev) only supports --boundaries workspace"),
-        ("focus --window-id 42 --wrap-around", "ERROR: --window-id is incompatible with other options"),
-        ("focus left --boundaries-action wrap-around-the-workspace --wrap-around", "ERROR: Conflicting options: --boundaries-action, --wrap-around"),
-        ("focus dfs-next --fail-if-fullscreen", "ERROR: --fail-if-fullscreen/--fail-if-macos-native-fullscreen require using (left|down|up|right) argument"),
-        ("focus --fail-if-macos-native-fullscreen --window-id 42", "ERROR: --window-id is incompatible with other options"),
-        ("focus --boundaries", "ERROR: <boundary> is mandatory"),
-        ("focus --boundaries-action", "ERROR: <action> is mandatory"),
-        ("focus --boundaries-action foo left", "ERROR: Can't parse 'foo'.\n       Possible values: (stop|fail|wrap-around-the-workspace|wrap-around-all-monitors)"),
-        ("focus foo", "ERROR: Can't parse 'foo'.\n       Possible values: (left|down|up|right|dfs-next|dfs-prev)"),
-        ("focus --boundaries-action wrap-around-all-monitors dfs-next", "ERROR: workspace and wrap-around-all-monitors is an invalid combination of values"),
-        ("focus --dfs-index 0 left", "ERROR: --dfs-index is incompatible with other options"),
+        ("focus --boundaries workspace --boundaries workspace left", "Duplicated option '--boundaries'"),
+        ("focus --window-id 42 --ignore-floating", "--window-id is incompatible with other options"),
+        ("focus --boundaries all-monitors-outer-frame dfs-next", "(dfs-next|dfs-prev) only supports --boundaries workspace"),
+        ("focus --window-id 42 --wrap-around", "--window-id is incompatible with other options"),
+        ("focus left --boundaries-action wrap-around-the-workspace --wrap-around", "Conflicting options: --boundaries-action, --wrap-around"),
+        ("focus dfs-next --fail-if-fullscreen", "--fail-if-fullscreen/--fail-if-macos-native-fullscreen require using (left|down|up|right) argument"),
+        ("focus --fail-if-macos-native-fullscreen --window-id 42", "--window-id is incompatible with other options"),
+        ("focus --boundaries", "'--boundaries' must be followed by '<boundary>'"),
+        ("focus --boundaries-action", "'--boundaries-action' must be followed by '<action>'"),
+        ("focus --boundaries-action foo left", "Can't parse 'foo'.\nPossible values: (stop|fail|wrap-around-the-workspace|wrap-around-all-monitors)"),
+        ("focus foo", "Can't parse 'foo'.\nPossible values: (left|down|up|right|dfs-next|dfs-prev)"),
+        ("focus --boundaries-action wrap-around-all-monitors dfs-next", "workspace and wrap-around-all-monitors is an invalid combination of values"),
+        ("focus --dfs-index 0 left", "--dfs-index is incompatible with other options"),
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)

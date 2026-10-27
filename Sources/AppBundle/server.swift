@@ -27,84 +27,80 @@ nonisolated func toggleReleaseServerIfDebug(_ state: ToggleEnum) async {
         return
     }
 
-    let req = ClientRequest(args: ["enable", state.rawValue], stdin: "", windowId: nil, workspace: nil)
-    _ = await connection.writeAtomic(req)
+    _ = await connection.writeAtomic(ClientRequest(args: ["enable", state.rawValue], stdin: "", windowId: nil, workspace: nil))
     _ = await connection.readNonAtomic()
 }
 
 nonisolated private let serverVersionAndHash = "\(aeroSpaceAppVersion) \(gitHash)"
 
-/// Runs off the main actor: the connection I/O doesn't wait for the main thread
-nonisolated private func newConnection(_ connection: NWConnection) async { // todo add exit codes
-    func answerToClient(exitCode: Int32, stdout: String = "", stderr: String = "") async {
-        let ans = ServerAnswer(exitCode: exitCode, stdout: stdout, stderr: stderr, serverVersionAndHash: serverVersionAndHash)
-        _ = await connection.writeAtomic(ans)
+/// Answers the one request of the connection. Runs off the main actor: the connection I/O doesn't wait for the main
+/// thread
+nonisolated private func newConnection(_ connection: NWConnection) async {
+    func answer(exitCode: Int32, stdout: String = "", stderr: String = "") async {
+        let answer = ServerAnswer(exitCode: exitCode, stdout: stdout, stderr: stderr, serverVersionAndHash: serverVersionAndHash)
+        _ = await connection.writeAtomic(answer)
     }
 
-    guard let clientVersion = try? await connection.readUInt32().get() else { return }
-    // The server unconditionally answers with the only version it supports
-    if await connection.writeUInt32(SOCKET_PROTOCOL_VERSION).error != nil { return }
-    if clientVersion != SOCKET_PROTOCOL_VERSION { return }
-
-    while true {
-        guard let rawRequest = await connection.readNonAtomic().getOrNil(onFailure: { err in
-            await answerToClient(exitCode: EXIT_CODE_TWO, stderr: "Error: \(err)")
-        }) else { return }
-        guard let request = await ClientRequest.decodeJson(rawRequest).getOrNil(onFailure: { err in
+    let rawRequest: Data
+    switch await connection.readNonAtomic() {
+        case .success(let it): rawRequest = it
+        case .failure(let err): return await answer(exitCode: EXIT_CODE_TWO, stderr: "Error: \(err)")
+    }
+    let request: ClientRequest
+    switch ClientRequest.decodeJson(rawRequest) {
+        case .success(let it): request = it
+        case .failure(let err):
             let msg = """
                 Can't parse request \(String(describing: String(data: rawRequest, encoding: .utf8)).singleQuoted).
                 Error: \(err)
                 """
-            return await answerToClient(exitCode: EXIT_CODE_TWO, stderr: msg)
-        }) else { continue }
-        // Handle subscribe before parseCommand (subscribe doesn't have a Command impl)
-        if request.args.first == "subscribe" {
-            switch parseSubscribeCmdArgs(request.args.slice(1...).orDie()) {
-                case .cmd(let subscribeArgs): await handleSubscribeAndWaitTillError(connection, subscribeArgs)
-                case .help(let help): await answerToClient(exitCode: EXIT_CODE_ZERO, stdout: help)
-                case .failure(let err): await answerToClient(exitCode: err.exitCode, stderr: err.msg)
-            }
-            continue
+            return await answer(exitCode: EXIT_CODE_TWO, stderr: msg)
+    }
+    switch await handle(request) {
+        case .answer(let exitCode, let stdout, let stderr):
+            await answer(exitCode: exitCode, stdout: stdout, stderr: stderr)
+        case .subscribe(let args):
+            await answer(exitCode: EXIT_CODE_ZERO)
+            await handleSubscribeAndWaitTillError(connection, args)
+    }
+}
+
+private enum RequestOutcome {
+    case answer(exitCode: Int32, stdout: String = "", stderr: String = "")
+    case subscribe(SubscribeArgs)
+}
+
+/// Parses the request, then runs the command. Help and parse errors are answered even if the server is disabled
+private func handle(_ request: ClientRequest) async -> RequestOutcome {
+    let command: any Command
+    do throws(CmdParseError) {
+        var (kind, args) = try parseSubcommand(request.args)
+        if kind == .subscribe { return .subscribe(try SubscribeArgs.parse(&args)) }
+        command = try parseCommand(request.args)
+    } catch {
+        return switch error {
+            case .help(let kind): .answer(exitCode: EXIT_CODE_ZERO, stdout: kind.help)
+            case .invalid(let msg): .answer(exitCode: EXIT_CODE_TWO, stderr: msg)
         }
-        let parsedCmd = await parseCommand(request.args)
-        guard let token: RunSessionGuard = await .isServerEnabled(orIsEnableCommand: parsedCmd.cmdOrNil) else {
-            await answerToClient(
-                exitCode: EXIT_CODE_TWO,
-                stderr: "\(aeroSpaceAppName) server is disabled and doesn't accept commands. " +
-                    "You can use 'aerospace enable on' to enable the server",
+    }
+    guard let token: RunSessionGuard = .isServerEnabled(orIsEnableCommand: command) else {
+        return .answer(
+            exitCode: EXIT_CODE_TWO,
+            stderr: "\(aeroSpaceAppName) server is disabled and doesn't accept commands. " +
+                "You can use 'aerospace enable on' to enable the server",
+        )
+    }
+    do {
+        return try await runLightSession(.socketServer(request.args), token) { () throws in
+            let env = CmdEnv(windowId: request.windowId, workspaceName: request.workspace)
+            let result = await command.run(env, CmdStdin(request.stdin))
+            return .answer(
+                exitCode: result.exitCode,
+                stdout: result.stdout.joined(separator: "\n"),
+                stderr: result.stderr.joined(separator: "\n"),
             )
-            continue
         }
-        switch parsedCmd {
-            case .help(let help): await answerToClient(exitCode: EXIT_CODE_ZERO, stdout: help)
-            case .failure(let err): await answerToClient(exitCode: err.exitCode, stderr: err.msg)
-            case .cmd(let command):
-                var answer: ServerAnswer
-                do {
-                    answer = try await runLightSession(.socketServer(command.args), token) { () throws in
-                        let env = CmdEnv.init(
-                            windowId: request.windowId.flattenOptional(),
-                            workspaceName: request.workspace.flattenOptional(),
-                        )
-                        let cmdResult = await command.run(env, CmdStdin(request.stdin))
-                        return ServerAnswer(
-                            exitCode: cmdResult.exitCode.rawValue,
-                            stdout: cmdResult.stdout.joined(separator: "\n"),
-                            stderr: cmdResult.stderr.joined(separator: "\n"),
-                            serverVersionAndHash: serverVersionAndHash,
-                        )
-                    }
-                } catch {
-                    answer = ServerAnswer(
-                        exitCode: await command.args.failExitCode,
-                        stderr: "Fail to await main thread. \(error.localizedDescription)",
-                        serverVersionAndHash: serverVersionAndHash,
-                    )
-                }
-                if request.windowId == nil || request.workspace == nil {
-                    answer.stderr += "\n\nAeroSpace client has sent incomplete JSON request. 'windowId' or/and 'workspace' fields are missing. Please forward your AEROSPACE_WINDOW_ID and AEROSPACE_WORKSPACE environment variables to these JSON fields. If the appropriate environment variables are empty, pass explicit 'null' in the JSON."
-                }
-                _ = await connection.writeAtomic(answer)
-        }
+    } catch {
+        return .answer(exitCode: EXIT_CODE_TWO, stderr: "Fail to await main thread. \(error.localizedDescription)")
     }
 }

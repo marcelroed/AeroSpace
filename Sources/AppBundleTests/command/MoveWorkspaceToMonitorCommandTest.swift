@@ -2,7 +2,6 @@
 import Common
 import Testing
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct MoveWorkspaceToMonitorCommandTest {
     @Test
@@ -13,19 +12,18 @@ struct MoveWorkspaceToMonitorCommandTest {
     }
 
     @Test(arguments: [
-        ("move-workspace-to-monitor --", "ERROR: Argument '(left|down|up|right|next|prev|<monitor-pattern>)' is mandatory"),
-        // The deprecated move-workspace-to-display alias used to skip the post-parse validation (RB-12)
-        ("move-workspace-to-monitor --wrap-around 2", "ERROR: --wrap-around is incompatible with <monitor-pattern> argument"),
-        ("move-workspace-to-display --wrap-around 2", "ERROR: --wrap-around is incompatible with <monitor-pattern> argument"),
+        ("move-workspace-to-monitor --", "Argument '(left|down|up|right|next|prev|<monitor-pattern>)' is mandatory"),
+        ("move-workspace-to-monitor --wrap-around 2", "--wrap-around is incompatible with <monitor-pattern> argument"),
+        ("move-workspace-to-display --wrap-around 2", "Unrecognized subcommand 'move-workspace-to-display'"), // The deprecated alias is gone
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
         #expect(output == .fail(error))
     }
 
-    @Test(arguments: ["move-workspace-to-monitor", "move-workspace-to-display"])
-    func parseDeprecatedAlias(command: String) {
-        #expect(parseMoveWorkspaceToMonitorTarget("\(command) --wrap-around next") == .relative(.next))
+    @Test
+    func parseWrapAround() {
+        #expect(parseMoveWorkspaceToMonitorTarget("move-workspace-to-monitor --wrap-around next") == .relative(.next))
     }
 
     // The test monitor is the only monitor
@@ -56,5 +54,5 @@ struct MoveWorkspaceToMonitorCommandTest {
 }
 
 private func parseMoveWorkspaceToMonitorTarget(_ raw: String) -> MonitorTarget? {
-    parsedArgs(raw, as: MoveWorkspaceToMonitorCmdArgs.self)?.target.val
+    parsedCmd(raw, as: MoveWorkspaceToMonitorCommand.self)?.target
 }

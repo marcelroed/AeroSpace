@@ -196,7 +196,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
             case .moveNodeToWorkspace:
                 """
                 USAGE: move-node-to-workspace [-h|--help] [--focus-follows-window] [--wrap-around]
-                                              [--stdin|--no-stdin]
+                                              [--stdin]
                                               (next|prev)
                    OR: move-node-to-workspace [-h|--help] [--focus-follows-window] [--fail-if-noop]
                                               [--window-id <window-id>] [--] <workspace-name>
@@ -274,7 +274,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
             case .workspace:
                 """
                 USAGE: workspace [-h|--help] [--auto-back-and-forth] [--fail-if-noop] [--] <workspace-name>
-                   OR: workspace [-h|--help] [--wrap-around] [--stdin|--no-stdin] (next|prev)
+                   OR: workspace [-h|--help] [--wrap-around] [--stdin] (next|prev)
                 """
         }
     }

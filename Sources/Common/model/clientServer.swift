@@ -1,63 +1,46 @@
 import Foundation
 
-public let SOCKET_PROTOCOL_VERSION: UInt32 = 1
+// The CLI talks to AeroSpace.app over a unix socket (socketPath). Every message is a frame: its length as a
+// little-endian UInt32, then that many bytes of JSON (NWConnectionEx.swift).
+//
+// One request per connection. The client sends a ClientRequest, the server answers with one ServerAnswer. After a
+// successful `subscribe` answer, the server sends a frame per ServerEvent until the connection closes.
 
-public struct ServerAnswer: Codable, Sendable {
-    public let exitCode: Int32
-    public let stdout: String
-    public var stderr: String
-    public let serverVersionAndHash: String
+public let EXIT_CODE_ZERO: Int32 = 0
+public let EXIT_CODE_TWO: Int32 = 2
 
-    public init(
-        exitCode: Int32,
-        stdout: String = "",
-        stderr: String = "",
-        serverVersionAndHash: String,
-    ) {
-        self.exitCode = exitCode
-        self.stdout = stdout
-        self.stderr = stderr
-        self.serverVersionAndHash = serverVersionAndHash
-    }
-}
-
-public struct ClientRequest: Codable, Sendable, ConvenienceMutable, Equatable {
+public struct ClientRequest: Codable, Sendable, Equatable {
+    /// The subcommand and its args. The server parses them
     public let args: [String]
+    /// Empty unless the command reads stdin (`--stdin`)
     public let stdin: String
+    /// The client's AEROSPACE_WINDOW_ID env variable
+    public let windowId: UInt32?
+    /// The client's AEROSPACE_WORKSPACE env variable
+    public let workspace: String?
 
-    // Double Optional to encode explicit null into JSON
-    public var windowId: UInt32??  // Please forward AEROSPACE_WINDOW_ID env variable here
-    public var workspace: String?? // Please forward AEROSPACE_WORKSPACE env variable here
-
-    public init(
-        args: [String],
-        stdin: String,
-        windowId: UInt32?,
-        workspace: String?,
-    ) {
+    public init(args: [String], stdin: String, windowId: UInt32?, workspace: String?) {
         self.args = args
         self.stdin = stdin
-        self.windowId = .some(windowId)
-        self.workspace = .some(workspace)
+        self.windowId = windowId
+        self.workspace = workspace
     }
 
     public static func decodeJson(_ data: Data) -> Result<ClientRequest, String> {
         Result { try JSONDecoder().decode(Self.self, from: data) }.mapError { $0.localizedDescription }
     }
+}
 
-    enum CodingKeys: String, CodingKey {
-        case args
-        case stdin
-        case windowId
-        case workspace
-    }
+public struct ServerAnswer: Codable, Sendable, Equatable {
+    public let exitCode: Int32
+    public let stdout: String
+    public let stderr: String
+    public let serverVersionAndHash: String
 
-    public init(from decoder: any Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        args = try container.decode([String].self, forKey: .args)
-        stdin = try container.decode(String.self, forKey: .stdin)
-        // Missing key: nil. Explicit null: .some(nil)
-        windowId = try container.contains(.windowId) ? .some(container.decodeIfPresent(UInt32.self, forKey: .windowId)) : nil
-        workspace = try container.contains(.workspace) ? .some(container.decodeIfPresent(String.self, forKey: .workspace)) : nil
+    public init(exitCode: Int32, stdout: String = "", stderr: String = "", serverVersionAndHash: String) {
+        self.exitCode = exitCode
+        self.stdout = stdout
+        self.stderr = stderr
+        self.serverVersionAndHash = serverVersionAndHash
     }
 }

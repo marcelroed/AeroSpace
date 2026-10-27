@@ -1,28 +1,100 @@
 import AppKit
 import Common
 
-struct ConfigCommand: Command {
-    let args: ConfigCmdArgs
-    /*conforms*/ let shouldResetClosedWindowsCache = false
+struct ConfigCommand: nonisolated Command {
+    nonisolated enum Mode: Equatable, Sendable {
+        case getKey(key: String), majorKeys, allKeys, configPath
+    }
 
-    func run(_ env: CmdEnv, _ io: CmdIo) -> BinaryExitCode {
-        switch args.mode {
+    static let resetsClosedWindowsCache = false
+    var source: SourceWords = []
+    var mode: Mode
+    var json = false
+    var keys = false
+
+    static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
+        var keyNameToGet: String? = nil
+        var majorKeys = false
+        var allKeys = false
+        var configPath = false
+        var json = false
+        var keys = false
+        while let option = try a.nextOption() {
+            switch option {
+                case "--json": json = true
+                case "--keys": keys = true
+                case "--major-keys": majorKeys = true
+                case "--all-keys": allKeys = true
+                case "--config-path": configPath = true
+                case "--get": keyNameToGet = try a.value(of: option, "<name>")
+                default: throw .unknownOption(option)
+            }
+        }
+        try a.end()
+        let modes: [(String, Mode)] = [
+            keyNameToGet.map { ("--get", .getKey(key: $0)) },
+            majorKeys ? ("--major-keys", .majorKeys) : nil,
+            allKeys ? ("--all-keys", .allKeys) : nil,
+            configPath ? ("--config-path", .configPath) : nil,
+        ].compactMap(\.self)
+        guard let (_, mode) = modes.singleOrNil() else {
+            if modes.isEmpty { throw "Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)" }
+            throw "Conflicting flags are specified: \(modes.map(\.0).joined(separator: ", "))"
+        }
+        if keys && keyNameToGet == nil { throw "--keys flag requires --get flag" }
+        if json && keyNameToGet == nil { throw "--json flag requires --get flag" }
+        return Self(mode: mode, json: json, keys: keys)
+    }
+
+    func run(_ cx: CmdContext) async throws(CmdFail) {
+        switch mode {
             case .getKey(let key):
-                return getKey(io, args: args, key: key)
+                try getKey(cx, key: key)
             case .majorKeys:
                 let out = """
                     .
                     mode
                     \(config.modes.keys.sorted().map { "mode.\($0).binding" }.joined(separator: "\n"))
                     """
-                return .succ(io.out(out))
+                cx.out(out)
             case .allKeys:
                 let configMap = buildConfigMap()
                 var allKeys: [String] = []
                 configMap.dumpAllKeysRecursive(path: ".", result: &allKeys)
-                return .succ(io.out(allKeys.joined(separator: "\n")))
+                cx.out(allKeys.joined(separator: "\n"))
             case .configPath:
-                return .succ(io.out(configUrl.absoluteURL.path))
+                cx.out(configUrl.absoluteURL.path)
+        }
+    }
+
+    /// `buildConfigMap()` contains only dicts and strings, and `--keys` turns a dict into an array of strings
+    private func getKey(_ cx: CmdContext, key: String) throws(CmdFail) {
+        let keyPath: [String]
+        switch key.toKeyPath() {
+            case .success(let it): keyPath = it
+            case .failure(let msg): throw CmdFail(msg)
+        }
+        var configMap: OrderedJson
+        switch buildConfigMap().find(keyPath: keyPath.slice) {
+            case .success(let it): configMap = it
+            case .failure(let msg): throw CmdFail(msg)
+        }
+        if keys {
+            guard let dict = configMap.asDictOrNil else {
+                throw "--keys flag cannot be applied to scalar object '\(configMap.scalarDescription.orDie())'"
+            }
+            configMap = .array(dict.keys.sorted().map { .string($0) })
+        }
+        if json {
+            guard let json = JSONEncoder.aeroSpaceDefault.encodeToString(configMap) else { throw "Can't convert json Data to String" }
+            cx.out(json)
+            return
+        }
+        switch configMap {
+            case .dict:
+                throw "Complicated objects can be printed only with --json flag. Alternatively, you can try to inspect keys of the object with --keys flag"
+            case .array(let keys): cx.out(keys.compactMap(\.asStringOrNil).sorted().joined(separator: "\n"))
+            case .string, .int, .bool, .null: cx.out(configMap.scalarDescription.orDie())
         }
     }
 }
@@ -33,30 +105,6 @@ extension String {
         if isEmpty { return .failure("Invalid empty key") }
         if contains("..") || hasSuffix(".") { return .failure("Invalid key '\(self)'") }
         return .success(split(separator: ".", omittingEmptySubsequences: false).map(String.init))
-    }
-}
-
-/// `buildConfigMap()` contains only dicts and strings, and `--keys` turns a dict into an array of strings
-private func getKey(_ io: CmdIo, args: ConfigCmdArgs, key: String) -> BinaryExitCode {
-    guard let keyPath = key.toKeyPath().getOrNil(appendErrorTo: &io.stderr) else { return .fail }
-    guard var configMap = buildConfigMap().find(keyPath: keyPath.slice).getOrNil(appendErrorTo: &io.stderr) else { return .fail }
-    if args.keys {
-        guard let dict = configMap.asDictOrNil else {
-            return .fail(io.err("--keys flag cannot be applied to scalar object '\(configMap.scalarDescription.orDie())'"))
-        }
-        configMap = .array(dict.keys.sorted().map { .string($0) })
-    }
-    if args.json {
-        return switch JSONEncoder.aeroSpaceDefault.encodeToString(configMap) {
-            case let json?: .succ(io.out(json))
-            case nil: .fail(io.err("Can't convert json Data to String"))
-        }
-    }
-    return switch configMap {
-        case .dict:
-            .fail(io.err("Complicated objects can be printed only with --json flag. Alternatively, you can try to inspect keys of the object with --keys flag"))
-        case .array(let keys): .succ(io.out(keys.compactMap(\.asStringOrNil).sorted().joined(separator: "\n")))
-        case .string, .int, .bool, .null: .succ(io.out(configMap.scalarDescription.orDie()))
     }
 }
 
@@ -110,7 +158,7 @@ extension OrderedJson {
 }
 
 extension Shell<any Command> {
-    var shellOfCommandsDescription: String { buildDescription { $0.args.description } }
+    var shellOfCommandsDescription: String { buildDescription { $0.description } }
 }
 
 func buildConfigMap() -> OrderedJson {

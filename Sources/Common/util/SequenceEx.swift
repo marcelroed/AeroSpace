@@ -14,21 +14,6 @@ extension Sequence {
         return .success(result)
     }
 
-    public func mapAllOrFailure<T>(_ transform: (Self.Element) -> ParsedCmd<T>) -> ParsedCmd<[T]> {
-        var result: [T] = []
-        for element in self {
-            switch transform(element) {
-                case .cmd(let element):
-                    result.append(element)
-                case .help(let help):
-                    return .help(help)
-                case .failure(let cmdParsingFailure):
-                    return .failure(cmdParsingFailure)
-            }
-        }
-        return .cmd(result)
-    }
-
     @inlinable public func minBy(_ selector: (Self.Element) -> some Comparable) -> Self.Element? {
         self.min(by: { a, b in selector(a) < selector(b) })
     }

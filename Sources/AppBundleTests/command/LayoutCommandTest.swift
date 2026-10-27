@@ -2,7 +2,6 @@
 import Common
 import Testing
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct LayoutCommandTest {
     @Test
@@ -12,27 +11,27 @@ struct LayoutCommandTest {
         }
         testParseSingleCommandSucc(
             "layout --root accordion tiles",
-            LayoutCmdArgs(rawArgs: [], toggleBetween: [.accordion, .tiles]).copy(\.root, true),
+            LayoutCommand(toggleBetween: [.accordion, .tiles], root: true),
         )
         testParseSingleCommandSucc(
             "layout --for-next-detected-window floating",
-            LayoutCmdArgs(rawArgs: [], toggleBetween: [.floating]).copy(\.forNextDetectedWindow, true),
+            LayoutCommand(toggleBetween: [.floating], forNextDetectedWindow: true),
         )
         for command in ["layout --for-next-detected-window floating tiling", "layout --for-next-detected-window accordion"] {
             let output = await runCmd(command)
-            #expect(output == .fail("ERROR: " + layoutCommandForNextDetectedWindowFlagIncompatibilityMsg))
+            #expect(output == .fail(LayoutCommand.forNextDetectedWindowFlagIncompatibilityMsg))
         }
     }
 
     @Test(arguments: [
-        ("layout --root accordion tiling", "ERROR: layout command: --root and tiling|floating are incompatible"),
-        ("layout --workspace 2 tiles", "ERROR: --workspace flag requires using an explicit --root flag"),
-        ("layout --workspace 2 --window-id 2 tiles", "ERROR: Conflicting options: --window-id, --workspace"),
-        ("layout --fail-if-noop accordion tiling", "ERROR: --fail-if-noop allows only one <target-layout> argument"),
-        ("layout --for-next-detected-window --window-id 1 floating", "ERROR: Conflicting options: --for-next-detected-window, --window-id"),
-        ("layout --for-next-detected-window --workspace 2 floating", "ERROR: Conflicting options: --for-next-detected-window, --workspace"),
-        ("layout --for-next-detected-window --root floating", "ERROR: Conflicting options: --for-next-detected-window, --root"),
-        ("layout --for-next-detected-window --fail-if-noop floating", "ERROR: Conflicting options: --fail-if-noop, --for-next-detected-window"),
+        ("layout --root accordion tiling", "layout command: --root and tiling|floating are incompatible"),
+        ("layout --workspace 2 tiles", "--workspace flag requires using an explicit --root flag"),
+        ("layout --workspace 2 --window-id 2 tiles", "Conflicting options: --window-id, --workspace"),
+        ("layout --fail-if-noop accordion tiling", "--fail-if-noop allows only one <target-layout> argument"),
+        ("layout --for-next-detected-window --window-id 1 floating", "Conflicting options: --for-next-detected-window, --window-id"),
+        ("layout --for-next-detected-window --workspace 2 floating", "Conflicting options: --for-next-detected-window, --workspace"),
+        ("layout --for-next-detected-window --root floating", "Conflicting options: --for-next-detected-window, --root"),
+        ("layout --for-next-detected-window --fail-if-noop floating", "Conflicting options: --fail-if-noop, --for-next-detected-window"),
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)

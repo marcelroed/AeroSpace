@@ -107,7 +107,7 @@ public enum RefreshSessionEvent: Sendable, CustomStringConvertible {
     case menuBarButton
     case hotkeyBinding
     case startup
-    case socketServer(any CmdArgs)
+    case socketServer([String])
     case resetManipulatedWithMouse
     case ax(String)
     case focusFollowsMouse
@@ -129,7 +129,7 @@ public enum RefreshSessionEvent: Sendable, CustomStringConvertible {
             case .hotkeyBinding: "hotkeyBinding"
             case .menuBarButton: "menuBarButton"
             case .resetManipulatedWithMouse: "resetManipulatedWithMouse"
-            case .socketServer(let args): "socketServer: \(args)"
+            case .socketServer(let args): "socketServer: \(args.joinArgs())"
             case .startup: "startup"
             case .focusFollowsMouse: "focusFollowsMouse"
         }
@@ -182,17 +182,6 @@ extension String {
     public func removePrefix(_ prefix: String) -> String {
         hasPrefix(prefix) ? String(dropFirst(prefix.count)) : self
     }
-}
-
-extension Bool {
-    /// Implication
-    /// | a     | b     | a.implies(b) |
-    /// |-------|-------|--------------|
-    /// | false | false | true         |
-    /// | false | true  | true         |
-    /// | true  | false | false        |
-    /// | true  | true  | true         |
-    public func implies(_ mustHold: @autoclosure () -> Bool) -> Bool { !self || mustHold() }
 }
 
 extension URL {

@@ -3,7 +3,6 @@ import Common
 import Foundation
 import Testing
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct ListWorkspacesTest {
     @Test
@@ -28,9 +27,9 @@ struct ListWorkspacesTest {
     }
 
     @Test(arguments: [
-        ("list-workspaces --all --format %{workspace} --count", "ERROR: Conflicting options: --count, --format"),
-        ("list-workspaces --empty", "ERROR: Mandatory option is not specified (--all|--focused|--monitor)"),
-        ("list-workspaces --all --focused --monitor mouse", "ERROR: Conflicting options: --all, --focused, --monitor"),
+        ("list-workspaces --all --format %{workspace} --count", "Conflicting options: --count, --format"),
+        ("list-workspaces --empty", "Mandatory option is not specified (--all|--focused|--monitor)"),
+        ("list-workspaces --all --focused --monitor mouse", "Conflicting options: --all, --focused, --monitor"),
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)

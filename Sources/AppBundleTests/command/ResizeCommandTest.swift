@@ -2,31 +2,30 @@
 import Common
 import Testing
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct ResizeCommandTest {
     @Test
     func parse() {
-        testParseSingleCommandSucc("resize smart +10", ResizeCmdArgs(rawArgs: [], dimension: .smart, units: .add(10)))
-        testParseSingleCommandSucc("resize smart -10", ResizeCmdArgs(rawArgs: [], dimension: .smart, units: .subtract(10)))
-        testParseSingleCommandSucc("resize smart 10", ResizeCmdArgs(rawArgs: [], dimension: .smart, units: .set(10)))
+        testParseSingleCommandSucc("resize smart +10", ResizeCommand(dimension: .smart, units: .add(10)))
+        testParseSingleCommandSucc("resize smart -10", ResizeCommand(dimension: .smart, units: .subtract(10)))
+        testParseSingleCommandSucc("resize smart 10", ResizeCommand(dimension: .smart, units: .set(10)))
 
-        testParseSingleCommandSucc("resize smart-opposite +10", ResizeCmdArgs(rawArgs: [], dimension: .smartOpposite, units: .add(10)))
-        testParseSingleCommandSucc("resize smart-opposite -10", ResizeCmdArgs(rawArgs: [], dimension: .smartOpposite, units: .subtract(10)))
-        testParseSingleCommandSucc("resize smart-opposite 10", ResizeCmdArgs(rawArgs: [], dimension: .smartOpposite, units: .set(10)))
+        testParseSingleCommandSucc("resize smart-opposite +10", ResizeCommand(dimension: .smartOpposite, units: .add(10)))
+        testParseSingleCommandSucc("resize smart-opposite -10", ResizeCommand(dimension: .smartOpposite, units: .subtract(10)))
+        testParseSingleCommandSucc("resize smart-opposite 10", ResizeCommand(dimension: .smartOpposite, units: .set(10)))
 
-        testParseSingleCommandSucc("resize height 10", ResizeCmdArgs(rawArgs: [], dimension: .height, units: .set(10)))
-        testParseSingleCommandSucc("resize width 10", ResizeCmdArgs(rawArgs: [], dimension: .width, units: .set(10)))
+        testParseSingleCommandSucc("resize height 10", ResizeCommand(dimension: .height, units: .set(10)))
+        testParseSingleCommandSucc("resize width 10", ResizeCommand(dimension: .width, units: .set(10)))
     }
 
     @Test(arguments: [
-        ("resize s 10", "ERROR: Can't parse 's'.\n       Possible values: (width|height|smart|smart-opposite)"),
-        ("resize smart foo", "ERROR: <number> argument must be a number"),
+        ("resize s 10", "Can't parse 's'.\nPossible values: (width|height|smart|smart-opposite)"),
+        ("resize smart foo", "<number> argument must be a number"),
         // RB-33: UInt(...) accepts a sign too, so `+-10` and `++10` used to mean `+10`
-        ("resize smart +-10", "ERROR: <number> argument must be a number"),
-        ("resize smart ++10", "ERROR: <number> argument must be a number"),
-        ("resize smart +-0", "ERROR: <number> argument must be a number"),
-        ("resize smart +", "ERROR: <number> argument must be a number"),
+        ("resize smart +-10", "<number> argument must be a number"),
+        ("resize smart ++10", "<number> argument must be a number"),
+        ("resize smart +-0", "<number> argument must be a number"),
+        ("resize smart +", "<number> argument must be a number"),
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)

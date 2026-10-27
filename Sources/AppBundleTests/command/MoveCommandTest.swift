@@ -2,25 +2,24 @@
 import Common
 import Testing
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct MoveCommandTest {
     @Test
     func parse() {
         #expect(parseCommand("move --fail-if-fullscreen left").errorOrNil == nil)
         #expect(parseCommand("move --fail-if-macos-native-fullscreen --window-id 1 right").errorOrNil == nil)
-        let args = parsedArgs("move --boundaries all-monitors-outer-frame --boundaries-action fail up", as: MoveCmdArgs.self)
-        #expect(args?.direction.val == .up)
-        #expect(args?.rawBoundaries == .allMonitorsOuterFrame)
-        #expect(args?.rawBoundariesAction == .fail)
-        #expect(parsedArgs("move left", as: MoveCmdArgs.self)?.direction.val == .left)
+        let args = parsedCmd("move --boundaries all-monitors-outer-frame --boundaries-action fail up", as: MoveCommand.self)
+        #expect(args?.direction == .up)
+        #expect(args?.boundaries == .allMonitorsOuterFrame)
+        #expect(args?.boundariesAction == .fail)
+        #expect(parsedCmd("move left", as: MoveCommand.self)?.direction == .left)
     }
 
     @Test(arguments: [
-        ("move --boundaries", "ERROR: <boundary> is mandatory\nERROR: Argument '(left|down|up|right)' is mandatory"),
-        ("move --boundaries-action left", "ERROR: Can't parse 'left'.\n       Possible values: (stop|fail|create-implicit-container)\nERROR: Argument '(left|down|up|right)' is mandatory"),
-        ("move --boundaries-action --boundaries workspace left", "ERROR: <action> is mandatory"),
-        ("move foo", "ERROR: Can't parse 'foo'.\n       Possible values: (left|down|up|right)"),
+        ("move --boundaries", "'--boundaries' must be followed by '<boundary>'"),
+        ("move --boundaries-action left", "Can't parse 'left'.\nPossible values: (stop|fail|create-implicit-container)"),
+        ("move --boundaries-action --boundaries workspace left", "'--boundaries-action' must be followed by '<action>'"),
+        ("move foo", "Can't parse 'foo'.\nPossible values: (left|down|up|right)"),
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)

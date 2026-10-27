@@ -2,7 +2,6 @@
 import Common
 import Testing
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct ListExecEnvVarsCommandTest {
     @Test

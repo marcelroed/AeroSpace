@@ -17,68 +17,35 @@ private let subcommandTable = CmdKind.allCases
     .sortedBy { $0[0] }
     .toPaddingTable(columnSeparator: "   ")
 
+/// The CLI is thin: the server parses the args. The CLI answers only what needs no server: the usage, the version,
+/// the help of a subcommand, and `true`/`false`
 @main
 struct Main {
     static func main() async {
-        let args = CommandLine.arguments.slice(1...) ?? []
+        let args = Array(CommandLine.arguments.dropFirst())
+        guard let subcommand = args.first else { exit(EXIT_CODE_TWO, err: usage) }
+        if subcommand == "--help" || subcommand == "-h" { exit(EXIT_CODE_ZERO, out: usage) }
+        if subcommand == "--version" || subcommand == "-v" { await printVersionAndExit() }
 
-        if args.isEmpty {
-            exit(EXIT_CODE_TWO, err: usage)
+        // The options come before `--`. The server parses them the same way
+        let options = args.dropFirst().prefix { $0 != "--" }
+        if let kind = CmdKind(rawValue: subcommand), kind != .execAndForget, options.contains(where: { $0 == "-h" || $0 == "--help" }) {
+            exit(EXIT_CODE_ZERO, out: kind.help)
         }
-        if args.first == "--help" || args.first == "-h" {
-            exit(EXIT_CODE_ZERO, out: usage)
-        }
+        // Optimizations
+        if args == [CmdKind._true.rawValue] { exit(EXIT_CODE_ZERO) }
+        if args == [CmdKind._false.rawValue] { exit(1) }
 
-        if args.first == "--version" || args.first == "-v" {
-            await printVersionAndExit()
-        }
-
-        let parsedArgs: any CmdArgs = switch parseCmdArgs(args) {
-            // Optimizations
-            case .cmd(_ as TrueCmdArgs): exit(ConditionalExitCode._true.rawValue)
-            case .cmd(_ as FalseCmdArgs): exit(ConditionalExitCode._false.rawValue)
-
-            case .cmd(let cmdArgs): cmdArgs
-            case .help(let help): exit(EXIT_CODE_ZERO, out: help)
-            case .failure(let e): exit(e.exitCode, err: e.msg)
-        }
-
-        let failExitCode = parsedArgs.failExitCode
-
-        let connection = NWConnection(to: NWEndpoint.unix(path: socketPath), using: .tcp)
-
-        switch await connection.initConnection().error {
-            case nil: break
-            case .customError(let msg):
-                exit(failExitCode, err: msg)
-            case .nwError(let e):
-                exit(failExitCode, err: "Can't connect to AeroSpace server. Is AeroSpace.app running?\n\(e.localizedDescription)")
-        }
-
-        let explicitStdinFlag = parsedArgs.commonState.explicitStdinFlag
-        // todo: drop after a couple of versions
-        if explicitStdinFlag == nil && isRelativeWorkspaceTarget(parsedArgs) && hasStdin() {
-            exit(
-                failExitCode,
-                err: """
-                    ERROR: Implicit stdin is detected (stdin is not TTY). Implicit stdin was forbidden in AeroSpace v0.20.0.
-                    1. Please supply '--stdin' flag to make stdin explicit and preserve old AeroSpace behavior
-                    2. You can also use '--no-stdin' flag to behave as if no stdin was supplied
-                    Breaking change issue: https://github.com/nikitabobko/AeroSpace/issues/1683
-                    """,
-            )
-        }
-        let stdin = explicitStdinFlag == true ? readStdinOrExit(failExitCode: failExitCode) : ""
-
-        let windowId = ProcessInfo.processInfo.environment[AEROSPACE_WINDOW_ID].flatMap(UInt32.init)
-        let workspace = ProcessInfo.processInfo.environment[AEROSPACE_WORKSPACE]
-
-        // Handle subscribe command specially
-        if parsedArgs is SubscribeCmdArgs {
-            await runSubscribe(connection, args, windowId: windowId, workspace: workspace, failExitCode: failExitCode)
-        }
-
-        let ans = await run(connection, args, stdin: stdin, windowId: windowId, workspace: workspace, failExitCode: failExitCode)
+        let stdin = options.contains("--stdin") ? readStdinOrExit() : ""
+        let connection = await connectOrExit()
+        let env = ProcessInfo.processInfo.environment
+        let request = ClientRequest(
+            args: args,
+            stdin: stdin,
+            windowId: env[AEROSPACE_WINDOW_ID].flatMap(UInt32.init),
+            workspace: env[AEROSPACE_WORKSPACE],
+        )
+        let ans = await send(connection, request)
 
         if !ans.stdout.isEmpty { print(ans.stdout) }
         if !ans.stderr.isEmpty { eprint(ans.stderr) }
@@ -94,22 +61,30 @@ struct Main {
                 """,
             )
         }
+        if subcommand == CmdKind.subscribe.rawValue && ans.exitCode == EXIT_CODE_ZERO {
+            await printEventsAndExit(connection)
+        }
         exit(ans.exitCode)
     }
+}
+
+private func connectOrExit() async -> NWConnection {
+    let connection = NWConnection(to: NWEndpoint.unix(path: socketPath), using: .tcp)
+    if let e = await connection.initConnection().error {
+        exit(EXIT_CODE_TWO, err: "Can't connect to AeroSpace server. Is AeroSpace.app running?\n\(e.localizedDescription)")
+    }
+    return connection
 }
 
 private func printVersionAndExit() async -> Never {
     let connection = NWConnection(to: NWEndpoint.unix(path: socketPath), using: .tcp)
     let serverVersionAndHash: String?
-    switch await connection.initConnection().error {
-        case nil:
-            let ans = await run(connection, [], stdin: "", windowId: nil, workspace: nil, failExitCode: EXIT_CODE_TWO)
-            serverVersionAndHash = ans.serverVersionAndHash
-        case .nwError(let e):
-            eprint(e.localizedDescription)
-            serverVersionAndHash = nil
-        case .customError(let msg):
-            exit(EXIT_CODE_TWO, err: msg)
+    if let e = await connection.initConnection().error {
+        eprint(e.localizedDescription)
+        serverVersionAndHash = nil
+    } else {
+        // Any answer carries the server version, even the failure of an empty request
+        serverVersionAndHash = await send(connection, ClientRequest(args: [], stdin: "", windowId: nil, workspace: nil)).serverVersionAndHash
     }
     print(
         """
@@ -129,59 +104,42 @@ private func printVersionAndExit() async -> Never {
     exit(EXIT_CODE_ZERO)
 }
 
-private func isRelativeWorkspaceTarget(_ args: any CmdArgs) -> Bool {
-    switch args {
-        case let args as WorkspaceCmdArgs: args.target.val.isRelative
-        case let args as MoveNodeToWorkspaceCmdArgs: args.target.val.isRelative
-        default: false
-    }
-}
-
-private func readStdinOrExit(failExitCode: Int32) -> String {
+private func readStdinOrExit() -> String {
     var stdin = ""
     var index = 0
     while let line = readLine(strippingNewline: false) {
         stdin += line
         index += 1
         if index > 1000 {
-            exit(failExitCode, err: "stdin number of lines limit is exceeded")
+            exit(EXIT_CODE_TWO, err: "stdin number of lines limit is exceeded")
         }
     }
     return stdin
 }
 
-private func sendRequestOrExit(_ connection: NWConnection, _ request: ClientRequest, failExitCode: Int32) async {
+private func send(_ connection: NWConnection, _ request: ClientRequest) async -> ServerAnswer {
     if let e = await connection.writeAtomic(request).error {
-        exit(failExitCode, err: "Failed to write to server socket: \(e)")
+        exit(EXIT_CODE_TWO, err: "Failed to write to server socket: \(e)")
     }
-}
-
-func runSubscribe(_ connection: NWConnection, _ args: StrArrSlice, windowId: UInt32?, workspace: String?, failExitCode: Int32) async -> Never {
-    await sendRequestOrExit(connection, ClientRequest(args: args.toArray(), stdin: "", windowId: windowId, workspace: workspace), failExitCode: failExitCode)
-
-    while true {
-        switch await connection.readNonAtomic() {
-            case .success(let data):
-                if let str = String(data: data, encoding: .utf8) {
-                    print(str)
-                    unsafe fflush(stdout)
-                } else {
-                    exit(failExitCode, err: "Can't convert bytes to utf8 String")
-                }
-            case .failure(let e):
-                exit(failExitCode, err: "runSubscribe error: \(e)")
-        }
-    }
-}
-
-func run(_ connection: NWConnection, _ args: StrArrSlice, stdin: String, windowId: UInt32?, workspace: String?, failExitCode: Int32) async -> ServerAnswer {
-    await sendRequestOrExit(connection, ClientRequest(args: args.toArray(), stdin: stdin, windowId: windowId, workspace: workspace), failExitCode: failExitCode)
-
     switch await connection.readNonAtomic() {
         case .success(let answer):
             if let ans = try? JSONDecoder().decode(ServerAnswer.self, from: answer) { return ans }
             exit(EXIT_CODE_TWO, err: "Failed to parse server response: \(String(data: answer, encoding: .utf8).prettyDescription)")
         case .failure(let error):
-            exit(failExitCode, err: "Failed to read from server socket: \(error)")
+            exit(EXIT_CODE_TWO, err: "Failed to read from server socket: \(error)")
+    }
+}
+
+/// After a successful `subscribe` answer, the server sends an event per frame until the connection closes
+private func printEventsAndExit(_ connection: NWConnection) async -> Never {
+    while true {
+        switch await connection.readNonAtomic() {
+            case .success(let data):
+                guard let str = String(data: data, encoding: .utf8) else { exit(EXIT_CODE_TWO, err: "Can't convert bytes to utf8 String") }
+                print(str)
+                unsafe fflush(stdout)
+            case .failure(let e):
+                exit(EXIT_CODE_TWO, err: "subscribe error: \(e)")
+        }
     }
 }

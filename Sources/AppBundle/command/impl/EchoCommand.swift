@@ -1,29 +1,46 @@
 import Common
 
-struct EchoCommand: Command {
-    let args: EchoCmdArgs
-    /*conforms*/ let shouldResetClosedWindowsCache = false
+struct EchoCommand: nonisolated Command {
+    static let resetsClosedWindowsCache = false
+    var source: SourceWords = []
+    var args: [[FormatToken]]
+    var isStderr = false
+    var windowId: UInt32? = nil
 
-    func run(_ env: CmdEnv, _ io: CmdIo) async -> BinaryExitCode {
-        guard let target = args.resolveTargetOrReportError(env, io) else { return .fail }
-        var obj = [AeroObj]()
-        if let window = target.windowOrNil {
-            guard let a: WindowWithPrefetchedTitle = try? await .resolveWindow(window, for: args.args.val.flatMap { $0 }, .nonCancellable) else { return .fail(io.err(bugPrompt())) }
-            obj.append(AeroObj.window(a))
-        } else {
-            obj.append(AeroObj.workspace(target.workspace))
-        }
-        for argWithInterVars in args.args.val {
-            guard let strs = obj.format(argWithInterVars).getOrNil(onFailure: { errs in
-                for err in errs { io.err(err.cmdErrorMessage) }
-            }) else { return .fail }
-            for str in strs {
-                switch args.isStderr {
-                    case true: io.err(str)
-                    case false: io.out(str)
-                }
+    static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
+        var isStderr = false
+        var windowId: UInt32? = nil
+        while let option = try a.nextOption() {
+            switch option {
+                case "--stderr": isStderr = true
+                case "--window-id": windowId = try a.windowId(of: option)
+                default: throw .unknownOption(option)
             }
         }
-        return .succ
+        let args = try a.allPositionals().map(parseFormat)
+        if args.isEmpty { throw "Argument '<string>' is mandatory" }
+        return Self(args: args, isStderr: isStderr, windowId: windowId)
+    }
+
+    func run(_ cx: CmdContext) async throws(CmdFail) {
+        let target = try cx.target(windowId: windowId)
+        let obj: AeroObj
+        if let window = target.windowOrNil {
+            guard let window = try? await WindowWithPrefetchedTitle.resolveWindow(window, for: args.flatMap { $0 }, .nonCancellable) else {
+                throw CmdFail(bugPrompt())
+            }
+            obj = .window(window)
+        } else {
+            obj = .workspace(target.workspace)
+        }
+        for arg in args {
+            let line: String
+            do {
+                line = try obj.format(arg)
+            } catch {
+                throw CmdFail(error.cmdErrorMessage)
+            }
+            if isStderr { cx.err(line) } else { cx.out(line) }
+        }
     }
 }

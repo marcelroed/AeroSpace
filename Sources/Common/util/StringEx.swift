@@ -19,19 +19,6 @@ extension String {
 }
 
 extension [String] {
-    public func joinErrors() -> String { // todo reuse in config parsing?
-        map { (error: String) -> String in
-            error.split(separator: "\n").enumerated()
-                .map { (i, line) in
-                    i == 0
-                        ? "ERROR: " + line
-                        : "       " + line
-                }
-                .joined(separator: "\n")
-        }
-        .joined(separator: "\n")
-    }
-
     public func joinTruncating(separator: String, length maxLength: Int, trailing: String = "…") -> String {
         if isEmpty {
             return ""
@@ -94,21 +81,7 @@ extension String {
         }
     }
 
-    public func interpolationTokens<T>(
-        interpolationChar: Character,
-        ofInterVarType type: T.Type,
-    ) -> Result<[InterToken<T>], String> where T: Sendable, T: Equatable, T: CaseIterable, T: RawRepresentable, T.RawValue == String {
-        rawInterpolationTokens(interpolationChar: interpolationChar).flatMap { rawTokens in
-            rawTokens.mapAllOrFailure { token in
-                switch token {
-                    case .literal(let literal): .success(.literal(literal))
-                    case .interVar(let value): parseEnum(value, type).map { .interVar($0) }
-                }
-            }
-        }
-    }
-
-    func rawInterpolationTokens(interpolationChar: Character) -> Result<[InterToken<String>], String> {
+    public func rawInterpolationTokens(interpolationChar: Character) -> Result<[InterToken<String>], String> {
         var mode: InterpolationParserState = .stringLiteral(currLiteral: "")
         var result: [InterToken<String>] = []
         for char: Character? in (Array(self) + [nil]) {

@@ -1,20 +1,40 @@
 import AppKit
 import Common
 
-struct ListModesCommand: Command {
-    let args: ListModesCmdArgs
-    /*conforms*/ let shouldResetClosedWindowsCache = false
+struct ListModesCommand: nonisolated Command {
+    static let resetsClosedWindowsCache = false
+    var source: SourceWords = []
+    var current = false
+    var count = false
+    var json = false
 
-    func run(_ env: CmdEnv, _ io: CmdIo) -> BinaryExitCode {
-        let modes: [String] = args.current ? [activeMode ?? mainModeId] : config.modes.keys.sorted()
-        return switch true {
-            case args.outputOnlyCount:
-                .succ(io.out("\(modes.count)"))
-            case args.json:
-                JSONEncoder.aeroSpaceDefault.encodeToString(modes.map { ["mode-id": $0] }).map { .succ(io.out($0)) }
-                    ?? .fail(io.err("Failed to encode JSON"))
-            default:
-                .succ(io.out(modes))
+    static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
+        var result = Self()
+        while let option = try a.nextOption() {
+            switch option {
+                case "--count": result.count = true
+                case "--current": result.current = true
+                case "--json": result.json = true
+                default: throw .unknownOption(option)
+            }
+        }
+        try a.end()
+        if result.count && result.current { throw .conflicting("--count", "--current") }
+        if result.count && result.json { throw .conflicting("--count", "--json") }
+        return result
+    }
+
+    func run(_ cx: CmdContext) async throws(CmdFail) {
+        let modes: [String] = current ? [activeMode ?? mainModeId] : config.modes.keys.sorted()
+        if count {
+            cx.out("\(modes.count)")
+        } else if json {
+            guard let json = JSONEncoder.aeroSpaceDefault.encodeToString(modes.map { ["mode-id": $0] }) else {
+                throw "Failed to encode JSON"
+            }
+            cx.out(json)
+        } else {
+            cx.out(modes)
         }
     }
 }

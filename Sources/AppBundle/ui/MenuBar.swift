@@ -76,7 +76,7 @@ private func enableToggleButton(_ viewModel: TrayMenuModel) -> some View {
     Button(viewModel.isEnabled ? "Disable" : "Enable") {
         Task.startUnstructured {
             try await runLightSession(.menuBarButton, .forceRun) {
-                _ = await EnableCommand(args: EnableCmdArgs(rawArgs: [], targetState: .toggle))
+                _ = await EnableCommand(targetState: .toggle)
                     .run(.defaultEnv, .emptyStdin)
             }
         }

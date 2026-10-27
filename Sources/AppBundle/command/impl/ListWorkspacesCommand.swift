@@ -1,40 +1,90 @@
 import AppKit
 import Common
 
-struct ListWorkspacesCommand: Command {
-    let args: ListWorkspacesCmdArgs
-    /*conforms*/ let shouldResetClosedWindowsCache = false
+/// A monitor of the `--monitor` filter of `list-workspaces` and `list-windows`
+nonisolated enum MonitorId: Equatable, Sendable {
+    case focused
+    case all
+    case mouse
+    case index(Int)
 
-    func run(_ env: CmdEnv, _ io: CmdIo) -> BinaryExitCode {
+    /// The values of `--monitor`
+    static func parseList(_ raw: [String]) throws(CmdParseError) -> [Self] {
+        let possibleValues = "<monitor> possible values: (<monitor-id>|focused|mouse|all)"
+        if raw.isEmpty { throw "<monitor>... is mandatory. \(possibleValues)" }
+        return try raw.map { (monitor) throws(CmdParseError) in
+            if let index = Int(monitor) { return .index(index - 1) }
+            switch monitor {
+                case "mouse": return .mouse
+                case "all": return .all
+                case "focused": return .focused
+                default: throw "Can't parse monitor ID '\(monitor)'. \(possibleValues)"
+            }
+        }
+    }
+}
+
+struct ListWorkspacesCommand: nonisolated Command {
+    static let resetsClosedWindowsCache = false
+    var source: SourceWords = []
+    /// Not empty
+    var onMonitors: [MonitorId]
+    var visible: Bool? = nil
+    var empty: Bool? = nil
+    var output: ListOutput = .lines([.interVar(.workspace)])
+
+    static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
+        var all = false
+        var focused = false
+        var onMonitors: [MonitorId] = []
+        var visible: Bool? = nil
+        var empty: Bool? = nil
+        var output = ListOutput.Options()
+        while let option = try a.nextOption() {
+            switch option {
+                case "--all": all = true // Alias
+                case "--focused": focused = true // Alias
+                case "--visible": visible = a.noOrTrue()
+                case "--empty": empty = a.noOrTrue()
+                case "--monitor": onMonitors = try MonitorId.parseList(a.values())
+                default: if try !output.take(option, &a, .workspace) { throw .unknownOption(option) }
+            }
+        }
+        try a.end()
+        try a.checkConflicts(["--all", "--focused", "--monitor"])
+        let isFiltered = !onMonitors.isEmpty || visible != nil || empty != nil
+        if !all && !focused && onMonitors.isEmpty { throw "Mandatory option is not specified (--all|--focused|--monitor)" }
+        if all && isFiltered { throw "--all conflicts with any other \"filtering\" options" }
+        if focused && isFiltered { throw "--focused conflicts with all other \"filtering\" options" }
+        if all { onMonitors = [.all] }
+        if focused {
+            onMonitors = [.focused]
+            visible = true
+        }
+        return Self(onMonitors: onMonitors, visible: visible, empty: empty, output: try output.build(defaultFormat: [.interVar(.workspace)]))
+    }
+
+    func run(_ cx: CmdContext) async throws(CmdFail) {
         var result: [Workspace] = Workspace.all
-        if let visible = args.filteringOptions.visible {
+        if let visible {
             result = result.filter { $0.isVisible == visible }
         }
-        if !args.filteringOptions.onMonitors.isEmpty {
-            let monitors: Set<CGPoint> = args.filteringOptions.onMonitors.resolveMonitors(io)
-            if monitors.isEmpty { return .fail }
-            result = result.filter { monitors.contains($0.workspaceMonitor.rect.topLeftCorner) }
-        }
-        if let empty = args.filteringOptions.empty {
+        let monitors: Set<CGPoint> = try onMonitors.resolveMonitors()
+        result = result.filter { monitors.contains($0.workspaceMonitor.rect.topLeftCorner) }
+        if let empty {
             result = result.filter { $0.isEffectivelyEmpty == empty }
         }
-
-        if args.outputOnlyCount {
-            return .succ(io.out("\(result.count)"))
-        }
-        return args.printList(result.map(AeroObj.workspace), io)
+        try output.print(result.map(AeroObj.workspace), cx)
     }
 }
 
 extension [MonitorId] {
-    func resolveMonitors(_ io: CmdIo) -> Set<CGPoint> {
-        var requested: Set<CGPoint> = []
+    func resolveMonitors() throws(CmdFail) -> Set<CGPoint> {
         let sortedMonitors = sortedMonitorInfos
+        var requested: Set<CGPoint> = []
         for id in self {
-            let resolved = id.resolve(io, sortedMonitors: sortedMonitors)
-            if resolved.isEmpty {
-                return []
-            }
+            let resolved = try id.resolve(sortedMonitors: sortedMonitors)
+            if resolved.isEmpty { throw .silent }
             for monitor in resolved {
                 requested.insert(monitor.rect.topLeftCorner)
             }
@@ -44,21 +94,14 @@ extension [MonitorId] {
 }
 
 extension MonitorId {
-    func resolve(_ io: CmdIo, sortedMonitors: [MonitorInfo]) -> [MonitorInfo] {
+    func resolve(sortedMonitors: [MonitorInfo]) throws(CmdFail) -> [MonitorInfo] {
         switch self {
-            case .focused:
-                return [focus.workspace.workspaceMonitor]
-            case .mouse:
-                return [mouseLocation.monitorApproximation]
-            case .all:
-                return monitorInfos
+            case .focused: return [focus.workspace.workspaceMonitor]
+            case .mouse: return [mouseLocation.monitorApproximation]
+            case .all: return monitorInfos
             case .index(let index):
-                if let monitor = sortedMonitors.getOrNil(atIndex: index) {
-                    return [monitor]
-                } else {
-                    io.err("Invalid monitor ID: \(index + 1)")
-                    return []
-                }
+                guard let monitor = sortedMonitors.getOrNil(atIndex: index) else { throw "Invalid monitor ID: \(index + 1)" }
+                return [monitor]
         }
     }
 }

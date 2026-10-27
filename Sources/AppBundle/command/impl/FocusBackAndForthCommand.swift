@@ -1,14 +1,17 @@
 import AppKit
 import Common
 
-struct FocusBackAndForthCommand: Command {
-    let args: FocusBackAndForthCmdArgs
-    /*conforms*/ let shouldResetClosedWindowsCache = false
+struct FocusBackAndForthCommand: nonisolated Command {
+    static let resetsClosedWindowsCache = false
+    var source: SourceWords = []
 
-    func run(_ env: CmdEnv, _ io: CmdIo) -> BinaryExitCode {
-        switch prevFocus {
-            case let prevFocus?: .from(bool: setFocus(to: prevFocus))
-            case nil: .fail(io.err("Prev window has been closed"))
-        }
+    static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
+        try a.noArgs()
+        return Self()
+    }
+
+    func run(_ cx: CmdContext) throws(CmdFail) {
+        guard let prevFocus else { throw "Prev window has been closed" }
+        if !setFocus(to: prevFocus) { throw .silent }
     }
 }

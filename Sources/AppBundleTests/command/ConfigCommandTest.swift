@@ -16,16 +16,16 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
         #expect(parseCommand("config --get foo --json").errorOrNil == nil)
         #expect(parseCommand("config --get foo --keys --json").errorOrNil == nil)
 
-        #expect(parseCommand("config").errorOrNil == "ERROR: Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)")
+        #expect(parseCommand("config").errorOrNil == "Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)")
         // --keys/--json alone still trigger the mandatory-flag check first because they don't
         // contribute to the mandatory-flag set.
-        #expect(parseCommand("config --keys").errorOrNil == "ERROR: Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)")
-        #expect(parseCommand("config --json").errorOrNil == "ERROR: Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)")
-        #expect(parseCommand("config --major-keys --keys").errorOrNil == "ERROR: --keys flag requires --get flag")
-        #expect(parseCommand("config --major-keys --json").errorOrNil == "ERROR: --json flag requires --get flag")
+        #expect(parseCommand("config --keys").errorOrNil == "Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)")
+        #expect(parseCommand("config --json").errorOrNil == "Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)")
+        #expect(parseCommand("config --major-keys --keys").errorOrNil == "--keys flag requires --get flag")
+        #expect(parseCommand("config --major-keys --json").errorOrNil == "--json flag requires --get flag")
 
         // Two mandatory flags are mutually exclusive
-        #expect(parseCommand("config --major-keys --all-keys").errorOrNil == "ERROR: Conflicting flags are specified: --major-keys, --all-keys")
+        #expect(parseCommand("config --major-keys --all-keys").errorOrNil == "Conflicting flags are specified: --major-keys, --all-keys")
     }
 
     @Test
@@ -36,7 +36,7 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
             [("--get", "--get foo"), ("--major-keys", "--major-keys"), ("--all-keys", "--all-keys"), ("--config-path", "--config-path")]
         for mask in 0 ..< (1 << flags.count) where mask.nonzeroBitCount >= 2 {
             let combination = flags.indices.filter { mask & (1 << $0) != 0 }.map { flags[$0] }
-            #expect(parseCommand("config " + combination.reversed().map(\.args).joined(separator: " ")).errorOrNil == "ERROR: Conflicting flags are specified: " + combination.map(\.name).joined(separator: ", "))
+            #expect(parseCommand("config " + combination.reversed().map(\.args).joined(separator: " ")).errorOrNil == "Conflicting flags are specified: " + combination.map(\.name).joined(separator: ", "))
         }
     }
 

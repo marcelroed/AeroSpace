@@ -2,7 +2,7 @@
 import Common
 import Testing
 
-/// The errors that `parseCmdArgs` and `parseSpecificCmdArgs` report for every subcommand, and how they are joined
+/// The errors that `parseCommand` and `ArgCursor` report for every subcommand. Parsing stops at the first error
 @Suite
 struct GenericParseErrorTest: AeroSpaceTestSuite {
     @Test(arguments: parseFailures)
@@ -12,8 +12,8 @@ struct GenericParseErrorTest: AeroSpaceTestSuite {
 
     @Test
     func testEmptyCommand() {
-        assertEquals(parseCmdArgs([String]().slice).failureOrNil, CmdParsingFailure("Can't parse empty string command", 2))
-        assertEquals(parseCmdArgs([""].slice).failureOrNil, CmdParsingFailure("Can't parse empty string command", 2))
+        #expect(parseWords([]) == .invalid("Can't parse empty string command"))
+        #expect(parseWords([""]) == .invalid("Can't parse empty string command"))
         testParseCommandFail("''", msg: "Can't parse empty string command")
     }
 
@@ -21,53 +21,64 @@ struct GenericParseErrorTest: AeroSpaceTestSuite {
     func testUnrecognizedSubcommand() {
         testParseCommandFail("bogus", msg: "Unrecognized subcommand 'bogus'")
         testParseCommandFail("--help", msg: "Unrecognized subcommand '--help'")
-        assertEquals(parseCmdArgs(["bogus", "--help"].slice).failureOrNil, CmdParsingFailure("Unrecognized subcommand 'bogus'", 2))
+        #expect(parseWords(["bogus", "--help"]) == .invalid("Unrecognized subcommand 'bogus'"))
     }
 
     @Test
-    func testHelpWinsOverEarlierErrors() {
-        let help = "USAGE: close [-h|--help] [--quit-if-last-window] [--window-id <window-id>]"
-        assertEquals(parseCmdArgs(["close", "--window-id", "abc", "--help"].slice).helpOrNil, help)
-        assertEquals(parseCmdArgs(["close", "--window-id", "1", "--window-id", "2", "-h"].slice).helpOrNil, help)
-        // But not over an unknown flag or argument, which stops the parsing
-        assertEquals(parseCmdArgs(["close", "--bogus", "--help"].slice).helpOrNil, nil)
-        assertEquals(parseCmdArgs(["close", "foo", "--help"].slice).helpOrNil, nil)
+    func testHelpWinsOverParseErrors() {
+        for args in [["--window-id", "abc", "--help"], ["--window-id", "1", "--window-id", "2", "-h"], ["--bogus", "--help"], ["foo", "--help"]] {
+            #expect(parseWords(["close"] + args) == .help(.close), "\(args)")
+        }
+        // After '--', '--help' is an argument
+        #expect(parseWords(["close", "--", "--help"]) == .invalid("Unknown argument '--help'"))
     }
+
+    @Test
+    func testDoubleDashWithoutArgs() {
+        #expect(parseCommand("close --").cmdOrNil != nil)
+        #expect(parsedCmd("layout tiles --", as: LayoutCommand.self)?.toggleBetween == [.tiles])
+        #expect(parsedCmd("layout tiles -- tiling", as: LayoutCommand.self)?.toggleBetween == [.tiles, .tiling])
+    }
+}
+
+private func parseWords(_ words: [String]) -> CmdParseError? {
+    Result { () throws(CmdParseError) in try parseCommand(words) }.failureOrNil
 }
 
 nonisolated private let layoutPossibleValues = "(accordion|tiles|horizontal|vertical|h_accordion|v_accordion|h_tiles|v_tiles|tiling|floating)"
 
 nonisolated private let parseFailures: [(command: String, msg: String)] = [
-    // Unknown flag stops the parsing
-    ("close --bogus", "ERROR: Unknown flag '--bogus'"),
-    ("close --bogus --also-bogus", "ERROR: Unknown flag '--bogus'"),
-    ("close -10", "ERROR: Unknown flag '-10'"), // Negative numbers are positional only for resize
-    ("split --bogus", "ERROR: Unknown flag '--bogus'\nERROR: Argument '(horizontal|vertical|opposite)' is mandatory"),
-    ("list-windows --all --focused --bogus", "ERROR: Unknown flag '--bogus'\nERROR: Conflicting options: --all, --focused"),
+    // The first unknown flag
+    ("close --bogus", "Unknown flag '--bogus'"),
+    ("close --bogus --also-bogus", "Unknown flag '--bogus'"),
+    ("split --bogus", "Unknown flag '--bogus'"),
+    ("list-windows --all --focused --bogus", "Unknown flag '--bogus'"),
+    // Options come before positional args are checked
+    ("close foo --bogus", "Unknown flag '--bogus'"),
+
+    // Negative numbers are positional args
+    ("close -10", "Unknown argument '-10'"),
 
     // Flag values
-    ("close --window-id", "ERROR: '--window-id' must be followed by '<window-id>'"),
-    ("close --window-id --quit-if-last-window --bogus", "ERROR: '--window-id' must be followed by '<window-id>'\nERROR: Unknown flag '--bogus'"),
-    ("close --window-id abc", "ERROR: Failed to parse 'abc' CLI argument: Can't convert 'abc' to UInt32"),
-    ("close --window-id abc foo", "ERROR: Failed to parse 'abc' CLI argument: Can't convert 'abc' to UInt32\nERROR: Unknown argument 'foo'"),
-    ("focus --boundaries foo left", "ERROR: Can't parse 'foo'.\n       Possible values: (workspace|all-monitors-outer-frame)"),
+    ("close --window-id", "'--window-id' must be followed by '<window-id>'"),
+    ("close --window-id --quit-if-last-window --bogus", "'--window-id' must be followed by '<window-id>'"),
+    ("close --window-id abc", "Failed to parse 'abc' CLI argument: Can't convert 'abc' to UInt32"),
+    ("close --window-id abc foo", "Failed to parse 'abc' CLI argument: Can't convert 'abc' to UInt32"),
+    ("focus --boundaries foo left", "Can't parse 'foo'.\nPossible values: (workspace|all-monitors-outer-frame)"),
 
-    // Duplicated option doesn't stop the parsing
-    ("close --window-id 1 --window-id 2", "ERROR: Duplicated option '--window-id'"),
-    ("close --quit-if-last-window --quit-if-last-window", "ERROR: Duplicated option '--quit-if-last-window'"),
-    ("close --window-id 1 --window-id", "ERROR: Duplicated option '--window-id'\nERROR: '--window-id' must be followed by '<window-id>'"),
-    ("close --window-id 1 --window-id 2 foo", "ERROR: Duplicated option '--window-id'\nERROR: Unknown argument 'foo'"),
+    // Duplicated option
+    ("close --window-id 1 --window-id 2", "Duplicated option '--window-id'"),
+    ("close --quit-if-last-window --quit-if-last-window", "Duplicated option '--quit-if-last-window'"),
+    ("close --window-id 1 --window-id", "Duplicated option '--window-id'"),
+    ("close --window-id 1 --window-id 2 foo", "Duplicated option '--window-id'"),
 
-    // Unknown argument stops the parsing
-    ("close foo", "ERROR: Unknown argument 'foo'"),
-    ("close foo --bogus", "ERROR: Unknown argument 'foo'"),
-    ("close --", "ERROR: Unknown argument '--'"),
-    ("split foo bar", "ERROR: Can't parse 'foo'.\n       Possible values: (horizontal|vertical|opposite)\nERROR: Unknown argument 'bar'"),
+    // Unknown argument
+    ("close foo", "Unknown argument 'foo'"),
+    ("close -- --bogus", "Unknown argument '--bogus'"),
+    ("split foo bar", "Can't parse 'foo'.\nPossible values: (horizontal|vertical|opposite)"),
 
-    // layout passes '--' to its <layout> parser
-    ("layout foo", "ERROR: Can't parse 'foo'\n       Possible values: \(layoutPossibleValues)"),
-    ("layout --", "ERROR: Can't parse '--'\n       Possible values: \(layoutPossibleValues)"),
-    ("layout -- -x", "ERROR: Can't parse '--'\n       Possible values: \(layoutPossibleValues)\nERROR: Unknown argument '-x'"),
-    ("layout tiles --", "ERROR: Can't parse '--'\n       Possible values: \(layoutPossibleValues)"),
-    ("layout tiles -- tiling", "ERROR: Can't parse '--'\n       Possible values: \(layoutPossibleValues)\nERROR: Unknown argument 'tiling'"),
+    // '--' ends the options, it isn't an argument
+    ("layout foo", "Can't parse 'foo'\nPossible values: \(layoutPossibleValues)"),
+    ("layout --", "Argument '\(layoutPossibleValues)' is mandatory"),
+    ("layout -- -x", "Can't parse '-x'\nPossible values: \(layoutPossibleValues)"),
 ]

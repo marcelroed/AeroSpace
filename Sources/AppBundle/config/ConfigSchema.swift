@@ -116,19 +116,12 @@ let decodeShellOfCommands: Decode<Shell<any Command>> = { raw, path, d in
 }
 
 func parseCommandForConfig(_ raw: String, allowExecAndForget: Bool, _ path: ConfigBacktrace, _ d: inout Diagnostics) -> Shell<any Command> {
-    switch parseCommand(raw, allowExecAndForget: allowExecAndForget, allowEval: false) {
-        case .cmd(let shell): return shell
-        case .help(let msg): d.error(path, msg)
-        case .failure(let failure): d.error(path, withoutErrorPrefixes(failure.msg))
+    do {
+        return try parseShell(raw, allowExecAndForget: allowExecAndForget, allowEval: false)
+    } catch {
+        d.error(path, error.message)
+        return .empty
     }
-    return .empty
-}
-
-/// The config diagnostic has its own "[ERROR]": drop the "ERROR: " prefixes and the continuation indent of `joinErrors`
-private func withoutErrorPrefixes(_ msg: String) -> String {
-    msg.split(separator: "\n", omittingEmptySubsequences: false)
-        .map { line in line.starts(with: "ERROR: ") ? line.dropFirst(7) : line.trimmingPrefix("       ") }
-        .joined(separator: "\n")
 }
 
 private let decodeWorkspaceToMonitorAssignment: Decode<[String: [MonitorDescription]]> = { raw, path, d in

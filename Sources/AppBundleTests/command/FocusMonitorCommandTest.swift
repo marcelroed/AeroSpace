@@ -2,7 +2,6 @@
 import Common
 import Testing
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct FocusMonitorCommandTest {
     @Test
@@ -15,8 +14,8 @@ struct FocusMonitorCommandTest {
     }
 
     @Test(arguments: [
-        ("focus-monitor --wrap-around main", "ERROR: --wrap-around is incompatible with <monitor-pattern> argument"),
-        ("focus-monitor --", "ERROR: Argument '(left|down|up|right|next|prev|<monitor-pattern>)' is mandatory"),
+        ("focus-monitor --wrap-around main", "--wrap-around is incompatible with <monitor-pattern> argument"),
+        ("focus-monitor --", "Argument '(left|down|up|right|next|prev|<monitor-pattern>)' is mandatory"),
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
@@ -65,5 +64,5 @@ nonisolated let singleMonitorErrors: [(String, String)] = [
 ]
 
 private func parseFocusMonitorTarget(_ raw: String) -> MonitorTarget? {
-    parsedArgs(raw, as: FocusMonitorCmdArgs.self)?.target.val
+    parsedCmd(raw, as: FocusMonitorCommand.self)?.target
 }

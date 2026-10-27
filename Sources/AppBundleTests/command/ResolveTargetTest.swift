@@ -3,7 +3,6 @@ import Common
 import Testing
 
 /// Pins the target resolution errors shared by the commands (cmdResolveTargetOrReportError.swift)
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct ResolveTargetTest {
     @Test(arguments: windowIdCommands)

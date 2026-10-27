@@ -2,28 +2,27 @@
 import Common
 import Testing
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct MoveNodeToMonitorCommandTest {
     @Test
     func parse() {
-        testParseSingleCommandSucc("move-node-to-monitor next", MoveNodeToMonitorCmdArgs(target: .relative(.next)))
-        testParseSingleCommandSucc("move-node-to-monitor --fail-if-noop main", MoveNodeToMonitorCmdArgs(target: .patterns([.main])).copy(\.failIfNoop, true))
-        testParseSingleCommandSucc("move-node-to-monitor -- next", MoveNodeToMonitorCmdArgs(target: .patterns([.pattern("next")!])))
+        testParseSingleCommandSucc("move-node-to-monitor next", MoveNodeToMonitorCommand(target: .relative(.next)))
+        testParseSingleCommandSucc("move-node-to-monitor --fail-if-noop main", MoveNodeToMonitorCommand(target: .patterns([.main]), failIfNoop: true))
+        testParseSingleCommandSucc("move-node-to-monitor -- next", MoveNodeToMonitorCommand(target: .patterns([.pattern("next")!])))
         testParseSingleCommandSucc(
             "move-node-to-monitor -- main 2",
-            MoveNodeToMonitorCmdArgs(target: .patterns([.main, .sequenceNumber(2)])),
+            MoveNodeToMonitorCommand(target: .patterns([.main, .sequenceNumber(2)])),
         )
         testParseSingleCommandSucc(
             "move-node-to-monitor --fail-if-noop -- next",
-            MoveNodeToMonitorCmdArgs(target: .patterns([.pattern("next")!])).copy(\.failIfNoop, true),
+            MoveNodeToMonitorCommand(target: .patterns([.pattern("next")!]), failIfNoop: true),
         )
     }
 
     @Test(arguments: [
-        ("move-node-to-monitor --fail-if-noop next", "ERROR: --fail-if-noop is incompatible with (left|down|up|right|next|prev)"),
-        ("move-node-to-monitor --fail-if-noop left", "ERROR: --fail-if-noop is incompatible with (left|down|up|right|next|prev)"),
-        ("move-node-to-monitor --", "ERROR: Argument '(left|down|up|right|next|prev|<monitor-pattern>)' is mandatory"),
+        ("move-node-to-monitor --fail-if-noop next", "--fail-if-noop is incompatible with (left|down|up|right|next|prev)"),
+        ("move-node-to-monitor --fail-if-noop left", "--fail-if-noop is incompatible with (left|down|up|right|next|prev)"),
+        ("move-node-to-monitor --", "Argument '(left|down|up|right|next|prev|<monitor-pattern>)' is mandatory"),
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)

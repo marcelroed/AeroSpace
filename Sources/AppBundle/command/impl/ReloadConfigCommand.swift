@@ -1,16 +1,32 @@
 import AppKit
 import Common
 
-struct ReloadConfigCommand: Command {
-    let args: ReloadConfigCmdArgs
-    /*conforms*/ let shouldResetClosedWindowsCache = false
+struct ReloadConfigCommand: nonisolated Command {
+    static let resetsClosedWindowsCache = false
+    var source: SourceWords = []
+    var noGui = false
+    var dryRun = false
 
-    func run(_ env: CmdEnv, _ io: CmdIo) async -> BinaryExitCode {
-        let result = await reloadConfig_nonCancellable(args: args)
-        if !result.stdout.isEmpty {
-            io.out(result.stdout)
+    static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
+        var result = Self()
+        while let option = try a.nextOption() {
+            switch option {
+                case "--no-gui": result.noGui = true
+                case "--dry-run": result.dryRun = true
+                case "--warnings-as-errors": break // No effect: config warnings no longer exist. Scripts still pass it
+                default: throw .unknownOption(option)
+            }
         }
-        return .from(bool: result.isOk)
+        try a.end()
+        return result
+    }
+
+    func run(_ cx: CmdContext) async throws(CmdFail) {
+        let result = await reloadConfig_nonCancellable(args: self)
+        if !result.stdout.isEmpty {
+            cx.out(result.stdout)
+        }
+        if !result.isOk { throw .silent }
     }
 }
 
@@ -21,7 +37,7 @@ struct ReloadConfigResult {
 
 /// Stays `async` only so that the call sites don't change. Nothing in it suspends
 func reloadConfig_nonCancellable(
-    args: ReloadConfigCmdArgs = ReloadConfigCmdArgs(rawArgs: []),
+    args: ReloadConfigCommand = ReloadConfigCommand(),
     forceConfigUrl: URL? = nil,
 ) async -> ReloadConfigResult {
     let (url, parsed) = loadConfig(forceUrl: forceConfigUrl)

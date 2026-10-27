@@ -2,26 +2,25 @@
 import Common
 import Testing
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct TriggerBindingCommandTest {
     @Test
     func parse() {
-        testParseSingleCommandSucc("trigger-binding foo --mode main", TriggerBindingCmdArgs(rawArgs: []).copy(\.binding, .initialized("foo")).copy(\._mode, "main"))
+        testParseSingleCommandSucc("trigger-binding foo --mode main", TriggerBindingCommand(mode: "main", binding: "foo"))
         testParseSingleCommandSucc(
             "trigger-binding --mode main -- foo",
-            TriggerBindingCmdArgs(rawArgs: []).copy(\.binding, .initialized("foo")).copy(\._mode, "main"),
+            TriggerBindingCommand(mode: "main", binding: "foo"),
         )
         testParseSingleCommandSucc(
             "trigger-binding --mode main -- --fail-if-noop",
-            TriggerBindingCmdArgs(rawArgs: []).copy(\.binding, .initialized("--fail-if-noop")).copy(\._mode, "main"),
+            TriggerBindingCommand(mode: "main", binding: "--fail-if-noop"),
         )
     }
 
     @Test(arguments: [
-        ("trigger-binding foo", "ERROR: --mode flag is mandatory"),
-        ("trigger-binding", "ERROR: Argument '<binding>' is mandatory"),
-        ("trigger-binding --mode main --", "ERROR: Argument '<binding>' is mandatory"),
+        ("trigger-binding foo", "--mode flag is mandatory"),
+        ("trigger-binding", "--mode flag is mandatory"), // The options are checked before the arguments
+        ("trigger-binding --mode main --", "Argument '<binding>' is mandatory"),
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)

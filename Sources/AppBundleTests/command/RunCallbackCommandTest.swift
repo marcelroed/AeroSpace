@@ -2,43 +2,38 @@
 import Common
 import Testing
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct RunCallbackCommandTest {
     @Test
     func parse() {
         testParseSingleCommandSucc(
             "run-callback on-window-detected",
-            RunCallbackCmdArgs(rawArgs: []).copy(\.callback, .initialized(.onWindowDetected)),
+            RunCallbackCommand(callback: .onWindowDetected),
         )
         testParseSingleCommandSucc(
             "run-callback --for-every-window on-window-detected",
-            RunCallbackCmdArgs(rawArgs: [])
-                .copy(\.callback, .initialized(.onWindowDetected))
-                .copy(\.forEveryWindow, true),
+            RunCallbackCommand(callback: .onWindowDetected, forEveryWindow: true),
         )
         testParseSingleCommandSucc(
             "run-callback --window-id 42 on-window-detected",
-            RunCallbackCmdArgs(rawArgs: [])
-                .copy(\.callback, .initialized(.onWindowDetected))
-                .copy(\.windowId, 42),
+            RunCallbackCommand(callback: .onWindowDetected, windowId: 42),
         )
         testParseSingleCommandSucc(
             "run-callback on-focus-changed",
-            RunCallbackCmdArgs(rawArgs: []).copy(\.callback, .initialized(.onFocusChanged)),
+            RunCallbackCommand(callback: .onFocusChanged),
         )
         testParseSingleCommandSucc(
             "run-callback on-focused-monitor-changed",
-            RunCallbackCmdArgs(rawArgs: []).copy(\.callback, .initialized(.onFocusedMonitorChanged)),
+            RunCallbackCommand(callback: .onFocusedMonitorChanged),
         )
     }
 
     @Test(arguments: [
-        ("run-callback", "ERROR: Argument '<callback>' is mandatory"),
-        ("run-callback bogus", "ERROR: Can't parse 'bogus'.\n       Possible values: (on-window-detected|on-focus-changed|on-focused-monitor-changed)"),
-        ("run-callback --for-every-window --window-id 1 on-window-detected", "ERROR: Conflicting options: --for-every-window, --window-id"),
-        ("run-callback --for-every-window on-focus-changed", "ERROR: --for-every-window is only allowed with 'on-window-detected'"),
-        ("run-callback --window-id 1 on-focused-monitor-changed", "ERROR: --window-id is only allowed with 'on-window-detected'"),
+        ("run-callback", "Argument '<callback>' is mandatory"),
+        ("run-callback bogus", "Can't parse 'bogus'.\nPossible values: (on-window-detected|on-focus-changed|on-focused-monitor-changed)"),
+        ("run-callback --for-every-window --window-id 1 on-window-detected", "Conflicting options: --for-every-window, --window-id"),
+        ("run-callback --for-every-window on-focus-changed", "--for-every-window is only allowed with 'on-window-detected'"),
+        ("run-callback --window-id 1 on-focused-monitor-changed", "--window-id is only allowed with 'on-window-detected'"),
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
@@ -47,7 +42,7 @@ struct RunCallbackCommandTest {
 
     @Test(arguments: ["run-callback on-window-detected", "run-callback --for-every-window on-window-detected"])
     func onWindowDetectedWithoutCallbacksSucceeds(command: String) async {
-        // RB-05: when no callback ran, the exit code was Int32ExitCode.succ, which used to be 2
+        // RB-05: when no callback ran, the exit code used to be 2
         setUpTree("h_tiles(*1)")
         #expect(config.onWindowDetected.isEmpty)
         #expect(MacWindow.allWindows.isEmpty)
@@ -70,6 +65,6 @@ struct RunCallbackCommandTest {
         let exitCode = await onWindowDetected(.defaultEnv, io, forEvery: [testWindow(3), unbound, testWindow(1), testWindow(2)])
         #expect(io.stdout == ["1", "3"])
         #expect(io.stderr == [])
-        #expect(exitCode.rawValue == 1) // `test 1 = 3` of the floating window
+        #expect(exitCode == 1) // `test 1 = 3` of the floating window
     }
 }

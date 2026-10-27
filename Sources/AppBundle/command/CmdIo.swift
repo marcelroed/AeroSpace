@@ -35,16 +35,8 @@ final class CmdIo {
     static var emptyStdinIgnoringOut: CmdIo { CmdIo(stdin: .emptyStdin) }
 }
 
-extension CmdIo {
-    @discardableResult func out(_ msg: String) -> IoSideEffect { stdout.append(msg); return .instance }
-    @discardableResult func err(_ msg: String) -> IoSideEffect { stderr.append(msg); return .instance }
-    @discardableResult func out(_ msg: [String]) -> IoSideEffect { stdout += msg; return .instance }
-    // periphery:ignore
-    @discardableResult func err(_ msg: [String]) -> IoSideEffect { stderr += msg; return .instance }
-}
-
 struct CmdResult: Equatable {
     let stdout: [String]
     let stderr: [String]
-    let exitCode: Int32ExitCode
+    let exitCode: Int32
 }

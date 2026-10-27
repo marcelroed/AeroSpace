@@ -3,74 +3,52 @@ import Common
 import Foundation
 import Network
 import os
-import XCTest
+import Testing
 
-nonisolated final class NWConnectionExTest: XCTestCase {
-    func testHandshakeAndRoundTrip() async throws {
-        let server = try await TestSocketServer.start(serverVersion: SOCKET_PROTOCOL_VERSION)
+@Suite
+struct NWConnectionExTest {
+    @Test
+    func roundTrip() async throws {
+        let server = try await TestSocketServer.start()
         defer { server.stop() }
         let connection = NWConnection(to: .unix(path: server.path), using: .tcp)
         defer { connection.cancel() }
 
-        assertNil(await connection.initConnection().error)
+        #expect(await connection.initConnection().error == nil)
         let request = ClientRequest(args: ["list-workspaces", "--all"], stdin: "", windowId: 42, workspace: nil)
-        assertNil(await connection.writeAtomic(request).error)
+        #expect(await connection.writeAtomic(request).error == nil)
         let answer = try JSONDecoder().decode(ServerAnswer.self, from: await connection.readNonAtomic().get())
-        assertEquals(answer.exitCode, 0)
-        assertEquals(answer.stdout, "list-workspaces --all")
-        assertEquals(answer.stderr, "windowId=Optional(Optional(42))")
-        assertEquals(answer.serverVersionAndHash, "test-server")
+        #expect(answer == ServerAnswer(exitCode: 0, stdout: "list-workspaces --all", stderr: "windowId=Optional(42)", serverVersionAndHash: "test-server"))
     }
 
-    func testHandshakeVersionMismatch() async throws {
-        let server = try await TestSocketServer.start(serverVersion: SOCKET_PROTOCOL_VERSION + 41)
+    @Test
+    func readFailsWhenPeerClosesMidAnswer() async throws {
+        let server = try await TestSocketServer.start(closeMidAnswer: true)
         defer { server.stop() }
         let connection = NWConnection(to: .unix(path: server.path), using: .tcp)
         defer { connection.cancel() }
 
-        switch await connection.initConnection().error {
-            case .customError(let msg):
-                assertEquals(
-                    msg,
-                    """
-                    Client SOCKET_PROTOCOL_VERSION: \(SOCKET_PROTOCOL_VERSION)
-                    Server SOCKET_PROTOCOL_VERSION: \(SOCKET_PROTOCOL_VERSION + 41)
-
-                    The client and server versions are incompatible. (Potential fix: restart AeroSpace)
-                    """,
-                )
-            case let other: failExpectedActual("customError", other)
-        }
-    }
-
-    func testReadFailsWhenPeerClosesMidAnswer() async throws {
-        let server = try await TestSocketServer.start(serverVersion: SOCKET_PROTOCOL_VERSION, closeMidAnswer: true)
-        defer { server.stop() }
-        let connection = NWConnection(to: .unix(path: server.path), using: .tcp)
-        defer { connection.cancel() }
-
-        assertNil(await connection.initConnection().error)
+        #expect(await connection.initConnection().error == nil)
         let request = ClientRequest(args: ["list-workspaces", "--all"], stdin: "", windowId: nil, workspace: nil)
-        assertNil(await connection.writeAtomic(request).error)
+        #expect(await connection.writeAtomic(request).error == nil)
         // The receive after the end of the stream fails. If it didn't, the read would spin forever (RB-08)
         switch await withTimeout(seconds: 5, { await connection.readNonAtomic() }) {
             case .failure: break
-            case let other: failExpectedActual("failure", other.map { "\($0)" } ?? "timed out")
+            case let other: Issue.record("Expected a failure, got \(other.map { "\($0)" } ?? "a timeout")")
         }
     }
 
-    func testHandshakeWithoutServerFails() async {
+    @Test
+    func initConnectionWithoutServerFails() async {
         let connection = NWConnection(to: .unix(path: testSocketPath()), using: .tcp)
         defer { connection.cancel() }
 
-        switch await connection.initConnection().error {
-            case .nwError: break
-            case let other: failExpectedActual("nwError", other)
-        }
+        #expect(await connection.initConnection().error != nil)
     }
 
-    func testHandshakeFailsWhenCancelledBeforeReady() async throws {
-        let server = try await TestSocketServer.start(serverVersion: SOCKET_PROTOCOL_VERSION)
+    @Test
+    func initConnectionFailsWhenCancelledBeforeReady() async throws {
+        let server = try await TestSocketServer.start()
         defer { server.stop() }
         let params = NWParameters.tcp
         params.defaultProtocolStack.applicationProtocols.insert(NWProtocolFramer.Options(definition: NeverReadyFramer.definition), at: 0)
@@ -87,8 +65,8 @@ nonisolated final class NWConnectionExTest: XCTestCase {
             connection.cancel()
         }
         switch await withTimeout(seconds: 5, { await connection.initConnection().error }) {
-            case .some(.some(.nwError)): break
-            case let other: failExpectedActual("nwError", other.map { String(describing: $0) } ?? "timed out")
+            case .some(.some): break
+            case let other: Issue.record("Expected an error, got \(other.map { String(describing: $0) } ?? "a timeout")")
         }
     }
 }
@@ -126,8 +104,7 @@ nonisolated private func withTimeout<T: Sendable>(seconds: Int, _ body: @escapin
     }
 }
 
-/// Mirrors the handshake of the real server (server.swift): read client version, answer with own version, then
-/// answer each request
+/// Mirrors the real server (server.swift): read one request, answer it
 nonisolated private final class TestSocketServer: Sendable {
     let path: String
     private let listener: NWListener
@@ -138,7 +115,7 @@ nonisolated private final class TestSocketServer: Sendable {
     }
 
     /// - closeMidAnswer: announce an answer, then close the connection without sending it
-    static func start(serverVersion: UInt32, closeMidAnswer: Bool = false) async throws -> TestSocketServer {
+    static func start(closeMidAnswer: Bool = false) async throws -> TestSocketServer {
         let path = testSocketPath()
         let params = NWParameters.tcp
         params.requiredLocalEndpoint = .unix(path: path)
@@ -147,22 +124,19 @@ nonisolated private final class TestSocketServer: Sendable {
             Task.startUnstructured {
                 defer { connection.cancel() }
                 connection.start(queue: .global())
-                guard (try? await connection.readUInt32().get()) != nil else { return }
-                if await connection.writeUInt32(serverVersion).error != nil { return }
-                while let raw = try? await connection.readNonAtomic().get() {
-                    if closeMidAnswer {
-                        _ = await connection.writeUInt32(100) // The answer size
-                        return
-                    }
-                    let request = ClientRequest.decodeJson(raw).getOrDie()
-                    let answer = ServerAnswer(
-                        exitCode: 0,
-                        stdout: request.args.joined(separator: " "),
-                        stderr: "windowId=\(String(describing: request.windowId))",
-                        serverVersionAndHash: "test-server",
-                    )
-                    if await connection.writeAtomic(answer).error != nil { return }
+                guard let raw = try? await connection.readNonAtomic().get() else { return }
+                if closeMidAnswer {
+                    await connection.sendAndWait(withUnsafeBytes(of: UInt32(100)) { unsafe Data($0) }) // The answer size
+                    return
                 }
+                let request = ClientRequest.decodeJson(raw).getOrDie()
+                let answer = ServerAnswer(
+                    exitCode: 0,
+                    stdout: request.args.joined(separator: " "),
+                    stderr: "windowId=\(String(describing: request.windowId))",
+                    serverVersionAndHash: "test-server",
+                )
+                _ = await connection.writeAtomic(answer)
             }
         }
         let timeoutSeconds = 5
@@ -198,5 +172,14 @@ nonisolated private final class TestSocketServer: Sendable {
     func stop() {
         listener.cancel()
         try? FileManager.default.removeItem(atPath: path)
+    }
+}
+
+extension NWConnection {
+    /// Sends `data` as is, without the size of a frame
+    nonisolated fileprivate func sendAndWait(_ data: Data) async {
+        await withCheckedContinuation { cont in
+            send(content: data, completion: .contentProcessed { _ in cont.resume() })
+        }
     }
 }

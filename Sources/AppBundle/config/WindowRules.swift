@@ -36,7 +36,7 @@ struct WindowDetectedCallback: Equatable {
                 }
                 return true
             case .command(let command):
-                return await command.run(.defaultEnv.withWindowId(window.windowId), .emptyStdin).exitCode.rawValue == 0
+                return await command.run(.defaultEnv.withWindowId(window.windowId), .emptyStdin).exitCode == EXIT_CODE_ZERO
         }
     }
 
@@ -77,14 +77,14 @@ enum WindowDetectedCallbackMatcher: Equatable {
     }
 }
 
-func onWindowDetected(_ env: CmdEnv, _ io: CmdIo, _ window: Window) async -> Int32ExitCode {
+func onWindowDetected(_ env: CmdEnv, _ io: CmdIo, _ window: Window) async -> Int32 {
     broadcastEvent(.windowDetected(
         windowId: window.windowId,
         workspace: window.nodeWorkspace?.name,
         appBundleId: window.app.rawAppBundleId,
         appName: window.app.name,
     ))
-    var lastExitCode = Int32ExitCode.succ
+    var lastExitCode = EXIT_CODE_ZERO
     for callback in config.onWindowDetected where await callback.matches(window) {
         lastExitCode = await callback.run.run(env.withWindowId(window.windowId), io)
         if !callback.checkFurtherCallbacks {

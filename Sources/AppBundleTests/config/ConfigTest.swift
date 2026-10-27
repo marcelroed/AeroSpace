@@ -98,7 +98,7 @@ struct ConfigTest {
             """,
         )
         #expect(result.errors == [])
-        let binding = HotkeyBinding(.option, .h, .cmd(FocusCommand.new(direction: .left)))
+        let binding = HotkeyBinding(.option, .h, .cmd(FocusCommand(target: .direction(.left))))
         #expect(result.config.modes[mainModeId] == Mode(bindings: [binding.descriptionWithKeyCode: binding]))
     }
 
@@ -130,7 +130,7 @@ struct ConfigTest {
                 "[ERROR] mode.main.binding.alt-hh: Can\'t parse the key in \'alt-hh\' binding",
             ],
         )
-        let binding = HotkeyBinding(.option, .k, .cmd(FocusCommand.new(direction: .up)))
+        let binding = HotkeyBinding(.option, .k, .cmd(FocusCommand(target: .direction(.up))))
         #expect(result.config.modes[mainModeId] == Mode(bindings: [binding.descriptionWithKeyCode: binding]))
     }
 
@@ -213,13 +213,13 @@ struct ConfigTest {
     @Test
     func testMoveWorkspaceToMonitorCommandParsing() {
         #expect(parseCommand("move-workspace-to-monitor --wrap-around next").cmdOrNil?.flatten().singleOrNil() is MoveWorkspaceToMonitorCommand)
-        #expect(parseCommand("move-workspace-to-display --wrap-around next").cmdOrNil?.flatten().singleOrNil() is MoveWorkspaceToMonitorCommand)
+        #expect(parseCommand("move-workspace-to-display --wrap-around next").cmdOrNil == nil) // The deprecated alias is gone
     }
 
     @Test
     func testParseTiles() throws {
         let command = try #require(parseCommand("layout tiles h_tiles v_tiles list h_list v_list").cmdOrNil?.flatten().singleOrNil() as? LayoutCommand)
-        #expect(command.args.toggleBetween.val == [.tiles, .h_tiles, .v_tiles, .tiles, .h_tiles, .v_tiles])
+        #expect(command.toggleBetween == [.tiles, .h_tiles, .v_tiles, .tiles, .h_tiles, .v_tiles])
         testParseCommandHelp("layout tiles -h")
     }
 
@@ -314,17 +314,13 @@ struct ConfigTest {
             ]
             """,
         )
-        let matcher6Args = TestCmdArgs(rawArgs: [])
-            .copy(\.lhs, .initialized(.app(.appBundleId)))
-            .copy(\.infixOperator, .initialized(.equals))
-            .copy(\.rhs, .initialized("org.alacritty"))
         #expect(result.config.onWindowDetected == [
             WindowDetectedCallback( // 0
-                matcher: .command(.cmd(TrueCommand.instance)),
+                matcher: .command(.cmd(TrueCommand())),
                 checkFurtherCallbacks: true,
                 run: .seq([
-                    .cmd(LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [.floating]))),
-                    .cmd(MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "W"))),
+                    .cmd(LayoutCommand(toggleBetween: [.floating])),
+                    .cmd(MoveNodeToWorkspaceCommand(target: .direct(.parse("W").getOrDie()))),
                 ]),
             ),
             WindowDetectedCallback( // 1
@@ -334,29 +330,29 @@ struct ConfigTest {
                 run: .empty,
             ),
             WindowDetectedCallback( // 3
-                matcher: .command(.cmd(TrueCommand.instance)),
+                matcher: .command(.cmd(TrueCommand())),
                 run: .seq([
-                    .cmd(MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "S"))),
-                    .cmd(LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [.tiling]))),
+                    .cmd(MoveNodeToWorkspaceCommand(target: .direct(.parse("S").getOrDie()))),
+                    .cmd(LayoutCommand(toggleBetween: [.tiling])),
                 ]),
             ),
             WindowDetectedCallback( // 4
-                matcher: .command(.cmd(TrueCommand.instance)),
+                matcher: .command(.cmd(TrueCommand())),
                 run: .seq([
-                    .cmd(MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "S"))),
-                    .cmd(MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "W"))),
+                    .cmd(MoveNodeToWorkspaceCommand(target: .direct(.parse("S").getOrDie()))),
+                    .cmd(MoveNodeToWorkspaceCommand(target: .direct(.parse("W").getOrDie()))),
                 ]),
             ),
             WindowDetectedCallback( // 5
-                matcher: .command(.cmd(TrueCommand.instance)),
+                matcher: .command(.cmd(TrueCommand())),
                 run: .seq([
-                    .cmd(MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "S"))),
-                    .cmd(LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [.h_tiles]))),
+                    .cmd(MoveNodeToWorkspaceCommand(target: .direct(.parse("S").getOrDie()))),
+                    .cmd(LayoutCommand(toggleBetween: [.h_tiles])),
                 ]),
             ),
             WindowDetectedCallback( // 6
-                matcher: .command(.cmd(TestCommand(args: matcher6Args))),
-                run: .cmd(MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "T"))),
+                matcher: .command(.cmd(TestCommand(negated: false, lhs: .appBundleId, infixOperator: .equals, rhs: "org.alacritty"))),
+                run: .cmd(MoveNodeToWorkspaceCommand(target: .direct(.parse("T").getOrDie()))),
             ),
         ])
 
@@ -565,7 +561,7 @@ struct ConfigTest {
             "q": .q,
             "unicorn": .u,
         ]))
-        let binding = HotkeyBinding(.option, .u, .cmd(WorkspaceCommand(args: WorkspaceCmdArgs(target: .direct(.parse("wonderland").getOrDie())))))
+        let binding = HotkeyBinding(.option, .u, .cmd(WorkspaceCommand(target: .direct(.parse("wonderland").getOrDie()))))
         #expect(result.config.modes[mainModeId]?.bindings == [binding.descriptionWithKeyCode: binding])
 
         let errors1 = parseConfig(

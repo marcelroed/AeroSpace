@@ -43,29 +43,29 @@ func setUpWorkspacesForTests() {
     currentlyManipulatedWithMouseWindowId = nil
 }
 
-extension ParsedCmd {
+/// Parses `raw` like the config and `eval` do
+func parseCommand(_ raw: String) -> Result<Shell<any Command>, CmdParseError> {
+    Result { () throws(CmdParseError) in try parseShell(raw, allowExecAndForget: true, allowEval: true) }
+}
+
+extension Result<Shell<any Command>, CmdParseError> {
+    /// The parse error. Nil if the command parses or asks for help
     var errorOrNil: String? {
         return switch self {
-            case .failure(let e): e.msg
-            case .cmd, .help: nil
-        }
-    }
-
-    var failureOrNil: CmdParsingFailure? {
-        return switch self {
-            case .failure(let failure): failure
-            case .cmd, .help: nil
+            case .failure(.invalid(let msg)): msg
+            case .success, .failure(.help): nil
         }
     }
 
     var helpOrNil: String? {
         return switch self {
-            case .help(let help): help
-            case .cmd, .failure: nil
+            case .failure(.help(let kind)): kind.help
+            case .success, .failure(.invalid): nil
         }
     }
 
-    var cmdOrDie: T { cmdOrNil ?? dieT("\(self)") }
+    var cmdOrNil: Shell<any Command>? { try? get() }
+    var cmdOrDie: Shell<any Command> { cmdOrNil ?? dieT("\(self)") }
 }
 
 extension Result {
@@ -77,27 +77,24 @@ extension Result {
     }
 }
 
-/// The arguments of `raw` if it parses as a single command with arguments of type `T`, nil otherwise
-func parsedArgs<T: CmdArgs>(_ raw: String, as _: T.Type) -> T? {
-    guard case .cmd(.cmd(let command)) = parseCommand(raw) else { return nil }
-    return command.args as? T
+/// The command of `raw` if it parses as a single command of type `T`, nil otherwise
+func parsedCmd<T: Command>(_ raw: String, as _: T.Type) -> T? {
+    guard case .success(.cmd(let command)) = parseCommand(raw) else { return nil }
+    return command as? T
 }
 
 func testParseCommandFail(
     _ command: String,
     msg expectedMsg: String,
-    exitCode expectedExitCode: Int32 = 2,
     fileID: String = #fileID,
     filePath: StaticString = #filePath,
     line: Int = #line,
     column: Int = #column,
 ) {
-    let parsed = parseCommand(command)
-    switch parsed {
-        case .cmd(let command): fail("\(command) isn't supposed to be parcelable", fileID: fileID, filePath: filePath, line: line, column: column)
-        case .help: fail("'\(command)' isn't supposed to be parsed as help", fileID: fileID, filePath: filePath, line: line, column: column)
-        case .failure(let failure):
-            assertEquals(failure, .init(expectedMsg, expectedExitCode), fileID: fileID, filePath: filePath, line: line, column: column)
+    switch parseCommand(command) {
+        case .success(let command): fail("\(command) isn't supposed to be parcelable", fileID: fileID, filePath: filePath, line: line, column: column)
+        case .failure(.help): fail("'\(command)' isn't supposed to be parsed as help", fileID: fileID, filePath: filePath, line: line, column: column)
+        case .failure(.invalid(let msg)): assertEquals(msg, expectedMsg, fileID: fileID, filePath: filePath, line: line, column: column)
     }
 }
 
@@ -121,64 +118,14 @@ nonisolated struct CmdOutput: Equatable {
 ///
 /// Check the output in two steps, `let output = await runCmd("...")` and `#expect(output == .ok)`: `#expect` doesn't
 /// show the values of an expression with `await`, so `#expect(await runCmd("...") == .ok)` fails without the output
-@MainActor
 @discardableResult
 func runCmd(_ command: String, stdin: String = "", windowIdEnv: UInt32? = nil, workspaceEnv: String? = nil) async -> CmdOutput {
     switch parseCommand(command) {
-        case .cmd(let shell):
+        case .success(let shell):
             let result = await shell.run(CmdEnv(windowId: windowIdEnv, workspaceName: workspaceEnv), CmdStdin(stdin))
-            return CmdOutput(stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode.rawValue)
-        case .help(let help): return CmdOutput(stdout: [help])
-        case .failure(let failure): return CmdOutput(stderr: [failure.msg], exitCode: failure.exitCode)
-    }
-}
-
-/// Runs `command` and checks its exit code, and also its stdout and stderr when they are given.
-/// todo: superseded by `runCmd` and `#expect`. Delete it once the XCTest files of the other workers are
-/// converted (ListWindowsTest, TestCommandTest, ListModesTest, ConfigCommandTest, ShellRunTest)
-@MainActor
-@discardableResult
-func assertRun(
-    _ command: String,
-    env: CmdEnv = .defaultEnv,
-    stdin: String = "",
-    exitCode: Int32,
-    stdout: [String]? = nil,
-    stderr: [String]? = nil,
-    fileID: String = #fileID,
-    filePath: StaticString = #filePath,
-    line: Int = #line,
-    column: Int = #column,
-) async -> CmdOutput {
-    let result = await runCmd(command, stdin: stdin, windowIdEnv: env.windowId, workspaceEnv: env.workspaceName)
-    assertEquals(result.exitCode, exitCode, additionalMsg: "exit code of '\(command)'", fileID: fileID, filePath: filePath, line: line, column: column)
-    if let stdout {
-        assertEquals(result.stdout, stdout, additionalMsg: "stdout of '\(command)'", fileID: fileID, filePath: filePath, line: line, column: column)
-    }
-    if let stderr {
-        assertEquals(result.stderr, stderr, additionalMsg: "stderr of '\(command)'", fileID: fileID, filePath: filePath, line: line, column: column)
-    }
-    return result
-}
-
-extension WorkspaceCmdArgs {
-    init(target: WorkspaceTarget, autoBackAndForth: Bool? = nil, wrapAround: Bool? = nil) {
-        self = WorkspaceCmdArgs(rawArgs: [])
-        self.target = .initialized(target)
-        self._autoBackAndForth = autoBackAndForth
-        self._wrapAround = wrapAround
-    }
-}
-
-extension MoveNodeToWorkspaceCmdArgs {
-    init(target: WorkspaceTarget) {
-        self = MoveNodeToWorkspaceCmdArgs(rawArgs: [])
-        self.target = .initialized(target)
-    }
-
-    init(workspace: String) {
-        self = MoveNodeToWorkspaceCmdArgs(rawArgs: [])
-        self.target = .initialized(.direct(.parse(workspace).getOrDie()))
+            return CmdOutput(stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode)
+        case .failure(.help(let kind)): return CmdOutput(stdout: [kind.help])
+        case .failure(.invalid(let msg)): return CmdOutput(stderr: [msg], exitCode: EXIT_CODE_TWO)
     }
 }
 
@@ -190,11 +137,3 @@ extension HotkeyBinding {
         self.init(modifiers, keyCode, commands, descriptionWithKeyNotation: descriptionWithKeyNotation)
     }
 }
-
-extension FocusCommand {
-    static func new(direction: CardinalDirection) -> FocusCommand {
-        FocusCommand(args: FocusCmdArgs(rawArgs: [], cardinalOrDfsDirection: .direction(direction)))
-    }
-}
-
-func parseCommand(_ raw: String) -> ParsedCmd<Shell<any Command>> { parseCommand(raw, allowExecAndForget: true, allowEval: true) }

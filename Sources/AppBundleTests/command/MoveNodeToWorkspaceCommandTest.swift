@@ -2,27 +2,25 @@
 import Common
 import Testing
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct MoveNodeToWorkspaceCommandTest {
     @Test
     func parse() {
-        testParseSingleCommandSucc("move-node-to-workspace next", MoveNodeToWorkspaceCmdArgs(target: .relative(.next)))
-        testParseSingleCommandSucc("move-node-to-workspace --stdin next", MoveNodeToWorkspaceCmdArgs(target: .relative(.next)).copy(\.commonState.explicitStdinFlag, true))
-        testParseSingleCommandSucc("move-node-to-workspace --no-stdin next", MoveNodeToWorkspaceCmdArgs(target: .relative(.next)).copy(\.commonState.explicitStdinFlag, false))
-        testParseSingleCommandSucc("move-node-to-workspace -- foo", MoveNodeToWorkspaceCmdArgs(workspace: "foo"))
+        testParseSingleCommandSucc("move-node-to-workspace next", MoveNodeToWorkspaceCommand(target: .relative(.next)))
+        testParseSingleCommandSucc("move-node-to-workspace --stdin next", MoveNodeToWorkspaceCommand(target: .relative(.next), useStdin: true))
+        testParseSingleCommandSucc("move-node-to-workspace -- foo", MoveNodeToWorkspaceCommand(target: .direct(.parse("foo").getOrDie())))
         testParseSingleCommandSucc(
             "move-node-to-workspace --focus-follows-window -- foo",
-            MoveNodeToWorkspaceCmdArgs(workspace: "foo").copy(\.focusFollowsWindow, true),
+            MoveNodeToWorkspaceCommand(target: .direct(.parse("foo").getOrDie()), focusFollowsWindow: true),
         )
     }
 
     @Test(arguments: [
-        ("move-node-to-workspace --fail-if-noop next", "ERROR: --fail-if-noop is incompatible with (next|prev)"),
-        ("move-node-to-workspace --stdin foo", "ERROR: --stdin and --no-stdin require using (next|prev) argument"),
-        ("move-node-to-workspace --wrap-around W", "ERROR: --wrap-around requires using (next|prev) argument"),
-        ("move-node-to-workspace -- prev", "ERROR: 'prev' is a reserved workspace name"),
-        ("move-node-to-workspace --", "ERROR: Argument '(<workspace-name>|next|prev)' is mandatory"),
+        ("move-node-to-workspace --fail-if-noop next", "--fail-if-noop is incompatible with (next|prev)"),
+        ("move-node-to-workspace --stdin foo", "--stdin requires using (next|prev) argument"),
+        ("move-node-to-workspace --wrap-around W", "--wrap-around requires using (next|prev) argument"),
+        ("move-node-to-workspace -- prev", "'prev' is a reserved workspace name"),
+        ("move-node-to-workspace --", "Argument '(<workspace-name>|next|prev)' is mandatory"),
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)

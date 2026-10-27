@@ -91,18 +91,17 @@ nonisolated func assertFail<F>(
 
 func testParseSingleCommandSucc(
     _ command: String,
-    _ expected: any CmdArgs,
+    _ expected: any Command,
     fileID: String = #fileID,
     filePath: StaticString = #filePath,
     line: Int = #line,
     column: Int = #column,
 ) {
-    let parsed = parseCommand(command)
-    let failure: (expected: Any, actual: Any)? = switch parsed {
-        case .cmd(.cmd(let command)): command.args.equals(expected) ? nil : (expected, command.args)
-        case .cmd(let shell): ("Parsed as single Command", "Parsed as shell: \(shell.shellOfCommandsDescription)")
-        case .help: ("Parsed successfully", "Parsed as help")
-        case .failure(let msg): ("Parsed successfully", "Failed to parse: \(msg.msg)")
+    let failure: (expected: Any, actual: Any)? = switch parseCommand(command) {
+        case .success(.cmd(let command)): command.equals(expected) ? nil : (expected, command)
+        case .success(let shell): ("Parsed as single Command", "Parsed as shell: \(shell.shellOfCommandsDescription)")
+        case .failure(.help): ("Parsed successfully", "Parsed as help")
+        case .failure(.invalid(let msg)): ("Parsed successfully", "Failed to parse: \(msg)")
     }
     if let failure {
         failExpectedActual(failure.expected, failure.actual, fileID: fileID, filePath: filePath, line: line, column: column)
@@ -111,7 +110,7 @@ func testParseSingleCommandSucc(
 
 func testParseCommandHelp(_ command: String, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
     switch parseCommand(command) {
-        case .help: break
+        case .failure(.help): break
         case let parsed: failExpectedActual("Parsed as help", parsed, fileID: fileID, filePath: filePath, line: line, column: column)
     }
 }

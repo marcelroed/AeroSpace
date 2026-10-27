@@ -2,21 +2,20 @@
 import Common
 import Testing
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct EnableCommandTest {
     @Test
     func parse() {
-        testParseSingleCommandSucc("enable on", EnableCmdArgs(rawArgs: [], targetState: .on))
-        testParseSingleCommandSucc("enable off", EnableCmdArgs(rawArgs: [], targetState: .off))
-        testParseSingleCommandSucc("enable toggle", EnableCmdArgs(rawArgs: [], targetState: .toggle))
-        testParseSingleCommandSucc("enable --fail-if-noop on", EnableCmdArgs(rawArgs: [], targetState: .on).copy(\.failIfNoop, true))
+        testParseSingleCommandSucc("enable on", EnableCommand(targetState: .on))
+        testParseSingleCommandSucc("enable off", EnableCommand(targetState: .off))
+        testParseSingleCommandSucc("enable toggle", EnableCommand(targetState: .toggle))
+        testParseSingleCommandSucc("enable --fail-if-noop on", EnableCommand(targetState: .on, failIfNoop: true))
     }
 
     @Test(arguments: [
-        ("enable toggle --fail-if-noop", "ERROR: --fail-if-noop is incompatible with 'toggle' argument"),
-        ("enable foo", "ERROR: Can't parse 'foo'.\n       Possible values: (on|off|toggle)"),
-        ("enable", "ERROR: Argument '(on|off|toggle)' is mandatory"),
+        ("enable toggle --fail-if-noop", "--fail-if-noop is incompatible with 'toggle' argument"),
+        ("enable foo", "Can't parse 'foo'.\nPossible values: (on|off|toggle)"),
+        ("enable", "Argument '(on|off|toggle)' is mandatory"),
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)

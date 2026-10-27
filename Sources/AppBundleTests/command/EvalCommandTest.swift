@@ -2,16 +2,15 @@
 import Common
 import Testing
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct EvalCommandTest {
     @Test
     func parse() async {
-        testParseSingleCommandSucc("eval 'workspace foo'", EvalCmdArgs(rawArgs: []).copy(\.shellExpr, .initialized("workspace foo")))
-        testParseSingleCommandSucc("eval -- '--anything'", EvalCmdArgs(rawArgs: []).copy(\.shellExpr, .initialized("--anything")))
+        testParseSingleCommandSucc("eval 'workspace foo'", EvalCommand(shellExpr: "workspace foo"))
+        testParseSingleCommandSucc("eval -- '--anything'", EvalCommand(shellExpr: "--anything"))
         for command in ["eval", "eval --"] {
             let output = await runCmd(command)
-            #expect(output == .fail("ERROR: Argument '<aerospace-shell-expr>' is mandatory"))
+            #expect(output == .fail("Argument '<aerospace-shell-expr>' is mandatory"))
         }
     }
 
@@ -24,7 +23,7 @@ struct EvalCommandTest {
         ("eval ''", .ok, "a"),
         ("eval 'no-such-command'", .fail("Unrecognized subcommand 'no-such-command'"), "a"),
         // The error and the exit code of the inner command
-        ("eval 'workspace'", .fail("ERROR: Argument '(<workspace-name>|next|prev)' is mandatory"), "a"),
+        ("eval 'workspace'", .fail("Argument '(<workspace-name>|next|prev)' is mandatory"), "a"),
         ("eval 'workspace --help'", .fail("--help is not supported inside eval command"), "a"),
         ("eval 'eval \"workspace b\"'", .fail("Illegal eval (Tip: nested evals are forbidden)"), "a"),
     ])

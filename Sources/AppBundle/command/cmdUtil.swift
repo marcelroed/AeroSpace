@@ -1,22 +1,25 @@
 import Common
 
-extension BinaryExitCode {
-    /// Result of a command that has nothing to do: fail silently with `--fail-if-noop`, otherwise succeed and print `msg`
-    @MainActor // BinaryExitCode conforms to a Sendable protocol, so its extensions are nonisolated by default
-    static func noop(_ io: CmdIo, failIfNoop: Bool, _ msg: @autoclosure () -> String) -> Self {
-        switch failIfNoop {
-            case true: .fail
-            case false: .succ(io.err(msg()))
-        }
-    }
-}
+nonisolated enum ToggleEnum: String, CaseIterable, Sendable {
+    case on, off, toggle
 
-extension ToggleEnum {
     func resolve(current: Bool) -> Bool {
         switch self {
             case .on: true
             case .off: false
             case .toggle: !current
+        }
+    }
+}
+
+/// `on` or `off`
+nonisolated enum OnOff: String, CaseIterable, Sendable {
+    case on, off
+
+    var toggle: ToggleEnum {
+        switch self {
+            case .on: .on
+            case .off: .off
         }
     }
 }

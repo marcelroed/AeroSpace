@@ -2,12 +2,11 @@
 import Common
 import Testing
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct MacosNativeFullscreenCommandTest {
     @Test(arguments: [
-        ("macos-native-fullscreen --fail-if-noop", "ERROR: --fail-if-noop requires 'on' or 'off' argument"),
-        ("macos-native-fullscreen foo", "ERROR: Can't parse 'foo'. Possible values: on|off"),
+        ("macos-native-fullscreen --fail-if-noop", "--fail-if-noop requires 'on' or 'off' argument"),
+        ("macos-native-fullscreen foo", "Can't parse 'foo'.\nPossible values: (on|off)"),
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)

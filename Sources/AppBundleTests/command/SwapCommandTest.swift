@@ -2,7 +2,6 @@
 import Common
 import Testing
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct SwapCommandTest {
     /// Every command runs on the tree that the previous one left

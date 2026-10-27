@@ -2,34 +2,32 @@
 import Common
 import Testing
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct WorkspaceCommandTest {
     @Test
     func parse() {
-        testParseSingleCommandSucc("workspace next", WorkspaceCmdArgs(target: .relative(.next)))
-        testParseSingleCommandSucc("workspace --auto-back-and-forth W", WorkspaceCmdArgs(target: .direct(.parse("W").getOrDie()), autoBackAndForth: true))
-        testParseSingleCommandSucc("workspace next --wrap-around", WorkspaceCmdArgs(target: .relative(.next), wrapAround: true))
-        testParseSingleCommandSucc("workspace --stdin next", WorkspaceCmdArgs(target: .relative(.next)).copy(\.commonState.explicitStdinFlag, true))
-        testParseSingleCommandSucc("workspace --no-stdin next", WorkspaceCmdArgs(target: .relative(.next)).copy(\.commonState.explicitStdinFlag, false))
-        testParseSingleCommandSucc("workspace -- foo", WorkspaceCmdArgs(target: .direct(.parse("foo").getOrDie())))
+        testParseSingleCommandSucc("workspace next", WorkspaceCommand(target: .relative(.next)))
+        testParseSingleCommandSucc("workspace --auto-back-and-forth W", WorkspaceCommand(target: .direct(.parse("W").getOrDie()), autoBackAndForth: true))
+        testParseSingleCommandSucc("workspace next --wrap-around", WorkspaceCommand(target: .relative(.next), wrapAround: true))
+        testParseSingleCommandSucc("workspace --stdin next", WorkspaceCommand(target: .relative(.next), useStdin: true))
+        testParseSingleCommandSucc("workspace -- foo", WorkspaceCommand(target: .direct(.parse("foo").getOrDie())))
         testParseSingleCommandSucc(
             "workspace --auto-back-and-forth -- foo",
-            WorkspaceCmdArgs(target: .direct(.parse("foo").getOrDie()), autoBackAndForth: true),
+            WorkspaceCommand(target: .direct(.parse("foo").getOrDie()), autoBackAndForth: true),
         )
     }
 
     @Test(arguments: [
-        ("workspace my mail", "ERROR: Unknown argument 'mail'"),
-        ("workspace 'my mail'", "ERROR: Whitespace characters are forbidden in workspace names"),
-        ("workspace", "ERROR: Argument '(<workspace-name>|next|prev)' is mandatory"),
-        ("workspace --wrap-around W", "ERROR: --wrap-around requires using (next|prev) argument"),
-        ("workspace --auto-back-and-forth next", "ERROR: --auto-back-and-forth is incompatible with (next|prev)"),
-        ("workspace --stdin foo", "ERROR: --stdin and --no-stdin require using (next|prev) argument"),
-        ("workspace -- next", "ERROR: 'next' is a reserved workspace name"),
-        ("workspace --", "ERROR: Argument '(<workspace-name>|next|prev)' is mandatory"),
-        ("workspace -- foo --fail-if-noop", "ERROR: Unknown argument '--fail-if-noop'"),
-        ("workspace -- --help", "ERROR: Workspace names starting with dash are disallowed"),
+        ("workspace my mail", "Unknown argument 'mail'"),
+        ("workspace 'my mail'", "Whitespace characters are forbidden in workspace names"),
+        ("workspace", "Argument '(<workspace-name>|next|prev)' is mandatory"),
+        ("workspace --wrap-around W", "--wrap-around requires using (next|prev) argument"),
+        ("workspace --auto-back-and-forth next", "--auto-back-and-forth is incompatible with (next|prev)"),
+        ("workspace --stdin foo", "--stdin requires using (next|prev) argument"),
+        ("workspace -- next", "'next' is a reserved workspace name"),
+        ("workspace --", "Argument '(<workspace-name>|next|prev)' is mandatory"),
+        ("workspace -- foo --fail-if-noop", "Unknown argument '--fail-if-noop'"),
+        ("workspace -- --help", "Workspace names starting with dash are disallowed"),
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)

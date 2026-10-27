@@ -257,10 +257,8 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
 
     @Test
     func testInvalidCommandInConfig() {
-        guard case .help(let focusHelp) = parseCommand("focus --help") else {
-            Issue.record("'focus --help' must be parsed as help")
-            return
-        }
+        let focusHelp = CmdKind.focus.help
+        #expect(parseCommand("focus --help").helpOrNil == focusHelp)
         let result = parseConfig(
             """
             [mode.main.binding]

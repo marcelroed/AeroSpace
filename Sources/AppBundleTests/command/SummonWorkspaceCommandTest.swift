@@ -2,26 +2,25 @@
 import Common
 import Testing
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct SummonWorkspaceCommandTest {
     @Test
     func parse() {
-        testParseSingleCommandSucc("summon-workspace foo", SummonWorkspaceCmdArgs(rawArgs: []).copy(\.target, .initialized(.parse("foo").getOrDie())))
+        testParseSingleCommandSucc("summon-workspace foo", SummonWorkspaceCommand(target: .parse("foo").getOrDie()))
         testParseSingleCommandSucc(
             "summon-workspace -- foo",
-            SummonWorkspaceCmdArgs(rawArgs: []).copy(\.target, .initialized(.parse("foo").getOrDie())),
+            SummonWorkspaceCommand(target: .parse("foo").getOrDie()),
         )
         testParseSingleCommandSucc(
             "summon-workspace --fail-if-noop -- foo",
-            SummonWorkspaceCmdArgs(rawArgs: []).copy(\.target, .initialized(.parse("foo").getOrDie())).copy(\.failIfNoop, true),
+            SummonWorkspaceCommand(target: .parse("foo").getOrDie(), failIfNoop: true),
         )
     }
 
     @Test(arguments: [
-        ("summon-workspace", "ERROR: Argument '<workspace>' is mandatory"),
-        ("summon-workspace --", "ERROR: Argument '<workspace>' is mandatory"),
-        ("summon-workspace -- --fail-if-noop", "ERROR: Workspace names starting with dash are disallowed"),
+        ("summon-workspace", "Argument '<workspace>' is mandatory"),
+        ("summon-workspace --", "Argument '<workspace>' is mandatory"),
+        ("summon-workspace -- --fail-if-noop", "Workspace names starting with dash are disallowed"),
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)

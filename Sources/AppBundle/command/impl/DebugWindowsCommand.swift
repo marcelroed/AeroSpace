@@ -19,33 +19,45 @@ enum DebugWindowsState {
     case recordingAborted
 }
 
-struct DebugWindowsCommand: Command {
-    let args: DebugWindowsCmdArgs
-    /*conforms*/ let shouldResetClosedWindowsCache = false
+struct DebugWindowsCommand: nonisolated Command {
+    static let resetsClosedWindowsCache = false
+    var source: SourceWords = []
+    var windowId: UInt32? = nil
 
-    func run(_ env: CmdEnv, _ io: CmdIo) async -> BinaryExitCode {
-        if let windowId = args.windowId {
-            guard let window = Window.get(byId: windowId) else {
-                return .fail(io.err("Can't find window with the specified window-id: \(windowId)"))
+    static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
+        var result = Self()
+        while let option = try a.nextOption() {
+            switch option {
+                case "--window-id": result.windowId = try a.windowId(of: option)
+                default: throw .unknownOption(option)
             }
-            guard let a = try? await dumpWindowDebugInfo(window, .nonCancellable) else { return .fail(io.err(bugPrompt())) }
-            io.out(a + "\n")
-            io.out(disclaimer)
-            return .succ
+        }
+        try a.end()
+        return result
+    }
+
+    func run(_ cx: CmdContext) async throws(CmdFail) {
+        if let windowId {
+            guard let window = Window.get(byId: windowId) else {
+                throw "Can't find window with the specified window-id: \(windowId)"
+            }
+            guard let a = try? await dumpWindowDebugInfo(window, .nonCancellable) else { throw CmdFail(bugPrompt()) }
+            cx.out(a + "\n")
+            cx.out(disclaimer)
+            return
         }
         switch debugWindowsState {
             case .recording:
                 debugWindowsState = .notRecording
-                io.out(debugWindowsLog.values.joined(separator: "\n\n"))
-                io.out("\n" + disclaimer + "\n")
-                io.out("Debug session finished" + "\n")
+                cx.out(debugWindowsLog.values.joined(separator: "\n\n"))
+                cx.out("\n" + disclaimer + "\n")
+                cx.out("Debug session finished" + "\n")
                 debugWindowsLog = [:]
-                return .succ
             case .notRecording:
-                guard let target = args.resolveTargetOrReportError(env, io) else { return .fail }
+                let target = try cx.target()
                 debugWindowsState = .recording
                 debugWindowsLog = [:]
-                io.out(
+                cx.out(
                     """
                     Debug windows session has started
                     1. Focus the problematic window
@@ -57,12 +69,11 @@ struct DebugWindowsCommand: Command {
                     do {
                         try await debugWindowsIfRecording(window, .nonCancellable)
                     } catch {
-                        return .fail(io.err(bugPrompt(String(describing: error))))
+                        throw CmdFail(bugPrompt(String(describing: error)))
                     }
                 }
-                return .succ
             case .recordingAborted:
-                io.out(
+                cx.out(
                     """
                     Recording of the previous session was aborted after \(debugWindowsLimit) windows has been focused
                     Run the command one more time to start new debug session
@@ -70,7 +81,7 @@ struct DebugWindowsCommand: Command {
                 )
                 debugWindowsState = .notRecording
                 debugWindowsLog = [:]
-                return .fail
+                throw .silent
         }
     }
 }
