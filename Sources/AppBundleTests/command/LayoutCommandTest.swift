@@ -19,7 +19,8 @@ struct LayoutCommandTest {
             LayoutCmdArgs(rawArgs: [], toggleBetween: [.floating]).copy(\.forNextDetectedWindow, true),
         )
         for command in ["layout --for-next-detected-window floating tiling", "layout --for-next-detected-window accordion"] {
-            #expect(await runCmd(command) == .fail("ERROR: " + layoutCommandForNextDetectedWindowFlagIncompatibilityMsg))
+            let output = await runCmd(command)
+            #expect(output == .fail("ERROR: " + layoutCommandForNextDetectedWindowFlagIncompatibilityMsg))
         }
     }
 
@@ -34,7 +35,8 @@ struct LayoutCommandTest {
         ("layout --for-next-detected-window --fail-if-noop floating", "ERROR: Conflicting options: --fail-if-noop, --for-next-detected-window"),
     ])
     func parseError(command: String, error: String) async {
-        #expect(await runCmd(command) == .fail(error))
+        let output = await runCmd(command)
+        #expect(output == .fail(error))
     }
 
     @Test(arguments: [
@@ -58,7 +60,8 @@ struct LayoutCommandTest {
     ])
     func succeeds(before: String, command: String, after: String) async {
         setUpTree(before)
-        #expect(await runCmd(command) == .ok)
+        let output = await runCmd(command)
+        #expect(output == .ok)
         #expect(describeTree() == after)
     }
 
@@ -68,9 +71,10 @@ struct LayoutCommandTest {
         ("h_tiles(*1 2)", "layout --root h_tiles", alreadyIn("h_tiles")),
         ("h_tiles() floating(*1)", "layout floating", alreadyIn("floating")),
     ])
-    func noop(tree: String, command: String, output: CmdOutput) async {
+    func noop(tree: String, command: String, expected: CmdOutput) async {
         setUpTree(tree)
-        #expect(await runCmd(command) == output)
+        let output = await runCmd(command)
+        #expect(output == expected)
         #expect(describeTree() == tree)
     }
 
@@ -84,9 +88,10 @@ struct LayoutCommandTest {
         ("layout tiling --fail-if-noop", .fail(), "h_tiles()"),
         ("layout floating", .fail("No window is focused"), "h_tiles()"),
     ])
-    func emptyWorkspace(command: String, output: CmdOutput, after: String) async {
+    func emptyWorkspace(command: String, expected: CmdOutput, after: String) async {
         let workspace = setUpTree("h_tiles()")
-        #expect(await runCmd(command, workspaceEnv: workspace.name) == output)
+        let output = await runCmd(command, workspaceEnv: workspace.name)
+        #expect(output == expected)
         #expect(describeTree() == after)
     }
 
@@ -94,7 +99,8 @@ struct LayoutCommandTest {
     func rootOfAnotherWorkspace(flag: String) async {
         setUpTree("h_tiles(*1)", workspace: "a")
         setUpTree("h_tiles(2)", workspace: "b")
-        #expect(await runCmd("layout --root \(flag) v_accordion") == .ok)
+        let output = await runCmd("layout --root \(flag) v_accordion")
+        #expect(output == .ok)
         #expect(describeTree("b") == "v_accordion(2)")
         #expect(describeTree("a") == "h_tiles(*1)") // The focused workspace is untouched
     }
@@ -104,21 +110,24 @@ struct LayoutCommandTest {
         setUpTree("\(start)(*1 2)")
         let startParts = start.split(separator: "_").map(String.init)
         let expected = (description.orientation ?? startParts[0]) + "_" + (description.layout ?? startParts[1])
-        #expect(await runCmd("layout \(description.name)") == (expected == start ? alreadyIn(description.name) : .ok))
+        let output = await runCmd("layout \(description.name)")
+        #expect(output == (expected == start ? alreadyIn(description.name) : .ok))
         #expect(describeTree() == "\(expected)(*1 2)")
     }
 
     @Test(arguments: tilingDescriptions)
     func tilingDescription_onFloatingWindow_fails(_ description: TilingDescription) async {
         setUpTree("h_tiles() floating(*1)")
-        #expect(await runCmd("layout \(description.name)") == .fail("The window is non-tiling"))
+        let output = await runCmd("layout \(description.name)")
+        #expect(output == .fail("The window is non-tiling"))
         #expect(describeTree() == "h_tiles() floating(*1)")
     }
 
     @Test
     func forNextDetectedWindow_appliesToTheNextDetectedWindowOnly() async {
         let workspace = setUpTree("h_tiles(*1)")
-        #expect(await runCmd("layout floating --for-next-detected-window") == .ok)
+        let output = await runCmd("layout floating --for-next-detected-window")
+        #expect(output == .ok)
 
         await runOnWindowDetected(ifConventional: TestWindow.new(id: 2, parent: workspace.rootTilingContainer))
         #expect(describeTree() == "h_tiles(*1) floating(2)")
@@ -130,8 +139,10 @@ struct LayoutCommandTest {
     @Test
     func forNextDetectedWindow_secondInvocationReplacesTheScheduledLayout() async {
         let workspace = setUpTree("h_tiles(*1)")
-        #expect(await runCmd("layout floating --for-next-detected-window") == .ok)
-        #expect(await runCmd("layout tiling --for-next-detected-window") == .ok)
+        var output = await runCmd("layout floating --for-next-detected-window")
+        #expect(output == .ok)
+        output = await runCmd("layout tiling --for-next-detected-window")
+        #expect(output == .ok)
         // The window is detected as floating. The replaced 'floating' would have been a noop, 'tiling' tiles it
         await runOnWindowDetected(ifConventional: TestWindow.new(id: 2, parent: workspace.floatingWindowsContainer))
         #expect(describeTree() == "h_tiles(*1 2)")
@@ -143,7 +154,8 @@ struct LayoutCommandTest {
         config.onWindowDetected = [
             WindowDetectedCallback(matcher: .command(.empty), run: parseCommand("layout floating tiling").cmdOrDie), // matches every window
         ]
-        #expect(await runCmd("layout floating --for-next-detected-window") == .ok)
+        let output = await runCmd("layout floating --for-next-detected-window")
+        #expect(output == .ok)
         await runOnWindowDetected(ifConventional: TestWindow.new(id: 2, parent: workspace.rootTilingContainer))
         #expect(describeTree() == "h_tiles(*1) floating(2)")
     }

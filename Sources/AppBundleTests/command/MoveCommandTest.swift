@@ -23,7 +23,8 @@ struct MoveCommandTest {
         ("move foo", "ERROR: Can't parse 'foo'.\n       Possible values: (left|down|up|right)"),
     ])
     func parseError(command: String, error: String) async {
-        #expect(await runCmd(command) == .fail(error))
+        let output = await runCmd(command)
+        #expect(output == .fail(error))
     }
 
     @Test(arguments: [
@@ -47,7 +48,8 @@ struct MoveCommandTest {
     ])
     func succeeds(before: String, command: String, after: String) async {
         setUpTree(before)
-        #expect(await runCmd(command) == .ok)
+        let output = await runCmd(command)
+        #expect(output == .ok)
         #expect(describeTree() == after)
     }
 
@@ -57,7 +59,8 @@ struct MoveCommandTest {
     ])
     func fails(tree: String, command: String) async {
         setUpTree(tree)
-        #expect(await runCmd(command) == .fail())
+        let output = await runCmd(command)
+        #expect(output == .fail())
         #expect(describeTree() == tree)
     }
 
@@ -81,21 +84,24 @@ struct MoveCommandTest {
     func moveIntoTheMostRecentContainer() async {
         setUpTree("h_tiles(0 *1 v_tiles(h_tiles(2 3) 4))")
         testWindow(3).markAsMostRecentChild()
-        #expect(await runCmd("move right") == .ok)
+        let output = await runCmd("move right")
+        #expect(output == .ok)
         #expect(describeTree() == "h_tiles(0 v_tiles(h_tiles(*1 2 3) 4))")
     }
 
     @Test
     func swapPreservesWeights() async {
         setUpTree("h_tiles(1:1 *2:2)")
-        #expect(await runCmd("move left") == .ok)
+        let output = await runCmd("move left")
+        #expect(output == .ok)
         #expect(describeTree(weights: true) == "h_tiles(*2:2 1:1)")
     }
 
     @Test
     func moveInResetsTheWeight() async {
         setUpTree("h_tiles(0 *1:2 v_tiles(2))")
-        #expect(await runCmd("move right") == .ok)
+        let output = await runCmd("move right")
+        #expect(output == .ok)
         #expect(describeTree(weights: true) == "h_tiles(0:1 v_tiles:1(2:1 *1:1))")
     }
 
@@ -103,7 +109,8 @@ struct MoveCommandTest {
     func moveOutWithNormalization(tree: String, command: String) async {
         config.enableNormalizationFlattenContainers = true
         setUpTree(tree)
-        #expect(await runCmd(command) == .ok)
+        let output = await runCmd(command)
+        #expect(output == .ok)
         #expect(describeTree() == tree)
     }
 
@@ -112,7 +119,8 @@ struct MoveCommandTest {
         setUpTree("h_tiles(*1 2)")
         // No screens (e.g., during display reconfiguration) is a normal state, not a bug (RB-40)
         await $noScreensForTests.withValue(true) {
-            #expect(await runCmd("move --boundaries all-monitors-outer-frame left") == .fail("Can't move the window across monitors while there are no screens"))
+            let output = await runCmd("move --boundaries all-monitors-outer-frame left")
+            #expect(output == .fail("Can't move the window across monitors while there are no screens"))
         }
     }
 }

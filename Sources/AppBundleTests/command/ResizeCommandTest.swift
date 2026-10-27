@@ -29,7 +29,8 @@ struct ResizeCommandTest {
         ("resize smart +", "ERROR: <number> argument must be a number"),
     ])
     func parseError(command: String, error: String) async {
-        #expect(await runCmd(command) == .fail(error))
+        let output = await runCmd(command)
+        #expect(output == .fail(error))
     }
 
     @Test(arguments: [
@@ -46,7 +47,8 @@ struct ResizeCommandTest {
     ])
     func succeeds(before: String, command: String, after: String) async {
         setUpTree(before)
-        #expect(await runCmd(command) == .ok)
+        let output = await runCmd(command)
+        #expect(output == .ok)
         #expect(describeTree(weights: true) == after)
     }
 
@@ -60,7 +62,8 @@ struct ResizeCommandTest {
     func fails(tree: String, command: String, error: String) async {
         setUpTree(tree)
         let before = describeTree(weights: true)
-        #expect(await runCmd(command) == .fail(error))
+        let output = await runCmd(command)
+        #expect(output == .fail(error))
         #expect(describeTree(weights: true) == before)
     }
 }

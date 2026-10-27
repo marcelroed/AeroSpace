@@ -128,7 +128,10 @@ nonisolated struct CmdOutput: Equatable {
 /// Runs `command` like the server runs a CLI request: `windowIdEnv` and `workspaceEnv` are the client's
 /// AEROSPACE_WINDOW_ID and AEROSPACE_WORKSPACE. A parse error and help come back as output, the way the CLI prints them.
 /// Every command behavior test runs its commands through this function, so that changes to how commands are parsed and
-/// run touch only this function
+/// run touch only this function.
+///
+/// Check the output in two steps, `let output = await runCmd("...")` and `#expect(output == .ok)`: `#expect` doesn't
+/// show the values of an expression with `await`, so `#expect(await runCmd("...") == .ok)` fails without the output
 @MainActor
 @discardableResult
 func runCmd(_ command: String, stdin: String = "", windowIdEnv: UInt32? = nil, workspaceEnv: String? = nil) async -> CmdOutput {
@@ -142,7 +145,7 @@ func runCmd(_ command: String, stdin: String = "", windowIdEnv: UInt32? = nil, w
 }
 
 /// Runs `command` and checks its exit code, and also its stdout and stderr when they are given.
-/// todo: superseded by `#expect(await runCmd(command) == ...)`. Delete it once the XCTest files of the other workers are
+/// todo: superseded by `runCmd` and `#expect`. Delete it once the XCTest files of the other workers are
 /// converted (ListWindowsTest, TestCommandTest, ListModesTest, ConfigCommandTest, ShellRunTest)
 @MainActor
 @discardableResult
