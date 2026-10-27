@@ -70,6 +70,12 @@ struct ListWorkspacesTest {
     }
 
     @Test
+    func formatVariableOfAnotherObjectFailsWithTheFirstError() async {
+        let output = await runCmd("list-workspaces --all --format '%{window-id} %{app-name}'")
+        #expect(output == .fail(FormatVarExpansionError.unavailable(.windowId, .workspace).description))
+    }
+
+    @Test
     func invalidMonitor() async {
         let output = await runCmd("list-workspaces --monitor 99")
         #expect(output == .fail("Invalid monitor ID: 99"))

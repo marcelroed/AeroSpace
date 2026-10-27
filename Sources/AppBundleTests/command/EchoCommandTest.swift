@@ -38,6 +38,8 @@ struct EchoCommandTest {
         ("h_tiles()", "echo --stderr -- foo", CmdOutput(stderr: ["foo"])),
         ("h_tiles(*1)", "echo -- '%{window-id}'", CmdOutput(stdout: ["1"])),
         ("h_tiles()", "echo -- '%{window-id}'", .fail("No window is focused")),
+        // The first error wins: one line, not one per variable
+        ("h_tiles()", "echo -- '%{window-id} %{app-name}'", .fail("No window is focused")),
         ("h_tiles(*42)", "echo -- 'id: %{window-id}'", CmdOutput(stdout: ["id: 42"])),
         ("h_tiles(*5)", "echo --stderr -- '%{window-id}'", CmdOutput(stderr: ["5"])),
     ])
