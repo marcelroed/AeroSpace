@@ -55,7 +55,11 @@ private func decodeBindings(_ raw: OrderedJson, _ path: ConfigBacktrace, _ mappi
     for (notation, rawCommand) in table {
         let path = path + .key(notation)
         guard let (modifiers, key) = parseBinding(notation, path, mapping, &d) else { continue }
-        let binding = HotkeyBinding(modifiers, key, decodeShellOfCommands(rawCommand, path, &d) ?? .empty, descriptionWithKeyNotation: notation)
+        let errorCount = d.errors.count
+        let commands = decodeShellOfCommands(rawCommand, path, &d) ?? .empty
+        // A binding that would do nothing must not take the key away from the apps
+        if d.errors.count != errorCount { continue }
+        let binding = HotkeyBinding(modifiers, key, commands, descriptionWithKeyNotation: notation)
         if result.keys.contains(binding.descriptionWithKeyCode) {
             d.error(path, "'\(binding.descriptionWithKeyCode)' Binding redeclaration")
         }

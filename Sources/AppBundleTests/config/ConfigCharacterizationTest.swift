@@ -291,9 +291,8 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
             "[ERROR] mode.main.binding.alt-j: Unrecognized subcommand 'bogus'",
             "[ERROR] mode.main.binding.alt-l: Can't parse 'foo'.\nPossible values: (left|down|up|right|dfs-next|dfs-prev)",
         ])
-        // A binding with an invalid command is kept with an empty command
-        assertEquals(result.config.modes[mainModeId]?.bindings.keys.sorted(), ["alt-h", "alt-j", "alt-k", "alt-l"])
-        assertTrue(result.config.modes[mainModeId]?.bindings["alt-j"]?.commands.strictEquals(.empty) == true)
+        // A binding with an invalid command is dropped
+        assertEquals(result.config.modes[mainModeId]?.bindings.keys.sorted(), ["alt-k"])
         assertEquals(
             parseConfig("on-focus-changed = ['bogus', 'focus --help']").strErrors,
             ["[ERROR] on-focus-changed[0]: Unrecognized subcommand 'bogus'", "[ERROR] on-focus-changed[1]: \(focusHelp)"],
