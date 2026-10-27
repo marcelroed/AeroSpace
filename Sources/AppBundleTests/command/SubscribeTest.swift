@@ -74,6 +74,42 @@ struct SubscribeTest {
         ], then: .workspace)
     }
 
+    /// The client is registered before its answer: nothing between the two is lost
+    @Test
+    func clientWithoutTheInitialStateGetsTheEventsRightAfterItsAnswer() async throws {
+        let server = try await TestSocketServer.start(.aeroSpace)
+        defer { server.stop() }
+        let client = try await subscribe(server, ["--no-send-initial", "mode-changed"])
+        defer { client.cancel() }
+        broadcastEvent(.modeChanged(mode: "resize")) // No suspension since the answer
+        await expectEvents(client, [#"{"_event":"mode-changed","mode":"resize"}"#])
+    }
+
+    nonisolated enum Leaving { case afterTheAnswer, beforeTheAnswer }
+
+    /// The server forgets a client that disconnects, whenever it does, and keeps serving the others
+    @Test(arguments: [.afterTheAnswer, .beforeTheAnswer] as [Leaving])
+    func clientsThatLeaveAreForgotten(leaving: Leaving) async throws {
+        await expectSubscriptions(0) // The clients of other tests are gone
+        let server = try await TestSocketServer.start(.aeroSpace)
+        defer { server.stop() }
+        let stays = try await subscribe(server, ["--no-send-initial", "mode-changed"])
+        defer { stays.cancel() }
+        let request = ClientRequest(args: ["subscribe", "--all"], stdin: "", windowId: nil, workspace: nil)
+        for _ in 0 ..< 50 {
+            switch leaving {
+                case .afterTheAnswer: try await server.send(request).1.cancel()
+                case .beforeTheAnswer:
+                    let connection = NWConnection(to: .unix(path: server.path), using: .tcp)
+                    await expectEqual(connection.initConnection().error, nil)
+                    await expectEqual(connection.writeAtomic(request).error, nil)
+                    connection.cancel()
+            }
+        }
+        await expectSubscriptions(1)
+        await expectEvents(stays, [])
+    }
+
     /// A client that stays connected but stops reading is disconnected once its queue overflows, instead of making
     /// AeroSpace hold every event for it. A client that reads gets every event
     @Test
