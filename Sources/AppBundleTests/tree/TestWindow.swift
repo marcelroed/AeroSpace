@@ -6,14 +6,14 @@ final class TestWindow: Window, CustomStringConvertible {
     var rect: Rect?
     var isMacosFullscreenForTest = false
 
-    private init(_ id: UInt32, _ parent: NonLeafTreeNodeObject, _ adaptiveWeight: CGFloat, _ rect: Rect?) {
+    private init(_ id: UInt32, _ parent: NonLeafTreeNodeObject, _ weight: CGFloat, _ rect: Rect?) {
         self.rect = rect
-        super.init(id: id, TestApp.shared, lastFloatingSize: nil, parent: parent, adaptiveWeight: adaptiveWeight, index: INDEX_BIND_LAST)
+        super.init(id: id, TestApp.shared, lastFloatingSize: nil, parent: parent, weight: weight, index: nil)
     }
 
     @discardableResult
-    static func new(id: UInt32, parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat = 1, rect: Rect? = nil) -> TestWindow {
-        let wi = TestWindow(id, parent, adaptiveWeight, rect)
+    static func new(id: UInt32, parent: NonLeafTreeNodeObject, weight: CGFloat = 1, rect: Rect? = nil) -> TestWindow {
+        let wi = TestWindow(id, parent, weight, rect)
         TestApp.shared._windows.append(wi)
         return wi
     }

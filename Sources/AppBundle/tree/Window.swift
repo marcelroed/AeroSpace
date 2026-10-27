@@ -9,11 +9,11 @@ open class Window: TreeNode, Hashable {
     var noOuterGapsInFullscreen: Bool = false
     var layoutReason: LayoutReason = .standard
 
-    init(id: UInt32, _ app: any AbstractApp, lastFloatingSize: CGSize?, parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) {
+    init(id: UInt32, _ app: any AbstractApp, lastFloatingSize: CGSize?, parent: NonLeafTreeNodeObject, weight: CGFloat?, index: Int?) {
         self.windowId = id
         self.app = app
         self.lastFloatingSize = lastFloatingSize
-        super.init(parent: parent, adaptiveWeight: adaptiveWeight, index: index)
+        super.init(parent: parent, weight: weight, index: index)
     }
 
     static func get(byId windowId: UInt32) -> Window? { // todo make non optional
@@ -55,8 +55,8 @@ extension Window {
     var isFloating: Bool { parent is FloatingWindowsContainer } // todo drop. It will be a source of bugs when sticky is introduced
 
     @discardableResult
-    func bindAsFloatingWindow(to workspace: Workspace) -> BindingData? {
-        bind(to: workspace.floatingWindowsContainer, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
+    func bindAsFloatingWindow(to workspace: Workspace) -> NodeBinding? {
+        bind(to: workspace.floatingWindowsContainer)
     }
 
     func asMacWindow() -> MacWindow { self as! MacWindow }

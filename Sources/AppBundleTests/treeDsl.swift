@@ -148,13 +148,13 @@ private func parseTreeSpec(_ spec: String) -> [SpecNode] {
 private func build(_ node: SpecNode, in parent: NonLeafTreeNodeObject, focused: inout [Window]) {
     if let children = node.children {
         let (layout, orientation) = tilingKind(node.name)
-        let container = TilingContainer(parent: parent, adaptiveWeight: node.weight ?? 1, orientation, layout, index: INDEX_BIND_LAST)
+        let container = TilingContainer(parent: parent, weight: node.weight ?? 1, orientation, layout)
         for child in children {
             build(child, in: container, focused: &focused)
         }
     } else {
         let id = UInt32(node.name).orDie("'\(node.name)' isn't a window id")
-        let window = TestWindow.new(id: id, parent: parent, adaptiveWeight: node.weight ?? 1)
+        let window = TestWindow.new(id: id, parent: parent, weight: node.weight ?? 1)
         if node.isFocused { focused.append(window) }
     }
 }

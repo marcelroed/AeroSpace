@@ -29,13 +29,13 @@ private func _normalizeLayoutReason(workspace: Workspace, windows: [Window]) asy
                 switch true {
                     case isMacosFullscreen:
                         window.layoutReason = .macos(prevParentKind: parent.kind)
-                        window.bind(to: workspace.macOsNativeFullscreenWindowsContainer, adaptiveWeight: WEIGHT_DOESNT_MATTER, index: INDEX_BIND_LAST)
+                        window.bind(to: workspace.macOsNativeFullscreenWindowsContainer)
                     case isMacosMinimized:
                         window.layoutReason = .macos(prevParentKind: parent.kind)
-                        window.bind(to: macosMinimizedWindowsContainer, adaptiveWeight: 1, index: INDEX_BIND_LAST)
+                        window.bind(to: macosMinimizedWindowsContainer, weight: 1)
                     case isMacosWindowOfHiddenApp:
                         window.layoutReason = .macos(prevParentKind: parent.kind)
-                        window.bind(to: workspace.macOsNativeHiddenAppsWindowsContainer, adaptiveWeight: WEIGHT_DOESNT_MATTER, index: INDEX_BIND_LAST)
+                        window.bind(to: workspace.macOsNativeHiddenAppsWindowsContainer)
                     default: break
                 }
             case .macos(let prevParentKind):

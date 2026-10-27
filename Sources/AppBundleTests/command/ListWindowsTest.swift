@@ -109,7 +109,7 @@ extension ListWindowsTest {
         // Tree order differs from ID order. Within one workspace, tied windows are listed in tree order (RB-13)
         Workspace.get(byName: "a").rootTilingContainer.apply {
             TestWindow.new(id: 3, parent: $0)
-            TilingContainer.newVTiles(parent: $0, adaptiveWeight: 1).apply {
+            TilingContainer.newVTiles(parent: $0, weight: 1).apply {
                 TestWindow.new(id: 1, parent: $0)
             }
             TestWindow.new(id: 2, parent: $0)

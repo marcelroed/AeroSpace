@@ -5,10 +5,10 @@ final class TilingContainer: TreeNode, NonLeafTreeNodeObject { // todo consider 
     fileprivate(set) var orientation: Orientation
     var layout: Layout
 
-    init(parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, _ orientation: Orientation, _ layout: Layout, index: Int) {
+    init(parent: NonLeafTreeNodeObject, weight: CGFloat? = nil, _ orientation: Orientation, _ layout: Layout, index: Int? = nil) {
         self.orientation = orientation
         self.layout = layout
-        super.init(parent: parent, adaptiveWeight: adaptiveWeight, index: index)
+        super.init(parent: parent, weight: weight, index: index)
     }
 }
 

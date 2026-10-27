@@ -67,7 +67,7 @@ func restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: Window) async throws
         let prevRoot = workspace.rootTilingContainer // Save prevRoot into a variable to avoid it being garbage collected earlier than needed
         let potentialOrphans = prevRoot.allLeafWindowsRecursive
         prevRoot.unbindFromParent()
-        restoreTreeRecursive(frozenContainer: frozenWorkspace.rootTilingNode, parent: workspace, index: INDEX_BIND_LAST)
+        restoreTreeRecursive(frozenContainer: frozenWorkspace.rootTilingNode, parent: workspace, index: nil)
         let restoredWindows = workspace.rootTilingContainer.allLeafWindowsRecursive.toSet()
         for window in potentialOrphans where !restoredWindows.contains(window) {
             try await window.relayoutWindow(on: workspace, .cancellable, forceTile: true)
@@ -83,10 +83,10 @@ func restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: Window) async throws
 }
 
 @discardableResult
-private func restoreTreeRecursive(frozenContainer: FrozenContainer, parent: NonLeafTreeNodeObject, index: Int) -> Bool {
+private func restoreTreeRecursive(frozenContainer: FrozenContainer, parent: NonLeafTreeNodeObject, index: Int?) -> Bool {
     let container = TilingContainer(
         parent: parent,
-        adaptiveWeight: frozenContainer.weight,
+        weight: frozenContainer.weight,
         frozenContainer.orientation,
         frozenContainer.layout,
         index: index,
@@ -97,7 +97,7 @@ private func restoreTreeRecursive(frozenContainer: FrozenContainer, parent: NonL
             case .window(let w):
                 // Stop the loop if can't find the window, because otherwise all the subsequent windows will have incorrect index
                 guard let window = MacWindow.get(byId: w.id) else { return false }
-                window.bind(to: container, adaptiveWeight: w.weight, index: index)
+                window.bind(to: container, weight: w.weight, index: index)
             case .container(let c):
                 // There is no reason to continue
                 if !restoreTreeRecursive(frozenContainer: c, parent: container, index: index) { return false }

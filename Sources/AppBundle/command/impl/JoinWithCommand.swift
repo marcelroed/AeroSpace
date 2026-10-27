@@ -15,15 +15,15 @@ struct JoinWithCommand: Command {
         let prevBinding = joinWithTarget.unbindFromParent()
         let newParent = TilingContainer(
             parent: parent,
-            adaptiveWeight: prevBinding.adaptiveWeight,
+            weight: prevBinding.weight,
             parent.orientation.opposite,
             .tiles,
             index: prevBinding.index,
         )
         currentWindow.unbindFromParent()
 
-        joinWithTarget.bind(to: newParent, adaptiveWeight: WEIGHT_AUTO, index: 0)
-        currentWindow.bind(to: newParent, adaptiveWeight: WEIGHT_AUTO, index: direction.isPositive ? 0 : INDEX_BIND_LAST)
+        joinWithTarget.bind(to: newParent, index: 0)
+        currentWindow.bind(to: newParent, index: direction.isPositive ? 0 : nil)
         return .succ
     }
 }

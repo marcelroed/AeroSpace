@@ -133,7 +133,7 @@ private func makeFloatingWindowsSeenAsTiling(workspace: Workspace) async -> [Flo
             window: window,
             center: center,
             tilingParent: tilingParent,
-            adaptiveWeight: data.adaptiveWeight,
+            weight: data.weight,
             index: index,
         )
         unsortedFloatingWindows.append(floatingWindowData)
@@ -141,7 +141,7 @@ private func makeFloatingWindowsSeenAsTiling(workspace: Workspace) async -> [Flo
     let floatingWindows: [FloatingWindowData] = unsortedFloatingWindows.sortedBy { $0.center.getProjection($0.tilingParent.orientation) }.reversed()
 
     for floating in floatingWindows { // Make floating windows be seen as tiling
-        floating.window.bind(to: floating.tilingParent, adaptiveWeight: 1, index: floating.index)
+        floating.window.bind(to: floating.tilingParent, weight: 1, index: floating.index)
     }
     return floatingWindows
 }
@@ -152,7 +152,7 @@ private func restoreFloatingWindows(floatingWindows: [FloatingWindowData], works
         mruBefore?.markAsMostRecentChild()
     }
     for floating in floatingWindows {
-        floating.window.bind(to: workspace.floatingWindowsContainer, adaptiveWeight: floating.adaptiveWeight, index: INDEX_BIND_LAST)
+        floating.window.bind(to: workspace.floatingWindowsContainer, weight: floating.weight)
     }
 }
 
@@ -161,7 +161,7 @@ private struct FloatingWindowData {
     let center: CGPoint
 
     let tilingParent: TilingContainer
-    let adaptiveWeight: CGFloat
+    let weight: CGFloat
     let index: Int
 }
 

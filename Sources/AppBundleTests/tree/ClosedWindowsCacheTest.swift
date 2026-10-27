@@ -16,10 +16,10 @@ struct ClosedWindowsCacheTest {
         // Scramble the tree. Tests find windows only in workspaces, so keep the tiling windows in another workspace
         let other = Workspace.get(byName: "other")
         for window in workspace.rootTilingContainer.allLeafWindowsRecursive {
-            window.bind(to: other.rootTilingContainer, adaptiveWeight: 1, index: 0)
+            window.bind(to: other.rootTilingContainer, weight: 1, index: 0)
         }
         for id: UInt32 in [4, 5] {
-            testWindow(id).bind(to: workspace.rootTilingContainer, adaptiveWeight: 1, index: INDEX_BIND_LAST)
+            testWindow(id).bind(to: workspace.rootTilingContainer, weight: 1)
         }
         let orphan = TestWindow.new(id: 7, parent: workspace.rootTilingContainer) // Not cached
         #expect(try await restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: orphan) == false)

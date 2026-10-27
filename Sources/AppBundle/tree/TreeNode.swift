@@ -6,7 +6,7 @@ import Common
 open class TreeNode: Equatable, AeroAny {
     private(set) final var children: [TreeNode] = []
     fileprivate(set) final weak var parent: NonLeafTreeNodeObject? = nil
-    private var adaptiveWeight: CGFloat
+    private var weight: CGFloat
     /// The most recent child of a node is the child with the highest stamp. See ``markAsMostRecentChild()``
     private var mruStamp: UInt64 = 0
     // Usages:
@@ -22,17 +22,17 @@ open class TreeNode: Equatable, AeroAny {
     // Usages:
     // - resize with mouse
     var weightBeforeResizeWithMouse: CGFloat? = nil
-    private var unboundStacktrace: String? = nil
     var isBound: Bool { parent != nil } // todo drop, once https://github.com/nikitabobko/AeroSpace/issues/1215 is fixed
 
-    init(parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) {
-        self.adaptiveWeight = adaptiveWeight
-        bind(to: parent, adaptiveWeight: adaptiveWeight, index: index)
+    /// See ``bind(to:weight:index:)`` for `weight` and `index`
+    init(parent: NonLeafTreeNodeObject, weight: CGFloat? = nil, index: Int? = nil) {
+        self.weight = 0 // bind() sets it
+        bind(to: parent, weight: weight, index: index)
     }
 
     /// Creates a node that is never bound to a parent (Workspace and the global macOS unconventional windows containers)
-    init(unboundRootWithAdaptiveWeight adaptiveWeight: CGFloat) {
-        self.adaptiveWeight = adaptiveWeight
+    init() {
+        weight = weightDoesntMatter
     }
 
     /// See: ``getWeight(_:)``
@@ -46,7 +46,7 @@ open class TreeNode: Equatable, AeroAny {
                 if parent.layout != .tiles {
                     die("Weight can be changed only for nodes whose parent has 'tiles' layout")
                 }
-                adaptiveWeight = newValue
+                weight = newValue
             default:
                 die("Can't change weight")
         }
@@ -57,7 +57,7 @@ open class TreeNode: Equatable, AeroAny {
         guard let parent else { die("Weight doesn't make sense for containers without parent") }
         return switch getChildParentRelation(child: self, parent: parent) {
             case .tiling(let parent):
-                parent.orientation == targetOrientation ? adaptiveWeight : parent.getWeight(targetOrientation)
+                parent.orientation == targetOrientation ? weight : parent.getWeight(targetOrientation)
             case .rootTilingContainer: parent.getWeight(targetOrientation)
             case .floatingWindow, .macosNativeFullscreenWindow: dieT("Weight doesn't make sense for floating windows")
             case .macosNativeMinimizedWindow: dieT("Weight doesn't make sense for minimized windows")
@@ -67,26 +67,25 @@ open class TreeNode: Equatable, AeroAny {
         }
     }
 
+    /// Inserts the node at `index` of `newParent`'s children (nil: last), and makes it the most recent child.
+    /// `weight` nil: the average weight of the new siblings in a tiling container (1 without siblings), and
+    /// ``weightDoesntMatter`` in any other container. Returns where the node was bound before
     @discardableResult
-    func bind(to newParent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) -> BindingData? {
-        // bind() overwrites unboundStacktrace below, so don't spend time on recording it
-        let result = unbindIfBound(recordStacktrace: false)
+    func bind(to newParent: NonLeafTreeNodeObject, weight: CGFloat? = nil, index: Int? = nil) -> NodeBinding? {
+        let result = parent != nil ? unbindFromParent() : nil
 
         let relation = getChildParentRelation(child: self, parent: newParent) // Side effect: verify relation
-        if adaptiveWeight == WEIGHT_AUTO {
-            self.adaptiveWeight = switch relation {
+        self.weight = if let weight { weight } else {
+            switch relation {
                 case .tiling(let newParent):
                     newParent.children.sum { $0.getWeight(newParent.orientation) }.div(newParent.children.count) ?? 1
                 case .floatingWindow, .macosNativeFullscreenWindow, .rootTilingContainer, .macosNativeMinimizedWindow,
                      .shimContainerRelation, .macosPopupWindow, .macosNativeHiddenAppWindow:
-                    WEIGHT_DOESNT_MATTER
+                    weightDoesntMatter
             }
-        } else {
-            self.adaptiveWeight = adaptiveWeight
         }
-        newParent.children.insert(self, at: index != INDEX_BIND_LAST ? index : newParent.children.count)
+        newParent.children.insert(self, at: index ?? newParent.children.count)
         parent = newParent
-        unboundStacktrace = nil
         // todo consider disabling automatic mru propogation
         // 1. "floating windows" in FocusCommand break the MRU because of that :(
         // 2. Misbehaved apps that abuse real window as popups https://github.com/nikitabobko/AeroSpace/issues/106 (the
@@ -95,17 +94,14 @@ open class TreeNode: Equatable, AeroAny {
         return result
     }
 
-    private func unbindIfBound(recordStacktrace: Bool) -> BindingData? {
-        guard let parent else { return nil }
-
+    /// Returns where the node was bound
+    @discardableResult
+    func unbindFromParent() -> NodeBinding {
+        guard let parent else { die("\(prettyDescription) is already unbound") }
         let index = parent.children.firstIndex(of: self) ?? dieT("Can't find child in its parent")
         parent.children.remove(at: index)
         self.parent = nil
-        if recordStacktrace {
-            unboundStacktrace = getStringStacktrace()
-        }
-
-        return BindingData(parent: parent, adaptiveWeight: adaptiveWeight, index: index)
+        return NodeBinding(parent: parent, weight: weight, index: index)
     }
 
     /// Makes the node the most recent child of its parent, and the parent the most recent child of its parent, and so on.
@@ -125,11 +121,6 @@ open class TreeNode: Equatable, AeroAny {
     /// The children, the most recent first
     var mruChildren: [TreeNode] { children.sorted { $0.mruStamp > $1.mruStamp } }
 
-    @discardableResult
-    func unbindFromParent() -> BindingData {
-        unbindIfBound(recordStacktrace: true) ?? dieT("\(prettyDescription) is already unbound. The stacktrace where it was unbound:\n\(unboundStacktrace.prettyDescription)")
-    }
-
     nonisolated public static func == (lhs: TreeNode, rhs: TreeNode) -> Bool {
         lhs === rhs
     }
@@ -137,17 +128,14 @@ open class TreeNode: Equatable, AeroAny {
 
 @MainActor private var mruClock: UInt64 = 0
 
-let WEIGHT_DOESNT_MATTER = CGFloat(-2)
-/// Splits containers evenly if tiling.
-///
-/// Reset weight is bind to workspace (aka "floating windows")
-let WEIGHT_AUTO = CGFloat(-1)
+/// The weight of a node whose parent isn't a tiling container. It's observable: commands that keep a node's weight
+/// (e.g. swap, focus --floating-as-tiling) carry it into tiling containers
+private let weightDoesntMatter = CGFloat(-2)
 
-let INDEX_BIND_LAST = -1
-
-struct BindingData {
+/// Where a node is bound: ``TreeNode/bind(to:weight:index:)`` with these values puts it back
+struct NodeBinding {
     let parent: NonLeafTreeNodeObject
-    let adaptiveWeight: CGFloat
+    let weight: CGFloat
     let index: Int
 }
 

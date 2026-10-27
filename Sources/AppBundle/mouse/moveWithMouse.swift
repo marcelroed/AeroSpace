@@ -43,7 +43,6 @@ private func moveTilingWindow(_ window: Window) {
         }
         window.bind(
             to: swapTarget?.parent ?? targetWorkspace.rootTilingContainer,
-            adaptiveWeight: WEIGHT_AUTO,
             index: index,
         )
     } else if let swapTarget {
@@ -57,8 +56,8 @@ func swapWindows(mruDominant window1: Window, _ window2: Window) {
     let binding2 = window2.unbindFromParent()
     let binding1 = window1.unbindFromParent()
 
-    window2.bind(to: binding1.parent, adaptiveWeight: binding1.adaptiveWeight, index: binding1.index)
-    window1.bind(to: binding2.parent, adaptiveWeight: binding2.adaptiveWeight, index: binding2.index)
+    window2.bind(to: binding1.parent, weight: binding1.weight, index: binding1.index)
+    window1.bind(to: binding2.parent, weight: binding2.weight, index: binding2.index)
 }
 
 extension CGPoint {

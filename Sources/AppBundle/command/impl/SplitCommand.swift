@@ -27,12 +27,12 @@ struct SplitCommand: Command {
                     let data = window.unbindFromParent()
                     let newParent = TilingContainer(
                         parent: parent,
-                        adaptiveWeight: data.adaptiveWeight,
+                        weight: data.weight,
                         orientation,
                         .tiles,
                         index: data.index,
                     )
-                    window.bind(to: newParent, adaptiveWeight: WEIGHT_AUTO, index: 0)
+                    window.bind(to: newParent, index: 0)
                 }
                 return .succ
             case .macosMinimizedWindowsContainer, .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer:

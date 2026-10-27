@@ -5,9 +5,9 @@ final class MacWindow: Window {
     let macApp: MacApp
     private var prevUnhiddenProportionalPositionInsideWorkspaceRect: CGPoint?
 
-    private init(_ id: UInt32, _ macApp: MacApp, lastFloatingSize: CGSize?, parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) {
+    private init(_ id: UInt32, _ macApp: MacApp, lastFloatingSize: CGSize?, parent: NonLeafTreeNodeObject, index: Int?) {
         self.macApp = macApp
-        super.init(id: id, macApp, lastFloatingSize: lastFloatingSize, parent: parent, adaptiveWeight: adaptiveWeight, index: index)
+        super.init(id: id, macApp, lastFloatingSize: lastFloatingSize, parent: parent, weight: nil, index: index)
     }
 
     static var allWindowsMap: [UInt32: MacWindow] = [:]
@@ -17,7 +17,7 @@ final class MacWindow: Window {
     static func getOrRegister(windowId: UInt32, macApp: MacApp) async throws -> MacWindow {
         if let existing = allWindowsMap[windowId] { return existing }
         let rect = try await macApp.getAxRect(windowId, .cancellable)
-        let data = try await unbindAndGetBindingDataForNewWindow(
+        let slot = try await unbindAndGetSlotForNewWindow(
             windowId,
             macApp,
             isStartup
@@ -29,7 +29,7 @@ final class MacWindow: Window {
 
         // atomic synchronous section
         if let existing = allWindowsMap[windowId] { return existing }
-        let window = MacWindow(windowId, macApp, lastFloatingSize: rect?.size, parent: data.parent, adaptiveWeight: data.adaptiveWeight, index: data.index)
+        let window = MacWindow(windowId, macApp, lastFloatingSize: rect?.size, parent: slot.parent, index: slot.index)
         allWindowsMap[windowId] = window
 
         try await debugWindowsIfRecording(window, .cancellable)
@@ -174,39 +174,34 @@ final class MacWindow: Window {
 
 extension Window {
     func relayoutWindow(on workspace: Workspace, _ cm: CancellationMode, forceTile: Bool = false) async throws {
-        let data = forceTile
-            ? unbindAndGetBindingDataForNewTilingWindow(workspace, window: self)
-            : try await unbindAndGetBindingDataForNewWindow(windowId, self.asMacWindow().macApp, workspace, window: self, cm)
-        bind(to: data.parent, adaptiveWeight: data.adaptiveWeight, index: data.index)
+        let slot = forceTile
+            ? unbindAndGetSlotForNewTilingWindow(workspace, window: self)
+            : try await unbindAndGetSlotForNewWindow(windowId, self.asMacWindow().macApp, workspace, window: self, cm)
+        bind(to: slot.parent, index: slot.index)
     }
 }
 
+/// Where a new window goes: index nil is the last one
+private typealias NewWindowSlot = (parent: NonLeafTreeNodeObject, index: Int?)
+
 // The function is private because it's unsafe. It leaves the window in unbound state
-private func unbindAndGetBindingDataForNewWindow(_ windowId: UInt32, _ macApp: MacApp, _ workspace: Workspace, window: Window?, _ cm: CancellationMode) async throws -> BindingData {
+private func unbindAndGetSlotForNewWindow(_ windowId: UInt32, _ macApp: MacApp, _ workspace: Workspace, window: Window?, _ cm: CancellationMode) async throws -> NewWindowSlot {
     let windowLevel = getWindowLevel(for: windowId)
     return switch try await macApp.getAxUiElementWindowType(windowId, windowLevel, cm) {
-        case .popup: BindingData(parent: macosPopupWindowsContainer, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
-        case .dialog: BindingData(parent: workspace.floatingWindowsContainer, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
-        case .window: unbindAndGetBindingDataForNewTilingWindow(workspace, window: window)
+        case .popup: (macosPopupWindowsContainer, nil)
+        case .dialog: (workspace.floatingWindowsContainer, nil)
+        case .window: unbindAndGetSlotForNewTilingWindow(workspace, window: window)
     }
 }
 
 // The function is private because it's unsafe. It leaves the window in unbound state
-private func unbindAndGetBindingDataForNewTilingWindow(_ workspace: Workspace, window: Window?) -> BindingData {
+private func unbindAndGetSlotForNewTilingWindow(_ workspace: Workspace, window: Window?) -> NewWindowSlot {
     window?.unbindFromParent() // It's important to unbind to get correct data from below
     let mruWindow = workspace.mostRecentWindowRecursive
     if let mruWindow, let tilingParent = mruWindow.parent as? TilingContainer {
-        return BindingData(
-            parent: tilingParent,
-            adaptiveWeight: WEIGHT_AUTO,
-            index: mruWindow.ownIndex.orDie() + 1,
-        )
+        return (tilingParent, mruWindow.ownIndex.orDie() + 1)
     } else {
-        return BindingData(
-            parent: workspace.rootTilingContainer,
-            adaptiveWeight: WEIGHT_AUTO,
-            index: INDEX_BIND_LAST,
-        )
+        return (workspace.rootTilingContainer, nil)
     }
 }
 

@@ -23,7 +23,7 @@ struct MacosNativeFullscreenCommand: Command {
             return .fail(io.err(windowIsntPartOfTree(window)))
         }
         if newState { // Enter fullscreen
-            window.bind(to: workspace.macOsNativeFullscreenWindowsContainer, adaptiveWeight: 1, index: INDEX_BIND_LAST)
+            window.bind(to: workspace.macOsNativeFullscreenWindowsContainer, weight: 1)
         } else { // Exit fullscreen
             do {
                 if case .macos(let prevParentKind) = window.layoutReason {
