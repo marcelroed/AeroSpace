@@ -93,9 +93,17 @@ nonisolated struct AppInfo: Hashable, Sendable {
     let name: String?
     let execPath: String?
     let bundlePath: String?
+    /// The app's bundle id if AeroSpace handles the app specially. Stored: the layout reads it per window
+    let knownBundleId: KnownBundleId?
 
-    /// The app's bundle id if AeroSpace handles the app specially
-    var knownBundleId: KnownBundleId? { bundleId.flatMap(KnownBundleId.init) }
+    init(pid: pid_t, bundleId: String?, name: String?, execPath: String?, bundlePath: String?) {
+        self.pid = pid
+        self.bundleId = bundleId
+        self.name = name
+        self.execPath = execPath
+        self.bundlePath = bundlePath
+        knownBundleId = bundleId.flatMap(KnownBundleId.init)
+    }
 }
 
 nonisolated enum AppWindows: Sendable {
