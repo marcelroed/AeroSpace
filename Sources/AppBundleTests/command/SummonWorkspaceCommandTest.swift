@@ -33,9 +33,21 @@ struct SummonWorkspaceCommandTest {
         let output = await runCmd("summon-workspace foo")
         expectEqual(output, .ok)
         let foo = Workspace.get(byName: "foo")
-        expectEqual(mainMonitorInfo.activeWorkspace, foo)
+        expectEqual(testMonitor.activeWorkspace, foo)
         expectEqual(focus.workspace, foo)
         #expect(!workspace.isVisible)
+    }
+
+    @Test
+    func summonsAWorkspaceFromTheOtherMonitorAndLeavesAStubThere() async {
+        updateMonitors([testMonitor, rightTestMonitor])
+        let focused = focus.workspace
+        let other = rightTestMonitor.activeWorkspace
+        let output = await runCmd("summon-workspace \(other.name)")
+        expectEqual(output, .ok)
+        expectEqual(focus.workspace, other)
+        expectEqual(world.monitors.all.map(\.activeWorkspace.name), [other.name, "2"])
+        #expect(!focused.isVisible)
     }
 
     @Test(arguments: [

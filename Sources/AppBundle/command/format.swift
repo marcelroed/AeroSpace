@@ -341,7 +341,7 @@ extension FormatVar {
                 }
             case (.monitor(let m), .monitor):
                 switch self {
-                    case .monitorId: return m.monitorId_oneBased.map { .int($0) } ?? .string("NULL-MONITOR-ID")
+                    case .monitorId: return .int(m.monitorId_oneBased)
                     case .monitorAppKitNsScreenScreensId: return .int(m.monitorAppKitNsScreenScreensId)
                     case .monitorName: return .string(m.name)
                     case .monitorIsMain: return .bool(m.isMain)

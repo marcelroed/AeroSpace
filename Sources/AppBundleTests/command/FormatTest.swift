@@ -31,7 +31,7 @@ struct FormatTest {
         expectEqual(AeroObj.window(.forTest(window: window, title: nil)).subject, .window)
         expectEqual(AeroObj.workspace(Workspace.get(byName: workspaceName)).subject, .workspace)
         expectEqual(AeroObj.app(TestApp.shared).subject, .app)
-        expectEqual(AeroObj.monitor(mainMonitorInfo).subject, .monitor)
+        expectEqual(AeroObj.monitor(testMonitor).subject, .monitor)
     }
 
     @Test
@@ -159,7 +159,7 @@ struct FormatTest {
     func expandWindowToWorkspaceAndMonitor() {
         let obj = newWindowObj(id: 1)
         expectEqual(expanded(.workspace, obj), "String(\(workspaceName))")
-        expectEqual(expanded(.monitorName, obj), "String(\(mainMonitorInfo.name))")
+        expectEqual(expanded(.monitorName, obj), "String(\(testMonitor.name))")
     }
 
     @Test
@@ -209,13 +209,13 @@ struct FormatTest {
     @Test
     func expandWorkspaceToMonitor() {
         let obj = AeroObj.workspace(Workspace.get(byName: workspaceName))
-        expectEqual(expanded(.monitorName, obj), "String(\(mainMonitorInfo.name))")
+        expectEqual(expanded(.monitorName, obj), "String(\(testMonitor.name))")
         expectEqual(expanded(.monitorIsMain, obj), "Bool(true)")
     }
 
     @Test
     func expandMonitorVars() {
-        let monitor = mainMonitorInfo
+        let monitor = testMonitor
         let obj = AeroObj.monitor(monitor)
         expectEqual(expanded(.monitorAppKitNsScreenScreensId, obj), "Int(\(monitor.monitorAppKitNsScreenScreensId))")
         expectEqual(expanded(.monitorName, obj), "String(\(monitor.name))")
@@ -255,7 +255,7 @@ struct FormatTest {
     @Test
     func unavailableVariableMessageListsPossibleValues() {
         expectEqual(
-            expanded(.windowId, .monitor(mainMonitorInfo)),
+            expanded(.windowId, .monitor(testMonitor)),
             "Unknown interpolation variable 'window-id'. Possible values:\n" +
                 "  monitor-id\n  monitor-appkit-nsscreen-screens-id\n  monitor-name\n  monitor-is-main\n" +
                 "  right-padding\n  newline\n  tab",
@@ -296,7 +296,7 @@ struct FormatTest {
     @Test
     func formatToJsonFailsOnTheFirstObject() {
         // Both objects fail, but with different messages: the possible values depend on the object kind
-        let objs: [AeroObj] = [.workspace(Workspace.get(byName: workspaceName)), .monitor(mainMonitorInfo)]
+        let objs: [AeroObj] = [.workspace(Workspace.get(byName: workspaceName)), .monitor(testMonitor)]
         do {
             _ = try objs.formatToJson([.interVar(.windowId)])
             Issue.record("Expected a failure")

@@ -1,42 +1,20 @@
 import AppKit
 import Common
 
-/// Which workspace each monitor shows, by the monitors' top-left corners. Part of ``World``
+/// Which workspace each monitor of ``World/monitors`` shows. Part of ``World``
 struct MonitorAssignment {
-    fileprivate var screenPointToPrevVisibleWorkspace: [CGPoint: String] = [:]
-    fileprivate var screenPointToVisibleWorkspace: [CGPoint: Workspace] = [:]
-    fileprivate var visibleWorkspaceToScreenPoint: [Workspace: CGPoint] = [:]
-}
-
-// The returned workspace must be invisible and it must belong to the requested monitor
-func getStubWorkspace(for monitor: MonitorInfo) -> Workspace {
-    getStubWorkspace(forPoint: monitor.rect.topLeftCorner)
-}
-
-private func getStubWorkspace(forPoint point: CGPoint) -> Workspace {
-    if let prev = world.assignment.screenPointToPrevVisibleWorkspace[point].map({ Workspace.get(byName: $0) }),
-       !prev.isVisible && prev.workspaceMonitor.rect.topLeftCorner == point && prev.forceAssignedMonitor == nil
-    {
-        return prev
-    }
-    if let candidate = Workspace.all
-        .first(where: { !$0.isVisible && $0.workspaceMonitor.rect.topLeftCorner == point })
-    {
-        return candidate
-    }
-    for index in 1 ... Int.max {
-        let workspace = Workspace.get(byName: String(index))
-        if workspace.isEffectivelyEmpty && !workspace.isVisible && !config.persistentWorkspaces.contains(workspace.name) && workspace.forceAssignedMonitor == nil {
-            return workspace
-        }
-    }
-    die("Can't create empty workspace")
+    /// `visible[i]` is on `world.monitors.all[i]`: ``updateMonitors(_:)`` replaces the monitors and rearranges this in one
+    /// step. Empty only before the first snapshot
+    fileprivate var visible: [Workspace] = []
+    /// The workspace that each monitor showed before the last ``MonitorInfo/setActiveWorkspace(_:)`` on it, by the
+    /// monitor's top-left corner. The first choice for the monitor's stub workspace
+    fileprivate var prevVisible: [CGPoint: String] = [:]
 }
 
 final class Workspace: TreeNode, Hashable, Comparable {
     let name: String
     nonisolated private let nameLogicalSegments: StringLogicalSegments
-    /// `assignedMonitorPoint` must be interpreted only when the workspace is invisible
+    /// The top-left corner of the monitor that the workspace is visible on, or was visible on last
     fileprivate var assignedMonitorPoint: CGPoint? = nil
 
     private init(_ name: String) {
@@ -114,105 +92,106 @@ final class Workspace: TreeNode, Hashable, Comparable {
 }
 
 extension Workspace {
-    var isVisible: Bool { world.assignment.visibleWorkspaceToScreenPoint.keys.contains(self) }
+    var isVisible: Bool { world.assignment.visible.contains(self) }
+
+    /// The monitor that the workspace is visible on, or was visible on last (the closest one if that monitor is gone), or the
+    /// main monitor. Force assignment overrides them
     var workspaceMonitor: MonitorInfo {
-        forceAssignedMonitor
-            ?? world.assignment.visibleWorkspaceToScreenPoint[self]?.monitorApproximation
-            ?? assignedMonitorPoint?.monitorApproximation
-            ?? mainMonitorInfo
+        forceAssignedMonitor ?? assignedMonitorPoint.map(world.monitors.approximation) ?? world.monitors.main
+    }
+
+    /// Force assignment allows the workspace on `world.monitors.all[index]`
+    fileprivate func isAllowed(onMonitorAt index: Int) -> Bool {
+        forceAssignedMonitor.map { world.monitors.index(of: $0) == index } ?? true
     }
 }
 
 extension MonitorInfo {
-    var activeWorkspace: Workspace {
-        if let existing = world.assignment.screenPointToVisibleWorkspace[rect.topLeftCorner] {
-            return existing
-        }
-        // What if monitor configuration changed? (frame.origin is changed)
-        rearrangeWorkspacesOnMonitors()
-        // Normally, the lookup must succeed this time because rearrangeWorkspacesOnMonitors assigns
-        // a workspace to every current monitor
-        if let existing = world.assignment.screenPointToVisibleWorkspace[rect.topLeftCorner] {
-            return existing
-        }
-        // Monitor configuration data race: self is a stale snapshot, and its rect doesn't match any
-        // current monitor (may happen during display sleep/wake reconfiguration). Recursing doesn't
-        // converge in this case (it overflows the stack). Fall back to the closest current monitor.
-        // The map is empty only if no screen was seen yet (AeroSpace started while there were no screens). Don't read
-        // focus then: the lazy initializer of _focus gets here, and reading focus would re-enter it (crash)
-        return world.assignment.screenPointToVisibleWorkspace
-            .minBy { (rect.topLeftCorner - $0.key).vectorLength }?
-            .value
-            ?? getStubWorkspace(for: self)
-    }
+    /// Total: a monitor from an older snapshot (held across an await) gets the workspace of the closest monitor (812da7fa)
+    var activeWorkspace: Workspace { world.assignment.visible[world.monitors.index(of: self)] }
 
+    /// Shows `workspace` on this monitor. If it was visible on another monitor, that one gets a stub workspace. false if
+    /// force assignment doesn't allow `workspace` on this monitor
     func setActiveWorkspace(_ workspace: Workspace) -> Bool {
-        rect.topLeftCorner.setActiveWorkspace(workspace)
-    }
-}
-
-func gcMonitors() {
-    if world.assignment.screenPointToVisibleWorkspace.count != monitorInfos.count {
-        rearrangeWorkspacesOnMonitors()
-    }
-}
-
-extension CGPoint {
-    fileprivate func setActiveWorkspace(_ workspace: Workspace) -> Bool {
-        if let forceAssigned = workspace.forceAssignedMonitor, forceAssigned.rect.topLeftCorner != self {
-            return false
+        let index = world.monitors.index(of: self)
+        if !workspace.isAllowed(onMonitorAt: index) { return false }
+        let prevIndex = world.assignment.visible.firstIndex(of: workspace)
+        show(workspace, onMonitorAt: index)
+        if let prevIndex, prevIndex != index {
+            show(stubWorkspace(forMonitorAt: prevIndex, excluding: world.assignment.visible), onMonitorAt: prevIndex)
         }
-        world.assignment.show(workspace, at: self)
-        workspace.assignedMonitorPoint = self
         return true
     }
 }
 
-extension MonitorAssignment {
-    fileprivate mutating func show(_ workspace: Workspace, at point: CGPoint) {
-        if let prevMonitorPoint = visibleWorkspaceToScreenPoint[workspace] {
-            visibleWorkspaceToScreenPoint.removeValue(forKey: workspace)
-            screenPointToPrevVisibleWorkspace[prevMonitorPoint] =
-                screenPointToVisibleWorkspace.removeValue(forKey: prevMonitorPoint)?.name
-        }
-        if let prevWorkspace = screenPointToVisibleWorkspace[point] {
-            screenPointToPrevVisibleWorkspace[point] = screenPointToVisibleWorkspace.removeValue(forKey: point)?.name
-            visibleWorkspaceToScreenPoint.removeValue(forKey: prevWorkspace)
-        }
-        visibleWorkspaceToScreenPoint[workspace] = point
-        screenPointToVisibleWorkspace[point] = workspace
+/// Takes the snapshot of the monitors (`monitors`: tests only). If the monitors moved, every monitor keeps the workspace of
+/// the closest old monitor, and the other monitors get stub workspaces. While there are no screens, the last monitors and
+/// their workspaces stay. Called at the start of every session. Returns whether there are screens
+@discardableResult
+func updateMonitors(_ monitors: [MonitorInfo] = liveMonitorInfos()) -> Bool {
+    let old = world.monitors
+    let new = Monitors(monitors) ?? old.withoutScreens
+    world.monitors = new
+    if world.assignment.visible.count != new.all.count || !new.hasSameCorners(as: old) {
+        rearrangeWorkspaces(from: old)
+    }
+    return new.hasScreens
+}
+
+/// Each monitor of the old snapshot hands its workspace to the closest new monitor. A new monitor that is the closest to
+/// several old ones takes the workspace of the closest old one. Force assignment can refuse it, then the monitor gets a stub
+private func rearrangeWorkspaces(from old: Monitors) {
+    let monitors = world.monitors
+    let oldVisible = zip(old.all, world.assignment.visible)
+    var closest: [(workspace: Workspace, distance: CGFloat)?] = Array(repeating: nil, count: monitors.all.count)
+    for (oldMonitor, workspace) in oldVisible {
+        let index = monitors.index(of: oldMonitor)
+        let distance = (monitors.all[index].rect.topLeftCorner - oldMonitor.rect.topLeftCorner).vectorLength
+        if let closer = closest[index], closer.distance <= distance { continue }
+        closest[index] = (workspace, distance)
+    }
+    let kept: [Workspace?] = closest.enumerated().map { index, closest in
+        closest.flatMap { $0.workspace.isAllowed(onMonitorAt: index) ? $0.workspace : nil }
+    }
+    let taken = kept.compactMap { $0 }
+    var visible: [Workspace] = []
+    for (index, workspace) in kept.enumerated() {
+        visible.append(workspace ?? stubWorkspace(forMonitorAt: index, excluding: taken + visible))
+    }
+    world.assignment.visible = visible
+    for (monitor, workspace) in zip(monitors.all, visible) {
+        workspace.assignedMonitorPoint = monitor.rect.topLeftCorner
     }
 }
 
-private func rearrangeWorkspacesOnMonitors() {
-    let newScreens = monitorInfos.map(\.rect.topLeftCorner)
-    // No screens (e.g., during display reconfiguration). Keep the current arrangement until the screens come back.
-    // Otherwise, every visible workspace is forgotten, and the screens get stub workspaces when they come back
-    if newScreens.isEmpty { return }
-    var newScreenToOldScreenMapping: [CGPoint: CGPoint] = [:]
-    for (oldScreen, _) in world.assignment.screenPointToVisibleWorkspace {
-        guard let newScreen = newScreens.minBy({ ($0 - oldScreen).vectorLength }) else { continue }
-        if let prevOldScreen = newScreenToOldScreenMapping[newScreen] {
-            if (prevOldScreen - newScreen).vectorLength <= (oldScreen - newScreen).vectorLength {
-                // newScreen has already been assigned to a closer oldScreen.
-                continue
-            }
-        }
-        newScreenToOldScreenMapping[newScreen] = oldScreen
+/// Doesn't check force assignment
+private func show(_ workspace: Workspace, onMonitorAt index: Int) {
+    let corner = world.monitors.all[index].rect.topLeftCorner
+    world.assignment.prevVisible[corner] = world.assignment.visible[index].name
+    world.assignment.visible[index] = workspace
+    workspace.assignedMonitorPoint = corner
+}
+
+/// A workspace for `world.monitors.all[index]` that isn't in `taken`, and that force assignment allows there: the one that
+/// the monitor showed before, else the first one that belongs to the monitor, else the first empty numbered one
+private func stubWorkspace(forMonitorAt index: Int, excluding taken: [Workspace]) -> Workspace {
+    let corner = world.monitors.all[index].rect.topLeftCorner
+    let belongsToMonitor = { (workspace: Workspace) -> Bool in
+        !taken.contains(workspace) && workspace.workspaceMonitor.rect.topLeftCorner == corner
     }
-
-    let oldScreenPointToVisibleWorkspace = world.assignment.screenPointToVisibleWorkspace
-    world.assignment.screenPointToVisibleWorkspace = [:]
-    world.assignment.visibleWorkspaceToScreenPoint = [:]
-
-    for newScreen in newScreens {
-        if let existingVisibleWorkspace = newScreenToOldScreenMapping[newScreen].flatMap({ oldScreenPointToVisibleWorkspace[$0] }),
-           newScreen.setActiveWorkspace(existingVisibleWorkspace)
+    if let prev = world.assignment.prevVisible[corner].map({ Workspace.get(byName: $0) }), belongsToMonitor(prev) {
+        return prev
+    }
+    if let workspace = Workspace.all.first(where: belongsToMonitor) {
+        return workspace
+    }
+    for number in 1 ... Int.max {
+        let workspace = Workspace.get(byName: String(number))
+        if !taken.contains(workspace) && workspace.isEffectivelyEmpty && !config.persistentWorkspaces.contains(workspace.name) &&
+            workspace.forceAssignedMonitor == nil
         {
-            continue
+            return workspace
         }
-        let stubWorkspace = getStubWorkspace(forPoint: newScreen)
-        check(newScreen.setActiveWorkspace(stubWorkspace),
-              "getStubWorkspace generated incompatible stub workspace (\(stubWorkspace.description)) for the monitor (\(newScreen))")
     }
+    die("Can't create empty workspace")
 }

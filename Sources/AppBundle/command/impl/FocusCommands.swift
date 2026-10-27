@@ -354,22 +354,17 @@ extension MonitorTarget {
                 if wrapped && !wrapAround { throw "No monitors in direction \(direction)" }
                 return monitor
             case .relative(let nextPrev):
-                let monitors = sortedMonitorInfos
-                guard let curIndex = monitors.firstIndex(where: { $0.rect.topLeftCorner == currentMonitor.rect.topLeftCorner }) else {
-                    // No screens (e.g., during display reconfiguration): currentMonitor is the fake mainMonitorInfo
-                    if !hasScreens { throw CmdFail("Can't find the \(nextPrev) monitor while there are no screens") }
-                    throw CmdFail(bugPrompt("Should never happen. Can't find the current monitor"))
-                }
-                let targetIndex = nextPrev == .next ? curIndex + 1 : curIndex - 1
+                // No screens (e.g., during display reconfiguration): the monitors are the last ones that macOS reported
+                if !world.monitors.hasScreens { throw CmdFail("Can't find the \(nextPrev) monitor while there are no screens") }
+                let monitors = Array(world.monitors.all)
+                let targetIndex = world.monitors.index(of: currentMonitor) + (nextPrev == .next ? 1 : -1)
                 guard let monitor = wrapAround ? monitors.get(wrappingIndex: targetIndex) : monitors.getOrNil(atIndex: targetIndex) else {
                     throw "Can't find target monitor"
                 }
                 return monitor
             case .patterns(let patterns):
-                let monitors = sortedMonitorInfos
-                guard let targetMonitor = patterns.lazy.compactMap({ $0.resolveMonitor(sortedMonitors: monitors) }).first else {
-                    // No screens (e.g., during display reconfiguration): there are no monitors to match
-                    if !hasScreens { throw CmdFail("Can't find monitors that match the pattern(s) while there are no screens") }
+                if !world.monitors.hasScreens { throw CmdFail("Can't find monitors that match the pattern(s) while there are no screens") }
+                guard let targetMonitor = patterns.lazy.compactMap({ $0.resolveMonitor() }).first else {
                     throw CmdFail("None of the monitors match the pattern(s)")
                 }
                 return targetMonitor
@@ -387,14 +382,21 @@ extension MonitorInfo {
     /// The monitor next to this one in `direction`. If there is none, `wrapped` is true, and the monitor is the one at the
     /// far end on the other side (or this one)
     func monitor(in direction: CardinalDirection) throws(CmdFail) -> (monitor: MonitorInfo, wrapped: Bool) {
-        let monitors = sortedMonitorInfos.filter { rect.topLeftCorner == $0.rect.topLeftCorner || $0.relation(to: self) == direction.orientation }
-        guard let index = monitors.firstIndex(where: { $0.rect.topLeftCorner == rect.topLeftCorner }) else {
-            // No screens (e.g., during display reconfiguration): this monitor is the fake mainMonitorInfo
-            if !hasScreens { throw "Can't find monitors in direction \(direction) while there are no screens" }
-            throw CmdFail(bugPrompt("Should never happen. Can't find the current monitor"))
+        // No screens (e.g., during display reconfiguration): the monitors are the last ones that macOS reported
+        if !world.monitors.hasScreens { throw "Can't find monitors in direction \(direction) while there are no screens" }
+        let monitors = Array(world.monitors.all)
+        let index = world.monitors.index(of: self)
+        let current = monitors[index]
+        // Left and right: the monitors in the same row. Up and down: the ones above and below. In the sorted order
+        let isInLine = { (monitor: MonitorInfo) -> Bool in monitor.relation(to: current) == direction.orientation }
+        let before = monitors[..<index].filter(isInLine)
+        let after = monitors[(index + 1)...].filter(isInLine)
+        if direction.isPositive {
+            if let next = after.first { return (next, false) }
+            return (before.first ?? current, true)
+        } else {
+            if let next = before.last { return (next, false) }
+            return (after.last ?? current, true)
         }
-        let next = index + direction.focusOffset
-        if let monitor = monitors.getOrNil(atIndex: next) { return (monitor, false) }
-        return (monitors.get(wrappingIndex: next).orDie(), true)
     }
 }

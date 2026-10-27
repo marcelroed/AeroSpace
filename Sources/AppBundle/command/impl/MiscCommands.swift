@@ -306,9 +306,9 @@ struct EnableCommand: nonisolated Command {
                 ? "Already enabled. Tip: use --fail-if-noop to exit with non-zero code"
                 : "Already disabled. Tip: use --fail-if-noop to exit with non-zero code")
         }
-        // No screens (e.g., during display reconfiguration). Disabling unhides the windows of all workspaces and lays
-        // them out on the fake mainMonitorInfo, and nothing lays them out again while AeroSpace is disabled
-        if !newState && !hasScreens { throw "Can't disable \(aeroSpaceAppName) while there are no screens" }
+        // No screens (e.g., during display reconfiguration). Disabling unhides the windows of all workspaces in the layout,
+        // which waits for the screens, and no session lays them out while AeroSpace is disabled
+        if !newState && !world.monitors.hasScreens { throw "Can't disable \(aeroSpaceAppName) while there are no screens" }
         world.isEnabled = newState
         if newState {
             for workspace in Workspace.all {

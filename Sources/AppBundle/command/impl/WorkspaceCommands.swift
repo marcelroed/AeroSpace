@@ -160,16 +160,15 @@ struct SummonWorkspaceCommand: nonisolated Command {
     }
 
     func run(_ cx: CmdContext) async throws(CmdFail) {
-        // No screens (e.g., during display reconfiguration): the monitor of the focused workspace is the fake
-        // mainMonitorInfo, so the workspace would be moved to the main monitor (and setFocus doesn't guard this path)
-        if !hasScreens { throw "Can't summon workspace '\(target.raw)' while there are no screens" }
+        // No screens (e.g., during display reconfiguration): don't show other workspaces on the monitors that macOS doesn't
+        // report meanwhile, like setFocus
+        if !world.monitors.hasScreens { throw "Can't summon workspace '\(target.raw)' while there are no screens" }
         let workspace = Workspace.get(byName: target.raw)
         let monitor = focus.workspace.workspaceMonitor
         if monitor.activeWorkspace == workspace {
             return try noop(cx, failIfNoop: failIfNoop, "Workspace '\(workspace.name)' is already visible on the focused monitor. Tip: use --fail-if-noop to exit with non-zero code")
         }
-        let prevMonitor = workspace.isVisible ? workspace.workspaceMonitor : nil
-        try moveWorkspace(workspace, to: monitor, stubbing: prevMonitor)
+        try moveWorkspace(workspace, to: monitor)
         if !workspace.focusWorkspace() { throw .silent }
     }
 }

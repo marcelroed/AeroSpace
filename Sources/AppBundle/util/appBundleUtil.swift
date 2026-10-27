@@ -59,12 +59,9 @@ extension CGPoint {
 
     var vectorLength: CGFloat { sqrt(x * x + y * y) }
 
-    // Fall back to mainMonitorInfo if there are no screens (e.g., during display reconfiguration) to avoid crash
-    var monitorApproximation: MonitorInfo { monitorInfos.minBy { distance(toOuterFrame: $0.rect) } ?? mainMonitorInfo }
-
     var withYAxisFlipped: CGPoint {
         consuming get {
-            self.y = mainMonitorInfo.height - self.y
+            self.y = world.monitors.main.height - self.y
             return self
         }
     }

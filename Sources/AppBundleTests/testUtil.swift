@@ -24,16 +24,25 @@ func setUpWorkspacesForTests() {
     world.config.modes = [mainModeId: Mode(bindings: [:])]
     world.config.persistentWorkspaces = []
 
+    updateMonitors([testMonitor])
     check(Workspace.get(byName: "setUpWorkspacesForTests").focusWorkspace())
     markFocusAsKnownForTests()
     Workspace.garbageCollectUnusedWorkspaces()
     check(focus.workspace.isEffectivelyEmpty)
     check(focus.workspace === Workspace.all.singleOrNil(), Workspace.all.map(\.description).joined(separator: ", "))
-    check(mainMonitorInfo.setActiveWorkspace(focus.workspace))
 
     TestApp.shared.focusedWindow = nil
     TestApp.shared.windows = []
     appForTests = nil
+}
+
+/// The only monitor of a test, unless it sets others with ``updateMonitors(_:)``
+let testMonitor: MonitorInfo = makeTestMonitor(id: 1, "Test Monitor", Rect(topLeftX: 0, topLeftY: 0, width: 1920, height: 1080))
+/// Right of ``testMonitor``
+let rightTestMonitor: MonitorInfo = makeTestMonitor(id: 2, "Right Monitor", Rect(topLeftX: 1920, topLeftY: 0, width: 1920, height: 1080))
+
+private func makeTestMonitor(id: Int, _ name: String, _ rect: Rect) -> MonitorInfo {
+    MonitorInfo(monitorAppKitNsScreenScreensId: id, name: name, rect: rect, visibleRect: rect, isMain: rect.topLeftCorner == .zero)
 }
 
 /// Parses `raw` like the config and `eval` do

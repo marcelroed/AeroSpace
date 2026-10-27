@@ -25,8 +25,10 @@ struct SetUpWorkspacesForTestsTest {
     @Test
     func startsFromAnEmptyWorld() {
         setUpTree("h_tiles(1) floating(2) macos_minimized(3) macos_popup(4)", workspace: "a")
+        updateMonitors([testMonitor, rightTestMonitor])
 
         setUpWorkspacesForTests() // What the next test starts with
+        expectEqual(world.monitors.all.map(\.name), [testMonitor.name])
         expectEqual(Workspace.all.map(\.name), ["setUpWorkspacesForTests"])
         #expect(macosMinimizedWindowsContainer.children.isEmpty)
         #expect(macosPopupWindowsContainer.children.isEmpty)

@@ -266,10 +266,9 @@ struct FocusCommandTest {
     func focusAcrossMonitors_noScreens_failsWithoutBugPrompt() async {
         setUpTree("h_tiles(*1 2)")
         // No screens (e.g., during display reconfiguration) is a normal state, not a bug (RB-40)
-        await $noScreensForTests.withValue(true) {
-            let output = await runCmd("focus --boundaries all-monitors-outer-frame left")
-            expectEqual(output, .fail("Can't find monitors in direction left while there are no screens"))
-        }
+        updateMonitors([])
+        let output = await runCmd("focus --boundaries all-monitors-outer-frame left")
+        expectEqual(output, .fail("Can't find monitors in direction left while there are no screens"))
         expectEqual(describeTree(), "h_tiles(*1 2)")
     }
 }

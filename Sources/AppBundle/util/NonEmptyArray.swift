@@ -13,6 +13,10 @@ nonisolated struct NonEmptyArray<Element>: Sequence {
         self.init(first, Array(array.dropFirst()))
     }
 
+    var count: Int { rest.count + 1 }
+
+    subscript(index: Int) -> Element { index == 0 ? first : rest[index - 1] }
+
     func makeIterator() -> IndexingIterator<[Element]> { ([first] + rest).makeIterator() }
 }
 

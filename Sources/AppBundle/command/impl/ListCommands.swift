@@ -206,10 +206,9 @@ struct ListWorkspacesCommand: nonisolated Command {
 
 extension [MonitorId] {
     func resolveMonitors() throws(CmdFail) -> Set<CGPoint> {
-        let sortedMonitors = sortedMonitorInfos
         var requested: Set<CGPoint> = []
         for id in self {
-            let resolved = try id.resolve(sortedMonitors: sortedMonitors)
+            let resolved = try id.resolve()
             if resolved.isEmpty { throw .silent }
             for monitor in resolved {
                 requested.insert(monitor.rect.topLeftCorner)
@@ -220,14 +219,14 @@ extension [MonitorId] {
 }
 
 extension MonitorId {
-    func resolve(sortedMonitors: [MonitorInfo]) throws(CmdFail) -> [MonitorInfo] {
+    func resolve() throws(CmdFail) -> [MonitorInfo] {
         switch self {
             case .focused: return [focus.workspace.workspaceMonitor]
-            case .mouse: return [mouseLocation.monitorApproximation]
-            case .all: return monitorInfos
+            case .mouse: return [world.monitors.approximation(mouseLocation)]
+            case .all: return Array(world.monitors.all)
             case .index(let index):
-                guard let monitor = sortedMonitors.getOrNil(atIndex: index) else { throw "Invalid monitor ID: \(index + 1)" }
-                return [monitor]
+                guard (0 ..< world.monitors.all.count).contains(index) else { throw "Invalid monitor ID: \(index + 1)" }
+                return [world.monitors.all[index]]
         }
     }
 }
@@ -261,12 +260,12 @@ struct ListMonitorsCommand: nonisolated Command {
 
     func run(_ cx: CmdContext) async throws(CmdFail) {
         let focus = focus
-        var result = sortedMonitorInfos
+        var result = Array(world.monitors.all)
         if let focused {
             result = result.filter { (monitor) in (monitor.activeWorkspace == focus.workspace) == focused }
         }
         if let mouse {
-            let mouseWorkspace = mouseLocation.monitorApproximation.activeWorkspace
+            let mouseWorkspace = world.monitors.approximation(mouseLocation).activeWorkspace
             result = result.filter { (monitor) in (monitor.activeWorkspace == mouseWorkspace) == mouse }
         }
         try output.print(result.map(AeroObj.monitor), cx)

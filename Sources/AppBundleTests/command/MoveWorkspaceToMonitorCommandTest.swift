@@ -32,7 +32,7 @@ struct MoveWorkspaceToMonitorCommandTest {
         let workspace = focus.workspace
         let output = await runCmd("move-workspace-to-monitor \(target)")
         expectEqual(output, .fail(error))
-        expectEqual(workspace.workspaceMonitor.monitorId_oneBased, mainMonitorInfo.monitorId_oneBased)
+        expectEqual(workspace.workspaceMonitor.name, testMonitor.name)
         expectEqual(focus.workspace, workspace)
     }
 
@@ -42,14 +42,35 @@ struct MoveWorkspaceToMonitorCommandTest {
         let output = await runCmd("move-workspace-to-monitor \(target)")
         expectEqual(output, .ok)
         expectEqual(focus.workspace, workspace)
-        expectEqual(mainMonitorInfo.activeWorkspace, workspace)
+        expectEqual(testMonitor.activeWorkspace, workspace)
     }
 
     /// No screens (e.g., during display reconfiguration) is a normal state, not a bug (RB-40)
     @Test
     func next_noScreens_failsWithMessage() async {
-        let output = await $noScreensForTests.withValue(true) { await runCmd("move-workspace-to-monitor next") }
+        updateMonitors([])
+        let output = await runCmd("move-workspace-to-monitor next")
         expectEqual(output, .fail("Can't find the next monitor while there are no screens"))
+    }
+
+    @Test
+    func twoMonitors_movesTheWorkspaceAndLeavesAStub() async {
+        updateMonitors([testMonitor, rightTestMonitor])
+        let workspace = focus.workspace
+        let output = await runCmd("move-workspace-to-monitor next")
+        expectEqual(output, .ok)
+        expectEqual(rightTestMonitor.activeWorkspace, workspace)
+        #expect(testMonitor.activeWorkspace != workspace)
+    }
+
+    /// The monitor of an invisible workspace keeps its visible workspace
+    @Test
+    func twoMonitors_movesAnInvisibleWorkspace() async {
+        updateMonitors([testMonitor, rightTestMonitor])
+        let visible = focus.workspace
+        let output = await runCmd("move-workspace-to-monitor --workspace other next")
+        expectEqual(output, .ok)
+        expectEqual(world.monitors.all.map(\.activeWorkspace.name), [visible.name, "other"])
     }
 }
 

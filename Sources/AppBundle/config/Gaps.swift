@@ -41,9 +41,7 @@ extension GapsOf.Inner where V: ExpressibleByIntegerLiteral {
 
 extension ResolvedGaps {
     init(gaps: Gaps, monitor: MonitorInfo) {
-        // Query the monitors at most once, and only if some of the gaps are per-monitor
-        lazy var sortedMonitors = sortedMonitorInfos
-        self = gaps.map { $0.getValue(for: monitor, sortedMonitors: sortedMonitors) }
+        self = gaps.map { $0.getValue(for: monitor) }
     }
 }
 
@@ -60,11 +58,8 @@ struct DynamicConfigValue<Value: Equatable>: Equatable {
     static func constant(_ value: Value) -> Self { Self(rules: [], default: value) }
     static func perMonitor(_ rules: [PerMonitorValue<Value>], default: Value) -> Self { Self(rules: rules, default: `default`) }
 
-    /// - Parameter sortedMonitors: evaluated only for per-monitor values
-    func getValue(for monitor: MonitorInfo, sortedMonitors: @autoclosure () -> [MonitorInfo]) -> Value {
-        rules.first {
-            $0.description.resolveMonitor(sortedMonitors: sortedMonitors())?.rect.topLeftCorner == monitor.rect.topLeftCorner
-        }?.value ?? `default`
+    func getValue(for monitor: MonitorInfo) -> Value {
+        rules.first { $0.description.resolveMonitor()?.rect.topLeftCorner == monitor.rect.topLeftCorner }?.value ?? `default`
     }
 }
 

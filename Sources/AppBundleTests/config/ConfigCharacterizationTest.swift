@@ -61,7 +61,7 @@ struct ConfigCharacterizationTest {
             """,
         )
         expectEqual(result.errors, [])
-        let gaps = ResolvedGaps(gaps: result.config.gaps, monitor: mainMonitorInfo)
+        let gaps = ResolvedGaps(gaps: result.config.gaps, monitor: testMonitor)
         expectEqual(gaps.inner.horizontal, 2)
         expectEqual(gaps.inner.vertical, 1)
         expectEqual(gaps.outer.left, 9)

@@ -44,6 +44,7 @@ final class Sessions {
         let state = signposter.beginInterval(#function, "event: \(event)")
         defer { signposter.endInterval(#function, state) }
         cancelHeavy() // Give priority to the light session
+        updateMonitors() // While there are no screens, the commands fail with a message or work on the last monitors
         startWindowLevelCacheSession()
         return try await $refreshSessionEvent.withValue(event) {
             try await syncFocusFromMacOs()
@@ -98,9 +99,9 @@ final class Sessions {
         let state = signposter.beginInterval(#function, "event: \(event)")
         defer { signposter.endInterval(#function, state) }
         if !world.isEnabled { return }
-        // No screens (e.g., during display reconfiguration). Skip the session: the model and the layout would be refreshed
-        // against the fake mainMonitorInfo. The next session catches up when the screens come back
-        if !hasScreens { return }
+        // No screens (e.g., during display reconfiguration): nothing can be laid out. Skip the session, the next one catches
+        // up when the screens come back
+        if !updateMonitors() { return }
         startWindowLevelCacheSession()
         do {
             try await $refreshSessionEvent.withValue(event) {
@@ -110,7 +111,6 @@ final class Sessions {
 
                 await refreshModel_nonCancellable()
                 try await refresh()
-                gcMonitors()
 
                 updateTrayText()
                 world.ui.secureInputPanel.refresh()
@@ -189,7 +189,7 @@ final class Sessions {
         guard let token: RunSessionGuard = .isServerEnabled else { return }
         try await resetManipulatedWithMouseIfPossible()
         let mouseLocation = mouseLocation
-        let clickedMonitor = mouseLocation.monitorApproximation
+        let clickedMonitor = world.monitors.approximation(mouseLocation)
         switch true {
             // Detect clicks on desktop of different monitors
             case clickedMonitor.visibleRect.contains(mouseLocation) && clickedMonitor.activeWorkspace != focus.workspace:

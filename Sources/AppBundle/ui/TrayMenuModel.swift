@@ -41,10 +41,9 @@ enum AxPermissionStatus: Equatable {
 }
 
 func updateTrayText() {
-    let sortedMonitors = sortedMonitorInfos
+    let monitors = world.monitors.all
     let focusedWorkspace = focus.workspace
-    // activeWorkspace may rearrange workspaces on monitors. Evaluate it once per monitor, before Workspace.all
-    let activeWorkspaces = sortedMonitors.map { monitor in
+    let activeWorkspaces = monitors.map { monitor in
         let workspace = monitor.activeWorkspace
         return (workspace: workspace, hasFullscreenWindows: workspace.allLeafWindowsRecursive.hasFullscreenWindows)
     }
@@ -54,7 +53,7 @@ func updateTrayText() {
         activeWorkspaces
         .map { workspace, hasFullscreenWindows in
             let name = hasFullscreenWindows ? "[\(workspace.name)]" : workspace.name
-            return (workspace == focusedWorkspace && sortedMonitors.count > 1 ? "*" : "") + name
+            return (workspace == focusedWorkspace && monitors.count > 1 ? "*" : "") + name
         }
         .joined(separator: " │ ")
     let workspaces = Workspace.all.map { workspace in

@@ -22,7 +22,7 @@ struct LiveFocus: Equatable {
         return FrozenFocus(
             windowId: windowOrNil?.windowId,
             workspaceName: workspace.name,
-            monitorId_oneBased: workspace.workspaceMonitor.monitorId_oneBased ?? 0,
+            monitorId_oneBased: workspace.workspaceMonitor.monitorId_oneBased,
         )
     }
 }
@@ -71,8 +71,8 @@ struct FocusStore {
 /// The focus, initialized on the first read from the workspace of the main monitor
 private var _focus: FrozenFocus {
     if let current = world.focusStore.current { return current }
-    let monitor = mainMonitorInfo
-    let initial = FrozenFocus(windowId: nil, workspaceName: monitor.activeWorkspace.name, monitorId_oneBased: monitor.monitorId_oneBased ?? 0)
+    let monitor = world.monitors.main
+    let initial = FrozenFocus(windowId: nil, workspaceName: monitor.activeWorkspace.name, monitorId_oneBased: monitor.monitorId_oneBased)
     world.focusStore.current = initial
     return initial
 }
@@ -84,9 +84,9 @@ private var _focus: FrozenFocus {
 var focus: LiveFocus { _focus.live }
 
 func setFocus(to newFocus: LiveFocus) -> Bool {
-    // No screens (e.g., during display reconfiguration): workspaceMonitor is the fake mainMonitorInfo, so don't assign
-    // workspaces to monitors. Visible workspaces keep their monitors meanwhile, and they can still be focused
-    if !hasScreens && !newFocus.workspace.isVisible { return false }
+    // No screens (e.g., during display reconfiguration): don't show other workspaces on the monitors that macOS doesn't
+    // report meanwhile. The visible workspaces keep their monitors, and they can still be focused
+    if !world.monitors.hasScreens && !newFocus.workspace.isVisible { return false }
     let oldFrozenFocus = _focus // Read it before newFocus.frozen. _focus is lazily initialized
     let newFrozenFocus = newFocus.frozen
     if oldFrozenFocus == newFrozenFocus { return true }
@@ -97,7 +97,7 @@ func setFocus(to newFocus: LiveFocus) -> Bool {
     }
 
     world.focusStore.current = newFrozenFocus
-    let status = !hasScreens || newFocus.workspace.workspaceMonitor.setActiveWorkspace(newFocus.workspace)
+    let status = !world.monitors.hasScreens || newFocus.workspace.workspaceMonitor.setActiveWorkspace(newFocus.workspace)
 
     newFocus.windowOrNil?.markAsMostRecentChild()
     return status
@@ -149,9 +149,9 @@ func checkOnFocusChangedCallbacks_nonCancellable() async {
     if refreshSessionEvent?.isStartup == true {
         return
     }
-    // No screens (e.g., during display reconfiguration): the focused monitor is unknown. Keep the last known focus and
-    // defer the callbacks until the screens come back. Otherwise, they fire twice: now and when the screens come back
-    if !hasScreens { return }
+    // No screens (e.g., during display reconfiguration): keep the last known focus and defer the callbacks until the screens
+    // come back. Their commands would mostly fail meanwhile (focus-monitor, summon-workspace, focusing a hidden workspace)
+    if !world.monitors.hasScreens { return }
     let focus = focus
     let frozenFocus = focus.frozen
     let lastKnownFocus = world.focusStore.lastKnown ?? _focus
@@ -179,7 +179,7 @@ func checkOnFocusChangedCallbacks_nonCancellable() async {
 func onFocusedMonitorChanged(_ env: CmdEnv, _ io: CmdIo, _ focus: LiveFocus) async -> Int32 {
     broadcastEvent(.focusedMonitorChanged(
         workspace: focus.workspace.name,
-        monitorId_oneBased: focus.workspace.workspaceMonitor.monitorId_oneBased ?? 0,
+        monitorId_oneBased: focus.workspace.workspaceMonitor.monitorId_oneBased,
     ))
     return await config.onFocusedMonitorChanged.run(env.withFocus(focus), io)
 }

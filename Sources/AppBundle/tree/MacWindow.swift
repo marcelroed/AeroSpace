@@ -17,7 +17,8 @@ final class MacWindow: Window {
     static func getOrRegister(windowId: UInt32, macApp: MacApp) async throws -> MacWindow {
         if let existing = allWindowsMap[windowId] { return existing }
         let rect = try await macApp.getAxRect(windowId, .cancellable)
-        let workspace = isStartup ? (rect?.center.monitorApproximation ?? mainMonitorInfo).activeWorkspace : focus.workspace
+        let monitor = rect.map { world.monitors.approximation($0.center) } ?? world.monitors.main
+        let workspace = isStartup ? monitor.activeWorkspace : focus.workspace
         let type = try await macApp.getAxUiElementWindowType(windowId, getWindowLevel(for: windowId), .cancellable)
         let slot = unbindAndGetSlotForNewWindow(type, workspace, window: nil)
 
@@ -94,13 +95,12 @@ final class MacWindow: Window {
         // Don't accidentally override prevUnhiddenProportionalPositionInsideWorkspaceRect in case of subsequent `hideInCorner` calls
         if !isHiddenInCorner {
             guard let windowRect = try await getAxRect(.cancellable) else { return }
-            // The screens may disappear at the suspension point above. Don't remember the position relative to the fake
-            // mainMonitorInfo, the window would come back at the wrong place
-            if !hasScreens { return }
+            // The screens may disappear at the suspension point above. Leave the window to a session that runs with screens
+            if !world.monitors.hasScreens { return }
             // Check for isHiddenInCorner for the second time because of the suspension point above
             if !isHiddenInCorner {
                 let topLeftCorner = windowRect.topLeftCorner
-                let monitorRect = windowRect.center.monitorApproximation.rect // Similar to layoutFloatingWindows. Non idempotent
+                let monitorRect = world.monitors.approximation(windowRect.center).rect // Similar to layoutFloatingWindows. Non idempotent
                 let absolutePoint = topLeftCorner - monitorRect.topLeftCorner
                 prevUnhiddenProportionalPositionInsideWorkspaceRect =
                     CGPoint(x: absolutePoint.x / monitorRect.width, y: absolutePoint.y / monitorRect.height)

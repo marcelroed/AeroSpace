@@ -1,7 +1,7 @@
 import AppKit
 import Common
 
-/// The model: the workspaces and their trees, the global containers, the monitor assignment, the focus, the
+/// The model: the workspaces and their trees, the global containers, the monitors and their workspaces, the focus, the
 /// closed-windows cache, the loaded config and active mode, and the window manager's pending state. Tests start each
 /// case from a fresh one: ``reset()``.
 ///
@@ -20,6 +20,8 @@ final class World {
     private(set) var macosPopupWindowsContainer: Container = Container(root: .macosPopup)
     /// See ``TreeNode/markAsMostRecentChild()``
     var mruClock: UInt64 = 0
+    /// The monitors of the current session, see ``updateMonitors(_:)``
+    var monitors: Monitors = .beforeFirstSnapshot
     var assignment: MonitorAssignment = MonitorAssignment()
     var focusStore: FocusStore = FocusStore()
     /// First line of defence against lock screen
@@ -67,6 +69,7 @@ final class World {
         macosMinimizedWindowsContainer = fresh.macosMinimizedWindowsContainer
         macosPopupWindowsContainer = fresh.macosPopupWindowsContainer
         mruClock = fresh.mruClock
+        monitors = fresh.monitors
         assignment = fresh.assignment
         focusStore = fresh.focusStore
         closedWindowsCache = fresh.closedWindowsCache

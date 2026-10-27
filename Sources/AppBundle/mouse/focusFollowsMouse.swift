@@ -32,7 +32,7 @@ func focusWindow(underMouse location: CGPoint) async throws {
     // todo: It would be cool to somehow reuse isWindowHeuristic logic here
     if await isAxWindowUnderMouse(location) == false { return }
     try checkCancellation()
-    let workspace = location.monitorApproximation.activeWorkspace
+    let workspace = world.monitors.approximation(location).activeWorkspace
     var window: Window? = nil
     for child in workspace.existingContainer(.floating)?.mruChildren ?? [] {
         try checkCancellation()

@@ -36,7 +36,7 @@ func cacheClosedWindowIfNeeded() {
     }
     world.closedWindowsCache = FrozenWorld(
         workspaces: allWs.map { FrozenWorkspace($0) },
-        monitors: monitorInfos.map(FrozenMonitor.init),
+        monitors: world.monitors.all.map(FrozenMonitor.init),
         windowIds: allWindowIds,
     )
 }
@@ -45,8 +45,7 @@ func restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: Window) async throws
     if !world.closedWindowsCache.windowIds.contains(newlyDetectedWindow.windowId) {
         return false
     }
-    let monitors = monitorInfos
-    let topLeftCornerToMonitor = Dictionary(grouping: monitors, by: { $0.rect.topLeftCorner })
+    let topLeftCornerToMonitor = Dictionary(grouping: world.monitors.all, by: { $0.rect.topLeftCorner })
 
     for frozenWorkspace in world.closedWindowsCache.workspaces {
         let workspace = Workspace.get(byName: frozenWorkspace.name)

@@ -48,8 +48,17 @@ struct FocusMonitorCommandTest {
         ("focus-monitor test", "Can't find monitors that match the pattern(s) while there are no screens"),
     ] as [(String, String)])
     func noScreens_failsWithMessage(command: String, error: String) async {
-        let output = await $noScreensForTests.withValue(true) { await runCmd(command) }
+        updateMonitors([])
+        let output = await runCmd(command)
         expectEqual(output, .fail(error))
+    }
+
+    @Test(arguments: ["next", "right", "--wrap-around prev", "--wrap-around left", "2", "secondary"])
+    func twoMonitors_focusesTheRightMonitor(target: String) async {
+        updateMonitors([testMonitor, rightTestMonitor])
+        let output = await runCmd("focus-monitor \(target)")
+        expectEqual(output, .ok)
+        expectEqual(focus.workspace, rightTestMonitor.activeWorkspace)
     }
 }
 

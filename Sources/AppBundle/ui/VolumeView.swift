@@ -16,7 +16,7 @@ final class VolumePanel: NSPanelHud {
     func update(with volume: Float) {
         timer?.invalidate()
         hostingView.rootView = VolumeView(volume: volume)
-        let y = (mainMonitorInfo.height - Self.size.height) / 2
+        let y = (world.monitors.main.height - Self.size.height) / 2
         self.setFrame(rightEdgeFrame(size: Self.size, y: y), display: true)
         self.orderFrontRegardless()
         startTimer()

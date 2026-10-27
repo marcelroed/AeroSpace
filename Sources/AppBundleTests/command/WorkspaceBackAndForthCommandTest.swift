@@ -23,7 +23,8 @@ struct WorkspaceBackAndForthCommandTest {
         world.focusStore.prevWorkspaceName = "b"
 
         // Without screens, only visible workspaces can be focused, and "b" is hidden
-        let output = await $noScreensForTests.withValue(true) { await runCmd("workspace-back-and-forth") }
+        updateMonitors([])
+        let output = await runCmd("workspace-back-and-forth")
         expectEqual(output, .fail()) // todo: without a message
         expectEqual(focus.workspace.name, "a")
     }

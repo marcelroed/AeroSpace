@@ -47,8 +47,8 @@ nonisolated struct AppServerTerminationHandler: TerminationHandler {
 /// floating size or the monitor's visible size
 private func restoreWindowsOnMainThread() {
     let monitors = TerminationMonitors(
-        all: monitorInfos.map { TerminationMonitor(rect: $0.rect, visibleRect: $0.visibleRect) },
-        main: TerminationMonitor(rect: mainMonitorInfo.rect, visibleRect: mainMonitorInfo.visibleRect),
+        all: world.monitors.all.map { TerminationMonitor(rect: $0.rect, visibleRect: $0.visibleRect) },
+        main: TerminationMonitor(rect: world.monitors.main.rect, visibleRect: world.monitors.main.visibleRect),
     )
     var timedOutApps: Set<pid_t> = []
     for window in MacWindow.allWindowsMap.values {
@@ -97,7 +97,7 @@ nonisolated private struct TerminationMonitors {
     let all: [TerminationMonitor]
     let main: TerminationMonitor
 
-    /// Centered on the monitor nearest to the window's center (as `monitorApproximation`), or the main monitor
+    /// Centered on the monitor nearest to the window's center (as `Monitors.approximation`), or the main monitor
     func restoreFrame(windowRect: Rect?, _ lastFloatingSize: CGSize?) -> (topLeft: CGPoint, size: CGSize) {
         let monitor = windowRect.flatMap { nearestMonitor(to: $0) } ?? main
         let visibleRect = monitor.visibleRect

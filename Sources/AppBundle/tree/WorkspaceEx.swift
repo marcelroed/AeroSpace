@@ -23,7 +23,7 @@ extension Workspace {
         switch config.defaultRootContainerOrientation {
             case .horizontal: .h
             case .vertical: .v
-            case .auto: workspaceMonitor.orientation // todo M2-MON: the workspace's monitor in the monitor snapshot
+            case .auto: workspaceMonitor.orientation
         }
     }
 
@@ -78,9 +78,6 @@ extension Workspace {
 
     var forceAssignedMonitor: MonitorInfo? {
         guard let monitorDescriptions = config.workspaceToMonitorForceAssignment[name] else { return nil }
-        let sortedMonitors = sortedMonitorInfos
-        return monitorDescriptions.lazy
-            .compactMap { $0.resolveMonitor(sortedMonitors: sortedMonitors) }
-            .first
+        return monitorDescriptions.lazy.compactMap { $0.resolveMonitor() }.first
     }
 }

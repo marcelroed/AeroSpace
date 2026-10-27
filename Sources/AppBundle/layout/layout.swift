@@ -55,8 +55,8 @@ extension Workspace {
             let windowRect = try await window.getAxRect(.cancellable) // Probably not idempotent
             // The window may have closed or moved at the suspension point above. A dead workspace can't be compared by name
             if !isAlive || window.placement != .floating(self) { continue }
-            // The screens may disappear at the suspension point above. Don't move the window to the fake mainMonitorInfo
-            if !hasScreens { continue }
+            // The screens may disappear at the suspension point above. The layout waits for them
+            if !world.monitors.hasScreens { continue }
             if let windowRect, let topLeft = floatingTopLeft(windowRect) {
                 window.setAxFrame(topLeft, nil)
             }
@@ -71,7 +71,7 @@ extension Workspace {
     /// Where a floating window at `windowRect` moves, nil if it stays: when the monitor it's on shows another workspace, to
     /// the same relative position on this workspace's monitor, clamped to fit
     private func floatingTopLeft(_ windowRect: Rect) -> CGPoint? {
-        let currentMonitor = windowRect.center.monitorApproximation
+        let currentMonitor = world.monitors.approximation(windowRect.center)
         if self == currentMonitor.activeWorkspace { return nil }
         let xProportion = (windowRect.topLeftX - currentMonitor.visibleRect.topLeftX) / currentMonitor.visibleRect.width
         let yProportion = (windowRect.topLeftY - currentMonitor.visibleRect.topLeftY) / currentMonitor.visibleRect.height
