@@ -73,7 +73,7 @@ extension Shell where T == any Command {
             case (.empty, .empty): true
             case (.cmd(let a), .cmd(let b)): a.equals(b)
             case (.pipe(let a), .pipe(let b)), (.and(let a), .and(let b)), (.or(let a), .or(let b)), (.seq(let a), .seq(let b)):
-                zipIfCountsAreEqual(a, b)?.allSatisfy { a, b in a.strictEquals(b) } == true
+                a.count == b.count && zip(a, b).allSatisfy { a, b in a.strictEquals(b) }
             // Exhaustive without 'default' on purpose: a new case must be handled explicitly
             case (.empty, _), (.cmd, _), (.pipe, _), (.and, _), (.or, _), (.seq, _): false
         }

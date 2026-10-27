@@ -111,7 +111,7 @@ extension TilingContainer {
             .div(children.count) else { return }
 
         let lastIndex = children.indices.last
-        let rawGap = context.resolvedGaps.inner.get(orientation).toDouble()
+        let rawGap = Double(context.resolvedGaps.inner.get(orientation))
         for (i, child) in children.enumerated() {
             let weight = child.getWeight(orientation) + delta
             child.setWeight(orientation, weight)

@@ -54,7 +54,7 @@ struct FrozenWorkspace: Sendable {
         return false
     }
     let monitors = monitorInfos
-    let topLeftCornerToMonitor = monitors.grouped { $0.rect.topLeftCorner }
+    let topLeftCornerToMonitor = Dictionary(grouping: monitors, by: { $0.rect.topLeftCorner })
 
     for frozenWorkspace in closedWindowsCache.workspaces {
         let workspace = Workspace.get(byName: frozenWorkspace.name)

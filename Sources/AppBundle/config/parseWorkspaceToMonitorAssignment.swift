@@ -12,10 +12,9 @@ func parseWorkspaceToMonitorAssignment(_ raw: OrderedJson, _ backtrace: ConfigBa
 func parseMonitorDescriptions(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> [MonitorDescription] {
     if let array = raw.asArrayOrNil {
         return array.enumerated()
-            .map { (index, rawDesc) in parseMonitorDescription(rawDesc, backtrace + .index(index)).getOrNil(appendErrorTo: &c.errors) }
-            .filterNotNil()
+            .compactMap { (index, rawDesc) in parseMonitorDescription(rawDesc, backtrace + .index(index)).getOrNil(appendErrorTo: &c.errors) }
     } else {
-        return parseMonitorDescription(raw, backtrace).getOrNil(appendErrorTo: &c.errors).asList()
+        return parseMonitorDescription(raw, backtrace).getOrNil(appendErrorTo: &c.errors).map { [$0] } ?? []
     }
 }
 

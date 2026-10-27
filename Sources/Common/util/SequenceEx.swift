@@ -1,8 +1,4 @@
-import OrderedCollections
-
 extension Sequence {
-    public func filterNotNil<Unwrapped>() -> [Unwrapped] where Element == Unwrapped? { compactMap(id) }
-
     @inlinable public func filterIsInstance<R>(of _: R.Type) -> [R] { compactMap { $0 as? R } }
 
     public func mapAllOrFailure<T, E>(_ transform: (Self.Element) -> Result<T, E>) -> Result<[T], E> {
@@ -77,14 +73,9 @@ extension Sequence {
         return result
     }
 
-    public func grouped<Group>(by criterion: (_ transforming: Element) -> Group) -> [Group: [Element]] {
-        Dictionary(grouping: self, by: criterion)
-    }
-
     public var withIndex: [(index: Int, value: Element)] { enumerated().map { (index: $0.offset, value: $0.element) } }
 
     public func toSet() -> Set<Element> where Element: Hashable { Set(self) }
-    public func toOrderedSet() -> OrderedSet<Element> where Element: Hashable { OrderedSet(self) }
 
     public var sequencePattern: SequencePattern<Self> {
         var iterator = makeIterator()

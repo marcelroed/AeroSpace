@@ -395,7 +395,7 @@ private func parseLayout(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> Re
 private func parsePersistentWorkspaces(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<OrderedSet<String>> {
     parseArrayOfStrings(raw, backtrace)
         .flatMap { arr in
-            let set = arr.toOrderedSet()
+            let set = OrderedSet(arr)
             return set.count == arr.count ? .success(set) : .failure(.init(backtrace, "Contains duplicated workspace names"))
         }
 }
