@@ -88,7 +88,7 @@ let gapsFields: [String: Field<Gaps>] = [
 let decodeDynamicInt: Decode<DynamicConfigValue<Int>> = { raw, path, d in
     if let value = raw.asIntOrNil { return .constant(value) }
     guard let array = raw.asArrayOrNil else {
-        d.error(path, "Unsupported type: \(raw.tomlType), expected: Int or array")
+        d.typeMismatch(path, expected: .int, .array, actual: raw)
         return nil
     }
     guard let defaultValue = array.last?.asIntOrNil else {
@@ -111,7 +111,7 @@ private func decodePerMonitorValue(_ raw: OrderedJson, _ path: ConfigBacktrace, 
           let description = d.unwrap(parseMonitorDescription(pattern), path)
     else { return nil }
     guard let value = value.asIntOrNil else {
-        d.error(path, "Expected type is 'Int'. But actual type is '\(value.tomlType)'")
+        d.typeMismatch(path, expected: .int, actual: value)
         return nil
     }
     return PerMonitorValue(description: description, value: value)

@@ -41,13 +41,11 @@ struct Diagnostics: Sendable {
         }
     }
 
-    mutating func typeMismatch(_ path: ConfigBacktrace, expected: TomlType, actual: OrderedJson) {
-        error(path, "Expected type is \(expected.rawValue.singleQuoted). But actual type is \(actual.tomlType.rawValue.singleQuoted)")
-    }
-
-    /// Unlike the single-type message, prints the lowercase case names ('string' or 'array'). Tests pin both formats
-    mutating func typeMismatch(_ path: ConfigBacktrace, expected: [TomlType], actual: OrderedJson) {
-        error(path, "Expected types are \(expected.map { "'\($0)'" }.joined(separator: " or ")). But actual type is '\(actual.tomlType)'")
+    /// "Expected type is 'Int'. …" or "Expected types are 'String' or 'Array'. …"
+    mutating func typeMismatch(_ path: ConfigBacktrace, expected: TomlType..., actual: OrderedJson) {
+        let types = expected.map(\.rawValue.singleQuoted).joined(separator: " or ")
+        let expectedTypes = expected.count == 1 ? "type is \(types)" : "types are \(types)"
+        error(path, "Expected \(expectedTypes). But actual type is \(actual.tomlType.rawValue.singleQuoted)")
     }
 }
 

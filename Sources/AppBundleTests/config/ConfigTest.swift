@@ -498,7 +498,7 @@ struct ConfigTest {
     @Test
     func testOnFocusChangedTypeError() {
         let result = parseConfig("on-focus-changed = 1")
-        #expect(result.strErrors == ["[ERROR] on-focus-changed: Expected types are \'string\' or \'array\'. But actual type is \'int\'"])
+        #expect(result.strErrors == ["[ERROR] on-focus-changed: Expected types are 'String' or 'Array'. But actual type is 'Int'"])
     }
 
     @Test

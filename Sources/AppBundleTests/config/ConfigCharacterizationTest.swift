@@ -37,9 +37,9 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
             """,
         )
         assertEquals(result.strErrors, [
-            "[ERROR] gaps.inner.horizontal: Unsupported type: string, expected: Int or array",
-            "[ERROR] gaps.inner.vertical: Unsupported type: bool, expected: Int or array",
-            "[ERROR] gaps.outer.left[0].monitor.main: Expected type is 'Int'. But actual type is 'bool'",
+            "[ERROR] gaps.inner.horizontal: Expected types are 'Int' or 'Array'. But actual type is 'String'",
+            "[ERROR] gaps.inner.vertical: Expected types are 'Int' or 'Array'. But actual type is 'Bool'",
+            "[ERROR] gaps.outer.left[0].monitor.main: Expected type is 'Int'. But actual type is 'Bool'",
             "[ERROR] gaps.outer.right: The last item in the array must be of type Int",
             "[ERROR] gaps.outer.top: The last item in the array must be of type Int",
         ])
@@ -160,7 +160,7 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
         assertEquals(parseConfig("auto-reload-config = 1").strErrors, ["[ERROR] auto-reload-config: Expected type is 'Bool'. But actual type is 'Int'"])
         assertEquals(
             parseConfig("after-startup-command = true").strErrors,
-            ["[ERROR] after-startup-command: Expected types are 'string' or 'array'. But actual type is 'bool'"],
+            ["[ERROR] after-startup-command: Expected types are 'String' or 'Array'. But actual type is 'Bool'"],
         )
     }
 
@@ -219,8 +219,8 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
             """,
         )
         assertEquals(result.strErrors, [
-            "[ERROR] workspace-to-monitor-force-assignment.w: Expected types are 'string' or 'int'. But actual type is 'bool'",
-            "[ERROR] workspace-to-monitor-force-assignment.x[1]: Expected types are 'string' or 'int'. But actual type is 'bool'",
+            "[ERROR] workspace-to-monitor-force-assignment.w: Expected types are 'String' or 'Int'. But actual type is 'Bool'",
+            "[ERROR] workspace-to-monitor-force-assignment.x[1]: Expected types are 'String' or 'Int'. But actual type is 'Bool'",
         ])
         assertEquals(result.config.workspaceToMonitorForceAssignment, ["w": [], "x": [.sequenceNumber(1), .main]])
     }

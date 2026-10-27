@@ -110,7 +110,7 @@ let decodeShellOfCommands: Decode<Shell<any Command>> = { raw, path, d in
         }
         return .compound(.seq, commands)
     } else {
-        d.typeMismatch(path, expected: [.string, .array], actual: raw)
+        d.typeMismatch(path, expected: .string, .array, actual: raw)
         return .empty
     }
 }
@@ -140,7 +140,7 @@ private let decodeWorkspaceToMonitorAssignment: Decode<[String: [MonitorDescript
 
 private func decodeMonitorDescription(_ raw: OrderedJson, _ path: ConfigBacktrace, _ d: inout Diagnostics) -> MonitorDescription? {
     guard let string = raw.asStringOrNil ?? raw.asIntOrNil.map({ String($0) }) else {
-        d.typeMismatch(path, expected: [.string, .int], actual: raw)
+        d.typeMismatch(path, expected: .string, .int, actual: raw)
         return nil
     }
     return d.unwrap(parseMonitorDescription(string), path)
