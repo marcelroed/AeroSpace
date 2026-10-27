@@ -11,7 +11,7 @@ final class LivePlatform: Platform {
     /// Internal for tests
     var failedRegistrations: [pid_t: RegistrationBackoff] = [:]
     private var backoffObservers: [any NSObjectProtocol] = []
-    private let listingDeadlines = ListingDeadlines(minDeadline: .milliseconds(250))
+    private let listingDeadlines = ListingDeadlines(minDeadline: .milliseconds(250), maxDeadline: .seconds(1))
     /// The registered apps, for a die off the main thread: it can't read `apps`
     nonisolated private let terminationApps: Mutex<[pid_t: AxApp]> = Mutex([:])
     /// The last monitors with screens, see ``monitors()``. nil before the first: then nothing is parked

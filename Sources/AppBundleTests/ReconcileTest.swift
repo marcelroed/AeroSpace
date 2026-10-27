@@ -113,7 +113,7 @@ struct ReconcileTest {
         fake.apps = [appA, appB]
         openWindow(1, appA)
         await heavyRefresh()
-        fake.listingDeadlines = ListingDeadlines(minDeadline: .milliseconds(1))
+        fake.listingDeadlines = ListingDeadlines(minDeadline: .milliseconds(1), maxDeadline: .seconds(1))
         let hang = Gate()
         var listingsOfA = 0
         fake.beforeListing = { app in
@@ -141,7 +141,7 @@ struct ReconcileTest {
         fake.apps = [appA, appB]
         openWindow(1, appA)
         openWindow(2, appB)
-        fake.listingDeadlines = ListingDeadlines(minDeadline: .milliseconds(1))
+        fake.listingDeadlines = ListingDeadlines(minDeadline: .milliseconds(1), maxDeadline: .seconds(1))
         let slowness = Gate()
         fake.beforeListing = { app in if app == appA { await slowness.wait() } }
 
