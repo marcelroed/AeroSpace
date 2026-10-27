@@ -27,7 +27,7 @@ struct FocusCommandTest {
         testParseSingleCommandSucc("focus --boundaries workspace left", FocusCommand(target: .direction(.left)))
         testParseSingleCommandSucc(
             "focus --boundaries-action wrap-around-the-workspace dfs-prev",
-            FocusCommand(target: .dfsRelative(.dfsPrev, boundariesAction: .wrapAroundTheWorkspace)),
+            FocusCommand(target: .dfsRelative(.dfsPrev, atEdge: .wrapAroundTheWorkspace)),
         )
 
         #expect(parseCommand("focus --fail-if-fullscreen --fail-if-macos-native-fullscreen left").errorOrNil == nil)
@@ -123,14 +123,35 @@ struct FocusCommandTest {
 
     @Test
     func focusOverFloatingWindows() async {
-        setUpTree("h_tiles() floating(1 *2 3)")
+        let workspace = setUpTree("h_tiles() floating(1 *2 3)")
         for id: UInt32 in 1 ... 3 {
-            testWindow(id).rect = rect(CGFloat(id - 1) * 10, CGFloat(id - 1) * 10, 100, 100)
+            let offset = CGFloat(id - 1) * 10
+            testWindow(id).rect = rect(offset, offset, 100, 100)
         }
         let output = await runCmd("focus right")
         #expect(output == .ok)
-        // Not describeTree(): focus reorders the floating windows by their centers, from right to left (suspected bug)
-        #expect(focus.windowOrNil?.windowId == 3)
+        // Focus sees the floating windows as tiling windows only while it decides. They keep their order and MRU order
+        let tree: String = "h_tiles() floating(1 2 *3)"
+        #expect(describeTree() == tree)
+        let mru: String = "floating(*3 2 1) h_tiles()"
+        #expect(describeNode(workspace, mru: true) == mru)
+    }
+
+    @Test
+    func focusOverFloatingWindowsLeavesTheTilingMruAlone() async {
+        let workspace = setUpTree("h_tiles(v_tiles(1 2) 3) floating(*4)")
+        let rects: [(UInt32, Rect)] = [(1, rect(0, 0, 960, 540)), (2, rect(0, 540, 960, 540)), (3, rect(960, 0, 960, 1080))]
+        for (id, rect) in rects {
+            testWindow(id).rect = rect
+            testWindow(id).lastAppliedLayoutVirtualRect = rect
+        }
+        testWindow(4).rect = rect(100, 100, 200, 200) // Seen as the first tiling window of v_tiles, above window 1
+        let mruBefore = describeNode(workspace, mru: true)
+        let output = await runCmd("focus left") // Nothing on the left
+        #expect(output == .ok)
+        #expect(describeNode(workspace, mru: true) == mruBefore)
+        let tree: String = "h_tiles(v_tiles(1 2) 3) floating(*4)"
+        #expect(describeTree() == tree)
     }
 
     @Test
@@ -225,7 +246,7 @@ struct FocusCommandTest {
         // No screens (e.g., during display reconfiguration) is a normal state, not a bug (RB-40)
         await $noScreensForTests.withValue(true) {
             let output = await runCmd("focus --boundaries all-monitors-outer-frame left")
-            #expect(output == .fail("Can't focus across monitors while there are no screens"))
+            #expect(output == .fail("Can't find monitors in direction left while there are no screens"))
         }
         #expect(describeTree() == "h_tiles(*1 2)")
     }

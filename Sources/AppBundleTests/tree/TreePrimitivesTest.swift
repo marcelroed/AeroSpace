@@ -50,16 +50,16 @@ struct TreePrimitivesTest {
         let window = focus.windowOrNil.orDie()
         #expect(window.neighbor(it.direction).map { describeNode($0) } == it.neighbor)
         let closest = window.closestParent(hasChildrenIn: it.direction)
-        #expect(closest.map { describeNode($0.parent.children[$0.ownIndex + it.direction.focusOffset]) } == it.neighbor)
+        #expect(closest.map { describeNode($0.parent.children[$0.index + it.direction.focusOffset]) } == it.neighbor)
     }
 
     @Test
     func closestParentWithLayout() {
         setUpTree("h_tiles(1 h_accordion(2 *3))")
         let window = testWindow(3)
-        #expect(window.closestParent(hasChildrenIn: .left).map { "\($0.parent.layout) \($0.ownIndex)" } == "accordion 1")
+        #expect(window.closestParent(hasChildrenIn: .left).map { "\($0.parent.layout) \($0.index)" } == "accordion 1")
         // The accordion is skipped: it's the root's child that has a sibling to the left
-        #expect(window.closestParent(hasChildrenIn: .left, layout: .tiles).map { "\($0.parent.layout) \($0.ownIndex)" } == "tiles 1")
+        #expect(window.closestParent(hasChildrenIn: .left, layout: .tiles).map { "\($0.parent.layout) \($0.index)" } == "tiles 1")
     }
 
     @Test

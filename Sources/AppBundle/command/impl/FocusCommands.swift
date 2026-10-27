@@ -14,19 +14,35 @@ struct FocusCommand: nonisolated Command {
     /// Each target carries the options that apply to it
     nonisolated enum Target: Equatable, Sendable {
         case direction(CardinalDirection, DirectionOptions = DirectionOptions())
-        case dfsRelative(DfsNextPrev, boundariesAction: WhenBoundariesCrossed = .stop, floatingAsTiling: Bool = true)
+        case dfsRelative(DfsNextPrev, atEdge: AtEdge = .stop, floatingAsTiling: Bool = true)
         case windowId(UInt32)
         case dfsIndex(UInt32)
     }
 
     nonisolated struct DirectionOptions: Equatable, Sendable {
-        var boundaries: Boundaries = .workspace // todo cover boundaries wrapping with tests
-        var boundariesAction: WhenBoundariesCrossed = .stop
+        var boundaries: DirectionBoundaries = .workspace(.stop) // todo cover boundaries wrapping with tests
         var floatingAsTiling = true
         var failIfFullscreen = false
         var failIfMacosNativeFullscreen = false
     }
 
+    /// `--boundaries` and `--boundaries-action` of `focus <direction>`
+    nonisolated enum DirectionBoundaries: Equatable, Sendable {
+        /// `--boundaries workspace`
+        case workspace(AtEdge)
+        /// `--boundaries all-monitors-outer-frame`: focus crosses to the monitor in the direction. `AtEdge` applies at the
+        /// outer frame of all monitors
+        case allMonitorsOuterFrame(AtEdge)
+        /// `... --boundaries-action wrap-around-all-monitors`: at the outer frame, focus crosses to the monitor at the other end
+        case allMonitorsWrappingAround
+    }
+
+    /// What focus does at the edge of the workspace (or of all monitors) when there's no window beyond it
+    nonisolated enum AtEdge: Equatable, Sendable {
+        case stop, fail, wrapAroundTheWorkspace
+    }
+
+    /// The values of `--boundaries-action`
     nonisolated enum WhenBoundariesCrossed: String, CaseIterable, Equatable, Sendable {
         case stop = "stop"
         case fail = "fail"
@@ -64,18 +80,26 @@ struct FocusCommand: nonisolated Command {
         try a.end()
         if wrapAround && boundariesAction != nil { throw .conflicting("--wrap-around", "--boundaries-action") }
         if wrapAround && boundaries != nil { throw .conflicting("--wrap-around", "--boundaries") }
-        options.boundaries = boundaries ?? .workspace
-        options.boundariesAction = wrapAround ? .wrapAroundTheWorkspace : (boundariesAction ?? .stop)
-        if options.boundaries == .workspace && options.boundariesAction == .wrapAroundAllMonitors {
-            throw "\(Boundaries.workspace.rawValue) and \(WhenBoundariesCrossed.wrapAroundAllMonitors.rawValue) is an invalid combination of values"
+        let atEdge: AtEdge? = switch wrapAround ? .wrapAroundTheWorkspace : boundariesAction ?? .stop {
+            case .stop: .stop
+            case .fail: .fail
+            case .wrapAroundTheWorkspace: .wrapAroundTheWorkspace
+            case .wrapAroundAllMonitors: nil
+        }
+        options.boundaries = switch (boundaries ?? .workspace, atEdge) {
+            case (.workspace, let atEdge?): .workspace(atEdge)
+            case (.allMonitorsOuterFrame, let atEdge?): .allMonitorsOuterFrame(atEdge)
+            case (.allMonitorsOuterFrame, nil): .allMonitorsWrappingAround
+            case (.workspace, nil):
+                throw "\(Boundaries.workspace.rawValue) and \(WhenBoundariesCrossed.wrapAroundAllMonitors.rawValue) is an invalid combination of values"
         }
         let target: Target
         switch (direction, windowId, dfsIndex) {
             case (.direction(let direction), nil, nil): target = .direction(direction, options)
             case (.dfsRelative(let nextPrev), nil, nil):
                 if options.failIfFullscreen || options.failIfMacosNativeFullscreen { throw failIfFullscreenNeedsDirection }
-                if options.boundaries != .workspace { throw "(dfs-next|dfs-prev) only supports --boundaries workspace" }
-                target = .dfsRelative(nextPrev, boundariesAction: options.boundariesAction, floatingAsTiling: options.floatingAsTiling)
+                guard case .workspace(let atEdge) = options.boundaries else { throw "(dfs-next|dfs-prev) only supports --boundaries workspace" }
+                target = .dfsRelative(nextPrev, atEdge: atEdge, floatingAsTiling: options.floatingAsTiling)
             case (nil, let windowId?, nil) where !hasOtherOptions: target = .windowId(windowId)
             case (nil, nil, let dfsIndex?) where !hasOtherOptions: target = .dfsIndex(dfsIndex)
             case (nil, nil, nil):
@@ -92,181 +116,147 @@ struct FocusCommand: nonisolated Command {
         } else {
             try cx.target()
         }
-        if case .direction(_, let options) = self.target, let window = target.windowOrNil, await shouldFailBecauseFullscreen_nonCancellable(
-            window: window,
-            failIfFullscreen: options.failIfFullscreen,
-            failIfMacosNativeFullscreen: options.failIfMacosNativeFullscreen,
-        ) {
-            throw .silent
+        if case .direction(_, let options) = self.target, let window = target.windowOrNil {
+            try await window.failIfFullscreen(options.failIfFullscreen, macosNativeFullscreen: options.failIfMacosNativeFullscreen)
         }
         let floatingAsTiling = switch self.target {
             case .direction(_, let options): options.floatingAsTiling
             case .dfsRelative(_, _, let floatingAsTiling): floatingAsTiling
-            case .windowId, .dfsIndex: true
+            case .dfsIndex: true
+            case .windowId: false // Doesn't look at the tree
         }
-        // todo bug: floating windows break mru
-        let floatingWindows = floatingAsTiling ? await makeFloatingWindowsSeenAsTiling(workspace: target.workspace) : []
-        defer {
-            if floatingAsTiling {
-                restoreFloatingWindows(floatingWindows: floatingWindows, workspace: target.workspace)
-            }
+        let floatingWindows = floatingAsTiling ? await floatingWindowCenters(target.workspace) : []
+        // Focus sees the floating windows as tiling windows only while it decides. Then the tree is as before: order and MRU
+        let change = try target.workspace.withTemporaryEdits { () throws(CmdFail) -> FocusChange? in
+            bindAsTiling(floatingWindows, target.workspace)
+            return try findChange(target)
         }
-        let windowToFocus: Window
-        switch self.target {
-            case .direction(let direction, let options):
-                let window = target.windowOrNil
-                if let (parent, ownIndex) = window?.closestParent(hasChildrenInDirection: direction, withLayout: nil) {
-                    guard let it = parent.children[ownIndex + direction.focusOffset]
-                        .findLeafWindowRecursive(snappedTo: direction.opposite) else { throw CmdFail(bugPrompt()) }
-                    windowToFocus = it
-                } else {
-                    return try hitWorkspaceBoundaries(target, direction, options)
-                }
-            case .windowId(let windowId):
-                guard let it = Window.get(byId: windowId) else { throw "Can't find window with ID \(windowId)" }
-                windowToFocus = it
-            case .dfsIndex(let dfsIndex):
-                guard let it = target.workspace.rootTilingContainer.allLeafWindowsRecursive.getOrNil(atIndex: Int(dfsIndex)) else {
-                    throw "Can't find window with DFS index \(dfsIndex)"
-                }
-                windowToFocus = it
-            case .dfsRelative(let nextPrev, let boundariesAction, _):
-                let windows = target.workspace.rootTilingContainer.allLeafWindowsRecursive
-                guard let window = target.windowOrNil else { throw CmdFail(noWindowIsFocused) }
-                guard let currentIndex = windows.firstIndex(of: window) else {
-                    throw "The window isn't part of the workspace tree" // E.g. a floating window with --ignore-floating
-                }
-                let targetIndex = currentIndex + nextPrev.indexOffset
-                if let it = windows.getOrNil(atIndex: targetIndex) {
-                    windowToFocus = it
-                } else {
-                    switch boundariesAction {
-                        case .stop: return
-                        case .fail: throw .silent
-                        case .wrapAroundTheWorkspace: windowToFocus = windows.get(wrappingIndex: targetIndex).orDie()
-                        case .wrapAroundAllMonitors: throw CmdFail(bugPrompt("Must be discarded by args parser"))
-                    }
-                }
+        switch change {
+            case nil: return
+            case .window(let window):
+                if !window.focusWindow() { throw .silent }
+            case .workspace(let workspace, let mostRecent):
+                mostRecent?.markAsMostRecentChild()
+                if !workspace.focusWorkspace() { throw .silent }
         }
-        if !windowToFocus.focusWindow() { throw .silent }
     }
 
-    private func hitWorkspaceBoundaries(_ target: LiveFocus, _ direction: CardinalDirection, _ options: DirectionOptions) throws(CmdFail) {
-        let wrappedMonitor: MonitorInfo?
-        switch options.boundaries {
-            case .workspace: wrappedMonitor = nil
-            case .allMonitorsOuterFrame:
-                guard let (monitors, index) = target.workspace.workspaceMonitor.findRelativeMonitor(inDirection: direction) else {
-                    // No screens (e.g., during display reconfiguration): the monitor of the workspace is the fake mainMonitorInfo
-                    if !hasScreens { throw CmdFail("Can't focus across monitors while there are no screens") }
-                    throw CmdFail(bugPrompt("Should never happen. Can't find the current monitor"))
+    private func findChange(_ target: LiveFocus) throws(CmdFail) -> FocusChange? {
+        switch self.target {
+            case .direction(let direction, let options):
+                guard let neighbor = target.windowOrNil?.neighbor(direction) else {
+                    return try atWorkspaceEdge(target.workspace, direction, options.boundaries)
                 }
-                if let targetMonitor = monitors.getOrNil(atIndex: index) {
-                    if !targetMonitor.activeWorkspace.focusWorkspace() { throw .silent }
-                    return
+                guard let window = neighbor.edgeWindow(snappedTo: direction.opposite) else { throw CmdFail(bugPrompt()) }
+                return .window(window)
+            case .windowId:
+                return target.windowOrNil.map { .window($0) }
+            case .dfsIndex(let dfsIndex):
+                guard let window = target.workspace.tilingWindows.getOrNil(atIndex: Int(dfsIndex)) else {
+                    throw "Can't find window with DFS index \(dfsIndex)"
                 }
-                guard let wrapped = monitors.get(wrappingIndex: index) else { throw CmdFail(bugPrompt("\(index) \(monitors)")) }
-                wrappedMonitor = wrapped
+                return .window(window)
+            case .dfsRelative(let nextPrev, let atEdge, _):
+                guard let window = target.windowOrNil else { throw CmdFail(noWindowIsFocused) }
+                let wrapAround = atEdge == .wrapAroundTheWorkspace
+                if let next = try target.workspace.dfsNeighbor(of: window, nextPrev, wrapAround: wrapAround) { return .window(next) }
+                if atEdge == .fail { throw .silent }
+                return nil
         }
-        switch options.boundariesAction {
-            case .stop: return
+    }
+
+    private func atWorkspaceEdge(_ workspace: Workspace, _ direction: CardinalDirection, _ boundaries: DirectionBoundaries) throws(CmdFail) -> FocusChange? {
+        let atEdge: AtEdge
+        switch boundaries {
+            case .workspace(let it):
+                atEdge = it
+            case .allMonitorsOuterFrame(let it):
+                let (monitor, wrapped) = try workspace.workspaceMonitor.monitor(in: direction)
+                if !wrapped { return .workspace(monitor.activeWorkspace) }
+                atEdge = it
+            case .allMonitorsWrappingAround:
+                let (monitor, wrapped) = try workspace.workspaceMonitor.monitor(in: direction)
+                let edgeWindow = wrapped ? monitor.activeWorkspace.edgeWindow(snappedTo: direction.opposite) : nil
+                return .workspace(monitor.activeWorkspace, mostRecent: edgeWindow)
+        }
+        switch atEdge {
+            case .stop: return nil
             case .fail: throw .silent
             case .wrapAroundTheWorkspace:
-                guard let windowToFocus = target.workspace.findLeafWindowRecursive(snappedTo: direction.opposite) else {
-                    throw CmdFail(noWindowIsFocused)
-                }
-                if !windowToFocus.focusWindow() { throw .silent }
-            case .wrapAroundAllMonitors:
-                guard let wrappedMonitor else { throw CmdFail(bugPrompt("Must be discarded by args parser")) } // --boundaries workspace
-                wrappedMonitor.activeWorkspace.findLeafWindowRecursive(snappedTo: direction.opposite)?.markAsMostRecentChild()
-                if !wrappedMonitor.activeWorkspace.focusWorkspace() { throw .silent }
+                guard let window = workspace.edgeWindow(snappedTo: direction.opposite) else { throw CmdFail(noWindowIsFocused) }
+                return .window(window)
         }
     }
 }
 
-private func makeFloatingWindowsSeenAsTiling(workspace: Workspace) async -> [FloatingWindowData] {
-    let mruBefore = workspace.mostRecentWindowRecursive
-    defer {
-        mruBefore?.markAsMostRecentChild()
+/// What focus focuses, once the tree is back as it was
+private enum FocusChange {
+    case window(Window)
+    /// The workspace focuses its most recent window. `mostRecent` becomes that window first
+    case workspace(Workspace, mostRecent: Window? = nil)
+}
+
+extension Workspace {
+    /// The tiling window after or before `window` in DFS order. nil past the ends, unless `wrapAround`
+    func dfsNeighbor(of window: Window, _ nextPrev: DfsNextPrev, wrapAround: Bool) throws(CmdFail) -> Window? {
+        let windows = tilingWindows
+        guard let index = windows.firstIndex(of: window) else {
+            throw "The window isn't part of the workspace tree" // E.g. a floating window with --ignore-floating
+        }
+        let next = index + nextPrev.indexOffset
+        return wrapAround ? windows.get(wrappingIndex: next) : windows.getOrNil(atIndex: next)
     }
-    var unsortedFloatingWindows: [FloatingWindowData] = []
+}
+
+/// A floating window and the tiling window under its center, with their centers as AX reports them
+private struct FloatingWindowCenter {
+    let window: Window
+    let center: CGPoint
+    let tilingWindowUnderCenter: (window: Window, center: CGPoint)?
+}
+
+/// Where the floating windows of `workspace` are. AX reads, so they happen before focus edits the tree
+private func floatingWindowCenters(_ workspace: Workspace) async -> [FloatingWindowCenter] {
+    var result: [FloatingWindowCenter] = []
     for window in workspace.floatingWindows {
         // todo bug: we shouldn't access ax api here. What if the window was moved but it wasn't committed to ax yet?
         guard let center = try? await window.getCenter(.nonCancellable) else { continue }
-
-        let tilingParent: TilingContainer
-        let index: Int
-        if let target = center.coerce(in: workspace.workspaceMonitor.visibleRectPaddedByOuterGaps)?
-            .findWindowRecursively(in: workspace.rootTilingContainer, virtual: true, fullscreenCoversAll: false)
-        {
-            guard let targetCenter = try? await target.getCenter(.nonCancellable) else { continue }
-            guard let parent = target.parent as? TilingContainer else { continue }
-            tilingParent = parent
-            let isAfterTarget = center.getProjection(parent.orientation) >= targetCenter.getProjection(parent.orientation)
-            index = switch parent.layout {
-                case .tiles: target.ownIndex.orDie() + (isAfterTarget ? 1 : 0)
-                case .accordion: isAfterTarget ? parent.children.count : 0
-            }
-        } else {
-            index = 0
-            tilingParent = workspace.rootTilingContainer
+        let root = workspace.existingRootTilingContainer
+        guard let tilingWindow = center.coerce(in: workspace.workspaceMonitor.visibleRectPaddedByOuterGaps)
+            .flatMap({ root?.window(at: $0, virtual: true) })
+        else {
+            result.append(FloatingWindowCenter(window: window, center: center, tilingWindowUnderCenter: nil))
+            continue
         }
-
-        let data = window.unbindFromParent()
-        let floatingWindowData = FloatingWindowData(
-            window: window,
-            center: center,
-            tilingParent: tilingParent,
-            weight: data.weight,
-            index: index,
-        )
-        unsortedFloatingWindows.append(floatingWindowData)
+        guard let tilingCenter = try? await tilingWindow.getCenter(.nonCancellable) else { continue }
+        result.append(FloatingWindowCenter(window: window, center: center, tilingWindowUnderCenter: (tilingWindow, tilingCenter)))
     }
-    let floatingWindows: [FloatingWindowData] = unsortedFloatingWindows.sortedBy { $0.center.getProjection($0.tilingParent.orientation) }.reversed()
-
-    for floating in floatingWindows { // Make floating windows be seen as tiling
-        floating.window.bind(to: floating.tilingParent, weight: 1, index: floating.index)
-    }
-    return floatingWindows
+    return result
 }
 
-private func restoreFloatingWindows(floatingWindows: [FloatingWindowData], workspace: Workspace) {
-    let mruBefore = workspace.mostRecentWindowRecursive
-    defer {
-        mruBefore?.markAsMostRecentChild()
-    }
-    for floating in floatingWindows {
-        floating.window.bind(to: workspace.floatingWindowsContainer, weight: floating.weight)
-    }
-}
-
-private struct FloatingWindowData {
-    let window: Window
-    let center: CGPoint
-
-    let tilingParent: TilingContainer
-    let weight: CGFloat
-    let index: Int
-}
-
-extension TreeNode {
-    func findLeafWindowRecursive(snappedTo direction: CardinalDirection) -> Window? {
-        switch self {
-            case let workspace as Workspace:
-                return workspace.rootTilingContainer.findLeafWindowRecursive(snappedTo: direction)
-            case let window as Window:
-                return window
-            case let container as TilingContainer:
-                if direction.orientation == container.orientation {
-                    return (direction.isPositive ? container.children.last : container.children.first)?
-                        .findLeafWindowRecursive(snappedTo: direction)
-                } else {
-                    return mostRecentChild?.findLeafWindowRecursive(snappedTo: direction)
-                }
-            default:
-                die("Impossible")
+/// Puts each floating window into the tiling tree, before or after the tiling window under its center (by their centers),
+/// so that focus sees the floating windows as tiling windows. The most recent window stays the most recent one
+private func bindAsTiling(_ floatingWindows: [FloatingWindowCenter], _ workspace: Workspace) {
+    typealias Slot = (window: Window, center: CGPoint, parent: TilingContainer, index: Int)
+    let slots: [Slot] = floatingWindows.compactMap { (floating: FloatingWindowCenter) -> Slot? in
+        // The tree may have changed during the AX reads
+        guard floating.window.parent == workspace.floatingWindowsContainer else { return nil }
+        guard let (tilingWindow, tilingCenter) = floating.tilingWindowUnderCenter else {
+            return (floating.window, floating.center, workspace.rootTilingContainer, 0)
         }
+        guard let (parent, index) = tilingWindow.tilingSlot, tilingWindow.nodeWorkspace == workspace else { return nil }
+        let isAfter = floating.center.getProjection(parent.orientation) >= tilingCenter.getProjection(parent.orientation)
+        let slotIndex: Int = switch parent.layout {
+            case .tiles: index + (isAfter ? 1 : 0)
+            case .accordion: isAfter ? parent.children.count : 0
+        }
+        return (floating.window, floating.center, parent, slotIndex)
     }
+    let mostRecentBefore = workspace.mostRecentWindowRecursive
+    for slot in slots.sortedBy({ $0.center.getProjection($0.parent.orientation) }).reversed() {
+        slot.window.move(to: slot.parent, at: slot.index, weight: .value(1))
+    }
+    mostRecentBefore?.markAsMostRecentChild()
 }
 
 struct FocusBackAndForthCommand: nonisolated Command {
@@ -348,14 +338,8 @@ extension MonitorTarget {
     func resolve(_ currentMonitor: MonitorInfo, wrapAround: Bool) throws(CmdFail) -> MonitorInfo {
         switch self {
             case .direction(let direction):
-                guard let (monitorsInDirection, index) = currentMonitor.findRelativeMonitor(inDirection: direction) else {
-                    // No screens (e.g., during display reconfiguration): currentMonitor is the fake mainMonitorInfo
-                    if !hasScreens { throw CmdFail("Can't find monitors in direction \(direction) while there are no screens") }
-                    throw CmdFail(bugPrompt("Should never happen. Can't find the current monitor"))
-                }
-                guard let monitor = wrapAround ? monitorsInDirection.get(wrappingIndex: index) : monitorsInDirection.getOrNil(atIndex: index) else {
-                    throw "No monitors in direction \(direction)"
-                }
+                let (monitor, wrapped) = try currentMonitor.monitor(in: direction)
+                if wrapped && !wrapAround { throw "No monitors in direction \(direction)" }
                 return monitor
             case .relative(let nextPrev):
                 let monitors = sortedMonitorInfos
@@ -388,13 +372,17 @@ extension MonitorInfo {
         return myYRange.overlaps(otherYRange) ? .h : .v
     }
 
-    func findRelativeMonitor(inDirection direction: CardinalDirection) -> (monitorsInDirection: [MonitorInfo], index: Int)? {
-        let currentMonitor = self
-        let monitors = sortedMonitorInfos.filter {
-            currentMonitor.rect.topLeftCorner == $0.rect.topLeftCorner ||
-                $0.relation(to: currentMonitor) == direction.orientation
+    /// The monitor next to this one in `direction`. If there is none, `wrapped` is true, and the monitor is the one at the
+    /// far end on the other side (or this one)
+    func monitor(in direction: CardinalDirection) throws(CmdFail) -> (monitor: MonitorInfo, wrapped: Bool) {
+        let monitors = sortedMonitorInfos.filter { rect.topLeftCorner == $0.rect.topLeftCorner || $0.relation(to: self) == direction.orientation }
+        guard let index = monitors.firstIndex(where: { $0.rect.topLeftCorner == rect.topLeftCorner }) else {
+            // No screens (e.g., during display reconfiguration): this monitor is the fake mainMonitorInfo
+            if !hasScreens { throw "Can't find monitors in direction \(direction) while there are no screens" }
+            throw CmdFail(bugPrompt("Should never happen. Can't find the current monitor"))
         }
-        guard let index = monitors.firstIndex(where: { $0.rect.topLeftCorner == currentMonitor.rect.topLeftCorner }) else { return nil }
-        return (monitors, index + direction.focusOffset)
+        let next = index + direction.focusOffset
+        if let monitor = monitors.getOrNil(atIndex: next) { return (monitor, false) }
+        return (monitors.get(wrappingIndex: next).orDie(), true)
     }
 }

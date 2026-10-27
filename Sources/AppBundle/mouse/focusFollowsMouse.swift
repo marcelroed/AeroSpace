@@ -45,7 +45,9 @@ private func focusWindow(under location: CGPoint) async throws {
         }
     }
     if window == nil {
-        window = location.findWindowRecursively(in: workspace.rootTilingContainer, virtual: false, fullscreenCoversAll: true)
+        // A fullscreen window covers the whole workspace
+        let root = workspace.rootTilingContainer
+        window = root.mostRecentWindowRecursive.flatMap { $0.isFullscreen ? $0 : nil } ?? root.window(at: location, virtual: false)
     }
     if let window {
         try await runLightSession(.focusFollowsMouse, token) {

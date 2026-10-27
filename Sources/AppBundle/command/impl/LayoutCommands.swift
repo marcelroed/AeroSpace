@@ -129,7 +129,7 @@ struct LayoutCommand: nonisolated Command {
             case .floating:
                 guard let window = target.windowOrNil else { throw CmdFail(noWindowIsFocused) }
                 let workspace = target.workspace
-                window.bindAsFloatingWindow(to: workspace)
+                window.move(to: workspace.floatingWindowsContainer)
                 if let size = window.lastFloatingSize { window.setAxFrame(nil, size) }
         }
     }
@@ -213,15 +213,7 @@ struct SplitCommand: nonisolated Command {
                 if parent.children.count == 1 {
                     parent.changeOrientation(orientation)
                 } else {
-                    let data = window.unbindFromParent()
-                    let newParent = TilingContainer(
-                        parent: parent,
-                        weight: data.weight,
-                        orientation,
-                        .tiles,
-                        index: data.index,
-                    )
-                    window.bind(to: newParent, index: 0)
+                    window.wrap(orientation, .tiles)
                 }
                 return
             case .macosMinimized, .macosFullscreen, .macosHiddenApp:
@@ -279,20 +271,15 @@ struct ResizeCommand: nonisolated Command {
     func run(_ cx: CmdContext) async throws(CmdFail) {
         let target = try cx.target(windowId: windowId)
 
-        let candidates = target.windowOrNil?.parentsWithSelf
-            .filter { ($0.parent as? TilingContainer)?.layout == .tiles }
-            ?? []
-
-        // All candidates have a TilingContainer parent, so for .smart, node is candidates.first
+        // The window and its ancestors in a tiles container. For .smart, the node is the first one
+        let candidates = target.windowOrNil?.tilingPath.filter { $0.parent.layout == .tiles } ?? []
         let orientation: Orientation? = switch dimension {
             case .width: .h
             case .height: .v
-            case .smart: (candidates.first?.parent as? TilingContainer)?.orientation
-            case .smartOpposite: (candidates.first?.parent as? TilingContainer)?.orientation.opposite
+            case .smart: candidates.first?.parent.orientation
+            case .smartOpposite: candidates.first?.parent.orientation.opposite
         }
-        let node = candidates.first(where: { ($0.parent as? TilingContainer)?.orientation == orientation })
-        // node was picked by its parent's orientation, so parent.orientation == orientation
-        guard let node, let parent = node.parent as? TilingContainer else {
+        guard let (node, parent, _) = candidates.first(where: { $0.parent.orientation == orientation }) else {
             guard let window = target.windowOrNil else { throw CmdFail(noWindowIsFocused) }
             if window.isFloating {
                 throw CmdFail("resize command doesn't support floating windows yet https://github.com/nikitabobko/AeroSpace/issues/9")
@@ -339,7 +326,9 @@ struct BalanceSizesCommand: nonisolated Command {
     }
 
     func run(_ cx: CmdContext) throws(CmdFail) {
-        balance(try cx.target(workspace: workspace).workspace.rootTilingContainer)
+        if let root = try cx.target(workspace: workspace).workspace.existingRootTilingContainer {
+            balance(root)
+        }
     }
 }
 
@@ -374,9 +363,8 @@ struct FlattenWorkspaceTreeCommand: nonisolated Command {
 
     func run(_ cx: CmdContext) throws(CmdFail) {
         let workspace = try cx.target(workspace: workspace).workspace
-        let windows = workspace.rootTilingContainer.allLeafWindowsRecursive
-        for window in windows {
-            window.bind(to: workspace.rootTilingContainer, weight: 1)
+        for window in workspace.tilingWindows {
+            window.move(to: workspace.rootTilingContainer, weight: .value(1))
         }
     }
 }

@@ -41,7 +41,7 @@ final class TilingContainer: Container {
     fileprivate(set) var orientation: Orientation
     var layout: Layout
 
-    /// `parent` is a workspace (the root container) or a tiling container. See ``TreeNode/bind(to:weight:index:)`` for
+    /// `parent` is a workspace (the root container) or a tiling container. See ``TreeNode/move(to:at:weight:)`` for
     /// `weight` and `index`
     init(parent: TreeNode, weight: CGFloat? = nil, _ orientation: Orientation, _ layout: Layout, index: Int? = nil) {
         self.orientation = orientation

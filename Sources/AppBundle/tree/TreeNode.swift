@@ -88,12 +88,6 @@ open class TreeNode: Equatable {
         move(to: binding.parent, at: binding.index, weight: .value(binding.weight))
     }
 
-    /// The previous name of ``move(to:at:weight:)``. `weight` nil: ``WeightPolicy/auto``
-    @discardableResult
-    func bind(to newParent: TreeNode, weight: CGFloat? = nil, index: Int? = nil) -> NodeBinding? { // todo(RS-NAV phase B): delete
-        move(to: newParent, at: index, weight: weight.map { .value($0) } ?? .auto)
-    }
-
     /// Returns where the node was bound
     @discardableResult
     func unbindFromParent() -> NodeBinding {
@@ -149,7 +143,7 @@ struct NodeBinding {
 }
 
 extension TreeNode {
-    /// The legal edges of the tree. ``bind(to:weight:index:)`` checks them, so code that walks the tree can rely on them
+    /// The legal edges of the tree. ``move(to:at:weight:)`` checks them, so code that walks the tree can rely on them
     func canBeChild(of parent: TreeNode) -> Bool {
         switch (self, parent) {
             case (is Window, is Container): true

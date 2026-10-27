@@ -16,33 +16,6 @@ extension TreeNode {
         return result
     }
 
-    var ownIndex: Int? {
-        guard let parent else { return nil }
-        return parent.children.firstIndex(of: self).orDie()
-    }
-
-    /// From the closest parent to the root
-    var parents: [TreeNode] {
-        var result: [TreeNode] = []
-        var current = parent
-        while let node = current {
-            result.append(node)
-            current = node.parent
-        }
-        return result
-    }
-
-    /// `self` followed by ``parents``
-    var parentsWithSelf: [TreeNode] {
-        var result: [TreeNode] = [self]
-        var current = parent
-        while let node = current {
-            result.append(node)
-            current = node.parent
-        }
-        return result
-    }
-
     var nodeWorkspace: Workspace? {
         self as? Workspace ?? parent?.nodeWorkspace
     }
@@ -82,14 +55,6 @@ extension TreeNode {
         set { setWeight(.v, newValue) }
     }
 
-    /// The previous name of ``closestParent(hasChildrenIn:layout:)``
-    func closestParent( // todo(RS-NAV phase B): delete
-        hasChildrenInDirection direction: CardinalDirection,
-        withLayout layout: Layout?,
-    ) -> (parent: TilingContainer, ownIndex: Int)? {
-        closestParent(hasChildrenIn: direction, layout: layout)
-    }
-
     /// The node's parent and its index there, if the parent is a tiling container. nil for the root container (its parent
     /// is a workspace), for the windows outside the tiling tree and for unbound nodes
     var tilingSlot: (parent: TilingContainer, index: Int)? {
@@ -111,7 +76,7 @@ extension TreeNode {
 
     /// The innermost tiling container along `direction` (and with `layout`, if not nil) in which the node, or the ancestor
     /// that the node is in, has a sibling in `direction`. Returns the container and the index of that node or ancestor
-    func closestParent(hasChildrenIn direction: CardinalDirection, layout: Layout? = nil) -> (parent: TilingContainer, ownIndex: Int)? {
+    func closestParent(hasChildrenIn direction: CardinalDirection, layout: Layout? = nil) -> (parent: TilingContainer, index: Int)? {
         tilingPath
             .first { (_, parent, index) in
                 parent.orientation == direction.orientation && (layout == nil || parent.layout == layout) &&
@@ -123,7 +88,7 @@ extension TreeNode {
     /// The sibling in `direction` of the node, or of the innermost ancestor that has a sibling there. See
     /// ``closestParent(hasChildrenIn:layout:)``
     func neighbor(_ direction: CardinalDirection) -> TreeNode? {
-        closestParent(hasChildrenIn: direction).map { $0.parent.children[$0.ownIndex + direction.focusOffset] }
+        closestParent(hasChildrenIn: direction).map { $0.parent.children[$0.index + direction.focusOffset] }
     }
 
     /// The window of the subtree that is the closest to the `direction` side: along a container's orientation the child at

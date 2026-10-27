@@ -151,7 +151,7 @@ struct MacosNativeFullscreenCommand: nonisolated Command {
             throw CmdFail(windowIsntPartOfTree(window))
         }
         if newState { // Enter fullscreen
-            window.bind(to: workspace.macOsNativeFullscreenWindowsContainer, weight: 1)
+            window.move(to: workspace.macOsNativeFullscreenWindowsContainer, weight: .value(1))
         } else { // Exit fullscreen
             do {
                 if case .macos(let prevParentKind) = window.layoutReason {
@@ -196,7 +196,7 @@ struct MacosNativeMinimizeCommand: nonisolated Command {
         guard let newState: Bool = try? await !window.isMacosMinimized(.nonCancellable) else { throw CmdFail(bugPrompt()) }
         window.asMacWindow().setNativeMinimized(newState)
         if newState { // minimize
-            window.bind(to: macosMinimizedWindowsContainer, weight: 1)
+            window.move(to: macosMinimizedWindowsContainer, weight: .value(1))
             return
         } else { // unminimize
             throw CmdFail("The command is uncapable of unminimizing windows yet. Sorry") // dead code. should never be possible, see the comment above

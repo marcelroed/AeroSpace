@@ -23,10 +23,10 @@ private func resizeWithMouse(_ window: Window) async throws { // todo cover with
     guard window.parent is TilingContainer else { return } // Nothing to do for floating, or unconventional windows
     guard let rect = try await window.getAxRect(.cancellable) else { return }
     guard let lastAppliedLayoutRect = window.lastAppliedLayoutPhysicalRect else { return }
-    let (lParent, lOwnIndex) = window.closestParent(hasChildrenInDirection: .left, withLayout: .tiles) ?? (nil, nil)
-    let (dParent, dOwnIndex) = window.closestParent(hasChildrenInDirection: .down, withLayout: .tiles) ?? (nil, nil)
-    let (uParent, uOwnIndex) = window.closestParent(hasChildrenInDirection: .up, withLayout: .tiles) ?? (nil, nil)
-    let (rParent, rOwnIndex) = window.closestParent(hasChildrenInDirection: .right, withLayout: .tiles) ?? (nil, nil)
+    let (lParent, lOwnIndex) = window.closestParent(hasChildrenIn: .left, layout: .tiles) ?? (nil, nil)
+    let (dParent, dOwnIndex) = window.closestParent(hasChildrenIn: .down, layout: .tiles) ?? (nil, nil)
+    let (uParent, uOwnIndex) = window.closestParent(hasChildrenIn: .up, layout: .tiles) ?? (nil, nil)
+    let (rParent, rOwnIndex) = window.closestParent(hasChildrenIn: .right, layout: .tiles) ?? (nil, nil)
     let table: [(CGFloat, TilingContainer?, Int?, Int?)] = [
         (lastAppliedLayoutRect.minX - rect.minX, lParent, 0,                        lOwnIndex),               // Horizontal, to the left of the window
         (rect.maxY - lastAppliedLayoutRect.maxY, dParent, dOwnIndex.map { $0 + 1 }, dParent?.children.count), // Vertical, to the down of the window
@@ -38,13 +38,10 @@ private func resizeWithMouse(_ window: Window) async throws { // todo cover with
             let siblingDiff = diff.div(pastTheEndIndex - startIndex).orDie()
             let orientation = parent.orientation
 
-            window.parentsWithSelf.lazy
-                .prefix(while: { $0 != parent })
-                .filter {
-                    let parent = $0.parent as? TilingContainer
-                    return parent?.orientation == orientation && parent?.layout == .tiles
-                }
-                .forEach { $0.setWeight(orientation, $0.getWeightBeforeResize(orientation) + diff) }
+            window.tilingPath.lazy
+                .prefix(while: { $0.node != parent })
+                .filter { $0.parent.orientation == orientation && $0.parent.layout == .tiles }
+                .forEach { $0.node.setWeight(orientation, $0.node.getWeightBeforeResize(orientation) + diff) }
             for sibling in parent.children[startIndex ..< pastTheEndIndex] {
                 sibling.setWeight(orientation, sibling.getWeightBeforeResize(orientation) - siblingDiff)
             }

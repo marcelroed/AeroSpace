@@ -121,7 +121,7 @@ struct MoveCommandTest {
         // No screens (e.g., during display reconfiguration) is a normal state, not a bug (RB-40)
         await $noScreensForTests.withValue(true) {
             let output = await runCmd("move --boundaries all-monitors-outer-frame left")
-            #expect(output == .fail("Can't move the window across monitors while there are no screens"))
+            #expect(output == .fail("Can't find monitors in direction left while there are no screens"))
         }
     }
 }

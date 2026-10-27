@@ -46,29 +46,19 @@ struct MoveCommand: nonisolated Command {
     }
 
     func run(_ cx: CmdContext) async throws(CmdFail) {
-        let currentWindow = try cx.window(windowId: windowId)
-        if await shouldFailBecauseFullscreen_nonCancellable(
-            window: currentWindow,
-            failIfFullscreen: failIfFullscreen,
-            failIfMacosNativeFullscreen: failIfMacosNativeFullscreen,
-        ) {
-            throw .silent
-        }
-        switch currentWindow.placement {
+        let window = try cx.window(windowId: windowId)
+        try await window.failIfFullscreen(failIfFullscreen, macosNativeFullscreen: failIfMacosNativeFullscreen)
+        switch window.placement {
             case nil: throw .silent
             case .tiling(let parent):
-                guard let indexOfCurrent = currentWindow.ownIndex else { throw CmdFail(bugPrompt()) }
-                let indexOfSiblingTarget = indexOfCurrent + direction.focusOffset
-                if parent.orientation == direction.orientation && parent.children.indices.contains(indexOfSiblingTarget) {
-                    switch parent.children[indexOfSiblingTarget] {
-                        case let topLevelSiblingTargetContainer as TilingContainer:
-                            try deepMoveIn(window: currentWindow, into: topLevelSiblingTargetContainer)
-                        default: // A window: "swap windows"
-                            let prevBinding = currentWindow.unbindFromParent()
-                            currentWindow.bind(to: parent, weight: prevBinding.weight, index: indexOfSiblingTarget)
-                    }
+                let siblingIndex = parent.children.firstIndex(of: window).orDie() + direction.focusOffset
+                let sibling = parent.orientation == direction.orientation ? parent.children.getOrNil(atIndex: siblingIndex) : nil
+                if let container = sibling as? TilingContainer {
+                    moveIn(window, container)
+                } else if sibling != nil {
+                    window.move(to: parent, at: siblingIndex, weight: .keep) // The window and the sibling window trade places
                 } else {
-                    try await moveOut(tilingWindow: currentWindow, cx)
+                    try await moveOut(window, cx)
                 }
             case .floating: // floating window
                 throw "moving floating windows isn't yet supported" // todo
@@ -79,85 +69,58 @@ struct MoveCommand: nonisolated Command {
         }
     }
 
-    private func hitWorkspaceBoundaries(_ window: Window, _ workspace: Workspace, _ cx: CmdContext) async throws(CmdFail) {
-        switch boundaries {
-            case .workspace: break
-            case .allMonitorsOuterFrame:
-                guard let (monitors, index) = window.nodeMonitor?.findRelativeMonitor(inDirection: direction) else {
-                    // No screens (e.g., during display reconfiguration): the monitor of the window is the fake mainMonitorInfo
-                    if !hasScreens { throw "Can't move the window across monitors while there are no screens" }
-                    throw CmdFail(bugPrompt("Should never happen. Can't find the current monitor"))
-                }
-                if monitors.indices.contains(index) {
-                    let moveNodeToMonitor = MoveNodeToMonitorCommand(
-                        target: .direction(direction),
-                        focusFollowsWindow: focus.windowOrNil == window,
-                        windowId: window.windowId,
-                    )
-                    return try await delegate(to: moveNodeToMonitor, cx)
-                }
+    /// Moves the window into `container`: the way follows the most recent children down to a container with the move's
+    /// orientation (the window becomes its first child) or to a window (the window goes after it)
+    private func moveIn(_ window: Window, _ container: TilingContainer) {
+        var target: TreeNode = container
+        while let it = target as? TilingContainer, it.orientation != direction.orientation {
+            target = it.mostRecentChild.orDie("Empty containers must be detached during normalization")
+        }
+        if let target = target as? TilingContainer {
+            window.move(to: target, at: 0)
+        } else {
+            let (parent, index) = target.tilingSlot.orDie()
+            window.move(to: parent, at: index + 1)
+        }
+    }
+
+    /// Moves the window next to its innermost ancestor whose parent has the move's orientation
+    private func moveOut(_ window: Window, _ cx: CmdContext) async throws(CmdFail) {
+        if let (_, parent, index) = window.tilingPath.dropFirst().first(where: { $0.parent.orientation == direction.orientation }) {
+            window.move(to: parent, at: index + direction.insertionOffset)
+        } else {
+            try await atWorkspaceEdge(window, cx)
+        }
+    }
+
+    private func atWorkspaceEdge(_ window: Window, _ cx: CmdContext) async throws(CmdFail) {
+        guard let workspace = window.nodeWorkspace else { throw CmdFail(bugPrompt()) }
+        if boundaries == .allMonitorsOuterFrame, try !workspace.workspaceMonitor.monitor(in: direction).wrapped {
+            let moveNodeToMonitor = MoveNodeToMonitorCommand(
+                target: .direction(direction),
+                focusFollowsWindow: focus.windowOrNil == window,
+                windowId: window.windowId,
+            )
+            return try await delegate(to: moveNodeToMonitor, cx)
         }
         switch boundariesAction {
             case .stop: return
             case .fail: throw .silent
             case .createImplicitContainer:
-                let prevRoot = workspace.rootTilingContainer
-                prevRoot.unbindFromParent()
-                // Force tiles layout
-                _ = TilingContainer(parent: workspace, direction.orientation, .tiles, index: 0)
-                check(prevRoot != workspace.rootTilingContainer)
-                prevRoot.bind(to: workspace.rootTilingContainer, index: 0)
-                window.bind(to: workspace.rootTilingContainer, index: direction.insertionOffset)
-        }
-    }
-
-    private func moveOut(tilingWindow window: Window, _ cx: CmdContext) async throws(CmdFail) {
-        let innerMostTilingContainer = window.parents.first(where: {
-            // Stop searching if the parent isn't a tiling container: we have hit the workspace
-            // (a tiling container's parent can only be a workspace or a tiling container)
-            guard let parent = $0.parent as? TilingContainer else { return true }
-            return parent.orientation == direction.orientation
-        }) as? TilingContainer
-        guard let innerMostTilingContainer else { throw CmdFail(bugPrompt()) } // Impossible
-        switch innerMostTilingContainer.parent {
-            case nil: throw .silent
-            case let parent as TilingContainer:
-                check(parent.orientation == direction.orientation)
-                guard let ownIndex = innerMostTilingContainer.ownIndex else { throw CmdFail(bugPrompt()) }
-                window.bind(to: parent, index: ownIndex + direction.insertionOffset)
-            case let parent as Workspace:
-                try await hitWorkspaceBoundaries(window, parent, cx)
-            default:
-                die("A tiling container's parent is a tiling container or a workspace")
-        }
-    }
-
-    private func deepMoveIn(window: Window, into container: TilingContainer) throws(CmdFail) {
-        // Descend through the most recent children to a container with the move orientation or to a window
-        var deepTarget: TreeNode = container
-        while let tilingContainer = deepTarget as? TilingContainer, tilingContainer.orientation != direction.orientation {
-            deepTarget = tilingContainer.mostRecentChild.orDie("Empty containers must be detached during normalization")
-        }
-        if let deepTarget = deepTarget as? TilingContainer {
-            window.bind(to: deepTarget, index: 0)
-        } else {
-            guard let parent = deepTarget.parent as? TilingContainer else { throw CmdFail(bugPrompt()) }
-            guard let deepTargetIndex = deepTarget.ownIndex else { throw CmdFail(bugPrompt()) }
-            window.bind(to: parent, index: deepTargetIndex + 1)
+                let root = workspace.rootTilingContainer.wrap(direction.orientation, .tiles) // Force tiles layout
+                window.move(to: root, at: direction.insertionOffset)
         }
     }
 }
 
 private let moveOutMacosUnconventionalWindow = "moving macOS fullscreen, minimized windows and windows of hidden apps isn't yet supported. This behavior is subject to change"
 
-func shouldFailBecauseFullscreen_nonCancellable(
-    window: Window,
-    failIfFullscreen: Bool,
-    failIfMacosNativeFullscreen: Bool,
-) async -> Bool {
-    if failIfFullscreen && window.isFullscreen { return true }
-    guard failIfMacosNativeFullscreen else { return false }
-    return true == (try? await window.isMacosFullscreen(.nonCancellable))
+extension Window {
+    /// `--fail-if-fullscreen` and `--fail-if-macos-native-fullscreen`: fail silently if the window is fullscreen
+    func failIfFullscreen(_ fullscreen: Bool, macosNativeFullscreen: Bool) async throws(CmdFail) {
+        if fullscreen && isFullscreen { throw .silent }
+        if macosNativeFullscreen, true == (try? await isMacosFullscreen(.nonCancellable)) { throw .silent }
+    }
 }
 
 struct SwapCommand: nonisolated Command {
@@ -187,30 +150,18 @@ struct SwapCommand: nonisolated Command {
 
     func run(_ cx: CmdContext) async throws(CmdFail) {
         let liveFocus = try cx.target(windowId: windowId)
-        guard let currentWindow = liveFocus.windowOrNil else { throw CmdFail(noWindowIsFocused) }
-
+        guard let window = liveFocus.windowOrNil else { throw CmdFail(noWindowIsFocused) }
         let targetWindow: Window?
         switch target {
             case .direction(let direction):
-                switch currentWindow.closestParent(hasChildrenInDirection: direction, withLayout: nil) {
-                    case let (parent, ownIndex)?:
-                        targetWindow = parent.children[ownIndex + direction.focusOffset].findLeafWindowRecursive(snappedTo: direction.opposite)
-                    case nil where wrapAround:
-                        targetWindow = liveFocus.workspace.findLeafWindowRecursive(snappedTo: direction.opposite)
-                    case nil:
-                        throw .silent
-                }
+                // With --wrap-around, the workspace is the neighbor beyond its edge: the window at its other end
+                let neighbor: TreeNode? = window.neighbor(direction) ?? (wrapAround ? liveFocus.workspace : nil)
+                targetWindow = neighbor?.edgeWindow(snappedTo: direction.opposite)
             case .dfsRelative(let nextPrev):
-                let windows = liveFocus.workspace.rootTilingContainer.allLeafWindowsRecursive
-                guard let currentIndex = windows.firstIndex(where: { $0 == liveFocus.windowOrNil }) else { throw .silent }
-                let targetIndex = currentIndex + nextPrev.indexOffset
-                targetWindow = wrapAround ? windows.get(wrappingIndex: targetIndex) : windows.getOrNil(atIndex: targetIndex)
+                targetWindow = try liveFocus.workspace.dfsNeighbor(of: window, nextPrev, wrapAround: wrapAround)
         }
-
         guard let targetWindow else { throw .silent }
-
-        swapWindows(mruDominant: currentWindow, targetWindow)
-
+        window.swap(with: targetWindow)
         if swapFocus && !targetWindow.focusWindow() { throw .silent }
     }
 }
@@ -235,23 +186,12 @@ struct JoinWithCommand: nonisolated Command {
     }
 
     func run(_ cx: CmdContext) throws(CmdFail) {
-        let currentWindow = try cx.window(windowId: windowId)
-        guard let (parent, ownIndex) = currentWindow.closestParent(hasChildrenInDirection: direction, withLayout: nil) else {
+        let window = try cx.window(windowId: windowId)
+        guard let (parent, index) = window.closestParent(hasChildrenIn: direction) else {
             throw CmdFail("No windows in the specified direction")
         }
-        let joinWithTarget = parent.children[ownIndex + direction.focusOffset]
-        let prevBinding = joinWithTarget.unbindFromParent()
-        let newParent = TilingContainer(
-            parent: parent,
-            weight: prevBinding.weight,
-            parent.orientation.opposite,
-            .tiles,
-            index: prevBinding.index,
-        )
-        currentWindow.unbindFromParent()
-
-        joinWithTarget.bind(to: newParent, index: 0)
-        currentWindow.bind(to: newParent, index: direction.isPositive ? 0 : nil)
+        let container = parent.children[index + direction.focusOffset].wrap(parent.orientation.opposite, .tiles)
+        window.move(to: container, at: direction.isPositive ? 0 : nil)
     }
 }
 
@@ -336,7 +276,7 @@ func moveWindowToWorkspace(
     let targetContainer: Container = window.isFloating
         ? targetWorkspace.floatingWindowsContainer
         : targetWorkspace.rootTilingContainer
-    window.bind(to: targetContainer, index: index)
+    window.move(to: targetContainer, at: index)
     if focusFollowsWindow && !window.focusWindow() { throw .silent }
 }
 
@@ -376,7 +316,7 @@ struct MoveNodeToMonitorCommand: nonisolated Command {
         let targetMonitor = try target.resolve(currentMonitor, wrapAround: wrapAround)
         let targetWs = targetMonitor.activeWorkspace
         let index = true == target.directionOrNil
-            .map { dir in dir.isPositive && targetWs.rootTilingContainer.orientation == dir.orientation }
+            .map { dir in dir.isPositive && targetWs.rootLayout.orientation == dir.orientation }
             ? 0
             : nil
         try moveWindowToWorkspace(window, targetWs, cx, focusFollowsWindow: focusFollowsWindow, failIfNoop: failIfNoop, index: index)

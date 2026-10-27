@@ -73,10 +73,5 @@ extension Window {
 
     var isFloating: Bool { (parent as? Container)?.kind == .floating } // todo drop. It will be a source of bugs when sticky is introduced
 
-    @discardableResult
-    func bindAsFloatingWindow(to workspace: Workspace) -> NodeBinding? {
-        bind(to: workspace.floatingWindowsContainer)
-    }
-
     func asMacWindow() -> MacWindow { self as! MacWindow }
 }
