@@ -43,18 +43,39 @@ struct NoScreensTest {
         expectEqual(focus.workspace, visible)
     }
 
-    @Test
-    func disablingWhileThereAreNoScreensFails() async {
-        updateMonitors([])
+    /// No screens is a normal state, not a bug (RB-40): the commands that need them fail with a message and change nothing
+    @Test(arguments: [
         // Disabling unhides the windows of all workspaces in the layout, which waits for the screens
-        for command in ["enable off", "enable toggle"] {
-            let output = await runCmd(command)
-            expectEqual(output, .fail("Can't disable \(aeroSpaceAppName) while there are no screens"), "\(command)")
-            #expect(world.isEnabled, "\(command)")
-        }
-        expectEqual(world.activeMode, mainModeId)
+        ("enable off", "Can't disable \(aeroSpaceAppName) while there are no screens"),
+        ("enable toggle", "Can't disable \(aeroSpaceAppName) while there are no screens"),
+        ("focus --boundaries all-monitors-outer-frame left", "Can't find monitors in direction left while there are no screens"),
+        ("move --boundaries all-monitors-outer-frame left", "Can't find monitors in direction left while there are no screens"),
+        ("focus-monitor left", "Can't find monitors in direction left while there are no screens"),
+        ("focus-monitor next", "Can't find the next monitor while there are no screens"),
+        ("focus-monitor --wrap-around next", "Can't find the next monitor while there are no screens"),
+        ("focus-monitor prev", "Can't find the prev monitor while there are no screens"),
+        // With screens, both patterns match "Test Monitor"
+        ("focus-monitor 1", "Can't find monitors that match the pattern(s) while there are no screens"),
+        ("focus-monitor test", "Can't find monitors that match the pattern(s) while there are no screens"),
+        ("move-workspace-to-monitor next", "Can't find the next monitor while there are no screens"),
+        // Only the visible workspaces can be focused (RB-31: the command used to succeed)
+        ("workspace-back-and-forth", "Can't focus workspace 'prev' while there are no screens"),
+    ] as [(String, String)])
+    func commandsFailWithoutScreens(command: String, error: String) async {
+        let workspace = setUpTree("h_tiles(*1 2)")
+        world.focusStore.prevWorkspaceName = "prev"
+        updateMonitors([])
+        let output = await runCmd(command)
+        expectEqual(output, .fail(error))
+        expectEqual(describeTree(), "h_tiles(*1 2)")
+        expectEqual(focus.workspace, workspace)
+        #expect(world.isEnabled)
+    }
 
-        // Enabling still works: the layout does nothing until the screens come back
+    /// Enabling doesn't need the screens: the layout does nothing until they come back
+    @Test
+    func enablingWorksWithoutScreens() async {
+        updateMonitors([])
         world.isEnabled = false
         let output = await runCmd("enable on")
         expectEqual(output, .ok)

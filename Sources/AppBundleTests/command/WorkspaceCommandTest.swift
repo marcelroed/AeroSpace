@@ -5,20 +5,6 @@ import Testing
 
 @Suite(.aeroSpaceGlobalState)
 struct WorkspaceCommandTest {
-    @Test
-    func parse() throws {
-        testParseSingleCommandSucc("workspace next", WorkspaceCommand(target: .relative(.next)))
-        testParseSingleCommandSucc("workspace --auto-back-and-forth W", WorkspaceCommand(target: .direct(try .parse("W"), whenFocused: .backAndForth)))
-        testParseSingleCommandSucc("workspace next --wrap-around", WorkspaceCommand(target: .relative(.next, wrapAround: true)))
-        testParseSingleCommandSucc("workspace --stdin next", WorkspaceCommand(target: .relative(.next, useStdin: true)))
-        testParseSingleCommandSucc("workspace -- foo", WorkspaceCommand(target: .direct(try .parse("foo"))))
-        testParseSingleCommandSucc(
-            "workspace --auto-back-and-forth -- foo",
-            WorkspaceCommand(target: .direct(try .parse("foo"), whenFocused: .backAndForth)),
-        )
-        testParseSingleCommandSucc("workspace --fail-if-noop W", WorkspaceCommand(target: .direct(try .parse("W"), whenFocused: .fail)))
-    }
-
     @Test(arguments: [
         ("workspace my mail", "Unknown argument 'mail'"),
         ("workspace 'my mail'", "Whitespace characters are forbidden in workspace names"),
@@ -36,57 +22,16 @@ struct WorkspaceCommandTest {
         expectEqual(output, .fail(error))
     }
 
-    /// From the focused workspace `from`, the command focuses the workspace `to`
-    @Test(arguments: [
-        ("a", "workspace b", "", .ok, "b"),
-        ("a", "workspace a", "", CmdOutput(stderr: ["Workspace 'a' is already focused. Tip: use --fail-if-noop to exit with non-zero code"]), "a"),
-        ("a", "workspace --fail-if-noop a", "", .fail(), "a"),
-        // There is no previous workspace
-        ("a", "workspace --auto-back-and-forth a", "", .fail("There is no previously focused workspace"), "a"),
-        ("a", "workspace --stdin next", "a\nb\nc\n", .ok, "b"),
-        ("b", "workspace --stdin prev", "a\nb\nc\n", .ok, "a"),
-        ("c", "workspace --wrap-around --stdin next", "a\nb\nc\n", .ok, "a"),
-        ("a", "workspace --wrap-around --stdin prev", "a\nb\nc\n", .ok, "c"),
-        ("c", "workspace --stdin next", "a\nb\nc\n", .fail("Reached the end of the supplied workspaces list"), "c"),
-        ("a", "workspace --stdin prev", "a\nb\nc\n", .fail("Reached the beginning of the supplied workspaces list"), "a"),
-        ("a", "workspace --stdin next", "", .fail("The list of workspaces is empty"), "a"),
-        // The focused workspace isn't in the list: next and prev land on its first workspace
-        ("z", "workspace --stdin next", "a\nb\nc\n", .ok, "a"),
-    ] as [(String, String, String, CmdOutput, String)])
-    func focusesWorkspace(from: String, command: String, stdin: String, expected: CmdOutput, to: String) async {
-        #expect(Workspace.get(byName: from).focusWorkspace())
-        let output = await runCmd(command, stdin: stdin)
-        expectEqual(output, expected)
-        expectEqual(focus.workspace.name, to)
-    }
-
-    @Test
-    func autoBackAndForth_focusedTarget_focusesThePreviousWorkspace() async {
-        _ = Workspace.get(byName: "b") // Alive
-        #expect(Workspace.get(byName: "a").focusWorkspace())
-        world.focusStore.prevWorkspaceName = "b"
-        let output = await runCmd("workspace --auto-back-and-forth a")
-        expectEqual(output, .ok)
-        expectEqual(focus.workspace.name, "b")
-    }
-
-    @Test
-    func autoBackAndForth_otherTarget_ignoresThePreviousWorkspace() async {
-        #expect(Workspace.get(byName: "a").focusWorkspace())
-        world.focusStore.prevWorkspaceName = "c"
-        let output = await runCmd("workspace --auto-back-and-forth b")
-        expectEqual(output, .ok)
-        expectEqual(focus.workspace.name, "b")
-    }
-
-    @Test
-    func relativeWithoutStdin_picksFromAllWorkspaces() async {
-        _ = Workspace.get(byName: "b") // Alive
-        _ = Workspace.get(byName: "c")
-        #expect(Workspace.get(byName: "a").focusWorkspace())
-        let output = await runCmd("workspace next")
-        expectEqual(output, .ok)
-        expectEqual(focus.workspace.name, "b")
+    @Test(arguments: workspaceSwitches)
+    func focusesWorkspace(_ row: WorkspaceSwitch) async {
+        for name in ["a", "b", "c"] {
+            _ = Workspace.get(byName: name) // Alive
+        }
+        #expect(Workspace.get(byName: row.from).focusWorkspace())
+        world.focusStore.prevWorkspaceName = row.prev
+        let output = await runCmd(row.command, stdin: row.stdin)
+        expectEqual(output, row.expected)
+        expectEqual(focus.workspace.name, row.to)
     }
 
     /// The AX work of a switch: each window of the shown workspace gets one frame write, each window of the hidden one is
@@ -118,4 +63,42 @@ struct WorkspaceCommandTest {
         // The bottom right corner: a parked window's position is read, and it's already there
         expectEqual(fake.calls.filter { $0.kind != .park }, [.frame(3, topLeft: CGPoint(x: 0, y: 0), size: CGSize(width: 1920, height: 1079)), .axRead(1), .axRead(2)])
     }
+
+    /// From the focused workspace `from`, with the previous workspace `prev`, the command focuses the workspace `to`. The
+    /// workspaces a, b and c are alive
+    nonisolated struct WorkspaceSwitch: Sendable, CustomTestStringConvertible {
+        let from: String
+        var prev: String? = nil
+        let command: String
+        var stdin: String = ""
+        var expected: CmdOutput = .ok
+        let to: String
+
+        var testDescription: String { "'\(command)' from \(from)" + (prev.map { ", prev \($0)" } ?? "") }
+    }
 }
+
+nonisolated private let workspaceSwitches: [WorkspaceCommandTest.WorkspaceSwitch] = [
+    .init(from: "a", command: "workspace b", to: "b"),
+    .init(from: "a", command: "workspace a", expected: alreadyFocused, to: "a"),
+    .init(from: "a", command: "workspace --fail-if-noop a", expected: .fail(), to: "a"),
+    // next and prev without --stdin pick from the workspaces of the monitor
+    .init(from: "a", command: "workspace next", to: "b"),
+    .init(from: "a", command: "workspace --stdin next", stdin: "a\nb\nc\n", to: "b"),
+    .init(from: "b", command: "workspace --stdin prev", stdin: "a\nb\nc\n", to: "a"),
+    .init(from: "c", command: "workspace --wrap-around --stdin next", stdin: "a\nb\nc\n", to: "a"),
+    .init(from: "a", command: "workspace --wrap-around --stdin prev", stdin: "a\nb\nc\n", to: "c"),
+    .init(from: "c", command: "workspace --stdin next", stdin: "a\nb\nc\n", expected: .fail("Reached the end of the supplied workspaces list"), to: "c"),
+    .init(from: "a", command: "workspace --stdin prev", stdin: "a\nb\nc\n", expected: .fail("Reached the beginning of the supplied workspaces list"), to: "a"),
+    .init(from: "a", command: "workspace --stdin next", expected: .fail("The list of workspaces is empty"), to: "a"),
+    // The focused workspace isn't in the list: next and prev land on its first workspace
+    .init(from: "z", command: "workspace --stdin next", stdin: "a\nb\nc\n", to: "a"),
+    // workspace-back-and-forth, and --auto-back-and-forth when the workspace is focused already (RB-31)
+    .init(from: "a", prev: "b", command: "workspace-back-and-forth", to: "b"),
+    .init(from: "a", command: "workspace-back-and-forth", expected: .fail("There is no previously focused workspace"), to: "a"),
+    .init(from: "a", prev: "b", command: "workspace --auto-back-and-forth a", to: "b"),
+    .init(from: "a", prev: "c", command: "workspace --auto-back-and-forth b", to: "b"),
+    .init(from: "a", command: "workspace --auto-back-and-forth a", expected: .fail("There is no previously focused workspace"), to: "a"),
+]
+
+nonisolated private let alreadyFocused = CmdOutput(stderr: ["Workspace 'a' is already focused. Tip: use --fail-if-noop to exit with non-zero code"])

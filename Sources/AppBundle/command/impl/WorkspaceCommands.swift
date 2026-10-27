@@ -136,7 +136,10 @@ struct WorkspaceBackAndForthCommand: nonisolated Command {
 
     func run(_ cx: CmdContext) throws(CmdFail) {
         guard let prevFocusedWorkspace else { throw "There is no previously focused workspace" }
-        if !prevFocusedWorkspace.focusWorkspace() { throw .silent }
+        // Focusing a workspace fails only while there are no screens, if it isn't visible
+        if !prevFocusedWorkspace.focusWorkspace() {
+            throw "Can't focus workspace '\(prevFocusedWorkspace.name)' while there are no screens"
+        }
     }
 }
 
