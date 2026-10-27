@@ -68,6 +68,8 @@ nonisolated struct PlacementState {
     /// The size that termination and `layout floating` restore: the window's size when it was registered, then whenever
     /// a floating window parks or the size is remembered (`layout tiling`, `enable on`)
     private(set) var lastFloatingSize: CGSize?
+    /// The frame that the last `.frame` placement found the window at or wrote
+    private var lastFrame: Rect? = nil
 
     init(lastFloatingSize: CGSize?) {
         self.lastFloatingSize = lastFloatingSize
@@ -80,11 +82,15 @@ nonisolated struct PlacementState {
         switch placement {
             case .frame(_, let topLeft, let size):
                 // Every present reads where the window is, so a window that the app or the user moved goes back. It writes
-                // only a window that isn't there: each write makes the app lay out the window again. A parked window is in
-                // its corner: it isn't there, no need to read it
-                let isThere = parkedAt == nil && window.rect().map { $0.isAt(topLeft: topLeft, size: size) } == true
+                // only a window that isn't there: each write makes the app lay out the window again. It doesn't read a window
+                // that is elsewhere, the read would only cost time: a parked window is in its corner, and a window that the
+                // layout gave another frame is where the last placement left it
+                let frame = Rect(topLeftX: topLeft.x, topLeftY: topLeft.y, width: size.width, height: size.height)
+                let isElsewhere = parkedAt != nil || lastFrame.map { !$0.isAt(frame) } == true
+                let isThere = !isElsewhere && window.rect().map { $0.isAt(frame) } == true
                 if isThere || window.setFrame(topLeft: topLeft, size: size) {
                     parkedAt = nil
+                    lastFrame = frame
                 }
             case .floating(_, let target):
                 if let parkedAt {
@@ -136,8 +142,8 @@ nonisolated struct PlacementState {
 
 nonisolated extension Rect {
     /// Within a point of the frame: AX gives whole points, and the layout's frames have fractions
-    fileprivate func isAt(topLeft: CGPoint, size: CGSize) -> Bool {
-        let differences: [CGFloat] = [topLeftX - topLeft.x, topLeftY - topLeft.y, width - size.width, height - size.height]
+    fileprivate func isAt(_ frame: Rect) -> Bool {
+        let differences: [CGFloat] = [topLeftX - frame.topLeftX, topLeftY - frame.topLeftY, width - frame.width, height - frame.height]
         return differences.allSatisfy { abs($0) < 1 }
     }
 }

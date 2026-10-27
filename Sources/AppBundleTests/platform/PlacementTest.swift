@@ -113,6 +113,26 @@ struct PlacementTest {
         expectEqual(testWindow(1).rect, rect(100, 100, 400, 300))
     }
 
+    /// A tile is read before its write, so that a tile at its frame isn't written again. A tile that the layout gave another
+    /// frame than the last placement left it at can't be there: it's written without the read
+    @Test
+    func aTileThatTheLayoutMovedIsWrittenWithoutARead() {
+        let window = FakeWindow(app: testApp, rect: rect(0, 0, 400, 300), title: "1")
+        fake.windows[1] = window
+        let (left, right) = (rect(0, 0, 400, 300), rect(400, 0, 400, 300))
+        func place(_ frame: Rect) -> [PlatformCall] {
+            fake.resetCalls()
+            fake.apply([.frame(1, topLeft: frame.topLeftCorner, size: frame.size)])
+            return fake.calls
+        }
+        let write: (Rect) -> PlatformCall = { .frame(1, topLeft: $0.topLeftCorner, size: $0.size) }
+
+        expectEqual(place(left), [.axRead(1)], "at its frame")
+        expectEqual(place(right), [write(right)], "moved by the layout from where a read found it")
+        expectEqual(place(left), [write(left)], "moved by the layout from where a write put it")
+        expectEqual(place(left), [.axRead(1)], "at the same frame: the app may have moved it")
+    }
+
     /// A placement made stale by a newer write of the window stops before its next AX call. An unpark that didn't write the
     /// position leaves the window parked, so the next placement unparks it. Termination stops them the same way
     @Test
