@@ -3,18 +3,14 @@ import Carbon
 import Common
 import Synchronization
 
-/// The macOS ``Platform``. It owns the AX registry: one ``AxApp`` per registered app, each on its own thread. The
-/// termination registry lets a die off the main thread reach the apps
+/// The macOS ``Platform``. It owns the AX registry: one ``AxApp`` per registered app, each on its own thread
 final class LivePlatform: Platform {
     private var apps: [pid_t: LiveApp] = [:]
     /// Registrations in progress. Everyone who asks for the app meanwhile awaits the same task
     private var pendingRegistrations: [pid_t: Task<Void, Never>] = [:]
     private let registrationBackoffs = RegistrationBackoffs()
     private let listingDeadlines = ListingDeadlines(minDeadline: .milliseconds(250), maxDeadline: .seconds(1))
-    /// The registered apps, for a die off the main thread: it can't read `apps`
-    nonisolated private let terminationApps: Mutex<[pid_t: AxApp]> = Mutex([:])
-    /// The last monitors with screens, see ``monitors()``. nil before the first: then nothing is parked
-    nonisolated private let terminationMonitors: Mutex<TerminationMonitors?> = Mutex(nil)
+    nonisolated private let terminationMirror = TerminationMirror()
 
     // MARK: Snapshot reads
 
@@ -31,7 +27,7 @@ final class LivePlatform: Platform {
             )
         }
         if let snapshot = Monitors(monitors) {
-            terminationMonitors.withLock { $0 = TerminationMonitors(all: snapshot.all, main: snapshot.main) }
+            terminationMirror.publish(snapshot)
         }
         return monitors
     }
@@ -309,18 +305,7 @@ final class LivePlatform: Platform {
     // MARK: Termination
 
     nonisolated func restoreForTermination() {
-        guard let monitors = terminationMonitors.withLock({ $0 }) else { return }
-        if Thread.isMainThread {
-            MainActor.assumeIsolated {
-                restoreWindowsOnMainThread(world.windows.values.compactMap { window in
-                    // The restore may run when something went wrong (e.g. some windows are unbound). That's why it
-                    // doesn't read `.parent`
-                    liveApp(of: window.windowId)?.ax.map { (app: $0, windowId: window.windowId.raw) }
-                }, monitors)
-            }
-        } else {
-            restoreWindowsOffMainThread(terminationApps.withLock { Array($0.values) }, monitors)
-        }
+        terminationMirror.restoreWindows()
     }
 
     // MARK: The registry
@@ -360,7 +345,7 @@ final class LivePlatform: Platform {
             if isSubscribed {
                 registrationBackoffs.forget(pid)
                 apps[pid] = LiveApp(nsApp, ax)
-                terminationApps.withLock { $0[pid] = ax }
+                terminationMirror.register(ax)
             } else { // `ax` deinits: its thread exits
                 registrationBackoffs.failed(pid)
             }
@@ -385,7 +370,7 @@ final class LivePlatform: Platform {
     private func destroy(_ app: LiveApp) {
         let pid = app.info.pid
         apps.removeValue(forKey: pid)
-        terminationApps.withLock { _ = $0.removeValue(forKey: pid) }
+        terminationMirror.unregister(pid)
         app.ax = nil
     }
 

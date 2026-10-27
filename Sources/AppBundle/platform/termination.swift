@@ -38,9 +38,40 @@ nonisolated struct AppServerTerminationHandler: TerminationHandler {
     }
 }
 
+/// ``LivePlatform``'s registered apps and last monitors, mirrored for a die off the main thread: it can't read the platform
+/// or the world
+nonisolated final class TerminationMirror: Sendable {
+    private let apps: Mutex<[pid_t: AxApp]> = Mutex([:])
+    /// The last monitors with screens. nil before the first: then nothing is parked
+    private let monitors: Mutex<TerminationMonitors?> = Mutex(nil)
+
+    func register(_ app: AxApp) { apps.withLock { $0[app.pid] = app } }
+    func unregister(_ pid: pid_t) { apps.withLock { _ = $0.removeValue(forKey: pid) } }
+    func publish(_ monitors: Monitors) {
+        self.monitors.withLock { $0 = TerminationMonitors(all: monitors.all, main: monitors.main) }
+    }
+
+    /// Restores the windows of the tree on main. Off main, which can't read the tree, every window that the apps know
+    func restoreWindows() {
+        guard let monitors = monitors.withLock({ $0 }) else { return }
+        let apps = apps.withLock { $0 }
+        if Thread.isMainThread {
+            MainActor.assumeIsolated {
+                // The restore may run when something went wrong (e.g. some windows are unbound). That's why it doesn't
+                // read `.parent`
+                restoreWindowsOnMainThread(world.windows.values.compactMap { window in
+                    apps[window.app.pid].map { (app: $0, windowId: window.windowId.raw) }
+                }, monitors)
+            }
+        } else {
+            restoreWindowsOffMainThread(Array(apps.values), monitors)
+        }
+    }
+}
+
 /// Makes every window visible before quitting: centered on the monitor it's on (or the main monitor), at its last
 /// floating size or the monitor's visible size (``TerminationMonitors``)
-func restoreWindowsOnMainThread(_ windows: [(app: AxApp, windowId: UInt32)], _ monitors: TerminationMonitors) {
+private func restoreWindowsOnMainThread(_ windows: [(app: AxApp, windowId: UInt32)], _ monitors: TerminationMonitors) {
     var timedOutApps: Set<pid_t> = []
     for (app, windowId) in windows where !timedOutApps.contains(app.pid) {
         let isDone = app.postAndWait(timeout: terminationAxTimeout) { app in app.restore(windowId, monitors) }
@@ -53,7 +84,7 @@ func restoreWindowsOnMainThread(_ windows: [(app: AxApp, windowId: UInt32)], _ m
 /// A die off the main thread (e.g. on an AX thread) can't read the tree. It restores every window that the apps know, as
 /// the main thread does: one job per app, all in parallel, against one deadline. It skips the app whose thread is dying:
 /// that thread would never run the job
-nonisolated func restoreWindowsOffMainThread(_ apps: [AxApp], _ monitors: TerminationMonitors) {
+nonisolated private func restoreWindowsOffMainThread(_ apps: [AxApp], _ monitors: TerminationMonitors) {
     let deadline: DispatchTime = .now() + terminationAxTimeout
     let restores = DispatchGroup()
     for app in apps where !app.isCurrentThread {
@@ -69,7 +100,7 @@ nonisolated func restoreWindowsOffMainThread(_ apps: [AxApp], _ monitors: Termin
 }
 
 /// The monitors that termination restores the windows onto: the last snapshot with screens, which
-/// ``LivePlatform/monitors()`` publishes for a die off the main thread too. Sendable: the AX threads compute the frames
+/// ``LivePlatform/monitors()`` publishes to the ``TerminationMirror``. Sendable: the AX threads compute the frames
 nonisolated struct TerminationMonitors: Sendable {
     /// Sorted as ``Monitors/all``
     let all: NonEmptyArray<MonitorInfo>
