@@ -214,10 +214,7 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
     @Test
     func testFindArrayIndex_success() {
         let arr: OrderedJson = .array([.string("a"), .string("b")])
-        switch arr.find(keyPath: ["1"].slice) {
-            case .success(.string(let s)): assertEquals(s, "b")
-            default: fail("expected .string(\"b\")")
-        }
+        assertSucc(arr.find(keyPath: ["1"].slice), .string("b"))
     }
 
     @Test

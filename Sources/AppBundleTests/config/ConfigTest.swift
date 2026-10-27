@@ -257,11 +257,7 @@ final class ConfigTest: XCTestCase {
         let command = parseCommand("layout tiles h_tiles v_tiles list h_list v_list").cmdOrNil?.flatten().singleOrNil()
         XCTAssertTrue(command is LayoutCommand)
         assertEquals((command as! LayoutCommand).args.toggleBetween.val, [.tiles, .h_tiles, .v_tiles, .tiles, .h_tiles, .v_tiles])
-
-        guard case .help = parseCommand("layout tiles -h") else {
-            XCTFail()
-            return
-        }
+        testParseCommandHelp("layout tiles -h")
     }
 
     func testSplitCommandAndFlattenContainersNormalization() {

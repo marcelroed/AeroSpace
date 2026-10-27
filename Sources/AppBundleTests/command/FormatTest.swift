@@ -98,13 +98,9 @@ final class FormatTest: XCTestCase {
             .interVar(.plainInterVar(.rightPadding)),
             .interVar(.formatVar(.window(.windowTitle))),
         ])
-        switch result {
-            case .success: XCTFail("expected failure")
-            case .failure(let msg):
-                let msg = msg.map(\.description).joined(separator: "\n")
-                assertTrue(msg.contains("Unknown interpolation variable 'window-id'"))
-                assertTrue(msg.contains("Unknown interpolation variable 'window-title'"))
-        }
+        let msg = result.failureOrNil?.map(\.description).joined(separator: "\n")
+        assertTrue(msg?.contains("Unknown interpolation variable 'window-id'") == true)
+        assertTrue(msg?.contains("Unknown interpolation variable 'window-title'") == true)
     }
 
     func testPrimitiveKind() {
@@ -429,11 +425,7 @@ final class FormatTest: XCTestCase {
             [.interVar(.formatVar(.window(.windowId)))],
             ignoreRightPaddingVar: true,
         )
-        switch result {
-            case .success: XCTFail("expected failure")
-            case .failure(let msg):
-                assertTrue(msg.starts(with: "Unknown interpolation variable 'window-id'."))
-        }
+        assertTrue(result.failureOrNil?.starts(with: "Unknown interpolation variable 'window-id'.") == true)
     }
 
     func testFormatToJsonReturnsFirstFailureForMultipleObjects() {

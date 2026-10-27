@@ -60,7 +60,30 @@ extension ParsedCmd {
         }
     }
 
+    var failureOrNil: CmdParsingFailure? {
+        return switch self {
+            case .failure(let failure): failure
+            case .cmd, .help: nil
+        }
+    }
+
+    var helpOrNil: String? {
+        return switch self {
+            case .help(let help): help
+            case .cmd, .failure: nil
+        }
+    }
+
     var cmdOrDie: T { cmdOrNil ?? dieT("\(self)") }
+}
+
+extension Result {
+    var failureOrNil: Failure? {
+        return switch self {
+            case .failure(let failure): failure
+            case .success: nil
+        }
+    }
 }
 
 /// The arguments of `raw` if it parses as a single command with arguments of type `T`, nil otherwise

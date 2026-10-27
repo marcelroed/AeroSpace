@@ -37,15 +37,6 @@ struct SubcommandHelpTest: AeroSpaceTestSuite {
     }
 }
 
-extension ParsedCmd {
-    fileprivate var helpOrNil: String? {
-        switch self {
-            case .help(let help): help
-            case .cmd, .failure: nil
-        }
-    }
-}
-
 private let expectedHelp: [(subcommand: String, help: String)] = [
     ("balance-sizes", "USAGE: balance-sizes [-h|--help] [--workspace <workspace>]"),
     ("close", "USAGE: close [-h|--help] [--quit-if-last-window] [--window-id <window-id>]"),

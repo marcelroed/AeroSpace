@@ -35,22 +35,6 @@ struct GenericParseErrorTest: AeroSpaceTestSuite {
     }
 }
 
-extension ParsedCmd {
-    fileprivate var failureOrNil: CmdParsingFailure? {
-        switch self {
-            case .failure(let failure): failure
-            case .cmd, .help: nil
-        }
-    }
-
-    fileprivate var helpOrNil: String? {
-        switch self {
-            case .help(let help): help
-            case .cmd, .failure: nil
-        }
-    }
-}
-
 private let layoutPossibleValues = "(accordion|tiles|horizontal|vertical|h_accordion|v_accordion|h_tiles|v_tiles|tiling|floating)"
 
 private let parseFailures: [(command: String, msg: String)] = [
