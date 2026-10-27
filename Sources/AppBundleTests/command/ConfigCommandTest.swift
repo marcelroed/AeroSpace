@@ -193,34 +193,6 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
         #expect(output == .fail("Invalid key 'a.'"))
     }
 
-    // The naturally-built configMap (buildConfigMap) never produces arrays, so the array branches
-    // of OrderedJson.find/dumpAllKeysRecursive are exercised directly here.
-    @Test
-    func testFindArrayIndex_success() {
-        let arr: OrderedJson = .array([.string("a"), .string("b")])
-        #expect(arr.find(keyPath: ["1"].slice) == .success(.string("b")))
-    }
-
-    @Test
-    func testFindArrayIndex_outOfBounds() {
-        let arr: OrderedJson = .array([.string("a")])
-        #expect(arr.find(keyPath: ["5"].slice) == .failure("Index out of bounds. Index: 5, Size: 1"))
-    }
-
-    @Test
-    func testFindArrayIndex_notInt() {
-        let arr: OrderedJson = .array([.string("a")])
-        #expect(arr.find(keyPath: ["foo"].slice) == .failure("Can't convert key token 'foo' to Int"))
-    }
-
-    @Test
-    func testDumpAllKeys_array() {
-        let value: OrderedJson = .array([.string("a"), .dict(["k": .int(1)])])
-        var result: [String] = []
-        value.dumpAllKeysRecursive(path: ".", result: &result)
-        #expect(result == [".", "0", "1", "1.k"])
-    }
-
     @Test
     func testGetMode_json_literal() async {
         let command = parseCommand("focus left").cmdOrDie

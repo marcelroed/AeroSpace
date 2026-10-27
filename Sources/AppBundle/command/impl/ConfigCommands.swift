@@ -67,35 +67,40 @@ struct ConfigCommand: nonisolated Command {
         }
     }
 
-    /// `buildConfigMap()` contains only dicts and strings, and `--keys` turns a dict into an array of strings
+    /// `--keys` lists the sorted keys of a table
     private func getKey(_ cx: CmdContext, key: String) throws(CmdFail) {
         let keyPath: [String]
         switch key.toKeyPath() {
             case .success(let it): keyPath = it
             case .failure(let msg): throw CmdFail(msg)
         }
-        var configMap: OrderedJson
+        let configMap: ConfigMap
         switch buildConfigMap().find(keyPath: keyPath.slice) {
             case .success(let it): configMap = it
             case .failure(let msg): throw CmdFail(msg)
         }
-        if keys {
-            guard let dict = configMap.asDictOrNil else {
-                throw "--keys flag cannot be applied to scalar object '\(configMap.scalarDescription.orDie())'"
-            }
-            configMap = .array(dict.keys.sorted().map { .string($0) })
-        }
-        if json {
-            guard let json = JSONEncoder.aeroSpaceDefault.encodeToString(configMap) else { throw "Can't convert json Data to String" }
-            cx.out(json)
-            return
-        }
         switch configMap {
-            case .dict:
+            case .string(let string) where keys:
+                throw "--keys flag cannot be applied to scalar object '\(string)'"
+            case .table(let table) where keys:
+                let keys = table.keys.sorted()
+                if json {
+                    try printJson(cx, .array(keys.map(OrderedJson.string)))
+                } else {
+                    cx.out(keys.joined(separator: "\n"))
+                }
+            case _ where json:
+                try printJson(cx, configMap.json)
+            case .table:
                 throw "Complicated objects can be printed only with --json flag. Alternatively, you can try to inspect keys of the object with --keys flag"
-            case .array(let keys): cx.out(keys.compactMap(\.asStringOrNil).sorted().joined(separator: "\n"))
-            case .string, .int, .bool, .null: cx.out(configMap.scalarDescription.orDie())
+            case .string(let string):
+                cx.out(string)
         }
+    }
+
+    private func printJson(_ cx: CmdContext, _ json: OrderedJson) throws(CmdFail) {
+        guard let json = JSONEncoder.aeroSpaceDefault.encodeToString(json) else { throw "Can't convert json Data to String" }
+        cx.out(json)
     }
 }
 
@@ -108,68 +113,8 @@ extension String {
     }
 }
 
-extension OrderedJson {
-    /// The plain text of a scalar, nil for a dict or an array
-    fileprivate var scalarDescription: String? {
-        switch self {
-            case .string(let string): string
-            case .int(let int): String(int)
-            case .bool(let bool): String(bool)
-            case .null: "null"
-            case .dict, .array: nil
-        }
-    }
-
-    func find(keyPath: StrArrSlice) -> Result<OrderedJson, String> {
-        guard let key = keyPath.first else { return .success(self) }
-        let child: OrderedJson
-        switch self {
-            case .string, .int, .bool, .null:
-                return .failure("Can't dereference scalar value '\(scalarDescription.orDie())'")
-            case .dict(let dict):
-                guard let value = dict[key] else { return .failure("No value at key token '\(key)'") }
-                child = value
-            case .array(let array):
-                guard let index = Int(key) else { return .failure("Can't convert key token '\(key)' to Int") }
-                guard let value = array.getOrNil(atIndex: index) else {
-                    return .failure("Index out of bounds. Index: \(index), Size: \(array.count)")
-                }
-                child = value
-        }
-        return child.find(keyPath: keyPath.slice(1...).orDie())
-    }
-
-    func dumpAllKeysRecursive(path: String, result: inout [String]) {
-        result.append(path)
-        switch self {
-            case .string, .int, .bool, .null: break
-            case .dict(let dict):
-                for (key, value) in dict.sorted(by: { $0.key < $1.key }) {
-                    let path = path == "." ? key : path + "." + key
-                    value.dumpAllKeysRecursive(path: path, result: &result)
-                }
-            case .array(let array):
-                for (index, value) in array.enumerated() {
-                    let path = path == "." ? String(index) : path + "." + String(index)
-                    value.dumpAllKeysRecursive(path: path, result: &result)
-                }
-        }
-    }
-}
-
 extension Shell<any Command> {
     var shellOfCommandsDescription: String { buildDescription { $0.description } }
-}
-
-func buildConfigMap() -> OrderedJson {
-    let modes = config.modes.mapValues { mode in
-        var bindings: OrderedJson.JsonDict = [:]
-        for binding in mode.bindings.values {
-            bindings[binding.descriptionWithKeyNotation] = .string(binding.commands.shellOfCommandsDescription)
-        }
-        return OrderedJson.dict(["binding": .dict(bindings)])
-    }
-    return .dict(["mode": .dict(OrderedJson.JsonDict(uniqueKeysWithValues: modes))])
 }
 
 struct ReloadConfigCommand: nonisolated Command {
