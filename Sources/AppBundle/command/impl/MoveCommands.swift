@@ -256,14 +256,16 @@ struct JoinWithCommand: nonisolated Command {
 }
 
 struct MoveNodeToWorkspaceCommand: nonisolated Command {
+    /// Each target carries the options that apply to it
+    nonisolated enum Target: Equatable, Sendable {
+        case relative(NextPrev, wrapAround: Bool = false, useStdin: Bool = false)
+        case direct(WorkspaceName, failIfNoop: Bool = false, windowId: UInt32? = nil)
+    }
+
     static let resetsClosedWindowsCache = true
     var source: SourceWords = []
-    var target: WorkspaceTarget
-    var wrapAround = false
-    var failIfNoop = false
+    var target: Target
     var focusFollowsWindow = false
-    var useStdin = false
-    var windowId: UInt32? = nil
 
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
         var wrapAround = false
@@ -281,36 +283,40 @@ struct MoveNodeToWorkspaceCommand: nonisolated Command {
                 default: throw .unknownOption(option)
             }
         }
-        let target = try WorkspaceTarget.parse(&a)
+        let arg = try WorkspaceArg.parse(&a)
         try a.end()
-        let relative = target.isRelative
-        if wrapAround && !relative { throw "--wrap-around requires using \(NextPrev.unionLiteral) argument" }
-        if failIfNoop && relative { throw "--fail-if-noop is incompatible with \(NextPrev.unionLiteral)" }
-        if windowId != nil && relative { throw "--window-id is incompatible with \(NextPrev.unionLiteral)" }
-        if useStdin && !relative { throw "--stdin requires using \(NextPrev.unionLiteral) argument" }
-        return Self(
-            target: target,
-            wrapAround: wrapAround,
-            failIfNoop: failIfNoop,
-            focusFollowsWindow: focusFollowsWindow,
-            useStdin: useStdin,
-            windowId: windowId,
-        )
+        let target: Target
+        switch arg {
+            case .relative(let nextPrev):
+                if failIfNoop { throw "--fail-if-noop is incompatible with \(NextPrev.unionLiteral)" }
+                if windowId != nil { throw "--window-id is incompatible with \(NextPrev.unionLiteral)" }
+                target = .relative(nextPrev, wrapAround: wrapAround, useStdin: useStdin)
+            case .direct(let name):
+                if wrapAround { throw "--wrap-around requires using \(NextPrev.unionLiteral) argument" }
+                if useStdin { throw "--stdin requires using \(NextPrev.unionLiteral) argument" }
+                target = .direct(name, failIfNoop: failIfNoop, windowId: windowId)
+        }
+        return Self(target: target, focusFollowsWindow: focusFollowsWindow)
     }
 
     func run(_ cx: CmdContext) async throws(CmdFail) {
+        let windowId: UInt32? = if case .direct(_, _, let windowId) = self.target { windowId } else { nil }
         let target = try cx.target(windowId: windowId)
         guard let window = target.windowOrNil else { throw CmdFail(noWindowIsFocused) }
-        let targetWorkspace: Workspace = switch self.target {
-            case .relative(let nextPrev):
-                try getNextPrevWorkspace(
+        let targetWorkspace: Workspace
+        let failIfNoop: Bool
+        switch self.target {
+            case .relative(let nextPrev, let wrapAround, let useStdin):
+                targetWorkspace = try getNextPrevWorkspace(
                     current: target.workspace, // == window.nodeWorkspace
                     isNext: nextPrev == .next,
                     wrapAround: wrapAround,
                     stdin: useStdin ? cx.readStdin() : nil,
                 )
-            case .direct(let name):
-                Workspace.get(byName: name.raw)
+                failIfNoop = false
+            case .direct(let name, let failIfNoopOption, _):
+                targetWorkspace = Workspace.get(byName: name.raw)
+                failIfNoop = failIfNoopOption
         }
         try moveWindowToWorkspace(window, targetWorkspace, cx, focusFollowsWindow: focusFollowsWindow, failIfNoop: failIfNoop)
     }

@@ -151,7 +151,7 @@ nonisolated enum MonitorId: Equatable, Sendable {
 struct ListWorkspacesCommand: nonisolated Command {
     static let resetsClosedWindowsCache = false
     var source: SourceWords = []
-    /// Not empty
+    /// Empty means all monitors. The parser never leaves it empty
     var onMonitors: [MonitorId]
     var visible: Bool? = nil
     var empty: Bool? = nil
@@ -193,8 +193,10 @@ struct ListWorkspacesCommand: nonisolated Command {
         if let visible {
             result = result.filter { $0.isVisible == visible }
         }
-        let monitors: Set<CGPoint> = try onMonitors.resolveMonitors()
-        result = result.filter { monitors.contains($0.workspaceMonitor.rect.topLeftCorner) }
+        if !onMonitors.isEmpty {
+            let monitors: Set<CGPoint> = try onMonitors.resolveMonitors()
+            result = result.filter { monitors.contains($0.workspaceMonitor.rect.topLeftCorner) }
+        }
         if let empty {
             result = result.filter { $0.isEffectivelyEmpty == empty }
         }
@@ -307,39 +309,41 @@ struct ListAppsCommand: nonisolated Command {
 }
 
 struct ListModesCommand: nonisolated Command {
+    nonisolated enum Output: Equatable, Sendable { case lines, json, count }
+
     static let resetsClosedWindowsCache = false
     var source: SourceWords = []
     var current = false
-    var count = false
-    var json = false
+    var output: Output = .lines
 
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
-        var result = Self()
+        var current = false
+        var count = false
+        var json = false
         while let option = try a.nextOption() {
             switch option {
-                case "--count": result.count = true
-                case "--current": result.current = true
-                case "--json": result.json = true
+                case "--count": count = true
+                case "--current": current = true
+                case "--json": json = true
                 default: throw .unknownOption(option)
             }
         }
         try a.end()
-        if result.count && result.current { throw .conflicting("--count", "--current") }
-        if result.count && result.json { throw .conflicting("--count", "--json") }
-        return result
+        if count && current { throw .conflicting("--count", "--current") }
+        if count && json { throw .conflicting("--count", "--json") }
+        return Self(current: current, output: count ? .count : json ? .json : .lines)
     }
 
     func run(_ cx: CmdContext) async throws(CmdFail) {
         let modes: [String] = current ? [world.activeMode ?? mainModeId] : config.modes.keys.sorted()
-        if count {
-            cx.out("\(modes.count)")
-        } else if json {
-            guard let json = JSONEncoder.aeroSpaceDefault.encodeToString(modes.map { ["mode-id": $0] }) else {
-                throw "Failed to encode JSON"
-            }
-            cx.out(json)
-        } else {
-            cx.out(modes)
+        switch output {
+            case .count: cx.out("\(modes.count)")
+            case .json:
+                guard let json = JSONEncoder.aeroSpaceDefault.encodeToString(modes.map { ["mode-id": $0] }) else {
+                    throw "Failed to encode JSON"
+                }
+                cx.out(json)
+            case .lines: cx.out(modes)
         }
     }
 }

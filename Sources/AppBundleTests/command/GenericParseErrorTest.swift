@@ -36,8 +36,8 @@ struct GenericParseErrorTest {
     @Test
     func testDoubleDashWithoutArgs() {
         #expect(parseCommand("close --").cmdOrNil != nil)
-        #expect(parsedCmd("layout tiles --", as: LayoutCommand.self)?.toggleBetween == [.tiles])
-        #expect(parsedCmd("layout tiles -- tiling", as: LayoutCommand.self)?.toggleBetween == [.tiles, .tiling])
+        #expect(parsedCmd("layout tiles --", as: LayoutCommand.self).map { Array($0.toggleBetween) } == [.tiles])
+        #expect(parsedCmd("layout tiles -- tiling", as: LayoutCommand.self).map { Array($0.toggleBetween) } == [.tiles, .tiling])
     }
 }
 

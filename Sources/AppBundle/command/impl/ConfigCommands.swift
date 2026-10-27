@@ -3,14 +3,14 @@ import Common
 
 struct ConfigCommand: nonisolated Command {
     nonisolated enum Mode: Equatable, Sendable {
-        case getKey(key: String), majorKeys, allKeys, configPath
+        /// `--keys` lists the sorted keys of a table
+        case getKey(key: String, json: Bool = false, keys: Bool = false)
+        case majorKeys, allKeys, configPath
     }
 
     static let resetsClosedWindowsCache = false
     var source: SourceWords = []
     var mode: Mode
-    var json = false
-    var keys = false
 
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
         var keyNameToGet: String? = nil
@@ -32,7 +32,7 @@ struct ConfigCommand: nonisolated Command {
         }
         try a.end()
         let modes: [(String, Mode)] = [
-            keyNameToGet.map { ("--get", .getKey(key: $0)) },
+            keyNameToGet.map { ("--get", .getKey(key: $0, json: json, keys: keys)) },
             majorKeys ? ("--major-keys", .majorKeys) : nil,
             allKeys ? ("--all-keys", .allKeys) : nil,
             configPath ? ("--config-path", .configPath) : nil,
@@ -43,13 +43,13 @@ struct ConfigCommand: nonisolated Command {
         }
         if keys && keyNameToGet == nil { throw "--keys flag requires --get flag" }
         if json && keyNameToGet == nil { throw "--json flag requires --get flag" }
-        return Self(mode: mode, json: json, keys: keys)
+        return Self(mode: mode)
     }
 
     func run(_ cx: CmdContext) async throws(CmdFail) {
         switch mode {
-            case .getKey(let key):
-                try getKey(cx, key: key)
+            case .getKey(let key, let json, let keys):
+                try getKey(cx, key: key, json: json, keys: keys)
             case .majorKeys:
                 let out = """
                     .
@@ -67,8 +67,7 @@ struct ConfigCommand: nonisolated Command {
         }
     }
 
-    /// `--keys` lists the sorted keys of a table
-    private func getKey(_ cx: CmdContext, key: String) throws(CmdFail) {
+    private func getKey(_ cx: CmdContext, key: String, json: Bool, keys: Bool) throws(CmdFail) {
         let configMap = try buildConfigMap().find(keyPath: try key.toKeyPath()[...])
         switch configMap {
             case .string(let string) where keys:

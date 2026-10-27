@@ -9,9 +9,9 @@ struct ListModesTest {
     func parseListModesCommand() {
         testParseSingleCommandSucc("list-modes", ListModesCommand())
         testParseSingleCommandSucc("list-modes --current", ListModesCommand(current: true))
-        testParseSingleCommandSucc("list-modes --json", ListModesCommand(json: true))
-        testParseSingleCommandSucc("list-modes --count", ListModesCommand(count: true))
-        testParseSingleCommandSucc("list-modes --current --json", ListModesCommand(current: true, json: true))
+        testParseSingleCommandSucc("list-modes --json", ListModesCommand(output: .json))
+        testParseSingleCommandSucc("list-modes --count", ListModesCommand(output: .count))
+        testParseSingleCommandSucc("list-modes --current --json", ListModesCommand(current: true, output: .json))
     }
 
     @Test

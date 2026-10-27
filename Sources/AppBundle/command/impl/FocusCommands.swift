@@ -11,11 +11,20 @@ private let failIfFullscreenNeedsDirection: CmdParseError =
     "--fail-if-fullscreen/--fail-if-macos-native-fullscreen require using (left|down|up|right) argument"
 
 struct FocusCommand: nonisolated Command {
+    /// Each target carries the options that apply to it
     nonisolated enum Target: Equatable, Sendable {
-        case direction(CardinalDirection)
-        case dfsRelative(DfsNextPrev)
+        case direction(CardinalDirection, DirectionOptions = DirectionOptions())
+        case dfsRelative(DfsNextPrev, boundariesAction: WhenBoundariesCrossed = .stop, floatingAsTiling: Bool = true)
         case windowId(UInt32)
         case dfsIndex(UInt32)
+    }
+
+    nonisolated struct DirectionOptions: Equatable, Sendable {
+        var boundaries: Boundaries = .workspace // todo cover boundaries wrapping with tests
+        var boundariesAction: WhenBoundariesCrossed = .stop
+        var floatingAsTiling = true
+        var failIfFullscreen = false
+        var failIfMacosNativeFullscreen = false
     }
 
     nonisolated enum WhenBoundariesCrossed: String, CaseIterable, Equatable, Sendable {
@@ -28,30 +37,25 @@ struct FocusCommand: nonisolated Command {
     static let resetsClosedWindowsCache = false
     var source: SourceWords = []
     var target: Target
-    var boundaries: Boundaries = .workspace // todo cover boundaries wrapping with tests
-    var boundariesAction: WhenBoundariesCrossed = .stop
-    var floatingAsTiling = true
-    var failIfFullscreen = false
-    var failIfMacosNativeFullscreen = false
 
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
+        var options = DirectionOptions()
         var boundaries: Boundaries? = nil
         var boundariesAction: WhenBoundariesCrossed? = nil
         var wrapAround = false
-        var floatingAsTiling = true
-        var failIfFullscreen = false
-        var failIfMacosNativeFullscreen = false
         var windowId: UInt32? = nil
         var dfsIndex: UInt32? = nil
+        var hasOtherOptions = false
         while let option = try a.nextOption() {
+            hasOtherOptions = hasOtherOptions || (option != "--window-id" && option != "--dfs-index")
             switch option {
-                case "--ignore-floating": floatingAsTiling = false
+                case "--ignore-floating": options.floatingAsTiling = false
                 case "--window-id": windowId = try a.windowId(of: option)
                 case "--dfs-index": dfsIndex = try a.value(of: option, "<dfs-index>", parseUInt32)
                 case "--boundaries": boundaries = try a.value(of: option, "<boundary>")
                 case "--boundaries-action": boundariesAction = try a.value(of: option, "<action>")
-                case "--fail-if-fullscreen": failIfFullscreen = true
-                case "--fail-if-macos-native-fullscreen": failIfMacosNativeFullscreen = true
+                case "--fail-if-fullscreen": options.failIfFullscreen = true
+                case "--fail-if-macos-native-fullscreen": options.failIfMacosNativeFullscreen = true
                 case "--wrap-around": wrapAround = true
                 default: throw .unknownOption(option)
             }
@@ -60,39 +64,26 @@ struct FocusCommand: nonisolated Command {
         try a.end()
         if wrapAround && boundariesAction != nil { throw .conflicting("--wrap-around", "--boundaries-action") }
         if wrapAround && boundaries != nil { throw .conflicting("--wrap-around", "--boundaries") }
+        options.boundaries = boundaries ?? .workspace
+        options.boundariesAction = wrapAround ? .wrapAroundTheWorkspace : (boundariesAction ?? .stop)
+        if options.boundaries == .workspace && options.boundariesAction == .wrapAroundAllMonitors {
+            throw "\(Boundaries.workspace.rawValue) and \(WhenBoundariesCrossed.wrapAroundAllMonitors.rawValue) is an invalid combination of values"
+        }
         let target: Target
         switch (direction, windowId, dfsIndex) {
-            case (.direction(let direction), nil, nil): target = .direction(direction)
-            case (.dfsRelative(let nextPrev), nil, nil): target = .dfsRelative(nextPrev)
-            case (nil, let windowId?, nil): target = .windowId(windowId)
-            case (nil, nil, let dfsIndex?): target = .dfsIndex(dfsIndex)
+            case (.direction(let direction), nil, nil): target = .direction(direction, options)
+            case (.dfsRelative(let nextPrev), nil, nil):
+                if options.failIfFullscreen || options.failIfMacosNativeFullscreen { throw failIfFullscreenNeedsDirection }
+                if options.boundaries != .workspace { throw "(dfs-next|dfs-prev) only supports --boundaries workspace" }
+                target = .dfsRelative(nextPrev, boundariesAction: options.boundariesAction, floatingAsTiling: options.floatingAsTiling)
+            case (nil, let windowId?, nil) where !hasOtherOptions: target = .windowId(windowId)
+            case (nil, nil, let dfsIndex?) where !hasOtherOptions: target = .dfsIndex(dfsIndex)
             case (nil, nil, nil):
                 throw "Mandatory argument is missing. \(CardinalOrDfsDirection.unionLiteral), --window-id or --dfs-index is required"
             case (_, _?, _): throw "--window-id is incompatible with other options"
             case (_, nil, _?): throw "--dfs-index is incompatible with other options"
         }
-        let result = Self(
-            target: target,
-            boundaries: boundaries ?? .workspace,
-            boundariesAction: wrapAround ? .wrapAroundTheWorkspace : (boundariesAction ?? .stop),
-            floatingAsTiling: floatingAsTiling,
-            failIfFullscreen: failIfFullscreen,
-            failIfMacosNativeFullscreen: failIfMacosNativeFullscreen,
-        )
-        if result.boundaries == .workspace && result.boundariesAction == .wrapAroundAllMonitors {
-            throw "\(Boundaries.workspace.rawValue) and \(WhenBoundariesCrossed.wrapAroundAllMonitors.rawValue) is an invalid combination of values"
-        }
-        switch target {
-            case .direction: break
-            case .dfsRelative:
-                if failIfFullscreen || failIfMacosNativeFullscreen { throw failIfFullscreenNeedsDirection }
-                if result.boundaries != .workspace { throw "(dfs-next|dfs-prev) only supports --boundaries workspace" }
-            case .windowId:
-                if result != Self(target: target) { throw "--window-id is incompatible with other options" }
-            case .dfsIndex:
-                if result != Self(target: target) { throw "--dfs-index is incompatible with other options" }
-        }
-        return result
+        return Self(target: target)
     }
 
     func run(_ cx: CmdContext) async throws(CmdFail) {
@@ -101,12 +92,17 @@ struct FocusCommand: nonisolated Command {
         } else {
             try cx.target()
         }
-        if let window = target.windowOrNil, await shouldFailBecauseFullscreen_nonCancellable(
+        if case .direction(_, let options) = self.target, let window = target.windowOrNil, await shouldFailBecauseFullscreen_nonCancellable(
             window: window,
-            failIfFullscreen: failIfFullscreen,
-            failIfMacosNativeFullscreen: failIfMacosNativeFullscreen,
+            failIfFullscreen: options.failIfFullscreen,
+            failIfMacosNativeFullscreen: options.failIfMacosNativeFullscreen,
         ) {
             throw .silent
+        }
+        let floatingAsTiling = switch self.target {
+            case .direction(_, let options): options.floatingAsTiling
+            case .dfsRelative(_, _, let floatingAsTiling): floatingAsTiling
+            case .windowId, .dfsIndex: true
         }
         // todo bug: floating windows break mru
         let floatingWindows = floatingAsTiling ? await makeFloatingWindowsSeenAsTiling(workspace: target.workspace) : []
@@ -117,14 +113,14 @@ struct FocusCommand: nonisolated Command {
         }
         let windowToFocus: Window
         switch self.target {
-            case .direction(let direction):
+            case .direction(let direction, let options):
                 let window = target.windowOrNil
                 if let (parent, ownIndex) = window?.closestParent(hasChildrenInDirection: direction, withLayout: nil) {
                     guard let it = parent.children[ownIndex + direction.focusOffset]
                         .findLeafWindowRecursive(snappedTo: direction.opposite) else { throw CmdFail(bugPrompt()) }
                     windowToFocus = it
                 } else {
-                    return try hitWorkspaceBoundaries(target, direction)
+                    return try hitWorkspaceBoundaries(target, direction, options)
                 }
             case .windowId(let windowId):
                 guard let it = Window.get(byId: windowId) else { throw "Can't find window with ID \(windowId)" }
@@ -134,7 +130,7 @@ struct FocusCommand: nonisolated Command {
                     throw "Can't find window with DFS index \(dfsIndex)"
                 }
                 windowToFocus = it
-            case .dfsRelative(let nextPrev):
+            case .dfsRelative(let nextPrev, let boundariesAction, _):
                 let windows = target.workspace.rootTilingContainer.allLeafWindowsRecursive
                 guard let window = target.windowOrNil else { throw CmdFail(noWindowIsFocused) }
                 guard let currentIndex = windows.firstIndex(of: window) else {
@@ -155,9 +151,9 @@ struct FocusCommand: nonisolated Command {
         if !windowToFocus.focusWindow() { throw .silent }
     }
 
-    private func hitWorkspaceBoundaries(_ target: LiveFocus, _ direction: CardinalDirection) throws(CmdFail) {
+    private func hitWorkspaceBoundaries(_ target: LiveFocus, _ direction: CardinalDirection, _ options: DirectionOptions) throws(CmdFail) {
         let wrappedMonitor: MonitorInfo?
-        switch boundaries {
+        switch options.boundaries {
             case .workspace: wrappedMonitor = nil
             case .allMonitorsOuterFrame:
                 guard let (monitors, index) = target.workspace.workspaceMonitor.findRelativeMonitor(inDirection: direction) else {
@@ -172,7 +168,7 @@ struct FocusCommand: nonisolated Command {
                 guard let wrapped = monitors.get(wrappingIndex: index) else { throw CmdFail(bugPrompt("\(index) \(monitors)")) }
                 wrappedMonitor = wrapped
         }
-        switch boundariesAction {
+        switch options.boundariesAction {
             case .stop: return
             case .fail: throw .silent
             case .wrapAroundTheWorkspace:

@@ -11,11 +11,11 @@ struct LayoutCommandTest {
         }
         testParseSingleCommandSucc(
             "layout --root accordion tiles",
-            LayoutCommand(toggleBetween: [.accordion, .tiles], root: true),
+            LayoutCommand(toggleBetween: NonEmptyArray(.accordion, [.tiles]), root: true),
         )
         testParseSingleCommandSucc(
             "layout --for-next-detected-window floating",
-            LayoutCommand(toggleBetween: [.floating], forNextDetectedWindow: true),
+            LayoutCommand(toggleBetween: NonEmptyArray(.floating), forNextDetectedWindow: true),
         )
         for command in ["layout --for-next-detected-window floating tiling", "layout --for-next-detected-window accordion"] {
             let output = await runCmd(command)

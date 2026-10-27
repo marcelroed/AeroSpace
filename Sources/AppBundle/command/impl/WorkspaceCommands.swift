@@ -1,8 +1,8 @@
 import AppKit
 import Common
 
-/// The workspace of `workspace` and `move-node-to-workspace`
-nonisolated enum WorkspaceTarget: Equatable, Sendable {
+/// The workspace argument of `workspace` and `move-node-to-workspace`
+nonisolated enum WorkspaceArg {
     case relative(NextPrev)
     case direct(WorkspaceName)
 
@@ -14,23 +14,27 @@ nonisolated enum WorkspaceTarget: Equatable, Sendable {
         if !isLiteral, let nextPrev = NextPrev(rawValue: arg) { return .relative(nextPrev) }
         return .direct(try WorkspaceName.parse(arg))
     }
-
-    var isRelative: Bool {
-        switch self {
-            case .relative: true
-            case .direct: false
-        }
-    }
 }
 
 struct WorkspaceCommand: nonisolated Command {
+    /// Each target carries the options that apply to it
+    nonisolated enum Target: Equatable, Sendable {
+        case relative(NextPrev, wrapAround: Bool = false, useStdin: Bool = false)
+        case direct(WorkspaceName, whenFocused: WhenFocused = .noop)
+    }
+
+    /// What `workspace <name>` does when the workspace is already focused
+    nonisolated enum WhenFocused: Equatable, Sendable {
+        case noop
+        /// `--fail-if-noop`
+        case fail
+        /// `--auto-back-and-forth`
+        case backAndForth
+    }
+
     static let resetsClosedWindowsCache = false
     var source: SourceWords = []
-    var target: WorkspaceTarget
-    var autoBackAndForth = false
-    var wrapAround = false
-    var failIfNoop = false
-    var useStdin = false
+    var target: Target
 
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
         var autoBackAndForth = false
@@ -46,33 +50,40 @@ struct WorkspaceCommand: nonisolated Command {
                 default: throw .unknownOption(option)
             }
         }
-        let target = try WorkspaceTarget.parse(&a)
+        let arg = try WorkspaceArg.parse(&a)
         try a.end()
-        let relative = target.isRelative
-        if wrapAround && !relative { throw "--wrap-around requires using \(NextPrev.unionLiteral) argument" }
-        if autoBackAndForth && relative { throw "--auto-back-and-forth is incompatible with \(NextPrev.unionLiteral)" }
-        if failIfNoop && relative { throw "--fail-if-noop is incompatible with \(NextPrev.unionLiteral)" }
-        if autoBackAndForth && failIfNoop { throw "--fail-if-noop is incompatible with --auto-back-and-forth" }
-        if useStdin && !relative { throw "--stdin requires using \(NextPrev.unionLiteral) argument" }
-        return Self(target: target, autoBackAndForth: autoBackAndForth, wrapAround: wrapAround, failIfNoop: failIfNoop, useStdin: useStdin)
+        switch arg {
+            case .relative(let nextPrev):
+                if autoBackAndForth { throw "--auto-back-and-forth is incompatible with \(NextPrev.unionLiteral)" }
+                if failIfNoop { throw "--fail-if-noop is incompatible with \(NextPrev.unionLiteral)" }
+                return Self(target: .relative(nextPrev, wrapAround: wrapAround, useStdin: useStdin))
+            case .direct(let name):
+                if wrapAround { throw "--wrap-around requires using \(NextPrev.unionLiteral) argument" }
+                if autoBackAndForth && failIfNoop { throw "--fail-if-noop is incompatible with --auto-back-and-forth" }
+                if useStdin { throw "--stdin requires using \(NextPrev.unionLiteral) argument" }
+                return Self(target: .direct(name, whenFocused: autoBackAndForth ? .backAndForth : failIfNoop ? .fail : .noop))
+        }
     }
 
     func run(_ cx: CmdContext) async throws(CmdFail) { // todo refactor
         let focusedWs = try cx.target().workspace
         let workspaceName: String
+        let failIfNoop: Bool
         switch target {
-            case .relative(let nextPrev):
+            case .relative(let nextPrev, let wrapAround, let useStdin):
                 workspaceName = try getNextPrevWorkspace(
                     current: focusedWs,
                     isNext: nextPrev == .next,
                     wrapAround: wrapAround,
                     stdin: useStdin ? cx.readStdin() : nil,
                 ).name
-            case .direct(let name):
+                failIfNoop = false
+            case .direct(let name, let whenFocused):
                 workspaceName = name.raw
-                if autoBackAndForth && focusedWs.name == workspaceName {
+                if whenFocused == .backAndForth && focusedWs.name == workspaceName {
                     return try WorkspaceBackAndForthCommand().run(cx)
                 }
+                failIfNoop = whenFocused == .fail
         }
         if focusedWs.name == workspaceName {
             return try noop(cx, failIfNoop: failIfNoop, "Workspace '\(workspaceName)' is already focused. Tip: use --fail-if-noop to exit with non-zero code")

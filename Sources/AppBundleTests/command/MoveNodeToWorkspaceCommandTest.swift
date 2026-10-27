@@ -7,11 +7,15 @@ struct MoveNodeToWorkspaceCommandTest {
     @Test
     func parse() throws {
         testParseSingleCommandSucc("move-node-to-workspace next", MoveNodeToWorkspaceCommand(target: .relative(.next)))
-        testParseSingleCommandSucc("move-node-to-workspace --stdin next", MoveNodeToWorkspaceCommand(target: .relative(.next), useStdin: true))
+        testParseSingleCommandSucc("move-node-to-workspace --stdin next", MoveNodeToWorkspaceCommand(target: .relative(.next, useStdin: true)))
         testParseSingleCommandSucc("move-node-to-workspace -- foo", MoveNodeToWorkspaceCommand(target: .direct(try .parse("foo"))))
         testParseSingleCommandSucc(
             "move-node-to-workspace --focus-follows-window -- foo",
             MoveNodeToWorkspaceCommand(target: .direct(try .parse("foo")), focusFollowsWindow: true),
+        )
+        testParseSingleCommandSucc(
+            "move-node-to-workspace --fail-if-noop --window-id 2 foo",
+            MoveNodeToWorkspaceCommand(target: .direct(try .parse("foo"), failIfNoop: true, windowId: 2)),
         )
     }
 

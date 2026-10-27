@@ -30,8 +30,7 @@ struct LayoutCommand: nonisolated Command {
 
     static let resetsClosedWindowsCache = true
     var source: SourceWords = []
-    /// Not empty
-    var toggleBetween: [LayoutDescription]
+    var toggleBetween: NonEmptyArray<LayoutDescription>
     var root = false
     var failIfNoop = false
     var forNextDetectedWindow = false
@@ -43,7 +42,7 @@ struct LayoutCommand: nonisolated Command {
         "layout command: --for-next-detected-window allows only one tiling|floating <target-layout> argument"
 
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
-        var result = Self(toggleBetween: [])
+        var result = Self(toggleBetween: NonEmptyArray(.tiles)) // Replaced by the positionals, which come after the options
         while let option = try a.nextOption() {
             switch option {
                 case "--window-id": result.windowId = try a.windowId(of: option)
@@ -54,8 +53,10 @@ struct LayoutCommand: nonisolated Command {
                 default: throw .unknownOption(option)
             }
         }
-        result.toggleBetween = try a.allPositionals().map(LayoutDescription.parse)
-        if result.toggleBetween.isEmpty { throw "Argument '\(LayoutDescription.unionLiteral)' is mandatory" }
+        guard let toggleBetween = NonEmptyArray(try a.allPositionals().map(LayoutDescription.parse)) else {
+            throw "Argument '\(LayoutDescription.unionLiteral)' is mandatory"
+        }
+        result.toggleBetween = toggleBetween
         if result.windowId != nil && result.workspace != nil { throw .conflicting("--window-id", "--workspace") }
         if result.forNextDetectedWindow {
             // todo introduce a flagsAllowlist primitive
@@ -69,18 +70,17 @@ struct LayoutCommand: nonisolated Command {
             }
         }
         if result.root && result.toggleBetween.contains(where: \.isTilingOrFloating) { throw .invalid(rootFlagIncompatibilityMsg) }
-        if result.forNextDetectedWindow && result.toggleBetween.singleOrNil()?.isTilingOrFloating != true {
+        if result.forNextDetectedWindow && !(result.toggleBetween.rest.isEmpty && result.toggleBetween.first.isTilingOrFloating) {
             throw .invalid(forNextDetectedWindowFlagIncompatibilityMsg)
         }
         if result.workspace != nil && !result.root { throw "--workspace flag requires using an explicit --root flag" }
-        if result.failIfNoop && result.toggleBetween.count != 1 { throw "--fail-if-noop allows only one <target-layout> argument" }
+        if result.failIfNoop && !result.toggleBetween.rest.isEmpty { throw "--fail-if-noop allows only one <target-layout> argument" }
         return result
     }
 
     func run(_ cx: CmdContext) async throws(CmdFail) {
         if forNextDetectedWindow {
-            guard let it = toggleBetween.singleOrNil() else { throw CmdFail(bugPrompt()) }
-            world.layoutForNextDetectedWindow = it
+            world.layoutForNextDetectedWindow = toggleBetween.first // The parser allows only one
             return
         }
         let target = try cx.target(windowId: windowId, workspace: workspace)
@@ -106,8 +106,7 @@ struct LayoutCommand: nonisolated Command {
                 subject = .tilingContainer(target.workspace.rootTilingContainer)
         }
 
-        let targetDescription = toggleBetween.first(where: { !subject.matches($0) })
-            ?? toggleBetween.first.orDie()
+        let targetDescription = toggleBetween.first(where: { !subject.matches($0) }) ?? toggleBetween.first
         if subject.matches(targetDescription) {
             return try noop(cx, failIfNoop: failIfNoop, "Already in the requested \(targetDescription.rawValue) mode. " +
                 "Tip: use --fail-if-noop to exit with non-zero code")

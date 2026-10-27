@@ -24,10 +24,10 @@ import Testing
 struct FocusCommandTest {
     @Test
     func parse() {
-        testParseSingleCommandSucc("focus --boundaries workspace left", FocusCommand(target: .direction(.left), boundaries: .workspace))
+        testParseSingleCommandSucc("focus --boundaries workspace left", FocusCommand(target: .direction(.left)))
         testParseSingleCommandSucc(
             "focus --boundaries-action wrap-around-the-workspace dfs-prev",
-            FocusCommand(target: .dfsRelative(.dfsPrev), boundariesAction: .wrapAroundTheWorkspace),
+            FocusCommand(target: .dfsRelative(.dfsPrev, boundariesAction: .wrapAroundTheWorkspace)),
         )
 
         #expect(parseCommand("focus --fail-if-fullscreen --fail-if-macos-native-fullscreen left").errorOrNil == nil)
@@ -48,6 +48,9 @@ struct FocusCommandTest {
         ("focus foo", "Can't parse 'foo'.\nPossible values: (left|down|up|right|dfs-next|dfs-prev)"),
         ("focus --boundaries-action wrap-around-all-monitors dfs-next", "workspace and wrap-around-all-monitors is an invalid combination of values"),
         ("focus --dfs-index 0 left", "--dfs-index is incompatible with other options"),
+        // An option is rejected even when it is given with its default value
+        ("focus --window-id 42 --boundaries workspace", "--window-id is incompatible with other options"),
+        ("focus --dfs-index 0 --boundaries-action stop", "--dfs-index is incompatible with other options"),
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)

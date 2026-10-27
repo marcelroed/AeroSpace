@@ -219,7 +219,7 @@ struct ConfigTest {
     @Test
     func testParseTiles() throws {
         let command = try #require(parseCommand("layout tiles h_tiles v_tiles list h_list v_list").cmdOrNil?.flatten().singleOrNil() as? LayoutCommand)
-        #expect(command.toggleBetween == [.tiles, .h_tiles, .v_tiles, .tiles, .h_tiles, .v_tiles])
+        #expect(Array(command.toggleBetween) == [.tiles, .h_tiles, .v_tiles, .tiles, .h_tiles, .v_tiles])
         testParseCommandHelp("layout tiles -h")
     }
 
@@ -317,7 +317,7 @@ struct ConfigTest {
                 matcher: .command(.cmd(TrueCommand())),
                 checkFurtherCallbacks: true,
                 run: .seq([
-                    .cmd(LayoutCommand(toggleBetween: [.floating])),
+                    .cmd(LayoutCommand(toggleBetween: NonEmptyArray(.floating))),
                     .cmd(MoveNodeToWorkspaceCommand(target: .direct(try .parse("W")))),
                 ]),
             ),
@@ -331,7 +331,7 @@ struct ConfigTest {
                 matcher: .command(.cmd(TrueCommand())),
                 run: .seq([
                     .cmd(MoveNodeToWorkspaceCommand(target: .direct(try .parse("S")))),
-                    .cmd(LayoutCommand(toggleBetween: [.tiling])),
+                    .cmd(LayoutCommand(toggleBetween: NonEmptyArray(.tiling))),
                 ]),
             ),
             WindowDetectedCallback( // 4
@@ -345,7 +345,7 @@ struct ConfigTest {
                 matcher: .command(.cmd(TrueCommand())),
                 run: .seq([
                     .cmd(MoveNodeToWorkspaceCommand(target: .direct(try .parse("S")))),
-                    .cmd(LayoutCommand(toggleBetween: [.h_tiles])),
+                    .cmd(LayoutCommand(toggleBetween: NonEmptyArray(.h_tiles))),
                 ]),
             ),
             WindowDetectedCallback( // 6
