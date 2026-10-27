@@ -11,7 +11,7 @@ struct CloseCommandTest {
     func closes(command: String, after: String) async {
         setUpTree("h_tiles(*1 2)")
         let output = await runCmd(command)
-        #expect(output == .ok)
-        #expect(describeTree() == after)
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), after)
     }
 }

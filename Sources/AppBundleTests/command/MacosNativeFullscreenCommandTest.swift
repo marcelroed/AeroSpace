@@ -10,7 +10,7 @@ struct MacosNativeFullscreenCommandTest {
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
-        #expect(output == .fail(error))
+        expectEqual(output, .fail(error))
     }
 
     @Test(arguments: [
@@ -23,12 +23,12 @@ struct MacosNativeFullscreenCommandTest {
         setUpTree("h_tiles(*1)")
         testWindow(1).isMacosFullscreenForTest = isFullscreen
         let output = await runCmd(command)
-        #expect(output == expected)
+        expectEqual(output, expected)
     }
 
     @Test
     func noWindowIsFocused() async {
         let output = await runCmd("macos-native-fullscreen")
-        #expect(output == .fail("No window is focused"))
+        expectEqual(output, .fail("No window is focused"))
     }
 }

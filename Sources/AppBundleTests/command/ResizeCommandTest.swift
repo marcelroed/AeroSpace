@@ -29,7 +29,7 @@ struct ResizeCommandTest {
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
-        #expect(output == .fail(error))
+        expectEqual(output, .fail(error))
     }
 
     @Test(arguments: [
@@ -47,8 +47,8 @@ struct ResizeCommandTest {
     func succeeds(before: String, command: String, after: String) async {
         setUpTree(before)
         let output = await runCmd(command)
-        #expect(output == .ok)
-        #expect(describeTree(weights: true) == after)
+        expectEqual(output, .ok)
+        expectEqual(describeTree(weights: true), after)
     }
 
     @Test(arguments: [
@@ -62,7 +62,7 @@ struct ResizeCommandTest {
         setUpTree(tree)
         let before = describeTree(weights: true)
         let output = await runCmd(command)
-        #expect(output == .fail(error))
-        #expect(describeTree(weights: true) == before)
+        expectEqual(output, .fail(error))
+        expectEqual(describeTree(weights: true), before)
     }
 }

@@ -19,7 +19,7 @@ struct OnWindowDetectedTest {
             WindowDetectedCallback(matcher: .command(.empty), run: parseCommand("move-node-to-workspace b").cmdOrDie), // matches every window
         ]
         await runOnWindowDetected(ifConventional: testWindow(2)) // todo: tryOnWindowDetected must not be called manually in tests
-        #expect(describeTree("a") == "h_tiles(*1)")
-        #expect(describeTree("b") == "h_tiles(2)")
+        expectEqual(describeTree("a"), "h_tiles(*1)")
+        expectEqual(describeTree("b"), "h_tiles(2)")
     }
 }

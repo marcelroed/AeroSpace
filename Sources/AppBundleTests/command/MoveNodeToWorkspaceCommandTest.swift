@@ -28,7 +28,7 @@ struct MoveNodeToWorkspaceCommandTest {
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
-        #expect(output == .fail(error))
+        expectEqual(output, .fail(error))
     }
 
     /// The window moves from the focused workspace 'a' to `target`
@@ -45,28 +45,28 @@ struct MoveNodeToWorkspaceCommandTest {
         setUpTree(tree, workspace: "a")
         _ = Workspace.get(byName: "b") // Alive
         let output = await runCmd(command, stdin: stdin)
-        #expect(output == .ok)
-        #expect(focus.workspace.name == "a") // The focus stays on the empty workspace
-        #expect(describeTree("a") == "h_tiles()")
-        #expect(describeTree(target) == targetTree)
+        expectEqual(output, .ok)
+        expectEqual(focus.workspace.name, "a") // The focus stays on the empty workspace
+        expectEqual(describeTree("a"), "h_tiles()")
+        expectEqual(describeTree(target), targetTree)
     }
 
     @Test
     func focusesTheMostRecentWindowThatStays() async {
         setUpTree("h_tiles(1 *2)", workspace: "a")
         let output = await runCmd("move-node-to-workspace b")
-        #expect(output == .ok)
-        #expect(describeTree("a") == "h_tiles(*1)")
-        #expect(describeTree("b") == "h_tiles(2)")
+        expectEqual(output, .ok)
+        expectEqual(describeTree("a"), "h_tiles(*1)")
+        expectEqual(describeTree("b"), "h_tiles(2)")
     }
 
     @Test
     func focusFollowsWindow() async {
         let source = setUpTree("h_tiles(*1)", workspace: "a") // Held: get(byName:) would recreate a collected workspace
         let output = await runCmd("move-node-to-workspace --focus-follows-window b")
-        #expect(output == .ok)
-        #expect(focus.workspace.name == "b")
-        #expect(describeTree("b") == "h_tiles(*1)")
+        expectEqual(output, .ok)
+        expectEqual(focus.workspace.name, "b")
+        expectEqual(describeTree("b"), "h_tiles(*1)")
         #expect(source.isEffectivelyEmpty)
     }
 
@@ -75,15 +75,15 @@ struct MoveNodeToWorkspaceCommandTest {
         setUpTree("h_tiles(*1)", workspace: "a")
         let source = setUpTree("h_tiles(2)", workspace: "b") // Held: get(byName:) would recreate a collected workspace
         let output = await runCmd("move-node-to-workspace --window-id 2 a")
-        #expect(output == .ok)
-        #expect(describeTree("a") == "h_tiles(*1 2)")
+        expectEqual(output, .ok)
+        expectEqual(describeTree("a"), "h_tiles(*1 2)")
         #expect(source.isEffectivelyEmpty)
     }
 
     @Test
     func noWindowIsFocused() async {
         let output = await runCmd("move-node-to-workspace b")
-        #expect(output == .fail("No window is focused"))
+        expectEqual(output, .fail("No window is focused"))
     }
 
     @Test(arguments: [
@@ -95,7 +95,7 @@ struct MoveNodeToWorkspaceCommandTest {
     func noop(command: String, expected: CmdOutput) async {
         setUpTree("h_tiles(*1)", workspace: "a")
         let output = await runCmd(command)
-        #expect(output == expected)
-        #expect(describeTree("a") == "h_tiles(*1)")
+        expectEqual(output, expected)
+        expectEqual(describeTree("a"), "h_tiles(*1)")
     }
 }

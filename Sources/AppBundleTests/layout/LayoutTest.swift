@@ -19,9 +19,9 @@ struct LayoutTest {
         expectRects(root, physical: rect(0, 0, 1920, 1079), virtual: rect(0, 0, 1920, 1080))
         for (i, window) in windows.enumerated() {
             let x = CGFloat(640 * i)
-            #expect(window.setAxFrameHistory == [frame(x, 0, 640, 1079)])
+            expectEqual(window.setAxFrameHistory, [frame(x, 0, 640, 1079)])
             expectRects(window, physical: rect(x, 0, 640, 1079), virtual: rect(x, 0, 640, 1080))
-            #expect(window.hWeight == 640)
+            expectEqual(window.hWeight, 640)
         }
     }
 
@@ -38,20 +38,20 @@ struct LayoutTest {
         expectRects(workspace, physical: rect(10, 20, 1900, 1040), virtual: rect(10, 20, 1900, 1041))
         expectRects(root, physical: rect(10, 20, 1900, 1040), virtual: rect(10, 20, 1900, 1041))
 
-        #expect(w1.setAxFrameHistory == [frame(10, 20, 640, 1040)])
+        expectEqual(w1.setAxFrameHistory, [frame(10, 20, 640, 1040)])
         expectRects(w1, physical: rect(10, 20, 640, 1040), virtual: rect(10, 20, 650, 1041))
-        #expect(w1.hWeight == 650)
+        expectEqual(w1.hWeight, 650)
 
         expectRects(container, physical: rect(670, 20, 1240, 1040), virtual: rect(660, 20, 1250, 1041))
-        #expect(container.hWeight == 1250)
+        expectEqual(container.hWeight, 1250)
 
-        #expect(w2.setAxFrameHistory == [frame(670, 20, 1240, 514)])
+        expectEqual(w2.setAxFrameHistory, [frame(670, 20, 1240, 514)])
         expectRects(w2, physical: rect(670, 20, 1240, 514), virtual: rect(660, 20, 1250, 519)) // The virtual width of the container
-        #expect(w2.vWeight == 519)
+        expectEqual(w2.vWeight, 519)
 
-        #expect(w3.setAxFrameHistory == [frame(670, 544, 1240, 516)])
+        expectEqual(w3.setAxFrameHistory, [frame(670, 544, 1240, 516)])
         expectRects(w3, physical: rect(670, 544, 1240, 516), virtual: rect(660, 539, 1250, 521))
-        #expect(w3.vWeight == 521)
+        expectEqual(w3.vWeight, 521)
     }
 
     @Test
@@ -68,8 +68,8 @@ struct LayoutTest {
         try await workspace.layoutWorkspace()
 
         expectRects(workspace, physical: rect(100, 0, 1800, 1079), virtual: rect(100, 0, 1800, 1080))
-        #expect(w1.setAxFrameHistory == [frame(100, 0, 880, 1079)])
-        #expect(w2.setAxFrameHistory == [frame(1020, 0, 880, 1079)])
+        expectEqual(w1.setAxFrameHistory, [frame(100, 0, 880, 1079)])
+        expectEqual(w2.setAxFrameHistory, [frame(1020, 0, 880, 1079)])
         expectRects(w2, physical: rect(1020, 0, 880, 1079), virtual: rect(1000, 0, 900, 1080))
     }
 
@@ -83,7 +83,7 @@ struct LayoutTest {
         // MRU is the first child
         windows[0].markAsMostRecentChild()
         try await workspace.layoutWorkspace()
-        #expect(windows.map(\.setAxFrameHistory.last) == [
+        expectEqual(windows.map(\.setAxFrameHistory.last), [
             frame(0, 0, 1890, 1079),
             frame(60, 0, 1860, 1079),
             frame(30, 0, 1890, 1079),
@@ -92,7 +92,7 @@ struct LayoutTest {
         // MRU is the middle child
         windows[1].markAsMostRecentChild()
         try await workspace.layoutWorkspace()
-        #expect(windows.map(\.setAxFrameHistory.last) == [
+        expectEqual(windows.map(\.setAxFrameHistory.last), [
             frame(0, 0, 1890, 1079),
             frame(30, 0, 1860, 1079),
             frame(30, 0, 1890, 1079),
@@ -101,7 +101,7 @@ struct LayoutTest {
         // MRU is the last child
         windows[2].markAsMostRecentChild()
         try await workspace.layoutWorkspace()
-        #expect(windows.map(\.setAxFrameHistory.last) == [
+        expectEqual(windows.map(\.setAxFrameHistory.last), [
             frame(0, 0, 1890, 1079),
             frame(0, 0, 1860, 1079),
             frame(30, 0, 1890, 1079),
@@ -109,8 +109,8 @@ struct LayoutTest {
 
         expectRects(root, physical: rect(0, 0, 1920, 1079), virtual: rect(0, 0, 1920, 1080))
         for window in windows {
-            #expect(window.setAxFrameHistory.count == 3)
-            #expect(window.lastAppliedLayoutVirtualRect.map(cg) == cg(rect(0, 0, 1920, 1080)))
+            expectEqual(window.setAxFrameHistory.count, 3)
+            expectEqual(window.lastAppliedLayoutVirtualRect.map(cg), cg(rect(0, 0, 1920, 1080)))
         }
         expectRects(windows[1], physical: rect(0, 0, 1860, 1079), virtual: rect(0, 0, 1920, 1080))
     }
@@ -124,7 +124,7 @@ struct LayoutTest {
 
         try await workspace.layoutWorkspace()
 
-        #expect(windows.map(\.setAxFrameHistory) == [
+        expectEqual(windows.map(\.setAxFrameHistory), [
             [frame(0, 0, 1920, 1049)],
             [frame(0, 30, 1920, 1019)],
             [frame(0, 60, 1920, 1019)],
@@ -140,7 +140,7 @@ struct LayoutTest {
 
         try await workspace.layoutWorkspace()
 
-        #expect(window.setAxFrameHistory == [frame(0, 0, 1920, 1079)])
+        expectEqual(window.setAxFrameHistory, [frame(0, 0, 1920, 1079)])
     }
 
     @Test
@@ -152,10 +152,10 @@ struct LayoutTest {
 
         try await workspace.layoutWorkspace()
 
-        #expect(w1.setAxFrameHistory == [frame(0, 0, 960, 1079)])
+        expectEqual(w1.setAxFrameHistory, [frame(0, 0, 960, 1079)])
         expectRects(accordion, physical: rect(960, 0, 960, 1079), virtual: rect(960, 0, 960, 1080))
-        #expect(w2.setAxFrameHistory == [frame(960, 0, 960, 1069)])
-        #expect(w3.setAxFrameHistory == [frame(960, 10, 960, 1069)])
+        expectEqual(w2.setAxFrameHistory, [frame(960, 0, 960, 1069)])
+        expectEqual(w3.setAxFrameHistory, [frame(960, 10, 960, 1069)])
         expectRects(w3, physical: rect(960, 10, 960, 1069), virtual: rect(960, 0, 960, 1080))
     }
 
@@ -167,21 +167,21 @@ struct LayoutTest {
         w2.isFullscreen = true
 
         try await workspace.layoutWorkspace()
-        #expect(w1.setAxFrameHistory == [frame(5, 5, 955, 1069)])
-        #expect(w2.setAxFrameHistory == [frame(5, 5, 1910, 1070)])
+        expectEqual(w1.setAxFrameHistory, [frame(5, 5, 955, 1069)])
+        expectEqual(w2.setAxFrameHistory, [frame(5, 5, 1910, 1070)])
         #expect(w2.lastAppliedLayoutPhysicalRect == nil)
-        #expect(w2.lastAppliedLayoutVirtualRect.map(cg) == cg(rect(960, 5, 955, 1070)))
+        expectEqual(w2.lastAppliedLayoutVirtualRect.map(cg), cg(rect(960, 5, 955, 1070)))
         #expect(w2.isFullscreen)
 
         w2.noOuterGapsInFullscreen = true
         try await workspace.layoutWorkspace()
-        #expect(w2.setAxFrameHistory.last == frame(0, 0, 1920, 1080))
+        expectEqual(w2.setAxFrameHistory.last, frame(0, 0, 1920, 1080))
 
         // Only the MRU window can be fullscreen
         w1.isFullscreen = true
         try await workspace.layoutWorkspace()
         #expect(!w1.isFullscreen)
-        #expect(w1.setAxFrameHistory.last == frame(5, 5, 955, 1069))
+        expectEqual(w1.setAxFrameHistory.last, frame(5, 5, 955, 1069))
         expectRects(w1, physical: rect(5, 5, 955, 1069), virtual: rect(5, 5, 955, 1070))
     }
 
@@ -197,10 +197,10 @@ struct LayoutTest {
 
         try await workspace.layoutWorkspace()
 
-        #expect(centered.setAxFrameHistory == [AxFrame(topLeft: CGPoint(x: 960, y: 540), size: nil)])
-        #expect(outside.setAxFrameHistory == [AxFrame(topLeft: CGPoint(x: 1620, y: 880), size: nil)])
-        #expect(noRect.setAxFrameHistory == [])
-        #expect(fullscreen.setAxFrameHistory == [frame(0, 0, 1920, 1080)])
+        expectEqual(centered.setAxFrameHistory, [AxFrame(topLeft: CGPoint(x: 960, y: 540), size: nil)])
+        expectEqual(outside.setAxFrameHistory, [AxFrame(topLeft: CGPoint(x: 1620, y: 880), size: nil)])
+        expectEqual(noRect.setAxFrameHistory, [])
+        expectEqual(fullscreen.setAxFrameHistory, [frame(0, 0, 1920, 1080)])
         #expect(!fullscreen.isFullscreen)
         #expect(centered.lastAppliedLayoutPhysicalRect == nil)
         #expect(centered.lastAppliedLayoutVirtualRect == nil)
@@ -208,9 +208,9 @@ struct LayoutTest {
         // Floating windows of the active workspace are not moved
         #expect(workspace.focusWorkspace())
         try await workspace.layoutWorkspace()
-        #expect(centered.setAxFrameHistory.count == 1)
-        #expect(outside.setAxFrameHistory.count == 1)
-        #expect(fullscreen.setAxFrameHistory.count == 1)
+        expectEqual(centered.setAxFrameHistory.count, 1)
+        expectEqual(outside.setAxFrameHistory.count, 1)
+        expectEqual(fullscreen.setAxFrameHistory.count, 1)
     }
 
     @Test
@@ -222,11 +222,11 @@ struct LayoutTest {
 
         try await workspace.layoutWorkspace()
 
-        #expect(w1.setAxFrameHistory == [])
+        expectEqual(w1.setAxFrameHistory, [])
         #expect(w1.lastAppliedLayoutPhysicalRect == nil)
         #expect(w1.lastAppliedLayoutVirtualRect == nil)
-        #expect(w1.hWeight == 960)
-        #expect(w2.setAxFrameHistory == [frame(960, 0, 960, 1079)])
+        expectEqual(w1.hWeight, 960)
+        expectEqual(w2.setAxFrameHistory, [frame(960, 0, 960, 1079)])
     }
 
     @Test
@@ -235,12 +235,12 @@ struct LayoutTest {
 
         let frames = workspace.layoutTiling()
 
-        #expect(frames.map(\.window.windowId) == [1, 2, 3, 4]) // Depth first: the order layoutWorkspace applies them in
-        #expect(frames.first == WindowFrame(window: testWindow(1), topLeft: CGPoint(x: 0, y: 0), size: CGSize(width: 640, height: 1079)))
-        #expect(frames.last == WindowFrame(window: testWindow(4), topLeft: CGPoint(x: 1280, y: 0), size: CGSize(width: 640, height: 1079)))
+        expectEqual(frames.map(\.window.windowId), [1, 2, 3, 4]) // Depth first: the order layoutWorkspace applies them in
+        expectEqual(frames.first, WindowFrame(window: testWindow(1), topLeft: CGPoint(x: 0, y: 0), size: CGSize(width: 640, height: 1079)))
+        expectEqual(frames.last, WindowFrame(window: testWindow(4), topLeft: CGPoint(x: 1280, y: 0), size: CGSize(width: 640, height: 1079)))
         #expect((1 ... 5).allSatisfy { testWindow($0).setAxFrameHistory.isEmpty })
         expectRects(testWindow(4), physical: rect(1280, 0, 640, 1079), virtual: rect(1280, 0, 640, 1080))
-        #expect(testWindow(4).hWeight == 640)
+        expectEqual(testWindow(4).hWeight, 640)
     }
 
     @Test
@@ -257,12 +257,12 @@ struct LayoutTest {
     func notLookingZoomed() {
         let screen = rect(0, 0, 1920, 1080)
         // A tile that fills the screen keeps its bottom edge 11pt above the screen's
-        #expect(cg(rect(0, 0, 1920, 1079).notLookingZoomed(in: screen)) == cg(rect(0, 0, 1920, 1069)))
-        #expect(cg(rect(10, 10, 1900, 1060).notLookingZoomed(in: screen)) == cg(rect(10, 10, 1900, 1059)))
+        expectEqual(cg(rect(0, 0, 1920, 1079).notLookingZoomed(in: screen)), cg(rect(0, 0, 1920, 1069)))
+        expectEqual(cg(rect(10, 10, 1900, 1060).notLookingZoomed(in: screen)), cg(rect(10, 10, 1900, 1059)))
         // One edge more than 10pt away is enough
-        #expect(cg(rect(0, 0, 1920, 1069).notLookingZoomed(in: screen)) == cg(rect(0, 0, 1920, 1069)))
-        #expect(cg(rect(0, 0, 960, 1079).notLookingZoomed(in: screen)) == cg(rect(0, 0, 960, 1079)))
-        #expect(cg(rect(0, 11, 1920, 1068).notLookingZoomed(in: screen)) == cg(rect(0, 11, 1920, 1068)))
+        expectEqual(cg(rect(0, 0, 1920, 1069).notLookingZoomed(in: screen)), cg(rect(0, 0, 1920, 1069)))
+        expectEqual(cg(rect(0, 0, 960, 1079).notLookingZoomed(in: screen)), cg(rect(0, 0, 960, 1079)))
+        expectEqual(cg(rect(0, 11, 1920, 1068).notLookingZoomed(in: screen)), cg(rect(0, 11, 1920, 1068)))
     }
 }
 
@@ -275,6 +275,6 @@ private func cg(_ rect: Rect) -> CGRect {
 }
 
 private func expectRects(_ node: TreeNode, physical: Rect, virtual: Rect, sourceLocation: SourceLocation = #_sourceLocation) {
-    #expect(node.lastAppliedLayoutPhysicalRect.map(cg) == cg(physical), sourceLocation: sourceLocation)
-    #expect(node.lastAppliedLayoutVirtualRect.map(cg) == cg(virtual), sourceLocation: sourceLocation)
+    expectEqual(node.lastAppliedLayoutPhysicalRect.map(cg), cg(physical), sourceLocation: sourceLocation)
+    expectEqual(node.lastAppliedLayoutVirtualRect.map(cg), cg(virtual), sourceLocation: sourceLocation)
 }

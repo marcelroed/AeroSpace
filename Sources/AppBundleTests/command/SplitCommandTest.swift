@@ -14,7 +14,7 @@ struct SplitCommandTest {
     func splits(before: String, command: String, after: String) async {
         setUpTree(before)
         let output = await runCmd(command)
-        #expect(output == .ok)
-        #expect(describeTree() == after)
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), after)
     }
 }

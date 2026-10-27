@@ -30,8 +30,8 @@ struct FocusCommandTest {
             FocusCommand(target: .dfsRelative(.dfsPrev, atEdge: .wrapAroundTheWorkspace)),
         )
 
-        #expect(parseCommand("focus --fail-if-fullscreen --fail-if-macos-native-fullscreen left").errorOrNil == nil)
-        #expect(parseCommand("focus --boundaries left").errorOrNil?.contains("Possible values") == true)
+        expectEqual(parseCommand("focus --fail-if-fullscreen --fail-if-macos-native-fullscreen left").errorOrNil, nil)
+        expectEqual(parseCommand("focus --boundaries left").errorOrNil?.contains("Possible values"), true)
     }
 
     @Test(arguments: [
@@ -54,7 +54,7 @@ struct FocusCommandTest {
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
-        #expect(output == .fail(error))
+        expectEqual(output, .fail(error))
     }
 
     /// The target's errors come before the boundaries' errors, which come before the errors of the target's options
@@ -95,8 +95,8 @@ struct FocusCommandTest {
     func succeeds(before: String, command: String, after: String) async {
         setUpTree(before)
         let output = await runCmd(command)
-        #expect(output == .ok)
-        #expect(describeTree() == after)
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), after)
     }
 
     @Test(arguments: [
@@ -111,8 +111,8 @@ struct FocusCommandTest {
     func fails(tree: String, command: String, expected: CmdOutput) async {
         setUpTree(tree)
         let output = await runCmd(command)
-        #expect(output == expected)
-        #expect(describeTree() == tree)
+        expectEqual(output, expected)
+        expectEqual(describeTree(), tree)
     }
 
     @Test
@@ -120,8 +120,8 @@ struct FocusCommandTest {
         setUpTree("h_tiles(*1 2)")
         testWindow(1).isFullscreen = true
         let output = await runCmd("focus --fail-if-fullscreen right")
-        #expect(output == .fail())
-        #expect(describeTree() == "h_tiles(*1 2)")
+        expectEqual(output, .fail())
+        expectEqual(describeTree(), "h_tiles(*1 2)")
     }
 
     @Test
@@ -129,8 +129,8 @@ struct FocusCommandTest {
         setUpTree("h_tiles(*1 2)")
         testWindow(1).isMacosFullscreenForTest = true
         let output = await runCmd("focus --fail-if-macos-native-fullscreen right")
-        #expect(output == .fail())
-        #expect(describeTree() == "h_tiles(*1 2)")
+        expectEqual(output, .fail())
+        expectEqual(describeTree(), "h_tiles(*1 2)")
     }
 
     @Test
@@ -141,12 +141,12 @@ struct FocusCommandTest {
             testWindow(id).rect = rect(offset, offset, 100, 100)
         }
         let output = await runCmd("focus right")
-        #expect(output == .ok)
+        expectEqual(output, .ok)
         // Focus sees the floating windows as tiling windows only while it decides. They keep their order and MRU order
         let tree: String = "h_tiles() floating(1 2 *3)"
-        #expect(describeTree() == tree)
+        expectEqual(describeTree(), tree)
         let mru: String = "floating(*3 2 1) h_tiles()"
-        #expect(describeNode(workspace, mru: true) == mru)
+        expectEqual(describeNode(workspace, mru: true), mru)
     }
 
     @Test
@@ -154,10 +154,10 @@ struct FocusCommandTest {
         let workspace = setUpFloatingWindowAboveTiles("h_tiles(v_tiles(1 2) 3) floating(*4)")
         let mruBefore = describeNode(workspace, mru: true)
         let output = await runCmd("focus left") // Nothing on the left
-        #expect(output == .ok)
-        #expect(describeNode(workspace, mru: true) == mruBefore)
+        expectEqual(output, .ok)
+        expectEqual(describeNode(workspace, mru: true), mruBefore)
         let tree: String = "h_tiles(v_tiles(1 2) 3) floating(*4)"
-        #expect(describeTree() == tree)
+        expectEqual(describeTree(), tree)
     }
 
     /// Before RS-NAV, focus focused while the floating windows were bound as tiling windows. Focusing window 4 made v_tiles
@@ -179,21 +179,21 @@ struct FocusCommandTest {
     func focusFindsTheMostRecentLeaf() async {
         setUpTree("h_tiles(*1 v_tiles(h_tiles(2 5) 3))")
         var output = await runCmd("focus right")
-        #expect(output == .ok)
-        #expect(describeTree() == "h_tiles(1 v_tiles(h_tiles(2 5) *3))")
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), "h_tiles(1 v_tiles(h_tiles(2 5) *3))")
 
         testWindow(2).markAsMostRecentChild()
         #expect(testWindow(1).focusWindow())
         output = await runCmd("focus right")
-        #expect(output == .ok)
-        #expect(describeTree() == "h_tiles(1 v_tiles(h_tiles(*2 5) 3))")
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), "h_tiles(1 v_tiles(h_tiles(*2 5) 3))")
 
         testWindow(3).markAsMostRecentChild()
         testWindow(5).markAsMostRecentChild()
         #expect(testWindow(1).focusWindow())
         output = await runCmd("focus right")
-        #expect(output == .ok)
-        #expect(describeTree() == "h_tiles(1 v_tiles(h_tiles(*2 5) 3))")
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), "h_tiles(1 v_tiles(h_tiles(*2 5) 3))")
     }
 
     @Test
@@ -204,8 +204,8 @@ struct FocusCommandTest {
             ("dfs-prev", 3), ("dfs-prev", 2), ("dfs-prev", 1),
         ] {
             let output = await runCmd("focus \(command)")
-            #expect(output == .ok)
-            #expect(focus.windowOrNil?.windowId == focused)
+            expectEqual(output, .ok)
+            expectEqual(focus.windowOrNil?.windowId, focused)
         }
     }
 
@@ -215,8 +215,8 @@ struct FocusCommandTest {
         testWindow(3).markAsMostRecentChild()
         // The most recent leaf of the wrapped monitor's workspace is focused
         let output = await runCmd("focus --boundaries all-monitors-outer-frame --boundaries-action wrap-around-all-monitors down")
-        #expect(output == .ok)
-        #expect(describeTree() == "h_tiles(1 2 *3)")
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), "h_tiles(1 2 *3)")
     }
 
     // Floating windows are seen as tiling windows next to the tiling window under their center
@@ -231,13 +231,13 @@ struct FocusCommandTest {
         testWindow(4).rect = rect(1200, 400, 200, 200) // The center is to the left of window 2's center
 
         var output = await runCmd("focus left")
-        #expect(output == .ok)
-        #expect(describeTree() == "h_tiles(1 *2) floating(3 4)")
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), "h_tiles(1 *2) floating(3 4)")
 
         #expect(testWindow(4).focusWindow())
         output = await runCmd("focus left")
-        #expect(output == .ok)
-        #expect(describeTree() == "h_tiles(*1 2) floating(3 4)")
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), "h_tiles(*1 2) floating(3 4)")
     }
 
     @Test
@@ -249,16 +249,16 @@ struct FocusCommandTest {
         testWindow(4).rect = rect(100, 400, 200, 200) // The center is to the left of the most recent window's center
 
         var output = await runCmd("focus --ignore-floating left")
-        #expect(output == .ok)
-        #expect(describeTree() == "h_accordion(1 2) floating(*3 4)") // Floating windows aren't seen as tiling
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), "h_accordion(1 2) floating(*3 4)") // Floating windows aren't seen as tiling
         output = await runCmd("focus left")
-        #expect(output == .ok)
-        #expect(describeTree() == "h_accordion(1 *2) floating(3 4)")
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), "h_accordion(1 *2) floating(3 4)")
 
         #expect(testWindow(4).focusWindow())
         output = await runCmd("focus right")
-        #expect(output == .ok)
-        #expect(describeTree() == "h_accordion(*1 2) floating(3 4)")
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), "h_accordion(*1 2) floating(3 4)")
     }
 
     @Test
@@ -267,9 +267,9 @@ struct FocusCommandTest {
         // No screens (e.g., during display reconfiguration) is a normal state, not a bug (RB-40)
         await $noScreensForTests.withValue(true) {
             let output = await runCmd("focus --boundaries all-monitors-outer-frame left")
-            #expect(output == .fail("Can't find monitors in direction left while there are no screens"))
+            expectEqual(output, .fail("Can't find monitors in direction left while there are no screens"))
         }
-        #expect(describeTree() == "h_tiles(*1 2)")
+        expectEqual(describeTree(), "h_tiles(*1 2)")
     }
 }
 

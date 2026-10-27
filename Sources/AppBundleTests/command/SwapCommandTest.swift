@@ -10,9 +10,9 @@ struct SwapCommandTest {
         let workspace = setUpTree(start)
         for (command, after) in steps {
             let output = await runCmd(command)
-            #expect(output == .ok)
-            #expect(describeTree() == after, "after '\(command)'")
-            #expect(workspace.mostRecentWindowRecursive?.windowId == focus.windowOrNil?.windowId) // The focused window is the most recent one
+            expectEqual(output, .ok)
+            expectEqual(describeTree(), after, "after '\(command)'")
+            expectEqual(workspace.mostRecentWindowRecursive?.windowId, focus.windowOrNil?.windowId) // The focused window is the most recent one
         }
     }
 
@@ -22,8 +22,8 @@ struct SwapCommandTest {
         let tree: String = "h_tiles(1 2) floating(*3)"
         setUpTree(tree)
         let output = await runCmd(command)
-        #expect(output == .fail("Can't swap a window that isn't tiled"))
-        #expect(describeTree() == tree)
+        expectEqual(output, .fail("Can't swap a window that isn't tiled"))
+        expectEqual(describeTree(), tree)
     }
 }
 

@@ -7,7 +7,7 @@ struct LayoutCommandTest {
     @Test
     func parse() async {
         for command in ["layout v_tiles h_tiles", "layout tiling", "layout floating tiling", "layout --window-id 1 horizontal vertical"] {
-            #expect(parseCommand(command).errorOrNil == nil)
+            expectEqual(parseCommand(command).errorOrNil, nil)
         }
         testParseSingleCommandSucc(
             "layout --root accordion tiles",
@@ -19,7 +19,7 @@ struct LayoutCommandTest {
         )
         for command in ["layout --for-next-detected-window floating tiling", "layout --for-next-detected-window accordion"] {
             let output = await runCmd(command)
-            #expect(output == .fail(LayoutCommand.forNextDetectedWindowFlagIncompatibilityMsg))
+            expectEqual(output, .fail(LayoutCommand.forNextDetectedWindowFlagIncompatibilityMsg))
         }
     }
 
@@ -35,7 +35,7 @@ struct LayoutCommandTest {
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
-        #expect(output == .fail(error))
+        expectEqual(output, .fail(error))
     }
 
     @Test(arguments: [
@@ -60,8 +60,8 @@ struct LayoutCommandTest {
     func succeeds(before: String, command: String, after: String) async {
         setUpTree(before)
         let output = await runCmd(command)
-        #expect(output == .ok)
-        #expect(describeTree() == after)
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), after)
     }
 
     /// The window goes to the end of the root, not after the most recent tiling window
@@ -74,8 +74,8 @@ struct LayoutCommandTest {
         setUpTree(tree.before)
         #expect(testWindow(tree.floatingWindowId).focusWindow())
         let output = await runCmd(command)
-        #expect(output == .ok)
-        #expect(describeTree() == tree.after)
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), tree.after)
     }
 
     @Test(arguments: [
@@ -87,8 +87,8 @@ struct LayoutCommandTest {
     func noop(tree: String, command: String, expected: CmdOutput) async {
         setUpTree(tree)
         let output = await runCmd(command)
-        #expect(output == expected)
-        #expect(describeTree() == tree)
+        expectEqual(output, expected)
+        expectEqual(describeTree(), tree)
     }
 
     /// AEROSPACE_WORKSPACE names the empty focused workspace. A non-visible empty workspace would be garbage collected
@@ -104,8 +104,8 @@ struct LayoutCommandTest {
     func emptyWorkspace(command: String, expected: CmdOutput, after: String) async {
         let workspace = setUpTree("h_tiles()")
         let output = await runCmd(command, workspaceEnv: workspace.name)
-        #expect(output == expected)
-        #expect(describeTree() == after)
+        expectEqual(output, expected)
+        expectEqual(describeTree(), after)
     }
 
     @Test(arguments: ["--window-id 2", "--workspace b"])
@@ -113,9 +113,9 @@ struct LayoutCommandTest {
         setUpTree("h_tiles(*1)", workspace: "a")
         setUpTree("h_tiles(2)", workspace: "b")
         let output = await runCmd("layout --root \(flag) v_accordion")
-        #expect(output == .ok)
-        #expect(describeTree("b") == "v_accordion(2)")
-        #expect(describeTree("a") == "h_tiles(*1)") // The focused workspace is untouched
+        expectEqual(output, .ok)
+        expectEqual(describeTree("b"), "v_accordion(2)")
+        expectEqual(describeTree("a"), "h_tiles(*1)") // The focused workspace is untouched
     }
 
     @Test(arguments: tilingDescriptions, ["h_tiles", "v_tiles", "h_accordion", "v_accordion"])
@@ -124,41 +124,41 @@ struct LayoutCommandTest {
         let startParts = start.split(separator: "_").map(String.init)
         let expected = (description.orientation ?? startParts[0]) + "_" + (description.layout ?? startParts[1])
         let output = await runCmd("layout \(description.name)")
-        #expect(output == (expected == start ? alreadyIn(description.name) : .ok))
-        #expect(describeTree() == "\(expected)(*1 2)")
+        expectEqual(output, (expected == start ? alreadyIn(description.name) : .ok))
+        expectEqual(describeTree(), "\(expected)(*1 2)")
     }
 
     @Test(arguments: tilingDescriptions)
     func tilingDescription_onFloatingWindow_fails(_ description: TilingDescription) async {
         setUpTree("h_tiles() floating(*1)")
         let output = await runCmd("layout \(description.name)")
-        #expect(output == .fail("The window is non-tiling"))
-        #expect(describeTree() == "h_tiles() floating(*1)")
+        expectEqual(output, .fail("The window is non-tiling"))
+        expectEqual(describeTree(), "h_tiles() floating(*1)")
     }
 
     @Test
     func forNextDetectedWindow_appliesToTheNextDetectedWindowOnly() async {
         let workspace = setUpTree("h_tiles(*1)")
         let output = await runCmd("layout floating --for-next-detected-window")
-        #expect(output == .ok)
+        expectEqual(output, .ok)
 
         await runOnWindowDetected(ifConventional: TestWindow.new(id: 2, parent: workspace.rootTilingContainer))
-        #expect(describeTree() == "h_tiles(*1) floating(2)")
+        expectEqual(describeTree(), "h_tiles(*1) floating(2)")
 
         await runOnWindowDetected(ifConventional: TestWindow.new(id: 3, parent: workspace.rootTilingContainer))
-        #expect(describeTree() == "h_tiles(*1 3) floating(2)")
+        expectEqual(describeTree(), "h_tiles(*1 3) floating(2)")
     }
 
     @Test
     func forNextDetectedWindow_secondInvocationReplacesTheScheduledLayout() async {
         let workspace = setUpTree("h_tiles(*1)")
         var output = await runCmd("layout floating --for-next-detected-window")
-        #expect(output == .ok)
+        expectEqual(output, .ok)
         output = await runCmd("layout tiling --for-next-detected-window")
-        #expect(output == .ok)
+        expectEqual(output, .ok)
         // The window is detected as floating. The replaced 'floating' would have been a noop, 'tiling' tiles it
         await runOnWindowDetected(ifConventional: TestWindow.new(id: 2, parent: workspace.floatingWindowsContainer))
-        #expect(describeTree() == "h_tiles(*1 2)")
+        expectEqual(describeTree(), "h_tiles(*1 2)")
     }
 
     @Test
@@ -168,9 +168,9 @@ struct LayoutCommandTest {
             WindowDetectedCallback(matcher: .command(.empty), run: parseCommand("layout floating tiling").cmdOrDie), // matches every window
         ]
         let output = await runCmd("layout floating --for-next-detected-window")
-        #expect(output == .ok)
+        expectEqual(output, .ok)
         await runOnWindowDetected(ifConventional: TestWindow.new(id: 2, parent: workspace.rootTilingContainer))
-        #expect(describeTree() == "h_tiles(*1) floating(2)")
+        expectEqual(describeTree(), "h_tiles(*1) floating(2)")
     }
 
     /// A tiling layout description, with the orientation and the layout it requests (nil: keep the current one)

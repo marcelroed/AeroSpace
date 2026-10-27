@@ -14,8 +14,8 @@ struct MoveWithMouseTest {
 
         try await moveWithMouse(dragged) // Every mouse event of the drag gets here
 
-        #expect(floating.children == [dragged, other])
-        #expect(floating.mostRecentChild == other)
+        expectEqual(floating.children, [dragged, other])
+        expectEqual(floating.mostRecentChild, other)
     }
 
     @Test
@@ -32,7 +32,7 @@ struct MoveWithMouseTest {
 
         try await moveWithMouse(window)
 
-        #expect(window.nodeWorkspace == visible)
+        expectEqual(window.nodeWorkspace, visible)
         #expect(window.isFloating)
     }
 }

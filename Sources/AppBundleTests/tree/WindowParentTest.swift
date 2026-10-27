@@ -9,14 +9,14 @@ struct WindowParentTest {
     @Test
     func isFloating() {
         let windows = windowOfEveryParentKind()
-        #expect(windows.map(\.isFloating) == [false, true, false, false, false, false, false])
+        expectEqual(windows.map(\.isFloating), [false, true, false, false, false, false, false])
     }
 
     @Test
     func placement() {
         let windows = windowOfEveryParentKind()
         let root = Workspace.get(byName: "a").rootTilingContainer
-        #expect(windows.map(\.placement) == [.tiling(root), .floating, .macosFullscreen, .macosHiddenApp, .macosMinimized, .macosPopup, nil])
+        expectEqual(windows.map(\.placement), [.tiling(root), .floating, .macosFullscreen, .macosHiddenApp, .macosMinimized, .macosPopup, nil])
     }
 
     @Test
@@ -25,12 +25,12 @@ struct WindowParentTest {
         let workspace = Workspace.get(byName: "a")
         #expect(workspace != focus.workspace)
         let workspaceName = workspace.name
-        #expect(windows.map { $0.nodeWorkspace?.name } == [workspaceName, workspaceName, workspaceName, workspaceName, nil, nil, nil])
+        expectEqual(windows.map { $0.nodeWorkspace?.name }, [workspaceName, workspaceName, workspaceName, workspaceName, nil, nil, nil])
         let monitorName = workspace.workspaceMonitor.name
-        #expect(windows.map { $0.nodeMonitor?.name } == [monitorName, monitorName, monitorName, monitorName, nil, nil, nil])
-        #expect(macosMinimizedWindowsContainer.nodeMonitor?.name == nil)
-        #expect(macosPopupWindowsContainer.nodeMonitor?.name == nil)
-        #expect(workspace.floatingWindowsContainer.nodeMonitor?.name == monitorName)
+        expectEqual(windows.map { $0.nodeMonitor?.name }, [monitorName, monitorName, monitorName, monitorName, nil, nil, nil])
+        expectEqual(macosMinimizedWindowsContainer.nodeMonitor?.name, nil)
+        expectEqual(macosPopupWindowsContainer.nodeMonitor?.name, nil)
+        expectEqual(workspace.floatingWindowsContainer.nodeMonitor?.name, monitorName)
     }
 
     @Test
@@ -38,16 +38,16 @@ struct WindowParentTest {
         let windows = windowOfEveryParentKind()
         let name = "a"
         #expect(focus.workspace.name != name)
-        #expect(windows.map { $0.toLiveFocusOrNil()?.workspace.name } == [name, name, name, name, nil, nil, nil])
-        #expect(windows.map { $0.focusWindow() } == [true, true, true, true, false, false, false])
-        #expect(focus.windowOrNil?.windowId == 4) // The last window that could be focused
+        expectEqual(windows.map { $0.toLiveFocusOrNil()?.workspace.name }, [name, name, name, name, nil, nil, nil])
+        expectEqual(windows.map { $0.focusWindow() }, [true, true, true, true, false, false, false])
+        expectEqual(focus.windowOrNil?.windowId, 4) // The last window that could be focused
     }
 
     @Test
     func moveFloatingWindow() async {
         setUpTree("h_tiles(1) floating(*2)")
         let output = await runCmd("move left")
-        #expect(output == .fail("moving floating windows isn't yet supported"))
+        expectEqual(output, .fail("moving floating windows isn't yet supported"))
     }
 
     @Test(arguments: ["macos_fullscreen", "macos_hidden"], [
@@ -58,8 +58,8 @@ struct WindowParentTest {
     func moveAndLayoutMacosUnconventionalWindow(container: String, step: (command: String, expected: CmdOutput, root: String)) async {
         setUpTree("h_tiles(1) \(container)(*2)")
         let output = await runCmd(step.command)
-        #expect(output == step.expected)
-        #expect(describeTree() == "\(step.root) \(container)(*2)")
+        expectEqual(output, step.expected)
+        expectEqual(describeTree(), "\(step.root) \(container)(*2)")
     }
 
     @Test
@@ -70,26 +70,26 @@ struct WindowParentTest {
 
         for command in ["layout h_tiles", "layout accordion", "layout vertical"] {
             let output = await runCmd(command)
-            #expect(output == .fail("The window is non-tiling"))
+            expectEqual(output, .fail("The window is non-tiling"))
         }
         var output = await runCmd("layout floating")
-        #expect(output == CmdOutput(stderr: ["Already in the requested floating mode. Tip: use --fail-if-noop to exit with non-zero code"]))
+        expectEqual(output, CmdOutput(stderr: ["Already in the requested floating mode. Tip: use --fail-if-noop to exit with non-zero code"]))
 
         output = await runCmd("layout floating tiling")
-        #expect(output == .ok)
-        #expect(describeTree() == "h_tiles(1 *2)")
-        #expect(floating.lastFloatingSize == CGSize(width: 100, height: 50))
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), "h_tiles(1 *2)")
+        expectEqual(floating.lastFloatingSize, CGSize(width: 100, height: 50))
 
         output = await runCmd("layout tiling")
-        #expect(output == CmdOutput(stderr: ["Already in the requested tiling mode. Tip: use --fail-if-noop to exit with non-zero code"]))
+        expectEqual(output, CmdOutput(stderr: ["Already in the requested tiling mode. Tip: use --fail-if-noop to exit with non-zero code"]))
         output = await runCmd("layout v_accordion")
-        #expect(output == .ok)
-        #expect(describeTree() == "v_accordion(1 *2)")
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), "v_accordion(1 *2)")
 
         output = await runCmd("layout tiling floating")
-        #expect(output == .ok)
-        #expect(describeTree() == "v_accordion(1) floating(*2)")
-        #expect(floating.setAxFrameHistory.last == AxFrame(topLeft: nil, size: CGSize(width: 100, height: 50)))
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), "v_accordion(1) floating(*2)")
+        expectEqual(floating.setAxFrameHistory.last, AxFrame(topLeft: nil, size: CGSize(width: 100, height: 50)))
     }
 
     @Test
@@ -105,21 +105,21 @@ struct WindowParentTest {
         let unbound = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
         unbound.unbindFromParent()
         await runOnWindowDetected(ifConventional: unbound)
-        #expect(world.layoutForNextDetectedWindow == .floating)
-        #expect(focus.workspace == workspace)
+        expectEqual(world.layoutForNextDetectedWindow, .floating)
+        expectEqual(focus.workspace, workspace)
         #expect(popup.parent === macosPopupWindowsContainer)
-        #expect(unbound.parent == nil)
+        expectEqual(unbound.parent, nil)
 
         let minimized = TestWindow.new(id: 3, parent: macosMinimizedWindowsContainer)
         await runOnWindowDetected(ifConventional: minimized)
-        #expect(world.layoutForNextDetectedWindow == nil)
+        expectEqual(world.layoutForNextDetectedWindow, nil)
 
         world.layoutForNextDetectedWindow = .floating
         let tiling = TestWindow.new(id: 4, parent: workspace.rootTilingContainer)
         await runOnWindowDetected(ifConventional: tiling)
-        #expect(world.layoutForNextDetectedWindow == nil)
+        expectEqual(world.layoutForNextDetectedWindow, nil)
         #expect(tiling.isFloating)
-        #expect(focus.workspace.name == "callback-ran")
+        expectEqual(focus.workspace.name, "callback-ran")
     }
 
     /// tiling, floating, macOS fullscreen, window of a hidden app, minimized, popup, unbound. In workspace "a", which isn't

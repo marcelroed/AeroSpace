@@ -26,7 +26,7 @@ struct MoveNodeToMonitorCommandTest {
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
-        #expect(output == .fail(error))
+        expectEqual(output, .fail(error))
     }
 
     // The test monitor is the only monitor
@@ -34,22 +34,22 @@ struct MoveNodeToMonitorCommandTest {
     func singleMonitor_noTargetMonitor(target: String, error: String) async {
         setUpTree("h_tiles(*1)")
         let output = await runCmd("move-node-to-monitor \(target)")
-        #expect(output == .fail(error))
-        #expect(describeTree() == "h_tiles(*1)")
+        expectEqual(output, .fail(error))
+        expectEqual(describeTree(), "h_tiles(*1)")
     }
 
     @Test(arguments: ["--wrap-around next", "--wrap-around left", "main"])
     func singleMonitor_sameMonitor_isNoop(target: String) async {
         let workspace = setUpTree("h_tiles(*1)")
         let output = await runCmd("move-node-to-monitor \(target)")
-        #expect(output == CmdOutput(stderr: ["Window '1' already belongs to workspace '\(workspace.name)'. Tip: use --fail-if-noop to exit with non-zero code"]))
-        #expect(describeTree() == "h_tiles(*1)")
+        expectEqual(output, CmdOutput(stderr: ["Window '1' already belongs to workspace '\(workspace.name)'. Tip: use --fail-if-noop to exit with non-zero code"]))
+        expectEqual(describeTree(), "h_tiles(*1)")
     }
 
     @Test
     func singleMonitor_sameMonitor_failIfNoop() async {
         setUpTree("h_tiles(*1)")
         let output = await runCmd("move-node-to-monitor --fail-if-noop main")
-        #expect(output == .fail())
+        expectEqual(output, .fail())
     }
 }

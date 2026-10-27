@@ -11,7 +11,7 @@ struct FullscreenCommandTest {
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
-        #expect(output == .fail(error))
+        expectEqual(output, .fail(error))
     }
 
     @Test
@@ -20,16 +20,16 @@ struct FullscreenCommandTest {
         let window = testWindow(1)
 
         var output = await runCmd("fullscreen")
-        #expect(output == .ok)
+        expectEqual(output, .ok)
         #expect(window.isFullscreen)
         #expect(!window.noOuterGapsInFullscreen)
 
         output = await runCmd("fullscreen")
-        #expect(output == .ok)
+        expectEqual(output, .ok)
         #expect(!window.isFullscreen)
 
         output = await runCmd("fullscreen on --no-outer-gaps")
-        #expect(output == .ok)
+        expectEqual(output, .ok)
         #expect(window.isFullscreen)
         #expect(window.noOuterGapsInFullscreen)
     }
@@ -44,13 +44,13 @@ struct FullscreenCommandTest {
         setUpTree("h_tiles(*1)")
         testWindow(1).isFullscreen = isFullscreen
         let output = await runCmd(command)
-        #expect(output == expected)
-        #expect(testWindow(1).isFullscreen == isFullscreen)
+        expectEqual(output, expected)
+        expectEqual(testWindow(1).isFullscreen, isFullscreen)
     }
 
     @Test
     func noWindowIsFocused() async {
         let output = await runCmd("fullscreen")
-        #expect(output == .fail("No window is focused"))
+        expectEqual(output, .fail("No window is focused"))
     }
 }

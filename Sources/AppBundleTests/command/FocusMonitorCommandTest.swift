@@ -6,11 +6,11 @@ import Testing
 struct FocusMonitorCommandTest {
     @Test
     func parse() {
-        #expect(parseFocusMonitorTarget("focus-monitor next") == .relative(.next))
-        #expect(parseFocusMonitorTarget("focus-monitor left") == .direction(.left))
-        #expect(parseFocusMonitorTarget("focus-monitor main") == .patterns([.main]))
-        #expect(parseFocusMonitorTarget("focus-monitor -- next") == .patterns([.pattern("next")]))
-        #expect(parseFocusMonitorTarget("focus-monitor -- main 2") == .patterns([.main, .sequenceNumber(2)]))
+        expectEqual(parseFocusMonitorTarget("focus-monitor next"), .relative(.next))
+        expectEqual(parseFocusMonitorTarget("focus-monitor left"), .direction(.left))
+        expectEqual(parseFocusMonitorTarget("focus-monitor main"), .patterns([.main]))
+        expectEqual(parseFocusMonitorTarget("focus-monitor -- next"), .patterns([.pattern("next")]))
+        expectEqual(parseFocusMonitorTarget("focus-monitor -- main 2"), .patterns([.main, .sequenceNumber(2)]))
     }
 
     @Test(arguments: [
@@ -19,22 +19,22 @@ struct FocusMonitorCommandTest {
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
-        #expect(output == .fail(error))
+        expectEqual(output, .fail(error))
     }
 
     // The test monitor is the only monitor
     @Test(arguments: singleMonitorErrors + [("2", "None of the monitors match the pattern(s)")])
     func singleMonitor_noTargetMonitor(target: String, error: String) async {
         let output = await runCmd("focus-monitor \(target)")
-        #expect(output == .fail(error))
+        expectEqual(output, .fail(error))
     }
 
     @Test(arguments: ["--wrap-around next", "--wrap-around prev", "--wrap-around left", "main", "1"])
     func singleMonitor_focusesTheSameMonitor(target: String) async {
         let workspace = focus.workspace
         let output = await runCmd("focus-monitor \(target)")
-        #expect(output == .ok)
-        #expect(focus.workspace == workspace)
+        expectEqual(output, .ok)
+        expectEqual(focus.workspace, workspace)
     }
 
     /// No screens (e.g., during display reconfiguration) is a normal state, not a bug (RB-40)
@@ -49,7 +49,7 @@ struct FocusMonitorCommandTest {
     ])
     func noScreens_failsWithMessage(command: String, error: String) async {
         let output = await $noScreensForTests.withValue(true) { await runCmd(command) }
-        #expect(output == .fail(error))
+        expectEqual(output, .fail(error))
     }
 }
 

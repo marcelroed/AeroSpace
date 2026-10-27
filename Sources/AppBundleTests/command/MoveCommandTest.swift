@@ -6,13 +6,13 @@ import Testing
 struct MoveCommandTest {
     @Test
     func parse() {
-        #expect(parseCommand("move --fail-if-fullscreen left").errorOrNil == nil)
-        #expect(parseCommand("move --fail-if-macos-native-fullscreen --window-id 1 right").errorOrNil == nil)
+        expectEqual(parseCommand("move --fail-if-fullscreen left").errorOrNil, nil)
+        expectEqual(parseCommand("move --fail-if-macos-native-fullscreen --window-id 1 right").errorOrNil, nil)
         let args = parsedCmd("move --boundaries all-monitors-outer-frame --boundaries-action fail up", as: MoveCommand.self)
-        #expect(args?.direction == .up)
-        #expect(args?.boundaries == .allMonitorsOuterFrame)
-        #expect(args?.boundariesAction == .fail)
-        #expect(parsedCmd("move left", as: MoveCommand.self)?.direction == .left)
+        expectEqual(args?.direction, .up)
+        expectEqual(args?.boundaries, .allMonitorsOuterFrame)
+        expectEqual(args?.boundariesAction, .fail)
+        expectEqual(parsedCmd("move left", as: MoveCommand.self)?.direction, .left)
     }
 
     @Test(arguments: [
@@ -23,7 +23,7 @@ struct MoveCommandTest {
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
-        #expect(output == .fail(error))
+        expectEqual(output, .fail(error))
     }
 
     @Test(arguments: [
@@ -48,8 +48,8 @@ struct MoveCommandTest {
     func succeeds(before: String, command: String, after: String) async {
         setUpTree(before)
         let output = await runCmd(command)
-        #expect(output == .ok)
-        #expect(describeTree() == after)
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), after)
     }
 
     @Test(arguments: [
@@ -59,8 +59,8 @@ struct MoveCommandTest {
     func fails(tree: String, command: String) async {
         setUpTree(tree)
         let output = await runCmd(command)
-        #expect(output == .fail())
-        #expect(describeTree() == tree)
+        expectEqual(output, .fail())
+        expectEqual(describeTree(), tree)
     }
 
     @Test
@@ -68,8 +68,8 @@ struct MoveCommandTest {
         setUpTree("h_tiles(*1 2)")
         testWindow(1).isFullscreen = true
         let output = await runCmd("move --fail-if-fullscreen right")
-        #expect(output == .fail())
-        #expect(describeTree() == "h_tiles(*1 2)")
+        expectEqual(output, .fail())
+        expectEqual(describeTree(), "h_tiles(*1 2)")
     }
 
     @Test
@@ -77,8 +77,8 @@ struct MoveCommandTest {
         setUpTree("h_tiles(*1 2)")
         testWindow(1).isMacosFullscreenForTest = true
         let output = await runCmd("move --fail-if-macos-native-fullscreen right")
-        #expect(output == .fail())
-        #expect(describeTree() == "h_tiles(*1 2)")
+        expectEqual(output, .fail())
+        expectEqual(describeTree(), "h_tiles(*1 2)")
     }
 
     @Test
@@ -86,24 +86,24 @@ struct MoveCommandTest {
         setUpTree("h_tiles(0 *1 v_tiles(h_tiles(2 3) 4))")
         testWindow(3).markAsMostRecentChild()
         let output = await runCmd("move right")
-        #expect(output == .ok)
-        #expect(describeTree() == "h_tiles(0 v_tiles(h_tiles(*1 2 3) 4))")
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), "h_tiles(0 v_tiles(h_tiles(*1 2 3) 4))")
     }
 
     @Test
     func swapPreservesWeights() async {
         setUpTree("h_tiles(1:1 *2:2)")
         let output = await runCmd("move left")
-        #expect(output == .ok)
-        #expect(describeTree(weights: true) == "h_tiles(*2:2 1:1)")
+        expectEqual(output, .ok)
+        expectEqual(describeTree(weights: true), "h_tiles(*2:2 1:1)")
     }
 
     @Test
     func moveInResetsTheWeight() async {
         setUpTree("h_tiles(0 *1:2 v_tiles(2))")
         let output = await runCmd("move right")
-        #expect(output == .ok)
-        #expect(describeTree(weights: true) == "h_tiles(0:1 v_tiles:1(2:1 *1:1))")
+        expectEqual(output, .ok)
+        expectEqual(describeTree(weights: true), "h_tiles(0:1 v_tiles:1(2:1 *1:1))")
     }
 
     @Test(arguments: [("h_tiles(1 *2)", "move right"), ("h_tiles(*1 2)", "move left")])
@@ -111,8 +111,8 @@ struct MoveCommandTest {
         world.config.enableNormalizationFlattenContainers = true
         setUpTree(tree)
         let output = await runCmd(command)
-        #expect(output == .ok)
-        #expect(describeTree() == tree)
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), tree)
     }
 
     @Test
@@ -121,7 +121,7 @@ struct MoveCommandTest {
         // No screens (e.g., during display reconfiguration) is a normal state, not a bug (RB-40)
         await $noScreensForTests.withValue(true) {
             let output = await runCmd("move --boundaries all-monitors-outer-frame left")
-            #expect(output == .fail("Can't find monitors in direction left while there are no screens"))
+            expectEqual(output, .fail("Can't find monitors in direction left while there are no screens"))
         }
     }
 }

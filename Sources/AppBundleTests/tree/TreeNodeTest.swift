@@ -10,7 +10,7 @@ struct TreeNodeTest {
 
         #expect(window.parent != nil)
         workspace.rootTilingContainer.unbindFromParent()
-        #expect(window.parent == nil) // TreeNode.parent is weak: nil means that the unbound root was deallocated
+        expectEqual(window.parent, nil) // TreeNode.parent is weak: nil means that the unbound root was deallocated
     }
 
     @Test
@@ -34,7 +34,7 @@ struct TreeNodeTest {
         world.config.enableNormalizationFlattenContainers = flattenContainers
         let workspace = focus.workspace
         weak let root = workspace.rootTilingContainer
-        #expect(root?.isEffectivelyEmpty == true)
+        expectEqual(root?.isEffectivelyEmpty, true)
         workspace.normalizeContainers()
         #expect(root != nil)
     }
@@ -51,7 +51,7 @@ struct TreeNodeTest {
         world.config.enableNormalizationFlattenContainers = flattenContainers
         let workspace = setUpTree(before, workspace: "a")
         workspace.normalizeContainers()
-        #expect(describeTree("a") == after)
+        expectEqual(describeTree("a"), after)
     }
 
     @Test
@@ -60,14 +60,14 @@ struct TreeNodeTest {
         let workspace = Workspace.get(byName: "a")
         TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
         TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
-        #expect(workspace.toLiveFocus().windowOrNil?.windowId == 2)
+        expectEqual(workspace.toLiveFocus().windowOrNil?.windowId, 2)
 
         _ = workspace.floatingWindowsContainer
-        #expect(workspace.toLiveFocus().windowOrNil?.windowId == 2)
+        expectEqual(workspace.toLiveFocus().windowOrNil?.windowId, 2)
         _ = workspace.macOsNativeFullscreenWindowsContainer
-        #expect(workspace.toLiveFocus().windowOrNil?.windowId == 2)
+        expectEqual(workspace.toLiveFocus().windowOrNil?.windowId, 2)
         _ = workspace.macOsNativeHiddenAppsWindowsContainer
-        #expect(workspace.toLiveFocus().windowOrNil?.windowId == 2)
+        expectEqual(workspace.toLiveFocus().windowOrNil?.windowId, 2)
     }
 
     @Test
@@ -75,10 +75,10 @@ struct TreeNodeTest {
         let workspace = Workspace.get(byName: "a")
         TestWindow.new(id: 1, parent: workspace.floatingWindowsContainer)
         TestWindow.new(id: 2, parent: workspace.floatingWindowsContainer)
-        #expect(workspace.toLiveFocus().windowOrNil?.windowId == 2)
+        expectEqual(workspace.toLiveFocus().windowOrNil?.windowId, 2)
 
         _ = workspace.rootTilingContainer
-        #expect(workspace.toLiveFocus().windowOrNil?.windowId == 2)
+        expectEqual(workspace.toLiveFocus().windowOrNil?.windowId, 2)
     }
 
     @Test
@@ -87,17 +87,17 @@ struct TreeNodeTest {
         let root = workspace.rootTilingContainer
         let container = testWindow(2).parent.orDie()
         #expect(root.mostRecentChild === testWindow(4)) // Binding marks the node: the last bound child is the most recent
-        #expect(container.mruChildren.map { ($0 as? Window)?.windowId } == [3, 2])
+        expectEqual(container.mruChildren.map { ($0 as? Window)?.windowId }, [3, 2])
 
         testWindow(2).markAsMostRecentChild() // Marks the whole chain of parents
         #expect(root.mostRecentChild === container)
-        #expect(container.mruChildren.map { ($0 as? Window)?.windowId } == [2, 3])
-        #expect(root.mruChildren.map { ($0 as? Window)?.windowId } == [nil, 4, 1])
-        #expect(workspace.mostRecentWindowRecursive?.windowId == 2)
+        expectEqual(container.mruChildren.map { ($0 as? Window)?.windowId }, [2, 3])
+        expectEqual(root.mruChildren.map { ($0 as? Window)?.windowId }, [nil, 4, 1])
+        expectEqual(workspace.mostRecentWindowRecursive?.windowId, 2)
 
         testWindow(2).unbindFromParent()
         #expect(container.mostRecentChild === testWindow(3))
-        #expect(container.mruChildren.count == 1)
+        expectEqual(container.mruChildren.count, 1)
     }
 
     @Test
@@ -106,8 +106,8 @@ struct TreeNodeTest {
         testWindow(1).markAsMostRecentChild()
         testWindow(1).unbindFromParent() // The last tiling window closes. The empty root stays the most recent child
         #expect(workspace.mostRecentChild === workspace.rootTilingContainer)
-        #expect(workspace.mostRecentWindowRecursive == nil)
-        #expect(workspace.toLiveFocus().windowOrNil?.windowId == 3) // The most recent floating window, not the first one
+        expectEqual(workspace.mostRecentWindowRecursive, nil)
+        expectEqual(workspace.toLiveFocus().windowOrNil?.windowId, 3) // The most recent floating window, not the first one
     }
 
     @Test(arguments: [
@@ -119,8 +119,8 @@ struct TreeNodeTest {
         testWindow(3).markAsMostRecentChild()
         testWindow(closedWindowId).markAsMostRecentChild()
         testWindow(closedWindowId).unbindFromParent() // The empty container stays the most recent child
-        #expect(workspace.mostRecentWindowRecursive == nil)
-        #expect(workspace.toLiveFocus().windowOrNil?.windowId == 1) // The first window in DFS order, not the most recent one
+        expectEqual(workspace.mostRecentWindowRecursive, nil)
+        expectEqual(workspace.toLiveFocus().windowOrNil?.windowId, 1) // The first window in DFS order, not the most recent one
     }
 
     /// Where a new tiling window goes (`layout tiling` on a floating window uses the same slot): after the most recent
@@ -141,7 +141,7 @@ struct TreeNodeTest {
         }
         let window = TestWindow.new(id: 5, parent: macosPopupWindowsContainer)
         try await window.relayoutWindow(on: workspace, .cancellable, forceTile: true)
-        #expect(describeTree("a") == after)
+        expectEqual(describeTree("a"), after)
     }
 
     @Test

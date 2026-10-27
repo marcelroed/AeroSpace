@@ -21,16 +21,16 @@ struct ClosedWindowsCacheTest {
             testWindow(id).move(to: workspace.rootTilingContainer, weight: .value(1))
         }
         let orphan = TestWindow.new(id: 7, parent: workspace.rootTilingContainer) // Not cached
-        #expect(try await restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: orphan) == false)
-        #expect(describeTree() == "h_tiles(v_accordion() 4 5 *7) macos_hidden(6)")
+        try await expectEqual(restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: orphan), false)
+        expectEqual(describeTree(), "h_tiles(v_accordion() 4 5 *7) macos_hidden(6)")
 
-        #expect(try await restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: testWindow(1)) == true)
+        try await expectEqual(restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: testWindow(1)), true)
         // The orphan is bound next to the most recent window
-        #expect(describeTree(weights: true) == "h_tiles(1:2 v_accordion:3(2:1 3:1 *7:1)) floating(4 6 5)")
+        expectEqual(describeTree(weights: true), "h_tiles(1:2 v_accordion:3(2:1 3:1 *7:1)) floating(4 6 5)")
         // The restored workspace children are in the order of the cache, not in the canonical order of describeTree
-        #expect(workspace.children.map { ($0 as? Container)?.kind } == [.floating, .macosFullscreen, .macosHiddenApp, .tiling])
+        expectEqual(workspace.children.map { ($0 as? Container)?.kind }, [.floating, .macosFullscreen, .macosHiddenApp, .tiling])
         #expect(other.isEffectivelyEmpty)
         #expect(testWindow(2).parent !== accordion) // The tree is recreated
-        #expect(focus.workspace == workspace)
+        expectEqual(focus.workspace, workspace)
     }
 }

@@ -11,8 +11,8 @@ struct TreePrimitivesTest {
     func tilingSlotAndPath() {
         let workspace = setUpTree("h_tiles(1 v_tiles(2 h_accordion(3))) floating(4)", workspace: "a")
         let root = workspace.rootTilingContainer
-        #expect(testWindow(1).tilingSlot.map { "\(describeNode($0.parent)) \($0.index)" } == "h_tiles(1 v_tiles(2 h_accordion(3))) 0")
-        #expect(testWindow(3).tilingPath.map { "\(describeNode($0.node)) in \($0.parent.orientation)_\($0.parent.layout) at \($0.index)" } == [
+        expectEqual(testWindow(1).tilingSlot.map { "\(describeNode($0.parent)) \($0.index)" }, "h_tiles(1 v_tiles(2 h_accordion(3))) 0")
+        expectEqual(testWindow(3).tilingPath.map { "\(describeNode($0.node)) in \($0.parent.orientation)_\($0.parent.layout) at \($0.index)" }, [
             "3 in h_accordion at 0",
             "h_accordion(3) in v_tiles at 1",
             "v_tiles(2 h_accordion(3)) in h_tiles at 1",
@@ -48,18 +48,18 @@ struct TreePrimitivesTest {
     func neighbor(_ it: NeighborCase) {
         setUpTree(it.tree)
         let window = focus.windowOrNil.orDie()
-        #expect(window.neighbor(it.direction).map { describeNode($0) } == it.neighbor)
+        expectEqual(window.neighbor(it.direction).map { describeNode($0) }, it.neighbor)
         let closest = window.closestParent(hasChildrenIn: it.direction)
-        #expect(closest.map { describeNode($0.parent.children[$0.index + it.direction.focusOffset]) } == it.neighbor)
+        expectEqual(closest.map { describeNode($0.parent.children[$0.index + it.direction.focusOffset]) }, it.neighbor)
     }
 
     @Test
     func closestParentWithLayout() {
         setUpTree("h_tiles(1 h_accordion(2 *3))")
         let window = testWindow(3)
-        #expect(window.closestParent(hasChildrenIn: .left).map { "\($0.parent.layout) \($0.index)" } == "accordion 1")
+        expectEqual(window.closestParent(hasChildrenIn: .left).map { "\($0.parent.layout) \($0.index)" }, "accordion 1")
         // The accordion is skipped: it's the root's child that has a sibling to the left
-        #expect(window.closestParent(hasChildrenIn: .left, layout: .tiles).map { "\($0.parent.layout) \($0.index)" } == "tiles 1")
+        expectEqual(window.closestParent(hasChildrenIn: .left, layout: .tiles).map { "\($0.parent.layout) \($0.index)" }, "tiles 1")
     }
 
     @Test
@@ -68,26 +68,26 @@ struct TreePrimitivesTest {
         let root = workspace.rootTilingContainer
         let nested = testWindow(2).parent.orDie()
         // Along the orientation, the child at that end
-        #expect(root.edgeWindow(snappedTo: .left)?.windowId == 1)
-        #expect(root.edgeWindow(snappedTo: .right)?.windowId == 4)
-        #expect(nested.edgeWindow(snappedTo: .up)?.windowId == 2)
-        #expect(nested.edgeWindow(snappedTo: .down)?.windowId == 3)
+        expectEqual(root.edgeWindow(snappedTo: .left)?.windowId, 1)
+        expectEqual(root.edgeWindow(snappedTo: .right)?.windowId, 4)
+        expectEqual(nested.edgeWindow(snappedTo: .up)?.windowId, 2)
+        expectEqual(nested.edgeWindow(snappedTo: .down)?.windowId, 3)
         // Across the orientation, the most recent child
-        #expect(root.edgeWindow(snappedTo: .up)?.windowId == 4)
-        #expect(nested.edgeWindow(snappedTo: .left)?.windowId == 3)
+        expectEqual(root.edgeWindow(snappedTo: .up)?.windowId, 4)
+        expectEqual(nested.edgeWindow(snappedTo: .left)?.windowId, 3)
         testWindow(2).markAsMostRecentChild()
-        #expect(nested.edgeWindow(snappedTo: .right)?.windowId == 2)
-        #expect(root.edgeWindow(snappedTo: .down)?.windowId == 3) // Across the root to the container, along it to the end
-        #expect(workspace.edgeWindow(snappedTo: .left)?.windowId == 1) // A workspace's is its root's
-        #expect(testWindow(4).edgeWindow(snappedTo: .left)?.windowId == 4)
+        expectEqual(nested.edgeWindow(snappedTo: .right)?.windowId, 2)
+        expectEqual(root.edgeWindow(snappedTo: .down)?.windowId, 3) // Across the root to the container, along it to the end
+        expectEqual(workspace.edgeWindow(snappedTo: .left)?.windowId, 1) // A workspace's is its root's
+        expectEqual(testWindow(4).edgeWindow(snappedTo: .left)?.windowId, 4)
     }
 
     @Test
     func edgeWindowOfAnEmptyWorkspace() {
         let workspace = Workspace.get(byName: "a")
-        #expect(workspace.edgeWindow(snappedTo: .left) == nil)
-        #expect(workspace.existingRootTilingContainer == nil) // Reading doesn't create the root
-        #expect(setUpTree("h_tiles(v_tiles())", workspace: "b").edgeWindow(snappedTo: .left) == nil)
+        expectEqual(workspace.edgeWindow(snappedTo: .left), nil)
+        expectEqual(workspace.existingRootTilingContainer, nil) // Reading doesn't create the root
+        expectEqual(setUpTree("h_tiles(v_tiles())", workspace: "b").edgeWindow(snappedTo: .left), nil)
     }
 
     @Test
@@ -96,15 +96,15 @@ struct TreePrimitivesTest {
         let workspace = setUpTree("h_tiles(1 v_accordion(2 3))", workspace: "a")
         _ = workspace.layoutTiling() // Writes the rects: 1 is (0, 0, 950, 1079), its virtual rect is (0, 0, 960, 1080)
         let root = workspace.rootTilingContainer
-        #expect(root.window(at: CGPoint(x: 100, y: 100), virtual: false)?.windowId == 1)
+        expectEqual(root.window(at: CGPoint(x: 100, y: 100), virtual: false)?.windowId, 1)
         // In the gap between the windows: only the virtual rects cover it
-        #expect(root.window(at: CGPoint(x: 955, y: 100), virtual: false) == nil)
-        #expect(root.window(at: CGPoint(x: 955, y: 100), virtual: true)?.windowId == 1)
+        expectEqual(root.window(at: CGPoint(x: 955, y: 100), virtual: false), nil)
+        expectEqual(root.window(at: CGPoint(x: 955, y: 100), virtual: true)?.windowId, 1)
         // An accordion's most recent child covers it
-        #expect(root.window(at: CGPoint(x: 1500, y: 100), virtual: false)?.windowId == 3)
+        expectEqual(root.window(at: CGPoint(x: 1500, y: 100), virtual: false)?.windowId, 3)
         testWindow(2).markAsMostRecentChild()
-        #expect(root.window(at: CGPoint(x: 1500, y: 100), virtual: false)?.windowId == 2)
-        #expect(root.window(at: CGPoint(x: 3000, y: 100), virtual: true) == nil) // Outside the monitor
+        expectEqual(root.window(at: CGPoint(x: 1500, y: 100), virtual: false)?.windowId, 2)
+        expectEqual(root.window(at: CGPoint(x: 3000, y: 100), virtual: true), nil) // Outside the monitor
     }
 
     @Test
@@ -112,26 +112,26 @@ struct TreePrimitivesTest {
         let workspace = setUpTree("h_tiles(1:2 2:4 v_tiles(3:5 4))", workspace: "a")
         let root = workspace.rootTilingContainer
         testWindow(1).move(to: root, at: 1, weight: .keep) // Within the parent: the index counts the children without the node
-        #expect(describeTree("a", weights: true) == "h_tiles(2:4 1:2 v_tiles:1(3:5 4:1))")
+        expectEqual(describeTree("a", weights: true), "h_tiles(2:4 1:2 v_tiles:1(3:5 4:1))")
         testWindow(4).move(to: root, at: 0) // .auto: the average weight of the new siblings
-        #expect(describeTree("a", weights: true) == "h_tiles(4:2.3333333333333335 2:4 1:2 v_tiles:1(3:5))")
+        expectEqual(describeTree("a", weights: true), "h_tiles(4:2.3333333333333335 2:4 1:2 v_tiles:1(3:5))")
         testWindow(3).move(to: root, weight: .value(7)) // At the end
-        #expect(describeTree("a", weights: true) == "h_tiles(4:2.3333333333333335 2:4 1:2 v_tiles:1() 3:7)")
-        #expect(workspace.mostRecentWindowRecursive?.windowId == 3) // A moved node becomes the most recent one
+        expectEqual(describeTree("a", weights: true), "h_tiles(4:2.3333333333333335 2:4 1:2 v_tiles:1() 3:7)")
+        expectEqual(workspace.mostRecentWindowRecursive?.windowId, 3) // A moved node becomes the most recent one
         let binding = testWindow(2).move(to: workspace.floatingWindowsContainer)
-        #expect(binding.map { "\($0.parent === root) \($0.index) \($0.weight)" } == "true 1 4.0")
+        expectEqual(binding.map { "\($0.parent === root) \($0.index) \($0.weight)" }, "true 1 4.0")
         testWindow(4).move(to: binding.orDie()) // To where another node was: its parent, index and weight
-        #expect(describeTree("a", weights: true) == "h_tiles(1:2 4:4 v_tiles:1() 3:7) floating(2)")
+        expectEqual(describeTree("a", weights: true), "h_tiles(1:2 4:4 v_tiles:1() 3:7) floating(2)")
     }
 
     @Test
     func wrap() {
         let workspace = setUpTree("h_tiles(1 2:3 3)", workspace: "a")
         let container = testWindow(2).wrap(.v, .accordion)
-        #expect(describeTree("a", weights: true) == "h_tiles(1:1 v_accordion:3(2:1) 3:1)")
-        #expect(workspace.mostRecentWindowRecursive?.windowId == 2) // The node is the most recent child of the new container
+        expectEqual(describeTree("a", weights: true), "h_tiles(1:1 v_accordion:3(2:1) 3:1)")
+        expectEqual(workspace.mostRecentWindowRecursive?.windowId, 2) // The node is the most recent child of the new container
         #expect(container.wrap(.h, .tiles).children.singleOrNil() === container)
-        #expect(describeTree("a") == "h_tiles(1 h_tiles(v_accordion(2)) 3)")
+        expectEqual(describeTree("a"), "h_tiles(1 h_tiles(v_accordion(2)) 3)")
     }
 
     @Test
@@ -140,8 +140,8 @@ struct TreePrimitivesTest {
         let root = workspace.rootTilingContainer
         let newRoot = root.wrap(.v, .tiles)
         #expect(workspace.rootTilingContainer === newRoot)
-        #expect(describeTree("a", weights: true) == "v_tiles(h_tiles:1(1:1 2:1)) floating(3)")
-        #expect(describeNode(workspace) == "floating(3) v_tiles(h_tiles(1 2))") // The new root takes the old one's place
+        expectEqual(describeTree("a", weights: true), "v_tiles(h_tiles:1(1:1 2:1)) floating(3)")
+        expectEqual(describeNode(workspace), "floating(3) v_tiles(h_tiles(1 2))") // The new root takes the old one's place
     }
 
     @Test(arguments: [
@@ -154,16 +154,16 @@ struct TreePrimitivesTest {
     func swap(tree: String, a: UInt32, b: UInt32, after: String) {
         let workspace = setUpTree(tree, workspace: "a")
         testWindow(a).swap(with: testWindow(b))
-        #expect(describeTree("a", weights: true) == after)
-        #expect(workspace.mostRecentWindowRecursive?.windowId == a) // The receiver ends up the more recent one
+        expectEqual(describeTree("a", weights: true), after)
+        expectEqual(workspace.mostRecentWindowRecursive?.windowId, a) // The receiver ends up the more recent one
     }
 
     @Test
     func temporaryEditsAreUndone() {
         let workspace = setUpTree("h_tiles(1:2 v_tiles(2 3) 4) floating(5 6)", workspace: "a")
         testWindow(2).markAsMostRecentChild()
-        let before = (describeNode(workspace), describeTree("a", weights: true), describeNode(workspace, mru: true))
-        #expect(before.2 == "h_tiles(v_tiles(2 3) 4 1) floating(6 5)")
+        let before = [describeNode(workspace), describeTree("a", weights: true), describeNode(workspace, mru: true)]
+        expectEqual(before[2], "h_tiles(v_tiles(2 3) 4 1) floating(6 5)")
         let root = workspace.rootTilingContainer
         let result = world.withTemporaryTreeEdits {
             testWindow(6).move(to: root, at: 0, weight: .value(1))
@@ -173,10 +173,10 @@ struct TreePrimitivesTest {
             testWindow(4).markAsMostRecentChild()
             return describeTree("a")
         }
-        #expect(result == "h_tiles(6 3 v_tiles(2 1 5) v_accordion(4))")
-        #expect((describeNode(workspace), describeTree("a", weights: true), describeNode(workspace, mru: true)) == before)
+        expectEqual(result, "h_tiles(6 3 v_tiles(2 1 5) v_accordion(4))")
+        expectEqual([describeNode(workspace), describeTree("a", weights: true), describeNode(workspace, mru: true)], before)
         #expect(testWindow(5).parent === workspace.floatingWindowsContainer)
-        #expect(workspace.mostRecentWindowRecursive?.windowId == 2)
+        expectEqual(workspace.mostRecentWindowRecursive?.windowId, 2)
     }
 
     @Test
@@ -186,9 +186,9 @@ struct TreePrimitivesTest {
             testWindow(1).move(to: workspace.rootTilingContainer)
             #expect(workspace.existingRootTilingContainer != nil)
         }
-        #expect(workspace.existingRootTilingContainer == nil)
-        #expect(describeTree("a") == "h_tiles() floating(1)")
-        #expect(workspace.mostRecentWindowRecursive?.windowId == 1)
+        expectEqual(workspace.existingRootTilingContainer, nil)
+        expectEqual(describeTree("a"), "h_tiles() floating(1)")
+        expectEqual(workspace.mostRecentWindowRecursive?.windowId, 1)
     }
 
     @Test
@@ -229,10 +229,11 @@ struct TreePrimitivesTest {
     func readingDoesntCreateTheRoot() {
         let workspace = setUpTree("floating(1)", workspace: "a")
         #expect(workspace.tilingWindows.isEmpty)
-        #expect(workspace.rootLayout.layout == .tiles && workspace.rootLayout.orientation == .h) // The config's default
-        #expect(workspace.existingRootTilingContainer == nil)
+        expectEqual(workspace.rootLayout.layout, .tiles) // The config's default
+        expectEqual(workspace.rootLayout.orientation, .h)
+        expectEqual(workspace.existingRootTilingContainer, nil)
         workspace.rootTilingContainer.layout = .accordion
-        #expect(workspace.rootLayout.layout == .accordion)
-        #expect(setUpTree("h_tiles(1 v_tiles(2 3))", workspace: "b").tilingWindows.map(\.windowId) == [1, 2, 3])
+        expectEqual(workspace.rootLayout.layout, .accordion)
+        expectEqual(setUpTree("h_tiles(1 v_tiles(2 3))", workspace: "b").tilingWindows.map(\.windowId), [1, 2, 3])
     }
 }
