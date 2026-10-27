@@ -48,12 +48,12 @@ struct RunCallbackCommandTest: AeroSpaceTestSuite {
         )
         testParseCommandFail(
             "run-callback --for-every-window on-focus-changed",
-            msg: "--for-every-window is only allowed with 'on-window-detected'",
+            msg: "ERROR: --for-every-window is only allowed with 'on-window-detected'",
             exitCode: 2,
         )
         testParseCommandFail(
             "run-callback --window-id 1 on-focused-monitor-changed",
-            msg: "--window-id is only allowed with 'on-window-detected'",
+            msg: "ERROR: --window-id is only allowed with 'on-window-detected'",
             exitCode: 2,
         )
     }

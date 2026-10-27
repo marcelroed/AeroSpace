@@ -21,7 +21,7 @@ struct MoveWorkspaceToMonitorCommandTest: AeroSpaceTestSuite {
     func testParseDeprecatedAliasIsValidatedLikeTheCommand() {
         // The deprecated move-workspace-to-display alias used to skip the post-parse validation (RB-12)
         for command in ["move-workspace-to-monitor", "move-workspace-to-display"] {
-            assertEquals(parseCommand("\(command) --wrap-around 2").errorOrNil, "--wrap-around is incompatible with <monitor-pattern> argument")
+            assertEquals(parseCommand("\(command) --wrap-around 2").errorOrNil, "ERROR: --wrap-around is incompatible with <monitor-pattern> argument")
             assertEquals(parseMoveWorkspaceToMonitorTarget("\(command) --wrap-around next"), .relative(.next))
         }
     }

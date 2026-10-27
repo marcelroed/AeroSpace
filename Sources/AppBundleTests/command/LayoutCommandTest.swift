@@ -14,7 +14,7 @@ final class LayoutCommandTest: XCTestCase {
 
         testParseCommandFail(
             "layout --root accordion tiling",
-            msg: "layout command: --root and tiling|floating are incompatible",
+            msg: "ERROR: layout command: --root and tiling|floating are incompatible",
             exitCode: 2,
         )
         testParseSingleCommandSucc(
@@ -23,7 +23,7 @@ final class LayoutCommandTest: XCTestCase {
         )
         testParseCommandFail(
             "layout --workspace 2 tiles",
-            msg: "--workspace flag requires using an explicit --root flag",
+            msg: "ERROR: --workspace flag requires using an explicit --root flag",
             exitCode: 2,
         )
         testParseCommandFail(
@@ -33,7 +33,7 @@ final class LayoutCommandTest: XCTestCase {
         )
         testParseCommandFail(
             "layout --fail-if-noop accordion tiling",
-            msg: "--fail-if-noop allows only one <target-layout> argument",
+            msg: "ERROR: --fail-if-noop allows only one <target-layout> argument",
             exitCode: 2,
         )
 
@@ -43,12 +43,12 @@ final class LayoutCommandTest: XCTestCase {
         )
         testParseCommandFail(
             "layout --for-next-detected-window floating tiling",
-            msg: layoutCommandForNextDetectedWindowFlagIncompatibilityMsg,
+            msg: "ERROR: " + layoutCommandForNextDetectedWindowFlagIncompatibilityMsg,
             exitCode: 2,
         )
         testParseCommandFail(
             "layout --for-next-detected-window accordion",
-            msg: layoutCommandForNextDetectedWindowFlagIncompatibilityMsg,
+            msg: "ERROR: " + layoutCommandForNextDetectedWindowFlagIncompatibilityMsg,
             exitCode: 2,
         )
         testParseCommandFail(

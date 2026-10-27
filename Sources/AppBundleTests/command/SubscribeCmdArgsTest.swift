@@ -76,7 +76,7 @@ struct SubscribeCmdArgsTest: AeroSpaceTestSuite {
             case .cmd, .help:
                 fail("Expected failure")
             case .failure(let err):
-                assertEquals(err, .init("Either --all or at least one <event> must be specified", 2))
+                assertEquals(err, .init("ERROR: Either --all or at least one <event> must be specified", 2))
         }
     }
 
@@ -87,7 +87,7 @@ struct SubscribeCmdArgsTest: AeroSpaceTestSuite {
             case .cmd, .help:
                 fail("Expected failure")
             case .failure(let err):
-                assertEquals(err, .init("--all conflicts with specifying individual events", 2))
+                assertEquals(err, .init("ERROR: --all conflicts with specifying individual events", 2))
         }
     }
 }

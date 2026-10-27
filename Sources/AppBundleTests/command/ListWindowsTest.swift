@@ -7,10 +7,10 @@ final class ListWindowsTest: XCTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
 
     func testParse() {
-        assertEquals(parseCommand("list-windows --pid 1").errorOrNil, "Mandatory option is not specified (--focused|--all|--monitor|--workspace)")
+        assertEquals(parseCommand("list-windows --pid 1").errorOrNil, "ERROR: Mandatory option is not specified (--focused|--all|--monitor|--workspace)")
         assertNil(parseCommand("list-windows --workspace M --pid 1").errorOrNil)
-        assertEquals(parseCommand("list-windows --pid 1 --focused").errorOrNil, "--focused conflicts with other \"filtering\" flags")
-        assertEquals(parseCommand("list-windows --pid 1 --all").errorOrNil, "--all conflicts with \"filtering\" flags. Please use '--monitor all' instead of '--all' alias")
+        assertEquals(parseCommand("list-windows --pid 1 --focused").errorOrNil, "ERROR: --focused conflicts with other \"filtering\" flags")
+        assertEquals(parseCommand("list-windows --pid 1 --all").errorOrNil, "ERROR: --all conflicts with \"filtering\" flags. Please use '--monitor all' instead of '--all' alias")
         assertNil(parseCommand("list-windows --all").errorOrNil)
         assertEquals(parseCommand("list-windows --all --workspace M").errorOrNil, "ERROR: Conflicting options: --all, --workspace")
         assertEquals(parseCommand("list-windows --all --focused").errorOrNil, "ERROR: Conflicting options: --all, --focused")
@@ -28,8 +28,8 @@ final class ListWindowsTest: XCTestCase {
 
         // --json
         assertEquals(parseCommand("list-windows --all --count --json").errorOrNil, "ERROR: Conflicting options: --count, --json")
-        assertEquals(parseCommand("list-windows --all --format '%{right-padding}' --json").errorOrNil, "%{right-padding} interpolation variable is not allowed when --json is used")
-        assertEquals(parseCommand("list-windows --all --format '%{window-title} |' --json").errorOrNil, "Only interpolation variables and spaces are allowed in \'--format\' when \'--json\' is used")
+        assertEquals(parseCommand("list-windows --all --format '%{right-padding}' --json").errorOrNil, "ERROR: %{right-padding} interpolation variable is not allowed when --json is used")
+        assertEquals(parseCommand("list-windows --all --format '%{window-title} |' --json").errorOrNil, "ERROR: Only interpolation variables and spaces are allowed in \'--format\' when \'--json\' is used")
         assertNil(parseCommand("list-windows --all --format '%{window-title}' --json").errorOrNil)
     }
 

@@ -53,7 +53,7 @@ func parseSpecificCmdArgs<T: CmdArgs>(_ raw: T, _ args: StrArrSlice) -> ParsedCm
         }
     }
 
-    return errors.isEmpty ? .cmd(raw) : .failure(errors.joinErrors())
+    return errors.isEmpty ? .cmd(raw) : .failure(errors)
 }
 
 public struct CmdParsingFailure: Sendable, Equatable {

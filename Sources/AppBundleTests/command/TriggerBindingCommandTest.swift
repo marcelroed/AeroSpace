@@ -8,7 +8,7 @@ struct TriggerBindingCommandTest: AeroSpaceTestSuite {
     @Test
     func testParse() {
         testParseSingleCommandSucc("trigger-binding foo --mode main", TriggerBindingCmdArgs(rawArgs: []).copy(\.binding, .initialized("foo")).copy(\._mode, "main"))
-        testParseCommandFail("trigger-binding foo", msg: "--mode flag is mandatory", exitCode: 2)
+        testParseCommandFail("trigger-binding foo", msg: "ERROR: --mode flag is mandatory", exitCode: 2)
         testParseCommandFail("trigger-binding", msg: "ERROR: Argument \'<binding>\' is mandatory", exitCode: 2)
     }
 

@@ -7,7 +7,7 @@ import Testing
 struct MacosNativeFullscreenCommandTest: AeroSpaceTestSuite {
     @Test
     func testParse() {
-        assertEquals(parseCommand("macos-native-fullscreen --fail-if-noop").errorOrNil, "--fail-if-noop requires 'on' or 'off' argument")
+        assertEquals(parseCommand("macos-native-fullscreen --fail-if-noop").errorOrNil, "ERROR: --fail-if-noop requires 'on' or 'off' argument")
         assertEquals(parseCommand("macos-native-fullscreen foo").errorOrNil, "ERROR: Can't parse 'foo'. Possible values: on|off")
     }
 

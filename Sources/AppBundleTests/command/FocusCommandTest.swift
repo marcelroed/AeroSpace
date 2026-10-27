@@ -35,16 +35,16 @@ final class FocusCommandTest: XCTestCase {
         )
         assertEquals(
             parseCommand("focus --window-id 42 --ignore-floating").errorOrNil,
-            "--window-id is incompatible with other options",
+            "ERROR: --window-id is incompatible with other options",
         )
         assertEquals(
             parseCommand("focus --boundaries all-monitors-outer-frame dfs-next").errorOrNil,
-            "(dfs-next|dfs-prev) only supports --boundaries workspace",
+            "ERROR: (dfs-next|dfs-prev) only supports --boundaries workspace",
         )
 
         assertEquals(
             parseCommand("focus --window-id 42 --wrap-around").errorOrNil,
-            "--window-id is incompatible with other options",
+            "ERROR: --window-id is incompatible with other options",
         )
         assertEquals(
             parseCommand("focus left --boundaries-action wrap-around-the-workspace --wrap-around").errorOrNil,
@@ -52,11 +52,11 @@ final class FocusCommandTest: XCTestCase {
         )
         assertEquals(
             parseCommand("focus dfs-next --fail-if-fullscreen").errorOrNil,
-            "--fail-if-fullscreen/--fail-if-macos-native-fullscreen require using (left|down|up|right) argument",
+            "ERROR: --fail-if-fullscreen/--fail-if-macos-native-fullscreen require using (left|down|up|right) argument",
         )
         assertEquals(
             parseCommand("focus --fail-if-macos-native-fullscreen --window-id 42").errorOrNil,
-            "--window-id is incompatible with other options",
+            "ERROR: --window-id is incompatible with other options",
         )
         assertNil(parseCommand("focus --fail-if-fullscreen --fail-if-macos-native-fullscreen left").errorOrNil)
     }
@@ -72,9 +72,9 @@ final class FocusCommandTest: XCTestCase {
         assertEquals(parseCommand("focus foo").errorOrNil, "ERROR: Can't parse 'foo'.\n       Possible values: (left|down|up|right|dfs-next|dfs-prev)")
         assertEquals(
             parseCommand("focus --boundaries-action wrap-around-all-monitors dfs-next").errorOrNil,
-            "workspace and wrap-around-all-monitors is an invalid combination of values",
+            "ERROR: workspace and wrap-around-all-monitors is an invalid combination of values",
         )
-        assertEquals(parseCommand("focus --dfs-index 0 left").errorOrNil, "--dfs-index is incompatible with other options")
+        assertEquals(parseCommand("focus --dfs-index 0 left").errorOrNil, "ERROR: --dfs-index is incompatible with other options")
     }
 
     func testFailIfFullscreen() async {

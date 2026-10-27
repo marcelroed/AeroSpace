@@ -8,9 +8,9 @@ final class MoveNodeToWorkspaceCommandTest: XCTestCase {
 
     func testParse() {
         testParseSingleCommandSucc("move-node-to-workspace next", MoveNodeToWorkspaceCmdArgs(target: .relative(.next)))
-        assertEquals(parseCommand("move-node-to-workspace --fail-if-noop next").errorOrNil, "--fail-if-noop is incompatible with (next|prev)")
-        assertEquals(parseCommand("move-node-to-workspace --stdin foo").errorOrNil, "--stdin and --no-stdin require using (next|prev) argument")
-        assertEquals(parseCommand("move-node-to-workspace --wrap-around W").errorOrNil, "--wrap-around requires using (next|prev) argument")
+        assertEquals(parseCommand("move-node-to-workspace --fail-if-noop next").errorOrNil, "ERROR: --fail-if-noop is incompatible with (next|prev)")
+        assertEquals(parseCommand("move-node-to-workspace --stdin foo").errorOrNil, "ERROR: --stdin and --no-stdin require using (next|prev) argument")
+        assertEquals(parseCommand("move-node-to-workspace --wrap-around W").errorOrNil, "ERROR: --wrap-around requires using (next|prev) argument")
         testParseSingleCommandSucc("move-node-to-workspace --stdin next", MoveNodeToWorkspaceCmdArgs(target: .relative(.next)).copy(\.commonState.explicitStdinFlag, true))
         testParseSingleCommandSucc("move-node-to-workspace --no-stdin next", MoveNodeToWorkspaceCmdArgs(target: .relative(.next)).copy(\.commonState.explicitStdinFlag, false))
     }

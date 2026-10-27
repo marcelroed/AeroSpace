@@ -19,23 +19,23 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
 
         assertEquals(
             parseCommand("config").errorOrNil,
-            "Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)",
+            "ERROR: Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)",
         )
         // --keys/--json alone still trigger the mandatory-flag check first because they don't
         // contribute to the mandatory-flag set.
         assertEquals(
             parseCommand("config --keys").errorOrNil,
-            "Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)",
+            "ERROR: Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)",
         )
         assertEquals(
             parseCommand("config --json").errorOrNil,
-            "Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)",
+            "ERROR: Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)",
         )
-        assertEquals(parseCommand("config --major-keys --keys").errorOrNil, "--keys flag requires --get flag")
-        assertEquals(parseCommand("config --major-keys --json").errorOrNil, "--json flag requires --get flag")
+        assertEquals(parseCommand("config --major-keys --keys").errorOrNil, "ERROR: --keys flag requires --get flag")
+        assertEquals(parseCommand("config --major-keys --json").errorOrNil, "ERROR: --json flag requires --get flag")
 
         // Two mandatory flags are mutually exclusive
-        assertEquals(parseCommand("config --major-keys --all-keys").errorOrNil, "Conflicting flags are specified: --major-keys, --all-keys")
+        assertEquals(parseCommand("config --major-keys --all-keys").errorOrNil, "ERROR: Conflicting flags are specified: --major-keys, --all-keys")
     }
 
     @Test
@@ -48,7 +48,7 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
             let combination = flags.indices.filter { mask & (1 << $0) != 0 }.map { flags[$0] }
             assertEquals(
                 parseCommand("config " + combination.reversed().map(\.args).joined(separator: " ")).errorOrNil,
-                "Conflicting flags are specified: " + combination.map(\.name).joined(separator: ", "),
+                "ERROR: Conflicting flags are specified: " + combination.map(\.name).joined(separator: ", "),
             )
         }
     }

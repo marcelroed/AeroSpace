@@ -10,7 +10,7 @@ struct FocusMonitorCommandTest: AeroSpaceTestSuite {
         assertEquals(parseFocusMonitorTarget("focus-monitor next"), .relative(.next))
         assertEquals(parseFocusMonitorTarget("focus-monitor left"), .direction(.left))
         assertEquals(parseFocusMonitorTarget("focus-monitor main"), .patterns([.main]))
-        assertEquals(parseCommand("focus-monitor --wrap-around main").errorOrNil, "--wrap-around is incompatible with <monitor-pattern> argument")
+        assertEquals(parseCommand("focus-monitor --wrap-around main").errorOrNil, "ERROR: --wrap-around is incompatible with <monitor-pattern> argument")
     }
 
     @Test
