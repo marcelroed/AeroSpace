@@ -302,10 +302,7 @@ final class LayoutCommandTest: XCTestCase {
         await parseCommand("layout --root v_accordion").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(root.layout, .accordion)
         assertEquals(root.orientation, .v)
-        assertEquals(root.layoutDescription, .v_accordion([
-            .v_tiles([.window(1)]),
-            .window(2),
-        ]))
+        assertEquals(root.layoutDescription, .v_accordion([.v_tiles([.window(1)]), .window(2)]))
     }
 
     func testRoot_emptyWorkspace_changeLayout() async {
@@ -378,18 +375,12 @@ final class LayoutCommandTest: XCTestCase {
             }
             TestWindow.new(id: 2, parent: $0)
         }
-        assertEquals(root.layoutDescription, .h_tiles([
-            .v_tiles([.window(1)]),
-            .window(2),
-        ]))
+        assertEquals(root.layoutDescription, .h_tiles([.v_tiles([.window(1)]), .window(2)]))
 
         await parseCommand("layout --root h_tiles h_accordion").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(root.layout, .accordion)
         assertEquals(root.orientation, .h)
-        assertEquals(root.layoutDescription, .h_accordion([
-            .v_tiles([.window(1)]),
-            .window(2),
-        ]))
+        assertEquals(root.layoutDescription, .h_accordion([.v_tiles([.window(1)]), .window(2)]))
     }
 
     func testRoot_alreadyMatches_isNoop() async {

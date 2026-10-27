@@ -13,12 +13,7 @@ struct SplitCommandTest: AeroSpaceTestSuite {
         }
 
         await parseCommand("split vertical").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(root.layoutDescription, .h_tiles([
-            .v_tiles([
-                .window(1),
-            ]),
-            .window(2),
-        ]))
+        assertEquals(root.layoutDescription, .h_tiles([.v_tiles([.window(1)]), .window(2)]))
     }
 
     @Test
@@ -29,12 +24,7 @@ struct SplitCommandTest: AeroSpaceTestSuite {
         }
 
         await parseCommand("split opposite").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(root.layoutDescription, .h_tiles([
-            .v_tiles([
-                .window(1),
-            ]),
-            .window(2),
-        ]))
+        assertEquals(root.layoutDescription, .h_tiles([.v_tiles([.window(1)]), .window(2)]))
     }
 
     @Test
@@ -47,12 +37,7 @@ struct SplitCommandTest: AeroSpaceTestSuite {
         }
 
         await parseCommand("split horizontal").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(root.layoutDescription, .h_tiles([
-            .h_tiles([
-                .window(1),
-            ]),
-            .window(2),
-        ]))
+        assertEquals(root.layoutDescription, .h_tiles([.h_tiles([.window(1)]), .window(2)]))
     }
 
     @Test
@@ -65,11 +50,6 @@ struct SplitCommandTest: AeroSpaceTestSuite {
         }
 
         await parseCommand("split opposite").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(root.layoutDescription, .h_tiles([
-            .h_tiles([
-                .window(1),
-            ]),
-            .window(2),
-        ]))
+        assertEquals(root.layoutDescription, .h_tiles([.h_tiles([.window(1)]), .window(2)]))
     }
 }
