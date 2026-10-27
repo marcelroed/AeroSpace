@@ -14,7 +14,6 @@ struct BugPromptTest {
         assertTrue(prompt.contains("Displays have separate spaces: n/a (not main thread)\n"))
     }
 
-    @MainActor
     @Test
     func testBugPromptReadsScreensOnMainThread() {
         assertFalse(bugPrompt().contains("n/a (not main thread)"))

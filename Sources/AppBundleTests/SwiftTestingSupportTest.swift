@@ -2,7 +2,6 @@
 import Common
 import Testing
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct SwiftTestingSupportTest: AeroSpaceTestSuite {
     // The cases of a parameterized test run in parallel. Each case must see the reset state, and no other test may
@@ -24,7 +23,6 @@ struct SwiftTestingSupportTest: AeroSpaceTestSuite {
 }
 
 // A second suite: tests of different suites run in parallel too
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct SwiftTestingSupportSecondSuiteTest {
     @Test(arguments: ["d", "e"])
@@ -42,7 +40,6 @@ struct IsUnitTestTest {
     }
 }
 
-@MainActor
 private func assertGlobalStateIsIsolated(_ workspaceName: String) async throws {
     assertEquals(focus.workspace.name, "setUpWorkspacesForTests")
     assertTrue(Workspace.get(byName: workspaceName).focusWorkspace())

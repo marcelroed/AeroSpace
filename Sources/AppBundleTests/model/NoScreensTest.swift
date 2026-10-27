@@ -4,7 +4,6 @@ import Common
 import Testing
 
 /// `NSScreen.screens` is briefly empty during display reconfiguration (e.g. on display wake). RB-01
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct NoScreensTest {
     @Test

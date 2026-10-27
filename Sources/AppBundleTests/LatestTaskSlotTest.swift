@@ -1,7 +1,6 @@
 @testable import AppBundle
 import Testing
 
-@MainActor
 @Suite
 struct LatestTaskSlotTest: AeroSpaceTestSuite {
     @Test

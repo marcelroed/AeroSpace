@@ -3,7 +3,6 @@ import Common
 import Testing
 
 /// The state a test leaves behind must not reach the next test. RB-61
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct SetUpWorkspacesForTestsTest {
     @Test
