@@ -18,8 +18,8 @@ import Common
 
 extension String {
     func lexAndParseShell() throws(CmdParseError) -> Shell<[String]> {
-        var parser = ShellParser(tokens: try shellLexerTokens())
-        parser.skipNewlines() // Skip leading empty lines and comment lines
+        var parser = try ShellParser(ShellLexer(self))
+        try parser.skipNewlines() // Skip leading empty lines and comment lines
         if parser.peek.payload == .end { return .empty }
         let result = try parser.parse(.seq)
         if parser.peek.payload != .end {
@@ -38,14 +38,25 @@ let maxShellOperators = 1000
 /// Recursive descent: `parse(op)` parses the grammar rule of `op`, whose operands are the rule of the next higher precedence.
 /// A chain nests to the left: `a && b && c` is `(a && b) && c`
 private struct ShellParser {
-    let tokens: [LexerToken]
-    var index = 0
+    private var lexer: ShellLexer
+    private(set) var peek: LexerToken
     private var groupNesting = 0
     private var operators = 0
 
-    init(tokens: [LexerToken]) { self.tokens = tokens }
+    init(_ lexer: ShellLexer) throws(CmdParseError) {
+        self.lexer = lexer
+        peek = try self.lexer.nextToken()
+    }
 
-    var peek: LexerToken { tokens[index] }
+    /// Lexes the next token only now, so the limits stop the lexing of a long input too. An operator must be on the line
+    /// of its left operand, unless a backslash escapes the newline
+    private mutating func advance() throws(CmdParseError) {
+        let previous = peek
+        peek = try lexer.nextToken()
+        if previous.payload == .newline && [.and, .or, .pipe].contains(peek.payload) {
+            throw "\(previous.location): Please escape newline with backslash character."
+        }
+    }
 
     mutating func parse(_ op: ShellOp) throws(CmdParseError) -> Shell<[String]> {
         switch op {
@@ -61,7 +72,7 @@ private struct ShellParser {
         var result = try parseOperand(of: op)
         while peek.payload == separator {
             try countOperator()
-            index += 1
+            try advance()
             result = .op(op, result, try parseOperand(of: op))
         }
         return result
@@ -75,7 +86,7 @@ private struct ShellParser {
     private mutating func parseSeq() throws(CmdParseError) -> Shell<[String]> {
         var result = try parse(.or)
         while peek.payload.isSeqSeparator {
-            while peek.payload.isSeqSeparator { index += 1 }
+            while peek.payload.isSeqSeparator { try advance() }
             // FIRST(Or) = FIRST(And) = FIRST(Pipe) = { "(" } ∪ FIRST(Cmd) = { "(", Word }
             if peek.payload.isWord || peek.payload == .lParen {
                 try countOperator()
@@ -85,8 +96,8 @@ private struct ShellParser {
         return result
     }
 
-    mutating func skipNewlines() {
-        while peek.payload == .newline { index += 1 }
+    mutating func skipNewlines() throws(CmdParseError) {
+        while peek.payload == .newline { try advance() }
     }
 
     private mutating func countOperator() throws(CmdParseError) {
@@ -100,13 +111,13 @@ private struct ShellParser {
         }
         groupNesting += 1
         defer { groupNesting -= 1 }
-        index += 1
-        skipNewlines() // Like at the top level
+        try advance()
+        try skipNewlines() // Like at the top level
         let result = try parse(.seq)
         if peek.payload != .rParen {
             throw "\(peek.location): Expected ')'. Got: \(peek.payload.description.singleQuoted)"
         }
-        index += 1
+        try advance()
         return result
     }
 
@@ -114,7 +125,7 @@ private struct ShellParser {
         var words = [String]()
         while case .word(let word) = peek.payload {
             words.append(word)
-            index += 1
+            try advance()
         }
         if words.isEmpty {
             throw "\(peek.location): Expected at least one word. Got: \(peek.payload)"

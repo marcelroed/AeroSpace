@@ -42,7 +42,6 @@ struct ShellLexerTest {
     }
 
     @Test(arguments: [
-        ("a newline before an operator must be escaped", "echo foo\n  || bar", "Line 1 Column 9: Please escape newline with backslash character."),
         ("an unclosed quote", "echo 'foo", "Line 1 Column 10: Last quote ' isn't closed."),
         ("a quote inside a bare word", "echo foo'bar'", "Line 1 Column 9: Please put a space in front of the quote character."),
         ("a quote right after a closing quote", "echo 'a'\"b\"", "Line 1 Column 9: Please put a space in front of the quote character."),
@@ -70,5 +69,10 @@ extension LexerToken {
 }
 
 private func lex(_ raw: String) -> Result<[LexerToken], CmdParseError> {
-    Result { () throws(CmdParseError) in try raw.shellLexerTokens() }
+    Result { () throws(CmdParseError) in
+        var lexer = ShellLexer(raw)
+        var tokens: [LexerToken] = [try lexer.nextToken()]
+        while tokens.last?.payload != .end { tokens.append(try lexer.nextToken()) }
+        return tokens
+    }
 }

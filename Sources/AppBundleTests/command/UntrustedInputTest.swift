@@ -85,8 +85,9 @@ struct UntrustedInputTest {
     @Test
     func longChainIsRejected() async {
         // A chain nests to the left, so everything that walks a long one overflows the stack (in a debug build, run at
-        // ~20k operators and deinit at ~50k)
-        let output = await runCliArgs(["eval", Array(repeating: "true", count: 100_000).joined(separator: " && ")])
+        // ~20k operators and deinit at ~50k). The limit stops the lexing too: the unclosed quote at the end isn't reached
+        let chain: String = Array(repeating: "true", count: 100_000).joined(separator: " && ") + " '"
+        let output = await runCliArgs(["eval", chain])
         let column = (maxShellOperators + 1) * "true && ".count - 2
         expectEqual(output, .fail("Line 1 Column \(column): More than \(maxShellOperators) operators in one expression"))
     }

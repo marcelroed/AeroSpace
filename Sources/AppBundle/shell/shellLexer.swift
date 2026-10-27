@@ -1,132 +1,115 @@
 import Common
 
-extension String {
-    func shellLexerTokens() throws(CmdParseError) -> [LexerToken] {
-        var lexer = ShellLexer(chars: locateChars(self + " ")) // synthetic trailing space to flush the last word
-        return try lexer.lex()
-    }
-}
-
 private let reservedChars: Set<Unicode.Scalar> = ["(", ")", "$", "~", "&", "?", "*", "!", "\\", "|", "<", ">", "`", "'", "\"", "#", "\n"]
 
 /// Besides whitespace and "&&", these characters end a bare word
 private let wordTerminators: Set<Unicode.Scalar> = ["|", "\\", "#", ";", "(", ")", "'", "\""]
 
-/// Walks unicode scalars, not Characters: a Character can join a delimiter with its neighbor (a Unicode Prepend character,
-/// e.g. U+0600, joins the space or quote after it)
-private struct ShellLexer {
-    let chars: [LocatedChar]
-    var index = 0
-    var tokens: [LexerToken] = []
+/// Lexes one token per call, so the parser's limits also stop the lexing of a long input. It walks unicode scalars, not
+/// Characters: a Character can join a delimiter with its neighbor (a Unicode Prepend character, e.g. U+0600, joins the
+/// space or quote after it)
+struct ShellLexer {
+    private let input: String.UnicodeScalarView
+    private var index: String.UnicodeScalarView.Index
+    private var location = Location(line: 1, column: 1)
 
-    var char: Unicode.Scalar? { chars.getOrNil(atIndex: index)?.value }
-    var next: Unicode.Scalar? { chars.getOrNil(atIndex: index + 1)?.value }
-    var location: Location { chars[index].location }
+    init(_ input: String) {
+        self.input = input.unicodeScalars
+        index = self.input.startIndex
+    }
 
-    mutating func lex() throws(CmdParseError) -> [LexerToken] {
+    private var char: Unicode.Scalar? { input[index...].first }
+    private var next: Unicode.Scalar? { input[index...].dropFirst().first }
+
+    mutating func nextToken() throws(CmdParseError) -> LexerToken {
         while let char {
             switch char {
-                case "\n": emit(.newline)
-                case "&" where next == "&": emit(.and, length: 2)
-                case "|" where next == "|": emit(.or, length: 2)
-                case "|": emit(.pipe)
-                case ";": emit(.semicolon)
-                case "(": emit(.lParen)
-                case ")": emit(.rParen)
+                case "\n": return token(.newline)
+                case "&" where next == "&": return token(.and, length: 2)
+                case "|" where next == "|": return token(.or, length: 2)
+                case "|": return token(.pipe)
+                case ";": return token(.semicolon)
+                case "(": return token(.lParen)
+                case ")": return token(.rParen)
                 case "\\" where next == "#": throw "\(location): Please put a space between backslash and a comment start"
                 case "\\": try skipLineContinuation()
                 case "#": skipComment()
-                case "'", "\"": try lexQuotedWord()
-                case _ where char.properties.isWhitespace: index += 1
-                default: try lexBareWord()
+                case "'", "\"": return try lexQuotedWord()
+                case _ where char.properties.isWhitespace: advance()
+                default: return try lexBareWord()
             }
         }
-        tokens.append(.init(chars.last.orDie().location, .end))
-        for (token, next) in zip(tokens, tokens.dropFirst()) where token.payload == .newline && [.and, .or, .pipe].contains(next.payload) {
-            throw "\(token.location): Please escape newline with backslash character."
-        }
-        return tokens
+        return LexerToken(location, .end)
     }
 
-    private mutating func emit(_ payload: LexerToken.Payload, length: Int = 1) {
-        tokens.append(.init(location, payload))
-        index += length
+    private mutating func token(_ payload: LexerToken.Payload, length: Int = 1) -> LexerToken {
+        let token = LexerToken(location, payload)
+        for _ in 0 ..< length { advance() }
+        return token
+    }
+
+    private mutating func advance() {
+        if input[index] == "\n" {
+            location = Location(line: location.line + 1, column: 1)
+        } else {
+            location.column += 1
+        }
+        input.formIndex(after: &index)
     }
 
     private mutating func skipComment() {
-        while let char, char != "\n" { index += 1 }
+        while let char, char != "\n" { advance() }
     }
 
     /// A backslash escapes the next newline. Only whitespace and a comment may come in between
     private mutating func skipLineContinuation() throws(CmdParseError) {
-        index += 1
+        advance()
         while let char, char != "\n" {
             if char == "#" {
                 skipComment()
             } else if char.properties.isWhitespace {
-                index += 1
+                advance()
             } else {
                 throw "\(location): backslash can be followed only by whitespaces, newlines and comments, but it is followed by \(char.description.singleQuoted)."
             }
         }
-        index += 1
+        if char != nil { advance() }
     }
 
-    private mutating func lexQuotedWord() throws(CmdParseError) {
-        let quote = chars[index]
-        index += 1
-        var word = ""
-        while let char, char != quote.value {
-            word.unicodeScalars.append(char)
-            index += 1
-        }
+    private mutating func lexQuotedWord() throws(CmdParseError) -> LexerToken {
+        let start = location
+        let quote = input[index]
+        advance()
+        let wordStart = index
+        while let char, char != quote { advance() }
         if char == nil {
-            throw "\(chars.last.orDie().location): Last quote \(quote.value) isn't closed."
+            throw "\(location): Last quote \(quote) isn't closed."
         }
-        index += 1
-        tokens.append(.init(quote.location, .word(word)))
+        let word = String(input[wordStart ..< index])
+        advance()
         switch char {
             case "'", "\"": throw "\(location): Please put a space in front of the quote character."
             case let char? where !char.properties.isWhitespace && !wordTerminators.contains(char) && !(char == "&" && next == "&"):
                 throw "\(location): Please put a space after closing quote."
-            default: break
+            default: return LexerToken(start, .word(word))
         }
     }
 
-    private mutating func lexBareWord() throws(CmdParseError) {
+    private mutating func lexBareWord() throws(CmdParseError) -> LexerToken {
         let start = location
-        var word = ""
+        let wordStart = index
         while let char, !char.properties.isWhitespace, !wordTerminators.contains(char), !(char == "&" && next == "&") {
-            word.unicodeScalars.append(char)
-            index += 1
+            advance()
         }
         if char == "'" || char == "\"" {
             throw "\(location): Please put a space in front of the quote character."
         }
+        let word = String(input[wordStart ..< index])
         if word != "~=", let reservedChar = word.unicodeScalars.first(where: { reservedChars.contains($0) }) {
             throw "\(start): Bare word '\(word)' contains reserved character: \(reservedChar). Please quote the bare word if you want to use the character."
         }
-        tokens.append(.init(start, .word(word)))
+        return LexerToken(start, .word(word))
     }
-}
-
-private struct LocatedChar {
-    let value: Unicode.Scalar
-    let location: Location
-}
-
-private func locateChars(_ str: String) -> [LocatedChar] {
-    var result = [LocatedChar]()
-    var location = Location(line: 1, column: 1)
-    for char in str.unicodeScalars {
-        result.append(LocatedChar(value: char, location: location))
-        location.column += 1
-        if char == "\n" {
-            location.line += 1
-            location.column = 1
-        }
-    }
-    return result
 }
 
 struct LexerToken: Equatable {
