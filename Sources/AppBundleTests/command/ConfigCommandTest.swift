@@ -62,9 +62,7 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
 
     @Test
     func testAllKeys() async {
-        let command = parseCommand("focus left").cmdOrDie
-        let binding = HotkeyBinding(.option, .h, command)
-        config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
+        bindAltHToFocusLeft()
 
         // Single mode + single binding => dict iteration order doesn't affect the output.
         await assertRun("config --all-keys", exitCode: 0, stdout: [".\nmode\nmode.main\nmode.main.binding\nmode.main.binding.alt-h"], stderr: [])
@@ -118,18 +116,14 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
 
     @Test
     func testGetScalar() async {
-        let command = parseCommand("focus left").cmdOrDie
-        let binding = HotkeyBinding(.option, .h, command)
-        config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
+        let command = bindAltHToFocusLeft()
 
         await assertRun("config --get mode.main.binding.alt-h", exitCode: 0, stdout: [command.shellOfCommandsDescription], stderr: [])
     }
 
     @Test
     func testGetScalar_keys_fails() async {
-        let command = parseCommand("focus left").cmdOrDie
-        let binding = HotkeyBinding(.option, .h, command)
-        config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
+        let command = bindAltHToFocusLeft()
 
         // The error message interpolates the enum directly, yielding the default Swift case repr.
         await assertRun(
@@ -142,9 +136,7 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
 
     @Test
     func testGetScalar_dereference_fails() async {
-        let command = parseCommand("focus left").cmdOrDie
-        let binding = HotkeyBinding(.option, .h, command)
-        config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
+        let command = bindAltHToFocusLeft()
 
         await assertRun("config --get mode.main.binding.alt-h.foo", exitCode: 2, stdout: [], stderr: ["Can't dereference scalar value '\(command.shellOfCommandsDescription)'"])
     }
@@ -242,9 +234,7 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
 
     @Test
     func testGetScalar_json_literal() async {
-        let command = parseCommand("focus left").cmdOrDie
-        let binding = HotkeyBinding(.option, .h, command)
-        config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
+        bindAltHToFocusLeft()
         await assertRun("config --get mode.main.binding.alt-h --json", exitCode: 0, stdout: ["\"focus left\""], stderr: [])
     }
 
@@ -266,5 +256,14 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
             ]
             """
         assertEquals(JSONEncoder.aeroSpaceDefault.encodeToString(value), expected)
+    }
+
+    /// Binds alt-h to `focus left` in the main mode, and returns that command
+    @discardableResult
+    private func bindAltHToFocusLeft() -> Shell<any Command> {
+        let command = parseCommand("focus left").cmdOrDie
+        let binding = HotkeyBinding(.option, .h, command)
+        config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
+        return command
     }
 }
