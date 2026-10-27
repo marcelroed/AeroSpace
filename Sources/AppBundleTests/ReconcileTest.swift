@@ -403,19 +403,11 @@ struct ReconcileTest {
         expectEqual(fake.calls(of: .title), [.title(2)]) // Its on-window-detected callbacks ran
     }
 
-    @Test
-    func aStaleNewFocusedWindowDoesntTakeTheFocusBack() async throws {
-        try await clickWhileANewFocusedWindowRunsItsCallbacks(3)
-    }
-
-    @Test
-    func aStaleNewFocusedWindowDoesntTakeTheFocusBackFromThePreviousWindow() async throws {
-        try await clickWhileANewFocusedWindowRunsItsCallbacks(1)
-    }
-
-    /// 2 opens with the native focus, and its refresh A runs its callbacks. Meanwhile, the user clicks `clicked`, and the
-    /// refresh B that replaces A takes that focus. A's 2 doesn't take it back
-    private func clickWhileANewFocusedWindowRunsItsCallbacks(_ clicked: WindowId) async throws {
+    /// 2 opens with the native focus, and its refresh A runs its callbacks. Meanwhile, the user clicks `clicked` (another
+    /// window, or 1, which had the focus before 2), and the refresh B that replaces A takes that focus. A's 2 doesn't take
+    /// it back
+    @Test(arguments: [3, 1] as [WindowId])
+    func aStaleNewFocusedWindowDoesntTakeTheFocusBack(clicked: WindowId) async throws {
         setUpTree("h_tiles(*1 3)")
         fake.focused = 1
         await heavyRefresh()
@@ -517,49 +509,14 @@ struct ReconcileTest {
         expectEqual(focusLog, ["b", "c"])
     }
 
-    @Test
-    func aFocusChangeDuringSuspendedFocusCallbacksRunsItsCallbacksAfterThem() async throws {
-        setUpTree("h_tiles(*1)", workspace: "a")
-        setUpTree("h_tiles(3)", workspace: "b")
-        fake.focused = 1
-        await heavyRefresh()
-        let gate = Gate()
-        logFocusOnFocusChanged(.workspace, then: gate)
-
-        fake.focused = 3 // The user focuses workspace b
-        let heavy = Task.startUnstructured { await heavyRefresh() }
-        await gate.untilWaiting() // b's callback suspends
-        _ = try await world.sessions.light(.hotkeyBinding, .forceRun) { await runCmd("workspace c") }
-        world.sessions.cancelHeavy()
-        expectEqual(focusLog, ["b"]) // c's callbacks wait for b's
-        gate.open()
-        await heavy.value
-        expectEqual(focusLog, ["b", "c"])
-    }
-
-    @Test
-    func focusChangesDuringSuspendedFocusCallbacksRunThemOnceForTheLatestFocus() async throws {
-        setUpTree("h_tiles(*1)", workspace: "a")
-        setUpTree("h_tiles(3)", workspace: "b")
-        fake.focused = 1
-        await heavyRefresh()
-        let gate = Gate()
-        logFocusOnFocusChanged(.workspace, then: gate)
-
-        fake.focused = 3 // The user focuses workspace b
-        let heavy = Task.startUnstructured { await heavyRefresh() }
-        await gate.untilWaiting() // b's callback suspends
-        for workspace in ["c", "d", "e"] {
-            _ = try await world.sessions.light(.hotkeyBinding, .forceRun) { await runCmd("workspace \(workspace)") }
-        }
-        world.sessions.cancelHeavy()
-        gate.open()
-        await heavy.value
-        expectEqual(focusLog, ["b", "e"]) // Not c and d: the user has left them
-    }
-
-    @Test
-    func focusChangesDuringSuspendedFocusCallbacksThatEndWhereTheyStartedRunNothing() async throws {
+    /// The user focuses workspace b, whose focus callback suspends, then goes to `workspaces` with light sessions. Their
+    /// focus changes run the callbacks after b's, once, for the latest focus: not for a workspace that the user has left,
+    /// and not at all when the focus ends where it started
+    @Test(arguments: [(["c"], ["b", "c"]), (["c", "d", "e"], ["b", "e"]), (["c", "b"], ["b"])] as [([String], [String])])
+    func focusChangesDuringSuspendedFocusCallbacksRunThemAfterwardsForTheLatestFocus(
+        workspaces: [String],
+        expectedLog: [String],
+    ) async throws {
         setUpTree("h_tiles(*1)", workspace: "a")
         setUpTree("h_tiles(3)", workspace: "b")
         fake.focused = 1
@@ -569,14 +526,15 @@ struct ReconcileTest {
 
         fake.focused = 3
         let heavy = Task.startUnstructured { await heavyRefresh() }
-        await gate.untilWaiting()
-        for workspace in ["c", "b"] { // The user goes to c and comes back while b's callback suspends
+        await gate.untilWaiting() // b's callback suspends
+        for workspace in workspaces {
             _ = try await world.sessions.light(.hotkeyBinding, .forceRun) { await runCmd("workspace \(workspace)") }
         }
         world.sessions.cancelHeavy()
+        expectEqual(focusLog, ["b"]) // The callbacks of the other focus changes wait for b's
         gate.open()
         await heavy.value
-        expectEqual(focusLog, ["b"])
+        expectEqual(focusLog, expectedLog)
     }
 
     /// Other sessions' focus changes while the callbacks suspend are queued for after them. The callbacks' own changes
