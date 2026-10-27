@@ -65,9 +65,10 @@ private func onHotkeyPressed(_ binding: HotkeyBinding) async throws {
     guard let activeMode = world.activeMode, let token: RunSessionGuard = .isServerEnabled else { return }
     // The HotKey is registered by the first mode that binds the key code. Another mode can bind the same
     // key code with another notation (e.g. 'shift-alt-a' and 'alt-shift-a')
-    let activeBinding = config.modes[activeMode]?.bindings[binding.descriptionWithKeyCode]
-    broadcastEvent(.bindingTriggered(mode: activeMode, binding: (activeBinding ?? binding).descriptionWithKeyNotation))
+    func currentBinding() -> HotkeyBinding? { config.modes[activeMode]?.bindings[binding.descriptionWithKeyCode] }
+    broadcastEvent(.bindingTriggered(mode: activeMode, binding: (currentBinding() ?? binding).descriptionWithKeyNotation))
+    // The config may reload at the light session's suspension points before the body
     try await world.sessions.light(.hotkeyBinding, token) { () throws in
-        _ = await config.modes[activeMode]?.bindings[binding.descriptionWithKeyCode]?.commands.run(.defaultEnv, .emptyStdin)
+        _ = await currentBinding()?.commands.run(.defaultEnv, .emptyStdin)
     }
 }
