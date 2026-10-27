@@ -33,6 +33,7 @@ struct ConfigTest {
             after-startup-command = ['focus left', 'focus right']
             on-focus-changed = 'focus left'
             on-mode-changed = ['focus right', 'focus up']
+            on-focused-monitor-changed = 'focus down'
             start-at-login = true
             auto-reload-config = true
             automatically-unhide-macos-hidden-apps = true
@@ -49,6 +50,7 @@ struct ConfigTest {
         expectEqual(config.afterStartupCommand.flatten().count, 2)
         expectEqual(config.onFocusChanged.shellOfCommandsDescription, "focus left")
         expectEqual(config.onModeChanged.flatten().count, 2)
+        expectEqual(config.onFocusedMonitorChanged.shellOfCommandsDescription, "focus down")
         expectEqual(config.startAtLogin, true)
         expectEqual(config.autoReloadConfig, true)
         expectEqual(config.automaticallyUnhideMacosHiddenApps, true)
