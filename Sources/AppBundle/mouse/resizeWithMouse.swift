@@ -1,13 +1,14 @@
 import AppKit
 import Common
 
-func resetManipulatedWithMouseIfPossible() async throws {
+/// A mouse up ends the drag: the layout stops leaving the dragged window to the mouse, and the next drag starts from the
+/// new weights. The mouse up's own session lays the tiles out
+func resetManipulatedWithMouseIfPossible() {
     if world.mouseManipulatedWindowId != nil {
         world.mouseManipulatedWindowId = nil
         for workspace in Workspace.all {
             workspace.resetResizeWeightBeforeResizeRecursive()
         }
-        world.sessions.scheduleHeavy(.resetManipulatedWithMouse, preLayout: true)
     }
 }
 

@@ -190,11 +190,8 @@ final class Sessions {
     }
 
     func onLeftMouseUp() async throws {
-        // todo reduce number of sessions in the callback
-        //  resetManipulatedWithMouseIfPossible might schedule its own heavy refresh
-        //  The end of the callback runs a light session or schedules a heavy refresh
         guard let token: RunSessionGuard = .isServerEnabled else { return }
-        try await resetManipulatedWithMouseIfPossible()
+        resetManipulatedWithMouseIfPossible()
         let mouseLocation = world.platform.mouseLocation
         let clickedMonitor = world.monitors.approximation(mouseLocation)
         switch true {
@@ -244,7 +241,6 @@ nonisolated enum RefreshSessionEvent: Sendable {
     /// An app answered a listing that missed its deadline (``ListingDeadlines``)
     case lateListing
     case socketServer([String])
-    case resetManipulatedWithMouse
     case ax(String)
 }
 
