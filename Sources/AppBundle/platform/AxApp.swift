@@ -61,17 +61,17 @@ actor AxApp {
         _ body: @escaping @Sendable (isolated AxApp, _ isAbandoned: () -> Bool) -> T,
     ) async throws(CancellationError) -> T {
         try checkCancellation()
-        let result: FirstOutcome<Result<T, CancellationError>> = FirstOutcome()
+        let outcome: FirstOutcome<Result<T, CancellationError>> = FirstOutcome()
         post { app in
-            if result.isResolved { return } // Cancelled before the body started: skip the AX calls
+            if outcome.isResolved { return } // Cancelled before the body started: skip the AX calls
             if isTerminatingNow() {
-                result.resolve(.failure(CancellationError()))
+                outcome.resolve(.failure(CancellationError()))
             } else {
-                let value = body(app) { result.isResolved || isTerminatingNow() }
-                result.resolve(isTerminatingNow() ? .failure(CancellationError()) : .success(value))
+                let value = body(app) { outcome.isResolved || isTerminatingNow() }
+                outcome.resolve(isTerminatingNow() ? .failure(CancellationError()) : .success(value))
             }
         }
-        return try await result.wait(onCancel: .failure(CancellationError())).get()
+        return try await outcome.wait(onCancel: .failure(CancellationError())).get()
     }
 
     /// For termination, which can't await: posts `body` and waits at most `timeout` for it. false if it timed out (RB-76).
@@ -168,8 +168,8 @@ actor AxApp {
     }
 
     /// The id of a window element that the app listed or focused. A registered window's element is CFEqual to it (pid and
-    /// token, compared without IPC), so only a new element costs an `_AXUIElementGetWindow`, which asks the app. nil: not a
-    /// window (e.g. Finder's desktop)
+    /// token, compared without IPC), so only a new element costs an `_AXUIElementGetWindow`, which asks the app. An element
+    /// keeps its id while it's registered. nil: not a window (e.g. Finder's desktop)
     private func windowId(of ax: AXUIElement) -> UInt32? {
         windows.first { $0.value.ax == ax }?.key ?? ax.containingWindowId()
     }
@@ -256,21 +256,21 @@ actor AxApp {
 
     /// `layout floating`, see ``PlacementState/restoreFloatingSize(to:)``
     func restoreFloatingSize(_ windowId: UInt32) {
-        guard let window = windows[windowId] else { return }
+        guard let ax = windows[windowId]?.ax else { return }
         let animations = AnimationsOff(element)
         defer { animations.restore() }
-        let ax = AxPlacementWindow(ax: window.ax, animations: animations) { @Sendable in !isTerminatingNow() }
-        window.placement.restoreFloatingSize(to: ax)
+        let window = AxPlacementWindow(ax: ax, animations: animations) { @Sendable in !isTerminatingNow() }
+        windows[windowId]?.placement.restoreFloatingSize(to: window)
     }
 
     /// Termination: moves the window to the frame that `monitors` computes from its current rect and last floating size
     func restore(_ windowId: UInt32, _ monitors: TerminationMonitors) {
-        guard let window = windows[windowId] else { return }
+        guard let registered = windows[windowId] else { return }
         let animations = AnimationsOff(element)
         defer { animations.restore() }
-        let ax = AxPlacementWindow(ax: window.ax, animations: animations) { @Sendable in true }
-        let frame = monitors.restoreFrame(windowRect: ax.rect(), window.placement.lastFloatingSize)
-        ax.setFrame(topLeft: frame.topLeft, size: frame.size)
+        let window = AxPlacementWindow(ax: registered.ax, animations: animations) { @Sendable in true }
+        let frame = monitors.restoreFrame(windowRect: window.rect(), registered.placement.lastFloatingSize)
+        window.setFrame(topLeft: frame.topLeft, size: frame.size)
     }
 
     /// The slow path of native focus (LivePlatform.focus has the fast path, #101)

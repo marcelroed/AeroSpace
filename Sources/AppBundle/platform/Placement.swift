@@ -90,8 +90,8 @@ nonisolated struct PlacementState {
                 // first, unless the window is known to be elsewhere: parked, or last seen at another frame. A skipped read
                 // always becomes a write, because `lastFrame` may be stale: the app or the user may have moved the window
                 let frame = Rect(topLeftX: topLeft.x, topLeftY: topLeft.y, width: size.width, height: size.height)
-                let isElsewhere = parkedAt != nil || lastFrame.map { !$0.isAt(frame) } == true
-                let isThere = !isElsewhere && window.rect().map { $0.isAt(frame) } == true
+                let isKnownElsewhere = parkedAt != nil || lastFrame.map { !$0.isAt(frame) } == true
+                let isThere = !isKnownElsewhere && window.rect().map { $0.isAt(frame) } == true
                 if isThere || window.setFrame(topLeft: topLeft, size: size) {
                     parkedAt = nil
                     lastFrame = frame
