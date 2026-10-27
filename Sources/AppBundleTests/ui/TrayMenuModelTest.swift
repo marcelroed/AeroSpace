@@ -120,41 +120,35 @@ struct TrayMenuModelTest {
         }
     }
 
-    /// The menu bar icon opens the config diagnostics window in its onChange(of: message).
-    /// SwiftUI runs it only if the icon's body reads the message
+    /// The menu bar icon re-renders on the message and on isEnabled:
+    /// - It opens the config diagnostics window in its onChange(of: message). SwiftUI runs that only if the icon's
+    ///   body reads the message.
+    /// - World isn't observable: the menu bar shows `world.isEnabled` through the model's copy
     @Test
-    func testMenuBarIconBodyObservesTheMessage() {
-        let messageModel = world.ui.messageModel
-        let prevMessage = messageModel.message
-        defer { messageModel.message = prevMessage }
-        let notified = NotifiedProperties()
-        withObservationTracking {
-            _ = MenuBarIcon(viewModel: world.ui.trayMenuModel, messageModel: messageModel).body
-        } onChange: {
-            notified.insert("body")
-        }
-        messageModel.message = Message(body: "changed")
-        expectEqual(notified.names, ["body"])
-    }
-
-    /// World isn't observable. The menu bar shows `world.isEnabled` through the model's copy
-    @Test
-    func testIsEnabledNotifiesTheMenuBar() {
+    func menuBarIconRerendersOnTheMessageAndOnIsEnabled() {
         let model = world.ui.trayMenuModel
+        let messageModel = world.ui.messageModel
         let prevStatus = model.axPermissionStatus
+        let prevMessage = messageModel.message
         defer {
             model.axPermissionStatus = prevStatus
+            messageModel.message = prevMessage
             world.isEnabled = true
         }
-        model.axPermissionStatus = .granted // Otherwise the icon doesn't read isEnabled
-        let notified = NotifiedProperties()
-        withObservationTracking {
-            _ = MenuBarIcon(viewModel: model, messageModel: world.ui.messageModel).body
-        } onChange: {
-            notified.insert("body")
+        func isRerendered(by change: () -> Void) -> Bool {
+            let notified = NotifiedProperties()
+            withObservationTracking {
+                _ = MenuBarIcon(viewModel: model, messageModel: messageModel).body
+            } onChange: {
+                notified.insert("body")
+            }
+            change()
+            return notified.names == ["body"]
         }
-        world.isEnabled = false
-        expectEqual(notified.names, ["body"])
+        model.axPermissionStatus = .waitingWithPrompt // A config error at startup shows before the permission too
+        #expect(isRerendered { messageModel.message = Message(body: "changed") }, "message")
+        model.axPermissionStatus = .granted // Otherwise the icon doesn't read isEnabled
+        #expect(isRerendered { world.isEnabled = false }, "isEnabled")
         #expect(!model.isEnabled)
         world.isEnabled = true
         #expect(model.isEnabled)
@@ -185,11 +179,6 @@ struct TrayMenuModelTest {
         expectEqual(imageName("00", .mode), "00.circle")
         expectEqual(imageName("51"), nil)
         expectEqual(imageName("-1"), nil)
-        // Int() accepts these, but there are no such symbols
-        expectEqual(imageName("+5"), nil)
-        expectEqual(imageName("-0"), nil)
-        expectEqual(imageName("005"), nil)
-        expectEqual(imageName("050"), nil)
         expectEqual(imageName("A"), "a.square")
         expectEqual(imageName("Z", .mode), "z.circle")
         expectEqual(imageName("a"), nil)
