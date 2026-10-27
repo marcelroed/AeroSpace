@@ -83,7 +83,7 @@ enum Reconcile {
 
     /// P1. Abandonable: every read throws once the refresh is cancelled, and a hung app's windows aren't read. nil if the
     /// screens disappeared meanwhile
-    private static func observe() async throws(CancellationError) -> Observation? {
+    static func observe() async throws(CancellationError) -> Observation? {
         let platform = world.platform
         let known = Set(world.windows.keys)
         let focused = try await platform.focusedWindow()
@@ -157,7 +157,7 @@ enum Reconcile {
     }
 
     /// P2. Sync: nothing else changes the tree meanwhile, and the objects it resolves stay valid until it returns
-    private static func commit(_ o: Observation, isStartup: Bool) -> Committed {
+    static func commit(_ o: Observation, isStartup: Bool) -> Committed {
         // 1. The focus from macOS. A new focused window takes it in P3
         let newFocusedWindow = o.focused.map(\.windowId).flatMap { Window.get(byId: $0) == nil ? $0 : nil }
         if newFocusedWindow == nil { syncFocusFromMacOs(o.focused.flatMap { Window.get(byId: $0.windowId) }) }
