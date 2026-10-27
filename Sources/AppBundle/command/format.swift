@@ -156,10 +156,6 @@ struct WindowWithPrefetchedTitle {
         let title = format.contains(.interVar(.windowTitle)) ? await world.platform.title(window.windowId) ?? "" : nil
         return .init(window: window, title: title)
     }
-
-    static func forTest(window: Window, title: String?) -> Self {
-        .init(window: window, title: title)
-    }
 }
 
 /// What a format describes: the objects of the list-* commands, and the target of `echo` and `test`
