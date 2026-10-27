@@ -20,6 +20,9 @@ final class FakePlatform: Platform {
     /// Every call in order, and the AX reads and frame writes of the placements. The frame writes are only here: a
     /// per-window copy cost as much as the layout itself in the perf benchmarks (perf/cand-m2-plat)
     private(set) var calls: [PlatformCall] = []
+    /// Called after each read: the scenario tests change macOS or cancel the session there, as if it happened during the
+    /// read
+    var onRead: ((PlatformCall) -> ())? = nil
 
     func calls(of kind: PlatformCall.Kind, _ id: WindowId? = nil) -> [PlatformCall] {
         calls.filter { $0.kind == kind && (id == nil || $0.windowId == id) }
@@ -46,20 +49,20 @@ final class FakePlatform: Platform {
 
     /// Each app lists its windows in the order of their ids
     func listWindows() -> [AppWindows] {
-        calls.append(.listWindows)
+        defer { logRead(.listWindows) }
         return apps.map { app in
             answers[app.pid] == false ? .noAnswer(app) : .listed(app, windows.filter { $0.value.app == app }.keys.sorted())
         }
     }
 
     func focusedWindow() -> FocusedWindow? {
-        calls.append(.focusedWindow)
+        defer { logRead(.focusedWindow) }
         return focused.flatMap { id in answering(id).map { FocusedWindow(app: $0.app, windowId: id) } }
     }
 
     func classify(_ windows: [AppInfo: [WindowId]]) -> [WindowId: DetectedWindow] {
         let ids = windows.values.flatMap(\.self).sorted()
-        calls.append(.classify(ids))
+        defer { logRead(.classify(ids)) }
         return ids.reduce(into: [:]) { result, id in
             if let window = answering(id) { result[id] = DetectedWindow(kind: window.kind, rect: window.rect) }
         }
@@ -67,7 +70,7 @@ final class FakePlatform: Platform {
 
     func nativeFacts(_ windows: [AppInfo: [WindowId]]) -> [WindowId: NativeFacts] {
         let ids = windows.values.flatMap(\.self).sorted()
-        calls.append(.nativeFacts(ids))
+        defer { logRead(.nativeFacts(ids)) }
         return ids.reduce(into: [:]) { result, id in result[id] = answering(id)?.facts }
     }
 
@@ -161,11 +164,16 @@ final class FakePlatform: Platform {
     }
 
     private func read(_ call: PlatformCall, _ id: WindowId) -> FakeWindow? {
-        calls.append(call)
+        defer { logRead(call) }
         return answering(id)
     }
 
     fileprivate func log(_ call: PlatformCall) { calls.append(call) }
+
+    private func logRead(_ call: PlatformCall) {
+        calls.append(call)
+        onRead?(call)
+    }
 }
 
 /// A window of ``FakePlatform`` for ``PlacementState``: each AX read and frame write goes into the call log, and the
