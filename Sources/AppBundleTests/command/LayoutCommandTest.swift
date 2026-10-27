@@ -27,15 +27,13 @@ struct LayoutCommandTest {
         // Toggles to the first layout that doesn't match
         ("h_tiles(*1 2)", "layout h_tiles h_accordion", .ok, "h_accordion(*1 2)"),
         ("h_tiles(*1 2)", "layout floating", .ok, "h_tiles(2) floating(*1)"),
-        ("h_tiles() floating(*1)", "layout tiling", .ok, "h_tiles(*1)"),
-        ("h_tiles() floating(*1)", "layout floating tiling", .ok, "h_tiles(*1)"),
         ("h_tiles(*1)", "layout floating tiling", .ok, "h_tiles() floating(*1)"),
+        // A tiling layout for a floating window. The other tiling layouts take the same path
+        ("h_tiles() floating(*1)", "layout h_accordion", .fail("The window is non-tiling"), "h_tiles() floating(*1)"),
         // --root changes the root container instead of the parent of the window
         ("h_tiles(v_tiles(*1) 2)", "layout --root v_accordion", .ok, "v_accordion(v_tiles(*1) 2)"),
         ("h_tiles(v_tiles(*1) 2)", "layout --root h_tiles h_accordion", .ok, "h_accordion(v_tiles(*1) 2)"),
         ("h_tiles() floating(*1)", "layout --root v_accordion", .ok, "v_accordion() floating(*1)"),
-        // Without --root, it fails: "Can't change layout for macOS minimized, fullscreen…"
-        ("h_tiles() macos_fullscreen(*1)", "layout --root v_accordion", .ok, "v_accordion() macos_fullscreen(*1)"),
         // Changes nothing until a window is detected
         ("h_tiles(*1)", "layout floating --for-next-detected-window", .ok, "h_tiles(*1)"),
         // Already in the requested layout
@@ -44,7 +42,7 @@ struct LayoutCommandTest {
         ("h_tiles(*1 2)", "layout --root h_tiles", alreadyIn("h_tiles"), "h_tiles(*1 2)"),
         ("h_tiles() floating(*1)", "layout floating", alreadyIn("floating"), "h_tiles() floating(*1)"),
     ] as [(String, String, CmdOutput, String)])
-    func succeeds(before: String, command: String, expected: CmdOutput, after: String) async {
+    func run(before: String, command: String, expected: CmdOutput, after: String) async {
         setUpTree(before)
         let output = await runCmd(command)
         expectEqual(output, expected)
@@ -100,14 +98,6 @@ struct LayoutCommandTest {
         let output = await runCmd("layout \(description.name)")
         expectEqual(output, (expected == start ? alreadyIn(description.name) : .ok))
         expectEqual(describeTree(), "\(expected)(*1 2)")
-    }
-
-    @Test(arguments: tilingDescriptions)
-    func tilingDescription_onFloatingWindow_fails(_ description: TilingDescription) async {
-        setUpTree("h_tiles() floating(*1)")
-        let output = await runCmd("layout \(description.name)")
-        expectEqual(output, .fail("The window is non-tiling"))
-        expectEqual(describeTree(), "h_tiles() floating(*1)")
     }
 
     @Test

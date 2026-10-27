@@ -119,15 +119,6 @@ struct FormatTest {
         }
     }
 
-    @Test
-    func unavailableVariableMessageListsTheVariablesOfTheObject() {
-        let monitorVars = FormatVar.allCases.filter { $0.rawValue.starts(with: "monitor-") || $0.subject == nil }
-        expectEqual(
-            expanded(.windowId, .monitor(testMonitor)),
-            "Unknown interpolation variable 'window-id'. Possible values:\n" + monitorVars.map { "  " + $0.rawValue }.joined(separator: "\n"),
-        )
-    }
-
     /// The docs pages include the variables of their objects by tag
     @Test
     func docsListEveryVariableUnderTheTagOfItsObject() throws {

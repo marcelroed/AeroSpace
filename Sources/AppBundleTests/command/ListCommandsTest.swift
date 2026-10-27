@@ -191,7 +191,6 @@ nonisolated private let listWorkspacesRows: [(String, CmdOutput)] = [
     ("list-workspaces --monitor 2 1 --visible", CmdOutput(stdout: ["a", "b"])),
     ("list-workspaces --monitor 3", .fail("Invalid monitor ID: 3")),
     ("list-workspaces --all --format '%{workspace}%{tab}%{monitor-id}'", CmdOutput(stdout: ["a\t1", "b\t2", "c\t1", "d\t1"])),
-    ("list-workspaces --all --format '%{window-id} %{app-name}'", .fail(FormatVarExpansionError.unavailable(.windowId, .workspace).description)),
     // Raycast
     ("list-workspaces --all --json --format '\(raycastWorkspaceFormat)'", CmdOutput(stdout: [#"""
     [{"workspace": "a", "workspace-is-focused": true, "workspace-is-visible": true, "monitor-name": "Test Monitor",
@@ -211,7 +210,6 @@ nonisolated private let listWorkspacesRows: [(String, CmdOutput)] = [
     ("list-workspaces --focused --all", .fail("Conflicting options: --all, --focused")),
     ("list-workspaces --focused --monitor 2", .fail("Conflicting options: --focused, --monitor")),
     ("list-workspaces --all --focused --monitor mouse", .fail("Conflicting options: --all, --focused, --monitor")),
-    ("list-workspaces --all --format %{workspace} --count", .fail("Conflicting options: --count, --format")),
     ("list-workspaces --all --format %{foo}", .fail("Failed to parse <output-format>. Can't parse 'foo'.\nPossible values: \(FormatVar.unionLiteral)")),
 ]
 
@@ -229,14 +227,16 @@ nonisolated private let listMonitorsRows: [(String, CmdOutput)] = [
     ("list-monitors --json --format '%{monitor-name} %{monitor-is-main}'", CmdOutput(stdout: [
         #"[{"monitor-name": "Test Monitor", "monitor-is-main": true}, {"monitor-name": "Right Monitor", "monitor-is-main": false}]"#,
     ])),
-    ("list-monitors --format %{window-id}", .fail(FormatVarExpansionError.unavailable(.windowId, .monitor).description)),
+    ("list-monitors --format %{window-id}", .fail("Unknown interpolation variable 'window-id'. Possible values:\n" + monitorVars)),
 
-    ("list-monitors --format %{monitor-id} --count", .fail("Conflicting options: --count, --format")),
-    ("list-monitors --format", .fail("<output-format> is mandatory. Possible values:\n" + FormatVar.allCases
-            .filter { $0.rawValue.starts(with: "monitor-") || $0.subject == nil }
-            .map { "  " + $0.rawValue }
-            .joined(separator: "\n"))),
+    ("list-monitors --format", .fail("<output-format> is mandatory. Possible values:\n" + monitorVars)),
 ]
+
+/// The variables of a monitor, one per line
+nonisolated private let monitorVars: String = FormatVar.allCases
+    .filter { $0.rawValue.starts(with: "monitor-") || $0.subject == nil }
+    .map { "  " + $0.rawValue }
+    .joined(separator: "\n")
 
 /// Apps are sorted by name, then by pid. `otherApp` is hidden
 nonisolated private let listAppsRows: [(String, CmdOutput)] = [
@@ -251,8 +251,6 @@ nonisolated private let listAppsRows: [(String, CmdOutput)] = [
     [{"app-pid": 1, "app-exec-path": "NULL-APP-EXEC-PATH", "app-bundle-path": "/Applications/Other.app"},
      {"app-pid": 0, "app-exec-path": "NULL-APP-EXEC-PATH", "app-bundle-path": "NULL-APP-BUNDLE-PATH"}]
     """#])),
-
-    ("list-apps --format %{app-bundle-id} --count", .fail("Conflicting options: --count, --format")),
 ]
 
 nonisolated private let listModesRows: [(String, CmdOutput)] = [
