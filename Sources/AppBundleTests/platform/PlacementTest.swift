@@ -74,17 +74,42 @@ struct PlacementTest {
         expectEqual(fake.calls(of: .frame), []) // On its workspace's monitor, the window stays
     }
 
+    /// A hidden app's window parked with its workspace stays parked while the workspace is shown, so that it goes back
+    /// where it was once the app is unhidden (R2a L3)
     @Test
-    func aWindowThatTheLayoutLeavesIsNoLongerParkedAndStaysWhereItIs() {
-        fake.windows[1] = FakeWindow(app: testApp, rect: rect(100, 100, 400, 300), title: "1")
-        fake.apply([.park(1, parkTarget(.bottomRightCorner, testMonitor))])
-        fake.windows[1]?.rect = rect(0, 0, 1920, 1080) // macOS fullscreen
+    func aHiddenAppsWindowGoesBackWhereItWasOnceTheAppIsUnhidden() {
+        let workspace = setUpTree("h_tiles() floating(1)", workspace: "a")
+        testWindow(1).rect = rect(100, 100, 400, 300)
+        #expect(Workspace.get(byName: "b").focusWorkspace())
+        world.platform.apply(placements())
+        testWindow(1).move(to: workspace.containerCreatingIfNeeded(.macosHiddenApp)) // cmd-h
 
-        fake.apply([.leave(1)])
-        fake.apply([.floating(1, FloatingTarget(monitor: testMonitor, monitors: NonEmptyArray(testMonitor), isShown: true))])
+        #expect(workspace.focusWorkspace())
+        world.platform.apply(placements())
+        #expect(fake.isParked(1))
+
+        testWindow(1).move(to: workspace.containerCreatingIfNeeded(.floating)) // Unhidden
+        world.platform.apply(placements())
+        expectEqual(testWindow(1).rect, rect(100, 100, 400, 300))
+    }
+
+    /// A macOS fullscreen window parked with its workspace: the park remembered its fullscreen frame. Once the workspace is
+    /// shown, it's no longer parked, so that it stays where macOS puts it when the fullscreen ends
+    @Test
+    func aMacosFullscreenWindowIsNoLongerParkedOnceItsWorkspaceIsShown() {
+        let workspace = setUpTree("h_tiles() macos_fullscreen(1)", workspace: "a")
+        testWindow(1).rect = rect(0, 0, 1920, 1080)
+        #expect(Workspace.get(byName: "b").focusWorkspace())
+        world.platform.apply(placements())
+        #expect(workspace.focusWorkspace())
+        world.platform.apply(placements())
+
+        testWindow(1).move(to: workspace.containerCreatingIfNeeded(.floating)) // The fullscreen ended
+        testWindow(1).rect = rect(100, 100, 400, 300)
+        world.platform.apply(placements())
 
         #expect(!fake.isParked(1))
-        expectEqual(fake.windows[1]?.rect, rect(0, 0, 1920, 1080))
+        expectEqual(testWindow(1).rect, rect(100, 100, 400, 300))
     }
 
     /// A placement made stale by a newer write of the window stops before its next AX call. An unpark that didn't write the

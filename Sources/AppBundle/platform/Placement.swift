@@ -11,8 +11,9 @@ nonisolated enum Placement: Equatable, Sendable {
     case floating(WindowId, FloatingTarget)
     /// Hides the window in a corner of its workspace's monitor, see ``ParkTarget``
     case park(WindowId, ParkTarget)
-    /// A window of a shown workspace that the layout leaves where it is (a hidden app's or a macOS fullscreen window). It's
-    /// no longer parked, but it doesn't move back
+    /// A macOS fullscreen window of a shown workspace: it stays where it is, and it's no longer parked. A park of a
+    /// fullscreen window remembered its fullscreen frame: an unpark after the fullscreen ends would move it to the top left
+    /// corner of its monitor
     case leave(WindowId)
 
     var windowId: WindowId {

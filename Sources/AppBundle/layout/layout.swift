@@ -47,8 +47,9 @@ extension Workspace {
     }
 
     /// The placements of the workspace's windows: the frames of ``layoutTiling()`` in their order, then the floating
-    /// windows, which keep their frame unless they are off the workspace's monitor, then the windows that the layout
-    /// leaves where they are
+    /// windows, which keep their frame unless they are off the workspace's monitor, then the macOS fullscreen windows,
+    /// which stay where they are. A hidden app's windows get none: they stay parked, so that a floating one goes back
+    /// where it was once the app is unhidden (R2a L3)
     func layoutPlacements() -> [Placement] {
         if isEffectivelyEmpty { return [] }
         var placements: [Placement] = layoutTiling().map { .frame($0.window.windowId, topLeft: $0.topLeft, size: $0.size) }
@@ -64,10 +65,8 @@ extension Workspace {
                 placements.append(.floating(window.windowId, floatingTarget))
             }
         }
-        for kind: ContainerKind in [.macosHiddenApp, .macosFullscreen] {
-            for case let window as Window in existingContainer(kind)?.children ?? [] {
-                placements.append(.leave(window.windowId))
-            }
+        for case let window as Window in existingContainer(.macosFullscreen)?.children ?? [] {
+            placements.append(.leave(window.windowId))
         }
         return placements
     }
