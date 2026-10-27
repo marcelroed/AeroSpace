@@ -4,7 +4,6 @@ import Common
 import Testing
 
 /// How the tree helpers, commands and callbacks treat a window depending on the kind of its parent
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct WindowParentTest {
     @Test

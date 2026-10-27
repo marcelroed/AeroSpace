@@ -26,7 +26,6 @@ import Common
 
 /// Builds `spec` in the empty workspace `workspaceName` (default: the focused workspace) and focuses the window marked
 /// with `*`. See the syntax above
-@MainActor
 @discardableResult
 func setUpTree(_ spec: String, workspace workspaceName: String? = nil) -> Workspace {
     let workspace = workspaceName.map { Workspace.get(byName: $0) } ?? focus.workspace
@@ -54,7 +53,6 @@ func setUpTree(_ spec: String, workspace workspaceName: String? = nil) -> Worksp
     return workspace
 }
 
-@MainActor
 private func setUpRoot(of workspace: Workspace, _ spec: SpecNode) -> TilingContainer {
     check(spec.weight == nil, "The root container has no weight")
     let (layout, orientation) = tilingKind(spec.name)
@@ -65,7 +63,6 @@ private func setUpRoot(of workspace: Workspace, _ spec: SpecNode) -> TilingConta
 }
 
 /// Renders the workspace `workspaceName` (default: the focused workspace) in the tree DSL, see ``setUpTree``
-@MainActor
 func describeTree(_ workspaceName: String? = nil, weights: Bool = false) -> String {
     let workspace = workspaceName.map { Workspace.get(byName: $0) } ?? focus.workspace
     let focusedWindowId = focus.windowOrNil?.windowId
@@ -94,7 +91,6 @@ func describeTree(_ workspaceName: String? = nil, weights: Bool = false) -> Stri
 }
 
 /// The test window with id `id`, bound or not
-@MainActor
 func testWindow(_ id: UInt32) -> TestWindow {
     TestApp.shared.windows.singleOrNil(where: { $0.windowId == id }).orDie("No test window with id \(id)") as? TestWindow ?? dieT()
 }
@@ -140,7 +136,6 @@ private func parseTreeSpec(_ spec: String) -> [SpecNode] {
     return result
 }
 
-@MainActor
 private func build(_ node: SpecNode, in parent: Container, focused: inout [Window]) {
     if let children = node.children {
         let (layout, orientation) = tilingKind(node.name)

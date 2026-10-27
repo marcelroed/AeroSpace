@@ -109,7 +109,7 @@ open class TreeNode: Equatable, AeroAny {
     }
 }
 
-@MainActor private var mruClock: UInt64 = 0
+private var mruClock: UInt64 = 0
 
 /// The weight of a node whose parent isn't a tiling container. It's observable: commands that keep a node's weight
 /// (e.g. swap, focus --floating-as-tiling) carry it into tiling containers

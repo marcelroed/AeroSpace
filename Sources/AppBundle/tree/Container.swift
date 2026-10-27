@@ -37,8 +37,8 @@ class Container: TreeNode {
     }
 }
 
-@MainActor let macosMinimizedWindowsContainer = Container(root: .macosMinimized)
-@MainActor let macosPopupWindowsContainer = Container(root: .macosPopup)
+let macosMinimizedWindowsContainer = Container(root: .macosMinimized)
+let macosPopupWindowsContainer = Container(root: .macosPopup)
 
 final class TilingContainer: Container {
     fileprivate(set) var orientation: Orientation

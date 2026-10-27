@@ -3,7 +3,6 @@ import AppKit
 import Common
 import Testing
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct ClosedWindowsCacheTest {
     @Test

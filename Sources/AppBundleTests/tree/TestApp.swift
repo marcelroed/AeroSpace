@@ -7,7 +7,6 @@ final class TestApp: nonisolated AbstractApp {
     let name: String?
     let execPath: String? = nil
     let bundlePath: String? = nil
-    @MainActor
     static let shared = TestApp()
 
     private init() {
@@ -37,5 +36,5 @@ final class TestApp: nonisolated AbstractApp {
             _focusedWindow = newValue
         }
     }
-    @MainActor func getFocusedWindow(_ cm: CancellationMode) -> Window? { _focusedWindow }
+    func getFocusedWindow(_ cm: CancellationMode) -> Window? { _focusedWindow }
 }

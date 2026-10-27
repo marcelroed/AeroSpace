@@ -5,7 +5,6 @@ import Testing
 
 // Characterization tests for layoutRecursive.swift. The test monitor is 1920x1080 at (0, 0). The trees are in workspace
 // 'a', which isn't the active workspace of the monitor
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct LayoutTest {
     @Test
@@ -261,7 +260,6 @@ private func cg(_ rect: Rect) -> CGRect {
     CGRect(x: rect.topLeftX, y: rect.topLeftY, width: rect.width, height: rect.height)
 }
 
-@MainActor
 private func expectRects(_ node: TreeNode, physical: Rect, virtual: Rect, sourceLocation: SourceLocation = #_sourceLocation) {
     #expect(node.lastAppliedLayoutPhysicalRect.map(cg) == cg(physical), sourceLocation: sourceLocation)
     #expect(node.lastAppliedLayoutVirtualRect.map(cg) == cg(virtual), sourceLocation: sourceLocation)
