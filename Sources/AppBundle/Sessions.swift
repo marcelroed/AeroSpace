@@ -28,7 +28,7 @@ import Common
 ///   newer event of the same kind.
 /// - AX read of a heavy refresh: an observe read of ``Platform`` (`AxApp.call`), abandonable. Preempted by the heavy
 ///   refresh's cancellation: it returns at once.
-/// - L1's focus read: an observe read too. While the frontmost app has the model's focus, a 500 ms deadline preempts it,
+/// - L1's focus read: an observe read too. While the frontmost app has the model's focus, a 1.5 s deadline preempts it,
 ///   and the read is taken to be the model's focus (`Reconcile.focusedWindowInTime`).
 /// - Listing of a heavy refresh: a deadline per app (``ListingDeadlines``). An app that misses it doesn't answer, and
 ///   isn't asked again until its listing returns. Preempted by the heavy refresh's cancellation before the deadline.

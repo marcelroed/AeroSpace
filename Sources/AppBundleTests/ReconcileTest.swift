@@ -479,6 +479,25 @@ struct ReconcileTest {
         expectEqual(fake.calls(of: .classify), [])
     }
 
+    /// The app with the model's focus opens 2 (e.g. on cmd-N) and is busy for 800 ms. The light session waits for its
+    /// focus read under LivePlatform's deadline and moves 2, not 1, which had the focus before
+    @Test
+    func aLightSessionWaitsForTheFocusReadOfAnAppBusyAfterAFocusChange() async throws {
+        setUpTree("h_tiles(*1)", workspace: "a")
+        fake.focused = 1
+        await heavyRefresh()
+        openWindow(2)
+        fake.focused = 2
+        fake.beforeFocusRead = { () async throws(CancellationError) in
+            do { try await Task.sleep(for: .milliseconds(800)) } catch { throw CancellationError() }
+        }
+
+        _ = try await world.sessions.light(.hotkeyBinding, .forceRun) { await runCmd("move-node-to-workspace b") }
+        world.sessions.cancelHeavy()
+        expectEqual(Window.get(byId: 2)?.nodeWorkspace?.name, "b")
+        expectEqual(Window.get(byId: 1)?.nodeWorkspace?.name, "a")
+    }
+
     /// Another app is in front (e.g. right after cmd-tab): the model's focus is stale, so the light session waits for
     /// the focus read past the deadline
     @Test

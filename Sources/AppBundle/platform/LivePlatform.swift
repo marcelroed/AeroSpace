@@ -112,10 +112,11 @@ final class LivePlatform: Platform {
         return result
     }
 
-    /// Longer than a busy app's usual answer: SlowApp, busy 400 ms of every 410 ms, answers only in its gaps, so 100 ms
-    /// would miss most of its reads. Short against a hung app's: its AX calls took ~1.5 s each, and a switch away from it
-    /// took ~3 s
-    let focusReadDeadline: Duration = .milliseconds(500)
+    /// Longer than an app's busy spell after it opens a window: after cmd-N in SlowApp, busy 800 ms of every 810 ms, a
+    /// command waited 742-782 ms for the read, and 500 ms moved the window that had the focus before, 6 times of 6.
+    /// Short against a hung app's: a switch away from it took ~3 s. Static: FakePlatform's default, so the tests pin it
+    static let focusReadDeadline: Duration = .milliseconds(1500)
+    var focusReadDeadline: Duration { Self.focusReadDeadline }
 
     func focusedWindow() async throws(CancellationError) -> FocusedWindow? {
         guard let nsApp = NSWorkspace.shared.frontmostApplication,

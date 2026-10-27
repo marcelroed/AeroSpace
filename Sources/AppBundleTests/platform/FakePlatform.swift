@@ -30,8 +30,8 @@ final class FakePlatform: Platform {
     /// Awaited before the focus read: a sleep there holds it, as a hung frontmost app does. Like LivePlatform's AX call,
     /// the read throws once it's abandoned
     var beforeFocusRead: (() async throws(CancellationError) -> ())? = nil
-    /// LivePlatform's 500 ms. The tests that hold the focus read shorten it
-    var focusReadDeadline: Duration = .milliseconds(500)
+    /// LivePlatform's. The tests that hold the focus read shorten it
+    var focusReadDeadline: Duration = LivePlatform.focusReadDeadline
     /// Awaited before an app lists its windows: a ``Gate`` there makes the app miss its listing deadline
     var beforeListing: ((AppInfo) async -> ())? = nil
     /// LivePlatform's listing deadlines, for the tests that hold an app in `beforeListing`: the apps are then listed at
