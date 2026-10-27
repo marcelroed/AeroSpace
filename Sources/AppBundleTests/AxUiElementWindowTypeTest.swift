@@ -27,6 +27,21 @@ struct AxUiElementWindowTypeTest {
         #expect(axUiElementMockFromTestDump("garbage, not an element" as NSString) == nil)
     }
 
+    /// RB-85: the level comes from the on-screen windows only. A Chrome window first seen off-screen (minimized, of a hidden
+    /// app) has no level, which must not make it a popup. A level other than normal still does
+    @Test
+    func testUnknownWindowLevelIsNotAPopup() throws {
+        let file = axDumpsDir.appending(path: "chrome.json5")
+        let rawJson = try #require(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: file), options: [.json5Allowed]) as? [String: Any],
+        )
+        let json = try #require(OrderedJson.newOrNilRecursive(rawJson)?.asDictOrNil)
+        let app = try #require(json["Aero.AXApp"]?.asDictOrNil)
+        expectEqual(json.getWindowType(axApp: app, .chrome, .regular, .normalWindow), .window)
+        expectEqual(json.getWindowType(axApp: app, .chrome, .regular, nil), .window)
+        expectEqual(json.getWindowType(axApp: app, .chrome, .regular, .alwaysOnTopWindow), .popup)
+    }
+
     // debug-windows writes the activation policy with prettyDescription, and the dumps are read back with from(string:)
     @Test
     func testActivationPolicyRoundTrip() {

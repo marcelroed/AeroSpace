@@ -24,7 +24,8 @@ nonisolated extension AxUiElementMock {
     ) -> Bool {
         // Note: a lot of windows don't have title on startup. So please don't rely on the title
 
-        if id == ._1password && windowLevel != .normalWindow {
+        // An unknown level (an off-screen window) tells nothing (RB-85)
+        if id == ._1password, let windowLevel, windowLevel != .normalWindow {
             return true
         }
 
@@ -110,7 +111,9 @@ nonisolated extension AxUiElementMock {
             case let id?: id.isFirefox
             case nil: false
         }
-        if usesWindowLevel && windowLevel != .normalWindow {
+        // An unknown level (an off-screen window, see onScreenWindowLevels) tells nothing: such a window isn't a popup for
+        // it (RB-85)
+        if usesWindowLevel, let windowLevel, windowLevel != .normalWindow {
             return false
         }
 
@@ -212,5 +215,37 @@ nonisolated extension AxUiElementMock {
             isWindow: isWindowHeuristic(axApp: axApp, id, activationPolicy, windowLevel),
             isDialog: { isDialogHeuristic(id, windowLevel) },
         )
+    }
+}
+
+/// The CoreGraphics window layer (`kCGWindowLayer`) of an on-screen window
+nonisolated enum MacOsWindowLevel: Sendable, Equatable {
+    case normalWindow
+    case alwaysOnTopWindow
+    case unknown(windowLevel: Int)
+
+    static func new(windowLevel: Int) -> MacOsWindowLevel {
+        switch windowLevel {
+            case 0: .normalWindow
+            case 3: .alwaysOnTopWindow
+            default: .unknown(windowLevel: windowLevel)
+        }
+    }
+
+    static func fromJson(_ json: OrderedJson) -> MacOsWindowLevel? {
+        switch json {
+            case .string("normalWindow"): .normalWindow
+            case .string("alwaysOnTopWindow"): .alwaysOnTopWindow
+            case .int(let int): .new(windowLevel: Int(exactly: int).orDie())
+            default: nil
+        }
+    }
+
+    func toJson() -> OrderedJson {
+        switch self {
+            case .normalWindow: .string("normalWindow")
+            case .alwaysOnTopWindow: .string("alwaysOnTopWindow")
+            case .unknown(let layerNumber): .int(layerNumber)
+        }
     }
 }

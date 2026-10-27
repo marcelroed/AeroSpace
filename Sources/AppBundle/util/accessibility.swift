@@ -143,14 +143,16 @@ nonisolated private func axWindowOrNil(_ any: Any) -> WindowIdAndAxUiElement? {
 }
 
 nonisolated extension AXUIElement: AxUiElementMock {
-    func get<Attr: ReadableAttr>(_ attr: Attr) -> Attr.T? {
+    func get<Attr: ReadableAttr>(_ attr: Attr) -> Attr.T? { getWithError(attr).value }
+
+    /// Like ``get(_:)``, but tells why it failed: e.g. `.cannotComplete` after the AX timeout of a hung app
+    func getWithError<Attr: ReadableAttr>(_ attr: Attr) -> (error: AXError, value: Attr.T?) {
         let state = signposter.beginInterval(#function, "attr: \(attr.key)")
         defer { signposter.endInterval(#function, state) }
         countAxCall("get \(attr.key)")
         var raw: AnyObject?
-        return unsafe AXUIElementCopyAttributeValue(self, attr.key as CFString, &raw) == .success
-            ? raw.flatMap(attr.getter)
-            : nil
+        let error = unsafe AXUIElementCopyAttributeValue(self, attr.key as CFString, &raw)
+        return (error, error == .success ? raw.flatMap(attr.getter) : nil)
     }
 
     @discardableResult func set<Attr: WritableAttr>(_ attr: Attr, _ value: Attr.T) -> Bool {

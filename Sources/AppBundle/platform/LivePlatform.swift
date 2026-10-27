@@ -50,7 +50,7 @@ final class LivePlatform: Platform {
 
     // MARK: Observe reads
 
-    func listWindows() async throws(CancellationError) -> [AppInfo: [WindowId]] {
+    func listWindows() async throws(CancellationError) -> [AppWindows] {
         let frontmostAppBundleId = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         for (_, app) in apps { // gc dead apps
             try checkCancellation()
@@ -58,13 +58,16 @@ final class LivePlatform: Platform {
                 destroy(app)
             }
         }
-        let alive: [pid_t: [UInt32]]
+        let scanOrder: [pid_t]
+        let alive: [pid_t: [UInt32]?]
         do {
-            alive = try await withThrowingTaskGroup(of: (pid_t, [UInt32]).self) { group in
+            (scanOrder, alive) = try await withThrowingTaskGroup(of: (pid_t, [UInt32]?).self) { group in
                 var refreshedPids: Set<pid_t> = []
+                var scanOrder: [pid_t] = []
                 func refreshTheApp(_ nsApp: NSRunningApplication) {
                     let pid = nsApp.processIdentifier // Free right after activationPolicy, an XPC after a suspension point
                     refreshedPids.insert(pid)
+                    scanOrder.append(pid)
                     group.addTask { @Sendable @MainActor [self] in
                         guard let app = try await register(nsApp, pid: pid, isBulkScan: true) else { return (pid, []) }
                         return (pid, try await aliveWindowIds(app, frontmostAppBundleId: frontmostAppBundleId))
@@ -90,23 +93,28 @@ final class LivePlatform: Platform {
                     // regular in between would be refreshed by neither loop
                     refreshTheApp(app.nsApp)
                 }
-                var result: [pid_t: [UInt32]] = [:]
+                var result: [pid_t: [UInt32]?] = [:]
                 for try await (pid, windowIds) in group {
                     result[pid] = windowIds
                 }
-                return result
+                return (scanOrder, result)
             }
         } catch {
             throw CancellationError() // The only error of the reads and of the registration
         }
         // A cancelled refresh must not replace the map: a light session may have mapped a new window meanwhile
         try checkCancellation()
-        var result: [AppInfo: [WindowId]] = [:]
-        var windowApps: [WindowId: pid_t] = [:]
-        for (pid, rawIds) in alive {
-            guard let app = apps[pid] else { continue }
+        var result: [AppWindows] = []
+        let noAnswerPids: Set<pid_t> = alive.filter { $0.value == nil && apps[$0.key] != nil }.keys.toSet()
+        var windowApps: [WindowId: pid_t] = self.windowApps.filter { noAnswerPids.contains($0.value) }
+        for pid in scanOrder { // The order of NSWorkspace's apps: a new window's order doesn't depend on the apps' answers
+            guard let app = apps[pid], let answer = alive[pid] else { continue } // Not registered, or terminated meanwhile
+            guard let rawIds = answer else {
+                result.append(.noAnswer(app.info))
+                continue
+            }
             let ids = rawIds.map(WindowId.init(raw:))
-            result[app.info] = ids
+            result.append(.listed(app.info, ids))
             for id in ids { windowApps[id] = pid }
         }
         self.windowApps = windowApps
@@ -125,17 +133,31 @@ final class LivePlatform: Platform {
         return FocusedWindow(app: app.info, windowId: id)
     }
 
-    func classify(_ id: WindowId) async throws(CancellationError) -> AxUiElementWindowType? {
-        guard let app = liveApp(of: id) else { return nil }
-        return try await observe(id) { [classifier = app.classifier(getWindowLevel(for: id))] in classifier.windowType($0, $1) }
+    func classify(_ ids: [WindowId]) async throws(CancellationError) -> [WindowId: DetectedWindow] {
+        let levels = onScreenWindowLevels()
+        return try await observe(ids) { app in
+            let classifier = app.classifier
+            return { @Sendable axApp, raws in
+                let activationPolicy = classifier.nsApp.activationPolicy // An XPC: once per app
+                return raws.compactMap { raw in
+                    guard let window = axApp.window(raw) else { return nil }
+                    let kind = window.getWindowType(axApp: axApp.element, classifier.appId, activationPolicy, levels[raw])
+                    return (raw, DetectedWindow(kind: kind, rect: axApp.rect(raw)))
+                }
+            }
+        }
     }
 
-    func nativeFacts(_ id: WindowId) async throws(CancellationError) -> NativeFacts? {
-        try await observe(id) { app, raw in app.nativeFacts(raw) }
+    func nativeFacts(_ ids: [WindowId]) async throws(CancellationError) -> [WindowId: NativeFacts] {
+        try await observe(ids) { _ in
+            { @Sendable axApp, raws in raws.compactMap { raw in axApp.nativeFacts(raw).map { (raw, $0) } } }
+        }
     }
 
     func observedRect(_ id: WindowId) async throws(CancellationError) -> Rect? {
-        try await observe(id) { app, raw in app.rect(raw) }
+        guard let ax = liveApp(of: id)?.ax else { return nil }
+        let raw = id.raw
+        return try await ax.call { @Sendable app, _ in app.rect(raw) }
     }
 
     // MARK: Single reads
@@ -154,7 +176,11 @@ final class LivePlatform: Platform {
 
     func kind(_ id: WindowId) async -> AxUiElementWindowType? {
         guard let app = liveApp(of: id) else { return nil }
-        return await read(id) { [classifier = app.classifier(getWindowLevel(for: id))] in classifier.windowType($0, $1) }
+        let classifier = app.classifier
+        let level = onScreenWindowLevels()[id.raw]
+        return await read(id) { @Sendable axApp, raw in
+            axApp.window(raw)?.getWindowType(axApp: axApp.element, classifier.appId, classifier.nsApp.activationPolicy, level)
+        }
     }
 
     func windowCount(_ app: AppInfo) async -> Int? {
@@ -166,8 +192,8 @@ final class LivePlatform: Platform {
         guard let app = liveApp(of: id), let ax = app.ax else { return nil }
         let nsApp = app.nsApp
         let appInfoDic: [String: Any] = nsApp.bundleURL.flatMap { Bundle(url: $0) }?.infoDictionary ?? [:]
-        let windowLevel = getWindowLevel(for: id)
-        let classifier = app.classifier(windowLevel)
+        let windowLevel = onScreenWindowLevels()[id.raw]
+        let classifier = app.classifier
         let raw = id.raw
         let dump: (window: OrderedJson.JsonDict, app: OrderedJson.JsonDict, isDialog: Bool, isWindow: Bool)? = await ax.run { app in
             guard let window = app.window(raw) else { return nil }
@@ -353,15 +379,16 @@ final class LivePlatform: Platform {
         }
     }
 
-    private func aliveWindowIds(_ app: LiveApp, frontmostAppBundleId: String?) async throws(CancellationError) -> [UInt32] {
+    /// nil if the app didn't answer
+    private func aliveWindowIds(_ app: LiveApp, frontmostAppBundleId: String?) async throws(CancellationError) -> [UInt32]? {
         if app.nsApp.isTerminated {
             destroy(app)
             return []
         }
         guard let ax = app.ax else { return [] }
         let isLockScreen = frontmostAppBundleId == lockScreenAppBundleId
-        let alive = try await ax.call { app, isAbandoned in app.refreshWindows(isLockScreen: isLockScreen, isAbandoned) }
-        app.windowsCount = alive.count
+        let alive = try await ax.call { @Sendable app, isAbandoned in app.refreshWindows(isLockScreen: isLockScreen, isAbandoned) }
+        if let alive { app.windowsCount = alive.count }
         return alive
     }
 
@@ -373,14 +400,32 @@ final class LivePlatform: Platform {
         app.ax = nil
     }
 
-    /// An abandonable read of the window's app, see ``AxApp/call(_:)``. nil if the app is gone
+    /// An observe read: one abandonable call per app (see ``AxApp/call(_:)``), the apps in parallel. `read` makes the body for
+    /// an app's windows on main; the body runs on the app's thread. A window whose app is gone, or that the body skips, is
+    /// missing from the result
     private func observe<T: Sendable>(
-        _ id: WindowId,
-        _ body: @escaping @Sendable (isolated AxApp, UInt32) -> T?,
-    ) async throws(CancellationError) -> T? {
-        guard let ax = liveApp(of: id)?.ax else { return nil }
-        let raw = id.raw
-        return try await ax.call { app, _ in body(app, raw) }
+        _ ids: [WindowId],
+        _ read: (LiveApp) -> @Sendable (isolated AxApp, [UInt32]) -> [(UInt32, T)],
+    ) async throws(CancellationError) -> [WindowId: T] {
+        var calls: [(AxApp, [UInt32], @Sendable (isolated AxApp, [UInt32]) -> [(UInt32, T)])] = []
+        for (pid, appIds) in Dictionary(grouping: ids, by: { windowApps[$0] }) {
+            guard let pid, let app = apps[pid], let ax = app.ax else { continue }
+            calls.append((ax, appIds.map(\.raw), read(app)))
+        }
+        do {
+            return try await withThrowingTaskGroup(of: [(UInt32, T)].self) { group in
+                for (ax, raws, body) in calls {
+                    group.addTask { @Sendable in try await ax.call { @Sendable app, _ in body(app, raws) } }
+                }
+                var result: [WindowId: T] = [:]
+                for try await pairs in group {
+                    for (raw, value) in pairs { result[WindowId(raw: raw)] = value }
+                }
+                return result
+            }
+        } catch {
+            throw CancellationError() // The only error of the reads
+        }
     }
 
     /// A read of the window's app that waits for it, see ``AxApp/run(_:)``. nil if the app is gone
@@ -419,20 +464,28 @@ private final class LiveApp {
     }
 
     /// What the window classifier needs from main, captured for the app's thread
-    func classifier(_ windowLevel: MacOsWindowLevel?) -> WindowClassifier {
-        WindowClassifier(appId: appId, nsApp: nsApp, windowLevel: windowLevel)
-    }
+    var classifier: WindowClassifier { WindowClassifier(appId: appId, nsApp: nsApp) }
 }
 
 nonisolated private struct WindowClassifier: Sendable {
     let appId: KnownBundleId?
     /// Its activationPolicy is an XPC: read it on the app's thread
     let nsApp: NSRunningApplication
-    let windowLevel: MacOsWindowLevel?
+}
 
-    func windowType(_ app: isolated AxApp, _ windowId: UInt32) -> AxUiElementWindowType? {
-        app.window(windowId)?.getWindowType(axApp: app.element, appId, nsApp.activationPolicy, windowLevel)
+/// The level of every on-screen window: one query per classification. An off-screen window (minimized, of a hidden app, on
+/// another Space) is missing: its level is unknown (RB-35, RB-85)
+private func onScreenWindowLevels() -> [UInt32: MacOsWindowLevel] {
+    let options = CGWindowListOption(arrayLiteral: .excludeDesktopElements, .optionOnScreenOnly)
+    guard let windows = CGWindowListCopyWindowInfo(options, CGWindowID(0)) as? [NSDictionary] else { return [:] }
+    var result: [UInt32: MacOsWindowLevel] = [:]
+    for window in windows {
+        guard let layer = (window[kCGWindowLayer] as? NSNumber)?.intValue,
+              let windowId = (window[kCGWindowNumber] as? NSNumber)?.uint32Value
+        else { continue }
+        result[windowId] = .new(windowLevel: layer)
     }
+    return result
 }
 
 /// RB-113: after an app's AX subscription fails, the refresh's bulk scan retries its registration after 1 s, then 2 s,

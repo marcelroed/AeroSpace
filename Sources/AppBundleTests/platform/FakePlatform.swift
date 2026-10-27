@@ -12,7 +12,7 @@ final class FakePlatform: Platform {
     var windows: [WindowId: FakeWindow] = [:]
     /// The window with the native focus
     var focused: WindowId? = nil
-    /// false: the app is hung or terminated. Its reads return nil, and its windows aren't listed
+    /// false: the app is hung. ``listWindows()`` reports it as `.noAnswer`, and its windows' reads return nil
     var answers: [pid_t: Bool] = [:]
     var hiddenApps: Set<pid_t> = []
     var isLeftMouseDown: Bool = false
@@ -44,13 +44,12 @@ final class FakePlatform: Platform {
 
     // MARK: Observe reads
 
-    func listWindows() -> [AppInfo: [WindowId]] {
+    /// Each app lists its windows in the order of their ids
+    func listWindows() -> [AppWindows] {
         calls.append(.listWindows)
-        var result: [AppInfo: [WindowId]] = [:]
-        for app in apps where answers[app.pid] != false {
-            result[app] = windows.filter { $0.value.app == app }.keys.sorted()
+        return apps.map { app in
+            answers[app.pid] == false ? .noAnswer(app) : .listed(app, windows.filter { $0.value.app == app }.keys.sorted())
         }
-        return result
     }
 
     func focusedWindow() -> FocusedWindow? {
@@ -58,8 +57,18 @@ final class FakePlatform: Platform {
         return focused.flatMap { id in answering(id).map { FocusedWindow(app: $0.app, windowId: id) } }
     }
 
-    func classify(_ id: WindowId) -> AxUiElementWindowType? { read(.classify(id), id)?.kind }
-    func nativeFacts(_ id: WindowId) -> NativeFacts? { read(.nativeFacts(id), id)?.facts }
+    func classify(_ ids: [WindowId]) -> [WindowId: DetectedWindow] {
+        calls.append(.classify(ids))
+        return ids.reduce(into: [:]) { result, id in
+            if let window = answering(id) { result[id] = DetectedWindow(kind: window.kind, rect: window.rect) }
+        }
+    }
+
+    func nativeFacts(_ ids: [WindowId]) -> [WindowId: NativeFacts] {
+        calls.append(.nativeFacts(ids))
+        return ids.reduce(into: [:]) { result, id in result[id] = answering(id)?.facts }
+    }
+
     func observedRect(_ id: WindowId) -> Rect? { read(.observedRect(id), id)?.rect }
 
     // MARK: Single reads
@@ -221,7 +230,7 @@ struct AxFrame: Equatable {
 /// A call of ``FakePlatform``
 enum PlatformCall: Equatable {
     case listWindows, focusedWindow
-    case classify(WindowId), nativeFacts(WindowId), observedRect(WindowId)
+    case classify([WindowId]), nativeFacts([WindowId]), observedRect(WindowId)
     case rect(WindowId), title(WindowId), facts(WindowId), kind(WindowId), windowCount(pid_t), debugInfo(WindowId)
     /// The placements but `.frame`, whose frame write is its entry
     case floating(WindowId, FloatingTarget), park(WindowId, ParkTarget), leave(WindowId)
@@ -265,14 +274,14 @@ enum PlatformCall: Equatable {
         }
     }
 
+    /// nil for the batch reads
     var windowId: WindowId? {
         switch self {
-            case .classify(let id), .nativeFacts(let id), .observedRect(let id), .rect(let id), .title(let id), .facts(let id),
-                 .kind(let id), .debugInfo(let id), .floating(let id, _), .park(let id, _), .leave(let id), .axRead(let id),
-                 .frame(let id, _, _), .rememberFloatingSize(let id), .restoreFloatingSize(let id), .focus(let id), .close(let id),
-                 .setNative(let id, _):
+            case .observedRect(let id), .rect(let id), .title(let id), .facts(let id), .kind(let id), .debugInfo(let id),
+                 .floating(let id, _), .park(let id, _), .leave(let id), .axRead(let id), .frame(let id, _, _),
+                 .rememberFloatingSize(let id), .restoreFloatingSize(let id), .focus(let id), .close(let id), .setNative(let id, _):
                 id
-            case .listWindows, .focusedWindow, .windowCount, .unhideApp, .quit: nil
+            case .listWindows, .focusedWindow, .classify, .nativeFacts, .windowCount, .unhideApp, .quit: nil
         }
     }
 }

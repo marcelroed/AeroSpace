@@ -28,16 +28,19 @@ protocol Platform: AnyObject, Sendable {
     var counters: [String: Int] { get }
 
     // MARK: Observe reads
-    // todo M2-REC: batch them per app as D3 has them: listWindows(_:isLockScreen:) -> [AppWindows], classify(_ ids:),
-    //              nativeFacts(_ ids:)
+    // The heavy refresh's reads (Reconcile.swift, P1). Each is one batch: the apps answer in parallel, each on its own
+    // thread
 
-    /// The alive windows of every registered app; registers the new apps. An app that doesn't answer fails the whole read
-    func listWindows() async throws(CancellationError) -> [AppInfo: [WindowId]]
+    /// The windows of every registered app; registers the new apps. An app that is missing terminated
+    func listWindows() async throws(CancellationError) -> [AppWindows]
+    /// The kind and the frame of each window. A window that is gone is missing
+    func classify(_ ids: [WindowId]) async throws(CancellationError) -> [WindowId: DetectedWindow]
+    /// A window that is gone is missing
+    func nativeFacts(_ ids: [WindowId]) async throws(CancellationError) -> [WindowId: NativeFacts]
     /// The focused window of the frontmost app; registers the app. Abandonable unlike D3's session read: the light session
     /// that preempts a heavy one must not wait for a hung frontmost app
     func focusedWindow() async throws(CancellationError) -> FocusedWindow?
-    func classify(_ id: WindowId) async throws(CancellationError) -> AxUiElementWindowType?
-    func nativeFacts(_ id: WindowId) async throws(CancellationError) -> NativeFacts?
+    /// The mouse sessions' read: a newer mouse event cancels it
     func observedRect(_ id: WindowId) async throws(CancellationError) -> Rect?
 
     // MARK: Single reads
@@ -87,6 +90,21 @@ nonisolated struct AppInfo: Hashable, Sendable {
     let name: String?
     let execPath: String?
     let bundlePath: String?
+}
+
+/// What ``Platform/listWindows()`` found for one app
+nonisolated enum AppWindows: Sendable {
+    /// The app's alive windows, in the order the app lists them
+    case listed(AppInfo, [WindowId])
+    /// The app didn't answer in time (e.g. it's hung). It still has the windows it had: only positive evidence drops one
+    case noAnswer(AppInfo)
+}
+
+/// What the classification found for a window
+nonisolated struct DetectedWindow: Equatable, Sendable {
+    let kind: AxUiElementWindowType
+    /// nil if AX doesn't tell
+    let rect: Rect?
 }
 
 /// The macOS native states of a window that the model mirrors in its containers

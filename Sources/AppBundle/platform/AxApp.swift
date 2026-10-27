@@ -114,10 +114,13 @@ actor AxApp {
 
     var windowIds: [UInt32] { Array(windows.keys) }
 
-    /// The refresh's read: drops the dead windows, registers the new ones, returns the ids of the alive ones.
-    /// Commits nothing if the caller abandons it (the result is dropped then)
-    func refreshWindows(isLockScreen: Bool, _ isAbandoned: () -> Bool) -> [UInt32] {
-        let listed = element.get(Ax.windowsAttr) ?? []
+    /// The refresh's read: drops the dead windows, registers the new ones, returns the ids of the alive ones in the app's
+    /// order (then the alive ones it didn't list). nil if the app didn't answer (the AX timeout of a hung app): then nothing
+    /// changes. Commits nothing if the caller abandons it (the result is dropped then)
+    func refreshWindows(isLockScreen: Bool, _ isAbandoned: () -> Bool) -> [UInt32]? {
+        let (error, value) = element.getWithError(Ax.windowsAttr)
+        if error == .cannotComplete { return nil }
+        let listed = value ?? []
         var alive = windows
         // Second line of defence against lock screen (964e5b11). See the first line of defence: closedWindowsCache
         // Second and third lines of defence are technically needed only to avoid potential flickering
@@ -132,12 +135,14 @@ actor AxApp {
                 }
             }
         }
+        var order: [UInt32] = []
         for (id, ax) in listed {
             if isAbandoned() { return [] }
-            registerWindow(id, ax, in: &alive)
+            if registerWindow(id, ax, in: &alive) && !order.contains(id) { order.append(id) }
         }
         windows = alive // The dropped windows (and their subscriptions) are released here, on this thread (9c5fa1aa)
-        return Array(alive.keys)
+        let listedIds = Set(order)
+        return order + alive.keys.filter { !listedIds.contains($0) }.sorted()
     }
 
     func focusedWindowId() -> UInt32? {

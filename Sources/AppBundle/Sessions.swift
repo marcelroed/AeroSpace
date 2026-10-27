@@ -45,7 +45,6 @@ final class Sessions {
         defer { signposter.endInterval(#function, state) }
         cancelHeavy() // Give priority to the light session
         updateMonitors() // While there are no screens, the commands fail with a message or work on the last monitors
-        startWindowLevelCacheSession()
         return try await $refreshSessionEvent.withValue(event) {
             try await syncFocusFromMacOs()
             let focusBefore = focus.windowOrNil
@@ -102,7 +101,6 @@ final class Sessions {
         // No screens (e.g., during display reconfiguration): nothing can be laid out. Skip the session, the next one catches
         // up when the screens come back
         if !updateMonitors() { return }
-        startWindowLevelCacheSession()
         do {
             try await $refreshSessionEvent.withValue(event) {
                 try await syncFocusFromMacOs()
