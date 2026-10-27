@@ -147,7 +147,7 @@ final class FakePlatform: Platform {
 
     // MARK: Effects
 
-    func apply(_ batch: [Placement], focus: WindowId?) {
+    func apply(_ batch: [Placement], focus: WindowId?, trustsLastSeen: Bool) {
         for placement in batch {
             switch placement {
                 case .frame: break // Its write is the log entry
@@ -157,7 +157,7 @@ final class FakePlatform: Platform {
             }
             let id = placement.windowId
             guard let window = windows[id] else { continue }
-            window.placement.apply(placement, to: FakeAxWindow(id: id, window: window, platform: self))
+            window.placement.apply(placement, to: FakeAxWindow(id: id, window: window, platform: self), trustsLastSeen: trustsLastSeen)
         }
         if let focus { self.focus(focus) }
     }
@@ -240,8 +240,8 @@ final class FakePlatform: Platform {
 }
 
 extension Platform {
-    /// A batch without a native focus
-    func apply(_ batch: [Placement]) { apply(batch, focus: nil) }
+    /// A batch without a native focus, which reads every window as a heavy refresh's P4
+    func apply(_ batch: [Placement]) { apply(batch, focus: nil, trustsLastSeen: false) }
 }
 
 /// A window of ``FakePlatform`` for ``PlacementState``: each AX read and frame write goes into the call log, and the

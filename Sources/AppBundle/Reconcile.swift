@@ -30,7 +30,7 @@ enum Reconcile {
                 if let focused = try await readNativeFocus(), let window = Window.get(byId: focused.windowId) {
                     syncFocusFromMacOs(window)
                 }
-                try present(nativeFocusBaseline: focus.windowOrNil)
+                try present(nativeFocusBaseline: focus.windowOrNil, trustsLastSeen: true) // P4 follows
             }
             guard let observation = try await observe(isStartup: isStartup) else { return } // P1
             let committed = commit(observation, isStartup: isStartup) // P2
@@ -274,12 +274,13 @@ enum Reconcile {
     // MARK: P4 present
 
     /// P4: the layout of every workspace with the native focus if the focus differs from `nativeFocusBaseline`, then the
-    /// tray. A cancelled session presents nothing. `isLayout` false: focus-follows-mouse doesn't lay out
-    static func present(nativeFocusBaseline: Window?, isLayout: Bool = true) throws(CancellationError) {
+    /// tray. A cancelled session presents nothing. `isLayout` false: focus-follows-mouse doesn't lay out.
+    /// `trustsLastSeen`: a heavy refresh's P4 follows, which checks the windows that this present trusts
+    static func present(nativeFocusBaseline: Window?, isLayout: Bool = true, trustsLastSeen: Bool = false) throws(CancellationError) {
         try checkCancellation()
         let batch: [Placement] = isLayout ? placements() : []
         let focused = focus.windowOrNil
-        world.platform.apply(batch, focus: focused == nativeFocusBaseline ? nil : focused?.windowId)
+        world.platform.apply(batch, focus: focused == nativeFocusBaseline ? nil : focused?.windowId, trustsLastSeen: trustsLastSeen)
         updateTrayText()
         world.ui.refreshSecureInputPanel()
     }

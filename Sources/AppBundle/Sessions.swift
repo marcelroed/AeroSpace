@@ -58,7 +58,8 @@ final class Sessions {
     ///   the body.
     /// - L3 the body. Shell refreshes the model after each command.
     /// - L4 refresh the model: the only refresh after a body that runs no command.
-    /// - L5 present (``Reconcile/present(nativeFocusBaseline:isLayout:)``).
+    /// - L5 present (``Reconcile/present(nativeFocusBaseline:isLayout:trustsLastSeen:)``): L6's heavy refresh checks the
+    ///   windows that it trusts.
     /// - L6 schedule a heavy refresh.
     ///
     /// `isStartup`: the light session of ``startup(_:)``, which registers a new focused window the startup's way
@@ -79,7 +80,7 @@ final class Sessions {
         let result = try await body() // L3
         await refreshModel_nonCancellable() // L4
 
-        try Reconcile.present(nativeFocusBaseline: focusBefore) // L5
+        try Reconcile.present(nativeFocusBaseline: focusBefore, trustsLastSeen: true) // L5
         scheduleHeavy(event) // L6
         return result
     }

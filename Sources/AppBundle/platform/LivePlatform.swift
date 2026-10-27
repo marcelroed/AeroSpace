@@ -212,7 +212,7 @@ final class LivePlatform: Platform {
     /// before them keeps its main thread busy: cmux then takes ~10 ms for the size write and ~30 ms for the position write
     /// instead of ~1 ms each, and shows ~80 ms after the command instead of ~33 ms. Not after the on-screen wait either:
     /// the focus would wait for the app's lag (cmux: ~25 ms). Without a shown job of its app, the focus runs as ``focus(_:)``
-    func apply(_ batch: [Placement], focus: WindowId?) {
+    func apply(_ batch: [Placement], focus: WindowId?, trustsLastSeen: Bool) {
         var shown: [pid_t: (ax: AxApp, placements: [Placement])] = [:]
         var parks: [pid_t: (ax: AxApp, placements: [Placement])] = [:]
         for placement in batch {
@@ -227,10 +227,10 @@ final class LivePlatform: Platform {
         let shownJobs = ShownJobs(deadline: .now() + parkWaitLimit)
         for (pid, (ax, placements)) in shown {
             let focus = nativeFocus.flatMap { $0.app.info.pid == pid ? $0.run : nil }
-            ax.postPlacements(placements, .shown(shownJobs, focus: focus))
+            ax.postPlacements(placements, .shown(shownJobs, focus: focus, trustsLastSeen: trustsLastSeen))
         }
         for (ax, placements) in parks.values {
-            ax.postPlacements(placements, .parks(waitingFor: shownJobs))
+            ax.postPlacements(placements, .parks(waitingFor: shownJobs, trustsLastSeen: trustsLastSeen))
         }
         if let nativeFocus, shown[nativeFocus.app.info.pid] == nil {
             nativeFocus.runAlone()
@@ -466,7 +466,7 @@ nonisolated private func eachUntilAbandoned<T>(_ raws: [UInt32], _ isAbandoned: 
 /// The latest-wins slot of a native focus that runs on its app's thread: a newer focus request makes a pending one stale
 nonisolated private let nativeFocusGeneration: Atomic<UInt64> = Atomic(0)
 
-/// A native focus that main decided, see ``LivePlatform/apply(_:focus:)``
+/// A native focus that main decided, see ``LivePlatform/apply(_:focus:trustsLastSeen:)``
 private struct NativeFocus {
     let app: LiveApp
     /// The fast path (#101): the activation alone focuses the window, with no AX call

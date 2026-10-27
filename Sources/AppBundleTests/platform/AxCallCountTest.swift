@@ -16,10 +16,11 @@ struct AxCallCountTest {
             setUpWorkspacesForTests()
             setUpRealisticWorld()
             let phases: [Phase] = try await scenario.run()
-            results.append((scenario.name, phases, await convergence()))
+            results.append((scenario.name, phases, try await convergence()))
         }
         for (scenario, phases, convergence) in results {
             expectEqual(convergence.notBack, [], "\(scenario): moved behind AeroSpace's back")
+            expectEqual(convergence.notBackAfterTheLightSession, [], "\(scenario): moved before a light session")
             for phase in phases {
                 expectEqual(phase.waste.focusOfFocused, 0, "\(scenario): \(phase.name)")
                 expectEqual(phase.waste.unhideOfVisible, 0, "\(scenario): \(phase.name)")
@@ -218,25 +219,46 @@ private func settled(_ body: () async throws -> [Phase]) async throws -> [Phase]
 }
 
 /// After a scenario: the world settles, then the apps move and resize every tile and move every parked window behind
-/// AeroSpace's back. The next heavy refresh reads where they are, so it puts each one back
-private func convergence() async -> Convergence {
+/// AeroSpace's back. The next heavy refresh reads where they are, so it puts each one back. Then the apps move them again,
+/// and a hotkey's light session comes first: it trusts what it last saw, so the windows that it doesn't read stay where
+/// the apps put them until its heavy refresh
+private func convergence() async throws -> Convergence {
     await Reconcile.heavy(.ax("settle"))
     await Reconcile.heavy(.ax("settle"))
     var expected: [WindowId: Rect] = [:]
-    for window in world.windows.values {
-        let isTile = window.parent is TilingContainer && !fake.isParked(window.windowId)
-        guard isTile || fake.isParked(window.windowId), let fakeWindow = fake.windows[window.windowId], let rect = fakeWindow.rect
-        else { continue }
-        expected[window.windowId] = rect
-        fakeWindow.rect = Rect(topLeftX: rect.topLeftX + 37, topLeftY: rect.topLeftY + 37, width: rect.width - (isTile ? 50 : 0), height: rect.height)
+    func moveBehindAeroSpacesBack() {
+        for window in world.windows.values {
+            let isTile = window.parent is TilingContainer && !fake.isParked(window.windowId)
+            guard isTile || fake.isParked(window.windowId), let fakeWindow = fake.windows[window.windowId], let rect = fakeWindow.rect
+            else { continue }
+            expected[window.windowId] = rect
+            fakeWindow.rect = Rect(topLeftX: rect.topLeftX + 37, topLeftY: rect.topLeftY + 37, width: rect.width - (isTile ? 50 : 0), height: rect.height)
+        }
     }
+    func notBack() -> [WindowId] { expected.keys.filter { fake.windows[$0]?.rect != expected[$0] }.sorted() }
+    moveBehindAeroSpacesBack()
     await Reconcile.heavy(.ax("moved behind AeroSpace's back"))
-    return Convergence(moved: expected.count, notBack: expected.keys.filter { fake.windows[$0]?.rect != expected[$0] }.sorted())
+    let notBackAfterTheHeavyRefresh = notBack()
+    moveBehindAeroSpacesBack()
+    try await world.sessions.light(.hotkeyBinding, .forceRun) {}
+    world.sessions.cancelHeavy() // Run below
+    let leftByTheLightSession = notBack()
+    await Reconcile.heavy(.ax("its heavy refresh"))
+    return Convergence(
+        moved: expected.count,
+        notBack: notBackAfterTheHeavyRefresh,
+        leftByTheLightSession: leftByTheLightSession,
+        notBackAfterTheLightSession: notBack(),
+    )
 }
 
 private struct Convergence {
     let moved: Int
     let notBack: [WindowId]
+    /// The windows that a light session before the heavy refresh left where the apps put them
+    let leftByTheLightSession: [WindowId]
+    /// The windows that the light session's heavy refresh didn't put back
+    let notBackAfterTheLightSession: [WindowId]
 }
 
 /// A hotkey that runs `command`
@@ -595,14 +617,23 @@ private func axCallTable(_ results: [(scenario: String, phases: [Phase], converg
         "",
         "After each scenario, the world settles (two heavy refreshes). Then the apps move every tile by (37, 37) and make it",
         "50 pt narrower, and move every parked window by (37, 37), behind AeroSpace's back. The next heavy refresh must put",
-        "each one back.",
+        "each one back. Then the apps move them again, and a hotkey's light session (with an empty body) comes before the",
+        "heavy refresh: `Left by the light session` are the windows that it trusted, and its heavy refresh must put back",
+        "every window.",
         "",
-        "| Scenario | Windows moved | Not back after one heavy refresh |",
-        "|---|---:|---|",
+        "| Scenario | Windows moved | Not back after one heavy refresh | Left by the light session | Not back after its heavy refresh |",
+        "|---|---:|---|---|---|",
     ]
+    func ids(_ ids: [WindowId]) -> String { ids.isEmpty ? "none" : ids.map(\.description).joined(separator: ", ") }
     for (scenario, _, convergence) in results {
-        let notBack = convergence.notBack.isEmpty ? "none" : convergence.notBack.map(\.description).joined(separator: ", ")
-        lines.append("| \(scenario) | \(convergence.moved) | \(notBack) |")
+        let cells: [String] = [
+            scenario,
+            "\(convergence.moved)",
+            ids(convergence.notBack),
+            ids(convergence.leftByTheLightSession),
+            ids(convergence.notBackAfterTheLightSession),
+        ]
+        lines.append("| " + cells.joined(separator: " | ") + " |")
     }
     lines += [
         "",

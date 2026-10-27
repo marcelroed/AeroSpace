@@ -1,12 +1,12 @@
 import AppKit
 
-/// Where a window goes, see ``Platform/apply(_:)``. The platform runs the placements of each app in the batch's order (the
-/// shown workspaces' placements, then the parks), latest wins per window. AxApp and FakePlatform decide each window's AX
-/// calls with the same code, ``PlacementState``. Only AxApp runs the apps in parallel, where the parks also wait for the
-/// other apps' shown placements (``ShownJobs``)
+/// Where a window goes, see ``Platform/apply(_:focus:trustsLastSeen:)``. The platform runs the placements of each app in
+/// the batch's order (the shown workspaces' placements, then the parks), latest wins per window. AxApp and FakePlatform
+/// decide each window's AX calls with the same code, ``PlacementState``. Only AxApp runs the apps in parallel, where the
+/// parks also wait for the other apps' shown placements (``ShownJobs``)
 nonisolated enum Placement: Equatable, Sendable {
     /// The layout's frame of a window. It's written only if the window isn't there already, see
-    /// ``PlacementState/apply(_:to:)``
+    /// ``PlacementState/apply(_:to:trustsLastSeen:)``
     case frame(WindowId, topLeft: CGPoint, size: CGSize)
     /// A floating window of a workspace: it unparks to where it was, then it stays where it is unless it's off the
     /// workspace's monitor, see ``floatingTopLeft(current:target:)``
@@ -70,7 +70,9 @@ nonisolated struct PlacementState {
     /// a floating window parks or the size is remembered (`layout tiling`, `enable on`)
     private(set) var lastFloatingSize: CGSize?
     /// Where the window was last seen: what the platform's last read of its rect found (``recordRead(_:)``), or the
-    /// frame that the last `.frame` placement found it at or wrote
+    /// frame that the last `.frame` placement found it at or wrote. nil once the window may be elsewhere in another way: a
+    /// floating window's placement, ``restoreFloatingSize(to:)``, a `.frame` write that stopped halfway, a macOS
+    /// fullscreen. A park keeps it: `parked` tells that the window is elsewhere
     private var lastFrame: Rect? = nil
 
     init(lastFloatingSize: CGSize?) {
@@ -86,21 +88,29 @@ nonisolated struct PlacementState {
     /// A read of the window's rect outside the placements (e.g., the drag of a tile) found it at `rect`. nil: unknown
     mutating func recordRead(_ rect: Rect?) { lastFrame = rect }
 
-    mutating func apply(_ placement: Placement, to window: some PlacementWindow) {
+    /// `trustsLastSeen`: a heavy refresh's P4 follows the batch and reads every window again. So a tile last seen at its
+    /// frame, and a window that the last park wrote to its corner, get no AX call: a hotkey reads only the windows that it
+    /// moves. If the app or the user moved one meanwhile, P4 puts it back
+    mutating func apply(_ placement: Placement, to window: some PlacementWindow, trustsLastSeen: Bool) {
         guard window.isCurrent() else { return } // Before any AX call: termination waits for this job
         switch placement {
             case .frame(_, let topLeft, let size):
                 // It writes only a window that isn't there: each write makes the app lay out the window again. It reads
-                // first, unless the window is known to be elsewhere: parked, or last seen at another frame. A skipped read
-                // always becomes a write, because `lastFrame` may be stale: the app or the user may have moved the window
+                // first, unless the window is known to be elsewhere (parked, or last seen at another frame: it writes
+                // without the read) or the batch trusts that it's there. Otherwise a skipped read always becomes a write,
+                // because `lastFrame` may be stale: the app or the user may have moved the window
                 let frame = Rect(topLeftX: topLeft.x, topLeftY: topLeft.y, width: size.width, height: size.height)
+                if trustsLastSeen && parked == nil && lastFrame?.isAt(frame) == true { return }
                 let isKnownElsewhere = parked != nil || lastFrame.map { !$0.isAt(frame) } == true
                 let isThere = !isKnownElsewhere && window.rect().map { $0.isAt(frame) } == true
                 if isThere || window.setFrame(topLeft: topLeft, size: size) {
                     parked = nil
                     lastFrame = frame
+                } else {
+                    lastFrame = nil // A write that turned stale may have sent the size only
                 }
             case .floating(_, let target):
+                lastFrame = nil // The writes below may move it: a later `.frame` mustn't trust a frame from before
                 if let parked {
                     let topLeft = unparkTopLeft(proportional: parked.at, monitorRect: target.monitor.rect, lastFloatingSize: lastFloatingSize)
                     // Unparked once it's written. A stale unpark leaves the window parked for the next one
@@ -131,7 +141,10 @@ nonisolated struct PlacementState {
                     // Parked already: the window moves only if it isn't in the corner (e.g., the app moved it). Only its x
                     // tells: macOS clamps a parked window's y for some apps (Helium shows at y 1083 where AeroSpace wrote
                     // 1116, on a screen 1117 high), so that window would never be in its corner, and every layout would
-                    // write it again. The bottom left corner uses the size read now: the app may have resized the window
+                    // write it again. The bottom left corner uses the size read now: the app may have resized the window.
+                    // The bottom right corner doesn't need the size: a trusting batch takes the x that the last park wrote
+                    let isAtTheLastParksX = target.corner == .bottomRightCorner && cornerX == parkTopLeft(size: nil, target: target).x
+                    if trustsLastSeen && isAtTheLastParksX { return }
                     let rect = window.rect()
                     let topLeft = parkTopLeft(size: rect?.size, target: target)
                     let isInCorner = rect.map { abs($0.topLeftX - topLeft.x) < 1 } == true
@@ -141,6 +154,7 @@ nonisolated struct PlacementState {
                 }
             case .leave:
                 parked = nil
+                lastFrame = nil // macOS puts a fullscreen window where it wants
         }
     }
 
@@ -151,8 +165,9 @@ nonisolated struct PlacementState {
     }
 
     /// `layout floating`
-    func restoreFloatingSize(to window: some PlacementWindow) {
+    mutating func restoreFloatingSize(to window: some PlacementWindow) {
         guard let lastFloatingSize else { return }
+        lastFrame = nil
         window.setFrame(topLeft: nil, size: lastFloatingSize)
     }
 }

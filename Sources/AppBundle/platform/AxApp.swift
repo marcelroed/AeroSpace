@@ -105,7 +105,7 @@ actor AxApp {
     /// calls, once it's stale or termination starts. The batch's jobs wait for each other, see ``ShownJobs``
     nonisolated func postPlacements(_ placements: [Placement], _ job: PlacementJob) {
         let generations: [UInt64] = self.generations.withLock { generations in placements.map { generations.bump($0.windowId.raw) } }
-        if case .shown(let shownJobs, _) = job {
+        if case .shown(let shownJobs, _, _) = job {
             shownJobs.posted()
         }
         post { app in app.place(placements, generations, job) }
@@ -224,7 +224,10 @@ actor AxApp {
     /// shows the tiles it unparked, lets the parks go, and only then turns the animations back on: the parks don't wait for
     /// that, and a move that the app makes late is still a jump
     private func place(_ placements: [Placement], _ generations: [UInt64], _ job: PlacementJob) {
-        let beforeFirstWrite: (() -> Void)? = if case .parks(let shownJobs) = job { shownJobs.wait } else { nil }
+        let beforeFirstWrite: (() -> Void)? = if case .parks(let shownJobs, _) = job { shownJobs.wait } else { nil }
+        let trustsLastSeen = switch job {
+            case .shown(_, _, let trusts), .parks(_, let trusts): trusts
+        }
         let animations = AnimationsOff(element, beforeFirstWrite: beforeFirstWrite)
         var unparkedTiles: [UnparkedTile] = []
         for (placement, generation) in zip(placements, generations) {
@@ -237,12 +240,12 @@ actor AxApp {
             // A tile whose park wrote its corner's x. That x, not a window server call: one here would delay the write
             // (p99 4 ms, up to 36 ms during a switch)
             let cornerX: CGFloat? = if case .frame = placement { registered.placement.cornerX } else { nil }
-            windows[windowId]?.placement.apply(placement, to: window)
+            windows[windowId]?.placement.apply(placement, to: window, trustsLastSeen: trustsLastSeen)
             if let cornerX, window.didWritePosition {
                 unparkedTiles.append(UnparkedTile(windowId: windowId, cornerX: cornerX, isCurrent: isCurrent))
             }
         }
-        if case .shown(let shownJobs, let focus) = job {
+        if case .shown(let shownJobs, let focus, _) = job {
             focus?(self)
             waitUntilOnScreen(unparkedTiles, until: min(.now() + onScreenWaitLimit, shownJobs.deadline))
             shownJobs.ended()
@@ -354,13 +357,14 @@ nonisolated struct WindowGenerations {
     }
 }
 
-/// An app's job of a batch (``LivePlatform/apply(_:focus:)``)
+/// An app's job of a batch (``LivePlatform/apply(_:focus:trustsLastSeen:)``). `trustsLastSeen` is the batch's, see
+/// ``PlacementState/apply(_:to:trustsLastSeen:)``: unless the batch says so, the job reads every window
 nonisolated enum PlacementJob: Sendable {
     /// The shown workspaces' placements. Right after its writes, the job gives the native focus that it carries (see
-    /// ``LivePlatform/apply(_:focus:)``). It ends once the window server shows the tiles it unparked
-    case shown(ShownJobs, focus: (@Sendable (isolated AxApp) -> Void)?)
+    /// ``LivePlatform/apply(_:focus:trustsLastSeen:)``). It ends once the window server shows the tiles it unparked
+    case shown(ShownJobs, focus: (@Sendable (isolated AxApp) -> Void)?, trustsLastSeen: Bool = false)
     /// The parks. Before its first write, the job waits for the shown jobs
-    case parks(waitingFor: ShownJobs)
+    case parks(waitingFor: ShownJobs, trustsLastSeen: Bool = false)
 }
 
 /// The shown jobs of a batch, which its parks wait for: a window leaves for its corner only once the windows that replace
