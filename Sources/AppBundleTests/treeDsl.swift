@@ -34,7 +34,7 @@ func setUpTree(_ spec: String, workspace workspaceName: String? = nil) -> Worksp
     var focused: [Window] = []
     for part in parseTreeSpec(spec) {
         let children = part.children.orDie("'\(part.name)': windows must be inside a container")
-        let container: NonLeafTreeNodeObject = switch part.name {
+        let container: Container = switch part.name {
             case "floating": workspace.floatingWindowsContainer
             case "macos_fullscreen": workspace.macOsNativeFullscreenWindowsContainer
             case "macos_hidden": workspace.macOsNativeHiddenAppsWindowsContainer
@@ -74,9 +74,9 @@ func describeTree(_ workspaceName: String? = nil, weights: Bool = false) -> Stri
             case let parent as TilingContainer where weights: ":" + node.getWeight(parent.orientation).dslDescription
             default: ""
         }
-        return switch node.nodeCases {
-            case .window(let window): (window.windowId == focusedWindowId ? "*" : "") + String(window.windowId) + weight
-            case .tilingContainer(let container): "\(container.orientation)_\(container.layout.rawValue)" + weight + describeChildren(container)
+        return switch node {
+            case let window as Window: (window.windowId == focusedWindowId ? "*" : "") + String(window.windowId) + weight
+            case let container as TilingContainer: "\(container.orientation)_\(container.layout.rawValue)" + weight + describeChildren(container)
             default: dieT("\(node.prettyDescription) can't be a child of a tiling container")
         }
     }
@@ -84,12 +84,8 @@ func describeTree(_ workspaceName: String? = nil, weights: Bool = false) -> Stri
         "(" + node.children.map(describe).joined(separator: " ") + ")"
     }
     var parts = [describe(workspace.rootTilingContainer)]
-    for (name, kind): (String, NonLeafTreeNodeKind) in [
-        ("floating", .floatingWindowsContainer),
-        ("macos_fullscreen", .macosFullscreenWindowsContainer),
-        ("macos_hidden", .macosHiddenAppsWindowsContainer),
-    ] {
-        let container = workspace.children.first { ($0 as? NonLeafTreeNodeObject)?.kind == kind }
+    for (name, kind): (String, ContainerKind) in [("floating", .floating), ("macos_fullscreen", .macosFullscreen), ("macos_hidden", .macosHiddenApp)] {
+        let container = workspace.children.first { ($0 as? Container)?.kind == kind }
         if let container, !container.children.isEmpty {
             parts.append(name + describeChildren(container))
         }
@@ -145,7 +141,7 @@ private func parseTreeSpec(_ spec: String) -> [SpecNode] {
 }
 
 @MainActor
-private func build(_ node: SpecNode, in parent: NonLeafTreeNodeObject, focused: inout [Window]) {
+private func build(_ node: SpecNode, in parent: Container, focused: inout [Window]) {
     if let children = node.children {
         let (layout, orientation) = tilingKind(node.name)
         let container = TilingContainer(parent: parent, weight: node.weight ?? 1, orientation, layout)

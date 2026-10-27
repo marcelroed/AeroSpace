@@ -2,7 +2,7 @@ import Common
 
 extension Workspace {
     var rootTilingContainer: TilingContainer {
-        singleChild(TilingContainer.self, dieMessage: "Workspace must contain zero or one tiling container as its child") {
+        singleChild({ $0 as? TilingContainer }, dieMessage: "Workspace must contain zero or one tiling container as its child") {
             let orientation: Orientation = switch config.defaultRootContainerOrientation {
                 case .horizontal: .h
                 case .vertical: .v
@@ -16,28 +16,21 @@ extension Workspace {
         floatingWindowsContainer.children.filterIsInstance(of: Window.self)
     }
 
-    var floatingWindowsContainer: FloatingWindowsContainer {
-        singleChild(FloatingWindowsContainer.self, dieMessage: "Workspace must contain zero or one FloatingWindowsContainer") {
-            FloatingWindowsContainer(parent: self)
-        }
+    var floatingWindowsContainer: Container { specialContainer(.floating) }
+    var macOsNativeFullscreenWindowsContainer: Container { specialContainer(.macosFullscreen) }
+    var macOsNativeHiddenAppsWindowsContainer: Container { specialContainer(.macosHiddenApp) }
+
+    private func specialContainer(_ kind: ContainerKind) -> Container {
+        singleChild(
+            { ($0 as? Container)?.takeIf { $0.kind == kind } },
+            dieMessage: "Workspace must contain zero or one \(kind) container",
+        ) { Container(kind, parent: self) }
     }
 
-    var macOsNativeFullscreenWindowsContainer: MacosFullscreenWindowsContainer {
-        singleChild(MacosFullscreenWindowsContainer.self, dieMessage: "Workspace must contain zero or one MacosFullscreenWindowsContainer") {
-            MacosFullscreenWindowsContainer(parent: self)
-        }
-    }
-
-    var macOsNativeHiddenAppsWindowsContainer: MacosHiddenAppsWindowsContainer {
-        singleChild(MacosHiddenAppsWindowsContainer.self, dieMessage: "Workspace must contain zero or one MacosHiddenAppsWindowsContainer") {
-            MacosHiddenAppsWindowsContainer(parent: self)
-        }
-    }
-
-    /// Returns the only child of type `T`, or creates it if there is none
+    /// Returns the only child that `match` accepts, or creates it if there is none
     private func singleChild<T: TreeNode>(
-        _: T.Type,
-        dieMessage: String,
+        _ match: (TreeNode) -> T?,
+        dieMessage: @autoclosure () -> String,
         file: StaticString = #fileID,
         line: Int = #line,
         column: Int = #column,
@@ -46,8 +39,8 @@ extension Workspace {
     ) -> T {
         var result: T? = nil
         for child in children {
-            guard let child = child as? T else { continue }
-            if result != nil { die(dieMessage, file: file, line: line, column: column, function: function) }
+            guard let child = match(child) else { continue }
+            if result != nil { die(dieMessage(), file: file, line: line, column: column, function: function) }
             result = child
         }
         if let result { return result }

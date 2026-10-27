@@ -7,7 +7,7 @@ var lastKnownNativeFocusedWindowId: UInt32? = nil // Not private: the tests rese
 func syncFocusFromMacOs() async throws {
     let nativeFocused = try await getNativeFocusedWindow(.cancellable)
     if let nativeFocused { try await debugWindowsIfRecording(nativeFocused, .cancellable) }
-    if nativeFocused?.parent is MacosPopupWindowsContainer {
+    if case .macosPopup = nativeFocused?.placement {
         return
     }
     // No screens (e.g., during display reconfiguration): setFocus can't show invisible workspaces meanwhile. Don't consume

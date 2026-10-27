@@ -398,7 +398,7 @@ extension FormatTest {
     }
 
     /// A new window with `id` in `parent` (the root container of the test workspace by default), as an AeroObj
-    private func newWindowObj(id: UInt32, parent: NonLeafTreeNodeObject? = nil, title: String? = nil) -> AeroObj {
+    private func newWindowObj(id: UInt32, parent: Container? = nil, title: String? = nil) -> AeroObj {
         .window(.forTest(window: TestWindow.new(id: id, parent: parent ?? Workspace.get(byName: name).rootTilingContainer), title: title))
     }
 

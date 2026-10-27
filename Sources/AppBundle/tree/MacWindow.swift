@@ -5,7 +5,7 @@ final class MacWindow: Window {
     let macApp: MacApp
     private var prevUnhiddenProportionalPositionInsideWorkspaceRect: CGPoint?
 
-    private init(_ id: UInt32, _ macApp: MacApp, lastFloatingSize: CGSize?, parent: NonLeafTreeNodeObject, index: Int?) {
+    private init(_ id: UInt32, _ macApp: MacApp, lastFloatingSize: CGSize?, parent: Container, index: Int?) {
         self.macApp = macApp
         super.init(id: id, macApp, lastFloatingSize: lastFloatingSize, parent: parent, weight: nil, index: index)
     }
@@ -60,8 +60,8 @@ final class MacWindow: Window {
         if let deadWindowWorkspace, deadWindowWorkspace == focus.workspace ||
             deadWindowWorkspace == prevFocusedWorkspace && prevFocusedWorkspaceDate.distance(to: .now) < 1
         {
-            switch parent.cases {
-                case .tilingContainer, .floatingWindowsContainer, .macosHiddenAppsWindowsContainer, .macosFullscreenWindowsContainer:
+            switch (parent as? Container)?.kind {
+                case .tiling, .floating, .macosHiddenApp, .macosFullscreen:
                     let deadWindowFocus = deadWindowWorkspace.toLiveFocus()
                     _ = setFocus(to: deadWindowFocus)
                     // Guard against "Apple Reminders popup" bug: https://github.com/nikitabobko/AeroSpace/issues/201
@@ -70,9 +70,9 @@ final class MacWindow: Window {
                         //   https://github.com/nikitabobko/AeroSpace/issues/65
                         deadWindowFocus.windowOrNil?.nativeFocus()
                     }
-                case .macosPopupWindowsContainer, // Don't switch back on popup destruction
-                     .workspace, // Workspace is invalid parent for windows
-                     .macosMinimizedWindowsContainer: // Don't switch back on minimized windows destruction
+                case .macosPopup, // Don't switch back on popup destruction
+                     .macosMinimized, // Don't switch back on minimized windows destruction
+                     nil: // A window's parent is always a container
                     break
             }
         }
@@ -182,7 +182,7 @@ extension Window {
 }
 
 /// Where a new window goes: index nil is the last one
-private typealias NewWindowSlot = (parent: NonLeafTreeNodeObject, index: Int?)
+private typealias NewWindowSlot = (parent: Container, index: Int?)
 
 // The function is private because it's unsafe. It leaves the window in unbound state
 private func unbindAndGetSlotForNewWindow(_ windowId: UInt32, _ macApp: MacApp, _ workspace: Workspace, window: Window?, _ cm: CancellationMode) async throws -> NewWindowSlot {
@@ -224,10 +224,9 @@ func runOnWindowDetected(ifConventional window: Window) async {
 extension Window {
     /// on-window-detected callbacks skip popups and unbound windows
     var shouldRunOnWindowDetected: Bool {
-        switch parent?.cases {
-            case .tilingContainer, .floatingWindowsContainer, .macosMinimizedWindowsContainer,
-                 .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer: true
-            case .macosPopupWindowsContainer, .workspace, nil: false
+        switch placement {
+            case .tiling, .floating, .macosMinimized, .macosFullscreen, .macosHiddenApp: true
+            case .macosPopup, nil: false
         }
     }
 }

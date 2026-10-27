@@ -25,7 +25,7 @@ private func _normalizeLayoutReason(workspace: Workspace, windows: [Window]) asy
             !config.automaticallyUnhideMacosHiddenApps && window.asMacWindow().macApp.nsApp.isHidden
         switch window.layoutReason {
             case .standard:
-                guard let parent = window.parent else { continue }
+                guard let parent = window.parent as? Container else { continue }
                 switch true {
                     case isMacosFullscreen:
                         window.layoutReason = .macos(prevParentKind: parent.kind)
@@ -48,21 +48,19 @@ private func _normalizeLayoutReason(workspace: Workspace, windows: [Window]) asy
 
 func exitMacOsNativeUnconventionalState(
     window: Window,
-    prevParentKind: NonLeafTreeNodeKind,
+    prevParentKind: ContainerKind,
     workspace: Workspace,
     _ cm: CancellationMode,
 ) async throws {
     window.layoutReason = .standard
     switch prevParentKind {
-        case .floatingWindowsContainer:
+        case .floating:
             window.bindAsFloatingWindow(to: workspace)
-        case .workspace:
-            break // Not possible
-        case .tilingContainer:
+        case .tiling:
             try await window.relayoutWindow(on: workspace, cm, forceTile: true)
-        case .macosPopupWindowsContainer: // Since the window was minimized/fullscreened it was mistakenly detected as popup. Relayout the window
+        case .macosPopup: // Since the window was minimized/fullscreened it was mistakenly detected as popup. Relayout the window
             try await window.relayoutWindow(on: workspace, cm)
-        case .macosMinimizedWindowsContainer, .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer: // wtf case, should never be possible. But If encounter it, let's just re-layout window
+        case .macosMinimized, .macosFullscreen, .macosHiddenApp: // wtf case, should never be possible. But If encounter it, let's just re-layout window
             try await window.relayoutWindow(on: workspace, cm)
     }
 }

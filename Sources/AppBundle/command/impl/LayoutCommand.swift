@@ -19,18 +19,18 @@ struct LayoutCommand: Command {
         let subject: LayoutSubject
         switch args.root ? nil : target.windowOrNil {
             case let window?:
-                switch window.parent?.cases {
-                    case .floatingWindowsContainer:
+                switch window.placement {
+                    case .floating:
                         subject = .floatingWindow(window)
-                    case .tilingContainer(let it):
+                    case .tiling(let it):
                         subject = .tilingContainer(it)
-                    case .macosFullscreenWindowsContainer,
-                         .macosHiddenAppsWindowsContainer,
-                         .macosMinimizedWindowsContainer:
+                    case .macosFullscreen,
+                         .macosHiddenApp,
+                         .macosMinimized:
                         let msg = "Can't change layout for macOS minimized, fullscreen windows or windows or hidden apps. " +
                             "This behavior is subject to change"
                         return .fail(io.err(msg))
-                    case nil, .workspace, .macosPopupWindowsContainer:
+                    case nil, .macosPopup:
                         return .fail(io.err(bugPrompt()))
                 }
             case nil:

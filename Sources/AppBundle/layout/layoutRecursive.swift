@@ -16,19 +16,13 @@ extension Workspace {
 extension TreeNode {
     fileprivate func layoutRecursive(_ point: CGPoint, width: CGFloat, height: CGFloat, virtual: Rect, _ context: LayoutContext) async throws {
         let physicalRect = Rect(topLeftX: point.x, topLeftY: point.y, width: width, height: height)
-        switch nodeCases {
-            case .workspace(let workspace):
+        switch self {
+            case let workspace as Workspace:
                 lastAppliedLayoutPhysicalRect = physicalRect
                 lastAppliedLayoutVirtualRect = virtual
                 try await workspace.rootTilingContainer.layoutRecursive(point, width: width, height: height, virtual: virtual, context)
                 try await workspace.floatingWindowsContainer.layoutRecursive(point, width: width, height: height, virtual: virtual, context)
-            case .floatingWindowsContainer(let container):
-                for window in container.children.filterIsInstance(of: Window.self) {
-                    window.lastAppliedLayoutPhysicalRect = nil
-                    window.lastAppliedLayoutVirtualRect = nil
-                    try await window.layoutFloatingWindow(context)
-                }
-            case .window(let window):
+            case let window as Window:
                 if window.windowId != currentlyManipulatedWithMouseWindowId {
                     lastAppliedLayoutVirtualRect = virtual
                     if window.isFullscreen && window == context.workspace.rootTilingContainer.mostRecentWindowRecursive {
@@ -43,7 +37,7 @@ extension TreeNode {
                         window.setAxFrame(rect.topLeftCorner, rect.size)
                     }
                 }
-            case .tilingContainer(let container):
+            case let container as TilingContainer:
                 lastAppliedLayoutPhysicalRect = physicalRect
                 lastAppliedLayoutVirtualRect = virtual
                 switch container.layout {
@@ -52,9 +46,14 @@ extension TreeNode {
                     case .accordion:
                         try await container.layoutAccordion(point, width: width, height: height, virtual: virtual, context)
                 }
-            case .macosMinimizedWindowsContainer, .macosFullscreenWindowsContainer,
-                 .macosPopupWindowsContainer, .macosHiddenAppsWindowsContainer:
-                return // Nothing to do for weirdos
+            case let container as Container where container.kind == .floating:
+                for window in container.children.filterIsInstance(of: Window.self) {
+                    window.lastAppliedLayoutPhysicalRect = nil
+                    window.lastAppliedLayoutVirtualRect = nil
+                    try await window.layoutFloatingWindow(context)
+                }
+            default:
+                return // Nothing to do for macOS fullscreen, hidden-app, minimized and popup containers
         }
     }
 }

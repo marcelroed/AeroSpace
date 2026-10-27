@@ -10,10 +10,11 @@ nonisolated func movedObs(_: AXObserver, ax: AXUIElement, notif: CFString, _: Un
 
 func moveWithMouse(_ window: Window) async throws { // todo cover with tests
     resetClosedWindowsCache()
-    switch window.parent {
-        case is FloatingWindowsContainer: try await moveFloatingWindow(window)
-        case is TilingContainer: moveTilingWindow(window)
-        default: return // Unconventional windows can't be moved with mouse
+    switch window.placement {
+        case .floating: try await moveFloatingWindow(window)
+        case .tiling: moveTilingWindow(window)
+        case .macosFullscreen, .macosHiddenApp, .macosMinimized, .macosPopup, nil:
+            return // Unconventional windows can't be moved with mouse
     }
 }
 
@@ -85,9 +86,10 @@ extension CGPoint {
                 tree.mostRecentChild
         }
         guard let target else { return nil }
-        return switch target.tilingTreeNodeCasesOrDie() {
-            case .window(let window): window
-            case .tilingContainer(let container): _findWindowRecursively(in: container, virtual: virtual)
+        return switch target {
+            case let window as Window: window
+            case let container as TilingContainer: _findWindowRecursively(in: container, virtual: virtual)
+            default: dieT("\(target.prettyDescription) can't be a child of a tiling container")
         }
     }
 }

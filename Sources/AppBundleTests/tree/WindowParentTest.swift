@@ -14,9 +14,17 @@ struct WindowParentTest {
     }
 
     @Test
+    func placement() {
+        let windows = windowOfEveryParentKind()
+        let root = Workspace.get(byName: "a").rootTilingContainer
+        #expect(windows.map(\.placement) == [.tiling(root), .floating, .macosFullscreen, .macosHiddenApp, .macosMinimized, .macosPopup, nil])
+    }
+
+    @Test
     func nodeWorkspaceAndNodeMonitor() {
         let windows = windowOfEveryParentKind()
-        let workspace = focus.workspace
+        let workspace = Workspace.get(byName: "a")
+        #expect(workspace != focus.workspace)
         let workspaceName = workspace.name
         #expect(windows.map { $0.nodeWorkspace?.name } == [workspaceName, workspaceName, workspaceName, workspaceName, nil, nil, nil])
         let monitorName = workspace.workspaceMonitor.name
@@ -29,7 +37,8 @@ struct WindowParentTest {
     @Test
     func focusWindow() {
         let windows = windowOfEveryParentKind()
-        let name = focus.workspace.name
+        let name = "a"
+        #expect(focus.workspace.name != name)
         #expect(windows.map { $0.toLiveFocusOrNil()?.workspace.name } == [name, name, name, name, nil, nil, nil])
         #expect(windows.map { $0.focusWindow() } == [true, true, true, true, false, false, false])
         #expect(focus.windowOrNil?.windowId == 4) // The last window that could be focused
@@ -114,9 +123,10 @@ struct WindowParentTest {
         #expect(focus.workspace.name == "callback-ran")
     }
 
-    /// tiling, floating, macOS fullscreen, window of a hidden app, minimized, popup, unbound
+    /// tiling, floating, macOS fullscreen, window of a hidden app, minimized, popup, unbound. In workspace "a", which isn't
+    /// focused: so that a lookup falling back to the focused workspace fails the tests
     private func windowOfEveryParentKind() -> [Window] {
-        setUpTree("h_tiles(1 7) floating(2) macos_fullscreen(3) macos_hidden(4) macos_minimized(5) macos_popup(6)")
+        setUpTree("h_tiles(1 7) floating(2) macos_fullscreen(3) macos_hidden(4) macos_minimized(5) macos_popup(6)", workspace: "a")
         testWindow(7).unbindFromParent()
         return (1 ... 7).map(testWindow)
     }

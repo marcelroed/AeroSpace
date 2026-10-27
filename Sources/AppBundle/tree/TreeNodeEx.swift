@@ -22,8 +22,8 @@ extension TreeNode {
     }
 
     /// From the closest parent to the root
-    var parents: [NonLeafTreeNodeObject] {
-        var result: [NonLeafTreeNodeObject] = []
+    var parents: [TreeNode] {
+        var result: [TreeNode] = []
         var current = parent
         while let node = current {
             result.append(node)

@@ -10,12 +10,11 @@ struct SplitCommand: Command {
             return .fail(io.err("'split' has no effect when 'enable-normalization-flatten-containers' normalization enabled. My recommendation: keep the normalizations enabled, and prefer 'join-with' over 'split'."))
         }
         guard let window = args.resolveWindowOrReportError(env, io) else { return .fail }
-        guard let parent = window.parent else { return .fail(io.err(bugPrompt())) }
-        switch parent.cases {
-            case .floatingWindowsContainer:
+        switch window.placement {
+            case .floating:
                 // Nothing to do for floating and macOS native fullscreen windows
                 return .fail(io.err("Can't split floating windows"))
-            case .tilingContainer(let parent):
+            case .tiling(let parent):
                 let orientation: Orientation = switch args.arg.val {
                     case .vertical: .v
                     case .horizontal: .h
@@ -35,9 +34,9 @@ struct SplitCommand: Command {
                     window.bind(to: newParent, index: 0)
                 }
                 return .succ
-            case .macosMinimizedWindowsContainer, .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer:
+            case .macosMinimized, .macosFullscreen, .macosHiddenApp:
                 return .fail(io.err("Can't split macos fullscreen, minimized windows and windows of hidden apps. This behavior may change in the future"))
-            case .macosPopupWindowsContainer, .workspace:
+            case .macosPopup, nil:
                 return .fail(io.err(bugPrompt())) // Impossible
         }
     }

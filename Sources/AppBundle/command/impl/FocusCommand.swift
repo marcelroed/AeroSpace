@@ -167,21 +167,19 @@ private struct FloatingWindowData {
 
 extension TreeNode {
     func findLeafWindowRecursive(snappedTo direction: CardinalDirection) -> Window? {
-        switch nodeCases {
-            case .workspace(let workspace):
+        switch self {
+            case let workspace as Workspace:
                 return workspace.rootTilingContainer.findLeafWindowRecursive(snappedTo: direction)
-            case .window(let window):
+            case let window as Window:
                 return window
-            case .tilingContainer(let container):
+            case let container as TilingContainer:
                 if direction.orientation == container.orientation {
                     return (direction.isPositive ? container.children.last : container.children.first)?
                         .findLeafWindowRecursive(snappedTo: direction)
                 } else {
                     return mostRecentChild?.findLeafWindowRecursive(snappedTo: direction)
                 }
-            case .macosMinimizedWindowsContainer, .macosFullscreenWindowsContainer,
-                 .macosPopupWindowsContainer, .macosHiddenAppsWindowsContainer,
-                 .floatingWindowsContainer:
+            default:
                 die("Impossible")
         }
     }

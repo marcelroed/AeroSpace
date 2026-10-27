@@ -14,9 +14,10 @@ struct FrozenContainer: Sendable {
 
     init(_ container: TilingContainer) {
         children = container.children.map {
-            switch $0.tilingTreeNodeCasesOrDie() {
-                case .window(let w): .window(FrozenWindow(w))
-                case .tilingContainer(let c): .container(FrozenContainer(c))
+            switch $0 {
+                case let w as Window: .window(FrozenWindow(w))
+                case let c as TilingContainer: .container(FrozenContainer(c))
+                default: dieT("\($0.prettyDescription) can't be a child of a tiling container")
             }
         }
         layout = container.layout

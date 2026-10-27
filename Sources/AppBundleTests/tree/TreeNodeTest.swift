@@ -100,4 +100,26 @@ struct TreeNodeTest {
         #expect(container.mostRecentChild === testWindow(3))
         #expect(container.mruChildren.count == 1)
     }
+
+    @Test
+    func canBeChild() {
+        let workspace = setUpTree("h_tiles(1 v_tiles(2)) floating(3)", workspace: "a")
+        let root = workspace.rootTilingContainer
+        let nested = testWindow(2).parent.orDie()
+        let floating = workspace.floatingWindowsContainer
+        let window = testWindow(1)
+        // Windows go into containers of any kind, and only there
+        for parent in [root, nested, floating, workspace.macOsNativeFullscreenWindowsContainer, macosMinimizedWindowsContainer, macosPopupWindowsContainer] {
+            #expect(window.canBeChild(of: parent))
+        }
+        #expect(!window.canBeChild(of: workspace))
+        #expect(!window.canBeChild(of: testWindow(3)))
+        // Tiling containers go into workspaces (the root) and tiling containers
+        #expect(nested.canBeChild(of: root) && root.canBeChild(of: workspace) && root.canBeChild(of: nested))
+        #expect(!root.canBeChild(of: floating) && !root.canBeChild(of: macosMinimizedWindowsContainer) && !root.canBeChild(of: window))
+        // The special containers of a workspace go only into workspaces. The global ones and workspaces are roots
+        #expect(floating.canBeChild(of: workspace) && !floating.canBeChild(of: root))
+        #expect(!macosPopupWindowsContainer.canBeChild(of: workspace) && !macosMinimizedWindowsContainer.canBeChild(of: workspace))
+        #expect(!workspace.canBeChild(of: root) && !workspace.canBeChild(of: floating))
+    }
 }

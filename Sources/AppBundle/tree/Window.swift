@@ -9,7 +9,7 @@ open class Window: TreeNode, Hashable {
     var noOuterGapsInFullscreen: Bool = false
     var layoutReason: LayoutReason = .standard
 
-    init(id: UInt32, _ app: any AbstractApp, lastFloatingSize: CGSize?, parent: NonLeafTreeNodeObject, weight: CGFloat?, index: Int?) {
+    init(id: UInt32, _ app: any AbstractApp, lastFloatingSize: CGSize?, parent: Container, weight: CGFloat?, index: Int?) {
         self.windowId = id
         self.app = app
         self.lastFloatingSize = lastFloatingSize
@@ -48,11 +48,30 @@ open class Window: TreeNode, Hashable {
 enum LayoutReason: Equatable {
     case standard
     /// Reason for the cur temp layout is macOS native fullscreen, minimize, or hide
-    case macos(prevParentKind: NonLeafTreeNodeKind)
+    case macos(prevParentKind: ContainerKind)
+}
+
+/// A window's parent, typed. The parent of a window is always a container
+enum WindowPlacement: Equatable {
+    case tiling(TilingContainer)
+    case floating, macosFullscreen, macosHiddenApp, macosMinimized, macosPopup
 }
 
 extension Window {
-    var isFloating: Bool { parent is FloatingWindowsContainer } // todo drop. It will be a source of bugs when sticky is introduced
+    /// nil while the window is unbound
+    var placement: WindowPlacement? {
+        guard let parent = parent as? Container else { return nil }
+        return switch parent.kind {
+            case .tiling: .tiling(parent as? TilingContainer ?? dieT("A tiling container must be a TilingContainer"))
+            case .floating: .floating
+            case .macosFullscreen: .macosFullscreen
+            case .macosHiddenApp: .macosHiddenApp
+            case .macosMinimized: .macosMinimized
+            case .macosPopup: .macosPopup
+        }
+    }
+
+    var isFloating: Bool { (parent as? Container)?.kind == .floating } // todo drop. It will be a source of bugs when sticky is introduced
 
     @discardableResult
     func bindAsFloatingWindow(to workspace: Workspace) -> NodeBinding? {

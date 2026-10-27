@@ -15,16 +15,16 @@ struct MoveCommand: Command {
         ) {
             return .fail
         }
-        switch currentWindow.parent?.cases {
+        switch currentWindow.placement {
             case nil: return .fail
-            case .tilingContainer(let parent):
+            case .tiling(let parent):
                 guard let indexOfCurrent = currentWindow.ownIndex else { return .fail(io.err(bugPrompt())) }
                 let indexOfSiblingTarget = indexOfCurrent + direction.focusOffset
                 if parent.orientation == direction.orientation && parent.children.indices.contains(indexOfSiblingTarget) {
-                    switch parent.children[indexOfSiblingTarget].tilingTreeNodeCasesOrDie() {
-                        case .tilingContainer(let topLevelSiblingTargetContainer):
+                    switch parent.children[indexOfSiblingTarget] {
+                        case let topLevelSiblingTargetContainer as TilingContainer:
                             return deepMoveIn(window: currentWindow, into: topLevelSiblingTargetContainer, moveDirection: direction, io)
-                        case .window: // "swap windows"
+                        default: // A window: "swap windows"
                             let prevBinding = currentWindow.unbindFromParent()
                             currentWindow.bind(to: parent, weight: prevBinding.weight, index: indexOfSiblingTarget)
                             return .succ
@@ -32,11 +32,11 @@ struct MoveCommand: Command {
                 } else {
                     return moveOut(tilingWindow: currentWindow, direction: direction, io, args, env)
                 }
-            case .floatingWindowsContainer: // floating window
+            case .floating: // floating window
                 return .fail(io.err("moving floating windows isn't yet supported")) // todo
-            case .macosMinimizedWindowsContainer, .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer:
+            case .macosMinimized, .macosFullscreen, .macosHiddenApp:
                 return .fail(io.err(moveOutMacosUnconventionalWindow))
-            case .macosPopupWindowsContainer, .workspace:
+            case .macosPopup:
                 return .fail(io.err(bugPrompt())) // Impossible
         }
     }
@@ -97,18 +97,17 @@ private func moveOut(
         return parent.orientation == direction.orientation
     }) as? TilingContainer
     guard let innerMostTilingContainer else { return .fail(io.err(bugPrompt())) } // Impossible
-    switch innerMostTilingContainer.parent?.cases {
+    switch innerMostTilingContainer.parent {
         case nil: return .fail
-        case .tilingContainer(let parent):
+        case let parent as TilingContainer:
             check(parent.orientation == direction.orientation)
             guard let ownIndex = innerMostTilingContainer.ownIndex else { return .fail(io.err(bugPrompt())) }
             window.bind(to: parent, index: ownIndex + direction.insertionOffset)
             return .succ
-        case .workspace(let parent):
+        case let parent as Workspace:
             return hitWorkspaceBoundaries(window, parent, io, args, direction, env)
-        case .floatingWindowsContainer, .macosMinimizedWindowsContainer, .macosFullscreenWindowsContainer,
-             .macosHiddenAppsWindowsContainer, .macosPopupWindowsContainer:
-            illegalChildParentRelation(child: innerMostTilingContainer, parent: nil)
+        default:
+            die("A tiling container's parent is a tiling container or a workspace")
     }
 }
 

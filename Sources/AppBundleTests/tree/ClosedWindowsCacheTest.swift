@@ -29,9 +29,7 @@ struct ClosedWindowsCacheTest {
         // The orphan is bound next to the most recent window
         #expect(describeTree(weights: true) == "h_tiles(1:2 v_accordion:3(2:1 3:1 *7:1)) floating(4 6 5)")
         // The restored workspace children are in the order of the cache, not in the canonical order of describeTree
-        #expect(workspace.children.map { ($0 as? NonLeafTreeNodeObject)?.kind } == [
-            .floatingWindowsContainer, .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer, .tilingContainer,
-        ])
+        #expect(workspace.children.map { ($0 as? Container)?.kind } == [.floating, .macosFullscreen, .macosHiddenApp, .tiling])
         #expect(other.isEffectivelyEmpty)
         #expect(testWindow(2).parent !== accordion) // The tree is recreated
         #expect(focus.workspace == workspace)

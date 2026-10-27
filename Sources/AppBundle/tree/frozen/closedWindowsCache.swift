@@ -83,7 +83,7 @@ func restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: Window) async throws
 }
 
 @discardableResult
-private func restoreTreeRecursive(frozenContainer: FrozenContainer, parent: NonLeafTreeNodeObject, index: Int?) -> Bool {
+private func restoreTreeRecursive(frozenContainer: FrozenContainer, parent: TreeNode, index: Int?) -> Bool {
     let container = TilingContainer(
         parent: parent,
         weight: frozenContainer.weight,

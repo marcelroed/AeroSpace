@@ -236,16 +236,13 @@ private func toLayoutString(tc: TilingContainer) -> String {
 }
 
 private func toLayoutResult(w: Window) -> Result<Primitive, InterVarExpansionError> {
-    guard let parent = w.parent else { return .failure(.other("NULL-PARENT")) }
-    return switch getChildParentRelation(child: w, parent: parent) {
+    switch w.placement {
+        case nil: .failure(.other("NULL-PARENT"))
         case .tiling(let tc): .success(.string(toLayoutString(tc: tc)))
-        case .floatingWindow: .success(.string(LayoutCmdArgs.LayoutDescription.floating.rawValue))
-        case .macosNativeFullscreenWindow: .success(.string("macos_native_fullscreen"))
-        case .macosNativeHiddenAppWindow: .success(.string("macos_native_window_of_hidden_app"))
-        case .macosNativeMinimizedWindow: .success(.string("macos_native_minimized"))
-        case .macosPopupWindow: .success(.string("NULL-WINDOW-LAYOUT"))
-
-        case .rootTilingContainer: .failure(.other("Not possible"))
-        case .shimContainerRelation: .failure(.other("Window cannot have a shim container relation"))
+        case .floating: .success(.string(LayoutCmdArgs.LayoutDescription.floating.rawValue))
+        case .macosFullscreen: .success(.string("macos_native_fullscreen"))
+        case .macosHiddenApp: .success(.string("macos_native_window_of_hidden_app"))
+        case .macosMinimized: .success(.string("macos_native_minimized"))
+        case .macosPopup: .success(.string("NULL-WINDOW-LAYOUT"))
     }
 }

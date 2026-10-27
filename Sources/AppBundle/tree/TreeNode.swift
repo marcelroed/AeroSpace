@@ -5,7 +5,7 @@ import Common
 /// so a member that must not be isolated has to be marked `nonisolated`
 open class TreeNode: Equatable, AeroAny {
     private(set) final var children: [TreeNode] = []
-    fileprivate(set) final weak var parent: NonLeafTreeNodeObject? = nil
+    fileprivate(set) final weak var parent: TreeNode? = nil
     private var weight: CGFloat
     /// The most recent child of a node is the child with the highest stamp. See ``markAsMostRecentChild()``
     private var mruStamp: UInt64 = 0
@@ -25,7 +25,7 @@ open class TreeNode: Equatable, AeroAny {
     var isBound: Bool { parent != nil } // todo drop, once https://github.com/nikitabobko/AeroSpace/issues/1215 is fixed
 
     /// See ``bind(to:weight:index:)`` for `weight` and `index`
-    init(parent: NonLeafTreeNodeObject, weight: CGFloat? = nil, index: Int? = nil) {
+    init(parent: TreeNode, weight: CGFloat? = nil, index: Int? = nil) {
         self.weight = 0 // bind() sets it
         bind(to: parent, weight: weight, index: index)
     }
@@ -37,33 +37,23 @@ open class TreeNode: Equatable, AeroAny {
 
     /// See: ``getWeight(_:)``
     func setWeight(_ targetOrientation: Orientation, _ newValue: CGFloat) {
-        guard let parent else { die("Can't change weight if TreeNode doesn't have parent") }
-        switch getChildParentRelation(child: self, parent: parent) {
-            case .tiling(let parent):
-                if parent.orientation != targetOrientation {
-                    die("You can't change \(targetOrientation) weight of nodes located in \(parent.orientation) container")
-                }
-                if parent.layout != .tiles {
-                    die("Weight can be changed only for nodes whose parent has 'tiles' layout")
-                }
-                weight = newValue
-            default:
-                die("Can't change weight")
+        guard let parent = parent as? TilingContainer else { die("Only the children of tiling containers have weights") }
+        if parent.orientation != targetOrientation {
+            die("You can't change \(targetOrientation) weight of nodes located in \(parent.orientation) container")
         }
+        if parent.layout != .tiles {
+            die("Weight can be changed only for nodes whose parent has 'tiles' layout")
+        }
+        weight = newValue
     }
 
     /// Weight itself doesn't make sense. The parent container controls semantics of weight
     func getWeight(_ targetOrientation: Orientation) -> CGFloat {
-        guard let parent else { die("Weight doesn't make sense for containers without parent") }
-        return switch getChildParentRelation(child: self, parent: parent) {
-            case .tiling(let parent):
+        switch parent {
+            case let parent as TilingContainer:
                 parent.orientation == targetOrientation ? weight : parent.getWeight(targetOrientation)
-            case .rootTilingContainer: parent.getWeight(targetOrientation)
-            case .floatingWindow, .macosNativeFullscreenWindow: dieT("Weight doesn't make sense for floating windows")
-            case .macosNativeMinimizedWindow: dieT("Weight doesn't make sense for minimized windows")
-            case .macosPopupWindow: dieT("Weight doesn't make sense for popup windows")
-            case .macosNativeHiddenAppWindow: dieT("Weight doesn't make sense for windows of hidden apps")
-            case .shimContainerRelation: dieT("Weight doesn't make sense for stub containers")
+            case let parent as Workspace where self is TilingContainer: parent.getWeight(targetOrientation) // The root
+            default: dieT("Weight doesn't make sense for \(prettyDescription)")
         }
     }
 
@@ -71,19 +61,12 @@ open class TreeNode: Equatable, AeroAny {
     /// `weight` nil: the average weight of the new siblings in a tiling container (1 without siblings), and
     /// ``weightDoesntMatter`` in any other container. Returns where the node was bound before
     @discardableResult
-    func bind(to newParent: NonLeafTreeNodeObject, weight: CGFloat? = nil, index: Int? = nil) -> NodeBinding? {
+    func bind(to newParent: TreeNode, weight: CGFloat? = nil, index: Int? = nil) -> NodeBinding? {
         let result = parent != nil ? unbindFromParent() : nil
-
-        let relation = getChildParentRelation(child: self, parent: newParent) // Side effect: verify relation
-        self.weight = if let weight { weight } else {
-            switch relation {
-                case .tiling(let newParent):
-                    newParent.children.sum { $0.getWeight(newParent.orientation) }.div(newParent.children.count) ?? 1
-                case .floatingWindow, .macosNativeFullscreenWindow, .rootTilingContainer, .macosNativeMinimizedWindow,
-                     .shimContainerRelation, .macosPopupWindow, .macosNativeHiddenAppWindow:
-                    weightDoesntMatter
-            }
-        }
+        check(canBeChild(of: newParent), "\(prettyDescription) can't be a child of \(newParent.prettyDescription)")
+        self.weight = weight ?? (newParent as? TilingContainer).map { newParent in
+            newParent.children.sum { $0.getWeight(newParent.orientation) }.div(newParent.children.count) ?? 1
+        } ?? weightDoesntMatter
         newParent.children.insert(self, at: index ?? newParent.children.count)
         parent = newParent
         // todo consider disabling automatic mru propogation
@@ -134,17 +117,28 @@ private let weightDoesntMatter = CGFloat(-2)
 
 /// Where a node is bound: ``TreeNode/bind(to:weight:index:)`` with these values puts it back
 struct NodeBinding {
-    let parent: NonLeafTreeNodeObject
+    let parent: TreeNode
     let weight: CGFloat
     let index: Int
 }
 
 extension TreeNode {
+    /// The legal edges of the tree. ``bind(to:weight:index:)`` checks them, so code that walks the tree can rely on them
+    func canBeChild(of parent: TreeNode) -> Bool {
+        switch (self, parent) {
+            case (is Window, is Container): true
+            case (is TilingContainer, is TilingContainer), (is TilingContainer, is Workspace): true
+            case (let container as Container, is Workspace): [.floating, .macosFullscreen, .macosHiddenApp].contains(container.kind)
+            default: false
+        }
+    }
+
     /// For crash messages. TreeNode isn't CustomStringConvertible, so "\(node)" prints only the type name
     var prettyDescription: String {
         switch self {
             case let window as Window: "Window(id: \(window.windowId), workspace: \(window.nodeWorkspace?.name.singleQuoted ?? "nil"))"
             case let workspace as Workspace: "Workspace(\(workspace.name.singleQuoted))"
+            case let container as Container: "Container(kind: \(container.kind), workspace: \(nodeWorkspace?.name.singleQuoted ?? "nil"))"
             default: "\(type(of: self))(workspace: \(nodeWorkspace?.name.singleQuoted ?? "nil"))"
         }
     }
