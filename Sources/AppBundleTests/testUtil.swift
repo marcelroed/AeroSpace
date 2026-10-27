@@ -112,7 +112,38 @@ func testParseCommandFail(
     }
 }
 
-/// Runs `command` and checks its exit code, and also its stdout and stderr when they are given
+/// What a command printed, and its exit code
+nonisolated struct CmdOutput: Equatable {
+    var stdout: [String] = []
+    var stderr: [String] = []
+    var exitCode: Int32 = 0
+
+    /// Exit code 0 without output
+    static let ok = CmdOutput()
+
+    /// Exit code 2 with `stderr`
+    static func fail(_ stderr: String...) -> CmdOutput { CmdOutput(stderr: stderr, exitCode: 2) }
+}
+
+/// Runs `command` like the server runs a CLI request: `windowIdEnv` and `workspaceEnv` are the client's
+/// AEROSPACE_WINDOW_ID and AEROSPACE_WORKSPACE. A parse error and help come back as output, the way the CLI prints them.
+/// Every command behavior test runs its commands through this function, so that changes to how commands are parsed and
+/// run touch only this function
+@MainActor
+@discardableResult
+func runCmd(_ command: String, stdin: String = "", windowIdEnv: UInt32? = nil, workspaceEnv: String? = nil) async -> CmdOutput {
+    switch parseCommand(command) {
+        case .cmd(let shell):
+            let result = await shell.run(CmdEnv(windowId: windowIdEnv, workspaceName: workspaceEnv), CmdStdin(stdin))
+            return CmdOutput(stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode.rawValue)
+        case .help(let help): return CmdOutput(stdout: [help])
+        case .failure(let failure): return CmdOutput(stderr: [failure.msg], exitCode: failure.exitCode)
+    }
+}
+
+/// Runs `command` and checks its exit code, and also its stdout and stderr when they are given.
+/// todo: superseded by `#expect(await runCmd(command) == ...)`. Delete it once the XCTest files of the other workers are
+/// converted (ListWindowsTest, TestCommandTest, ListModesTest, ConfigCommandTest, ShellRunTest)
 @MainActor
 @discardableResult
 func assertRun(
@@ -126,9 +157,9 @@ func assertRun(
     filePath: StaticString = #filePath,
     line: Int = #line,
     column: Int = #column,
-) async -> CmdResult {
-    let result = await parseCommand(command).cmdOrDie.run(env, CmdStdin(stdin))
-    assertEquals(result.exitCode.rawValue, exitCode, additionalMsg: "exit code of '\(command)'", fileID: fileID, filePath: filePath, line: line, column: column)
+) async -> CmdOutput {
+    let result = await runCmd(command, stdin: stdin, windowIdEnv: env.windowId, workspaceEnv: env.workspaceName)
+    assertEquals(result.exitCode, exitCode, additionalMsg: "exit code of '\(command)'", fileID: fileID, filePath: filePath, line: line, column: column)
     if let stdout {
         assertEquals(result.stdout, stdout, additionalMsg: "stdout of '\(command)'", fileID: fileID, filePath: filePath, line: line, column: column)
     }

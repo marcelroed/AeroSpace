@@ -2,11 +2,12 @@
 import AppKit
 
 final class TestWindow: Window, CustomStringConvertible {
-    private var _rect: Rect?
+    /// What AX reports as the window's frame
+    var rect: Rect?
     var isMacosFullscreenForTest = false
 
     private init(_ id: UInt32, _ parent: NonLeafTreeNodeObject, _ adaptiveWeight: CGFloat, _ rect: Rect?) {
-        _rect = rect
+        self.rect = rect
         super.init(id: id, TestApp.shared, lastFloatingSize: nil, parent: parent, adaptiveWeight: adaptiveWeight, index: INDEX_BIND_LAST)
     }
 
@@ -31,11 +32,11 @@ final class TestWindow: Window, CustomStringConvertible {
     override func getTitle(_ cm: CancellationMode) async throws -> String { description }
 
     override func getAxRect(_ cm: CancellationMode) async throws -> Rect? { // todo change to not Optional
-        _rect
+        rect
     }
 
     override func getAxSize(_ cm: CancellationMode) async throws -> CGSize? {
-        _rect.map { CGSize(width: $0.width, height: $0.height) }
+        rect.map { CGSize(width: $0.width, height: $0.height) }
     }
 
     override func isMacosFullscreen(_ cm: CancellationMode) async throws -> Bool { isMacosFullscreenForTest }

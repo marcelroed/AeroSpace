@@ -269,10 +269,6 @@ struct LayoutTest: AeroSpaceTestSuite {
     }
 }
 
-private func rect(_ x: CGFloat, _ y: CGFloat, _ width: CGFloat, _ height: CGFloat) -> Rect {
-    Rect(topLeftX: x, topLeftY: y, width: width, height: height)
-}
-
 private func frame(_ x: CGFloat, _ y: CGFloat, _ width: CGFloat, _ height: CGFloat) -> AxFrame {
     AxFrame(topLeft: CGPoint(x: x, y: y), size: CGSize(width: width, height: height))
 }
