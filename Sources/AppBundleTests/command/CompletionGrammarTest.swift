@@ -19,6 +19,12 @@ struct CompletionGrammarTest {
         let subcommands = try CompletionGrammar.load().alternatives.keys
         expectEqual(Set(subcommands), Set(CmdKind.allCases.map(\.rawValue)).subtracting(["exec-and-forget"]))
     }
+
+    @Test
+    func grammarHasTheSubscribeEvents() throws {
+        let events = try #require(CompletionGrammar.load().rules["event"]).split(separator: "|")
+        expectEqual(events.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }, ServerEventType.cliArgsCases)
+    }
 }
 
 /// The parts of the grammar that the test checks: the alternatives of `<subcommand>` and the other rules

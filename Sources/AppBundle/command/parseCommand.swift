@@ -37,7 +37,7 @@ func parseCommand(_ words: [String]) throws(CmdParseError) -> any Command {
 
 /// The subcommand of `words` and a cursor over its args. `-h` or `--help` among the options asks for the help, whatever
 /// else the args hold
-func parseSubcommand(_ words: [String]) throws(CmdParseError) -> (CmdKind, ArgCursor) {
+private func parseSubcommand(_ words: [String]) throws(CmdParseError) -> (CmdKind, ArgCursor) {
     guard let name = words.first, !name.isEmpty else { throw "Can't parse empty string command" }
     guard let kind = CmdKind(rawValue: name), kind != .execAndForget else { throw "Unrecognized subcommand '\(name)'" }
     let args = Array(words.dropFirst())
