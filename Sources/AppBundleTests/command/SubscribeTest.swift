@@ -70,6 +70,12 @@ struct SubscribeTest {
         ], then: .workspace)
     }
 
+    /// A new event type that tells a state: `hasInitialState` asks whether it does, and this asks for its initial state
+    @Test
+    func theInitialStateTellsEveryTypeThatHasOne() {
+        expectEqual(initialState.map(\.eventType), ServerEventType.allCases.filter(\.hasInitialState))
+    }
+
     /// A client that subscribes between a focus change and the focus check that records it (e.g. while the command awaits
     /// AX) gets the focus before the change, then the change once: the state that the events so far told
     @Test

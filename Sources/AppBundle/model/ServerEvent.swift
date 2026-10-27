@@ -47,4 +47,13 @@ enum ServerEventType: String, Codable, CaseIterable, Sendable {
     case modeChanged = "mode-changed"
     case windowDetected = "window-detected"
     case bindingTriggered = "binding-triggered"
+
+    /// The event tells a state, so a new client gets the current one first (see `initialState`). A detection or a key
+    /// press tells no state
+    var hasInitialState: Bool {
+        switch self {
+            case .focusChanged, .focusedMonitorChanged, .workspaceChanged, .modeChanged: true
+            case .windowDetected, .bindingTriggered: false
+        }
+    }
 }

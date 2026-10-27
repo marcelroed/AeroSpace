@@ -67,8 +67,8 @@ func subscribe(_ args: SubscribeArgs, _ connection: NWConnection) -> Subscriptio
     return subscription
 }
 
-/// The state that the events so far told: the recorded focus and the mode. Detections and key presses have no state
-private var initialState: [ServerEvent] { recordedFocusEvents + [.modeChanged(mode: world.activeMode)] }
+/// The state that the events so far told: the recorded focus and the mode, one event per type that `hasInitialState`
+var initialState: [ServerEvent] { recordedFocusEvents + [.modeChanged(mode: world.activeMode)] }
 
 /// Writes the queued events to the client until it disconnects, a write fails or its queue overflows. It runs on the main
 /// actor, next to `subscriptions`, but a slow client never blocks it: each write suspends until the socket takes it
