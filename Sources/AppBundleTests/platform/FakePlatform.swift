@@ -18,6 +18,7 @@ final class FakePlatform: Platform {
     var hiddenApps: Set<pid_t> = []
     var isLeftMouseDown: Bool = false
     var mouseLocation: CGPoint = .zero
+    var isSecureInputEnabled: Bool = false
     /// Every call in order, and the AX reads and frame writes of the placements. The frame writes are only here: a
     /// per-window copy cost as much as the layout itself in the perf benchmarks
     private(set) var calls: [PlatformCall] = []

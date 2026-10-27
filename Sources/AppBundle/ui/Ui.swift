@@ -4,6 +4,13 @@ public final class Ui {
     let trayMenuModel: TrayMenuModel = TrayMenuModel()
     let messageModel: MessageModel = MessageModel()
     /// The panels are windows. They are created when they first show
-    lazy var secureInputPanel: SecureInputPanel = SecureInputPanel()
+    private var secureInputPanel: SecureInputPanel? = nil
     lazy var volumePanel: VolumePanel = VolumePanel()
+
+    func refreshSecureInputPanel() {
+        if secureInputPanel == nil && !SecureInputPanel.isNeeded { return }
+        let panel = secureInputPanel ?? SecureInputPanel()
+        secureInputPanel = panel
+        panel.refresh()
+    }
 }

@@ -283,7 +283,7 @@ enum Reconcile {
         let focused = focus.windowOrNil
         if focused != nativeFocusBaseline { focused?.nativeFocus() }
         updateTrayText()
-        world.ui.secureInputPanel.refresh()
+        world.ui.refreshSecureInputPanel()
     }
 }
 

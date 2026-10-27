@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 import Common
 import Synchronization
 
@@ -44,6 +45,7 @@ final class LivePlatform: Platform {
     var isLeftMouseDown: Bool { isLeftMouseButtonDown }
     /// AppKit's y axis goes up from the main monitor's bottom, AX's goes down from its top
     var mouseLocation: CGPoint { NSEvent.mouseLocation.withYAxisFlipped }
+    var isSecureInputEnabled: Bool { IsSecureEventInputEnabled() }
     var counters: [String: Int] { axCallCounts.withLock { $0 } }
 
     // MARK: Observe reads

@@ -23,6 +23,8 @@ protocol Platform: AnyObject, Sendable {
     func isHidden(_ app: AppInfo) -> Bool
     var isLeftMouseDown: Bool { get }
     var mouseLocation: CGPoint { get }
+    /// Secure input is on (e.g. a password field has the keyboard focus): macOS doesn't deliver the hotkeys
+    var isSecureInputEnabled: Bool { get }
     /// The AX calls so far, per call and attribute (e.g. "set AXPosition"), for dogfooding
     var counters: [String: Int] { get }
 

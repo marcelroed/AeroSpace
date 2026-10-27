@@ -1,5 +1,4 @@
 import AppKit
-import Carbon
 import SwiftUI
 
 private let iconSize = CGSize(width: 50, height: 50)
@@ -8,10 +7,14 @@ private let textSize = CGSize(width: 440, height: 110)
 final class SecureInputPanel: NSPanelHud {
     private var hostingView: NSHostingView<SecureInputView>?
 
+    /// The hotkeys don't work while secure input is on
+    static var isNeeded: Bool {
+        guard let activeMode = world.activeMode, world.isEnabled else { return false }
+        return config.modes[activeMode]?.bindings.isEmpty == false && world.platform.isSecureInputEnabled
+    }
+
     func refresh() {
-        if let activeMode = world.activeMode, world.isEnabled &&
-            config.modes[activeMode]?.bindings.isEmpty == false && IsSecureEventInputEnabled()
-        {
+        if Self.isNeeded {
             if isVisible { return }
             self.contentView?.subviews.removeAll()
             // A new view on every open, so that it starts minimized
