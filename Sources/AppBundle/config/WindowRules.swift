@@ -86,6 +86,7 @@ func onWindowDetected(_ env: CmdEnv, _ io: CmdIo, _ window: Window) async -> Int
     ))
     var lastExitCode = EXIT_CODE_ZERO
     for callback in config.onWindowDetected where await callback.matches(window) {
+        if !window.isAlive { break } // The window closed at a suspension point
         lastExitCode = await callback.run.run(env.withWindowId(window.windowId), io)
         if !callback.checkFurtherCallbacks {
             return lastExitCode

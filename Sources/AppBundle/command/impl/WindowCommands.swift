@@ -24,6 +24,7 @@ struct CloseCommand: nonisolated Command {
         let window = try cx.window(windowId: windowId, noWindowMsg: "Empty workspace")
         // Access ax directly. Not cool :(
         if quitIfLastWindow, (try? await window.asMacWindow().macApp.getAxWindowsCount(.nonCancellable)) == 1 {
+            guard window.isAlive else { return } // The window closed at the suspension point above
             let app = window.asMacWindow().macApp
             guard app.nsApp.terminate() else { throw "Failed to quit '\(window.app.name ?? "Unknown app")'" }
             for workspace in Workspace.all {
@@ -58,7 +59,8 @@ struct CloseAllWindowsButCurrentCommand: nonisolated Command {
         let target = try cx.target()
         guard let focused = target.windowOrNil else { throw "Empty workspace" }
         var failed = false
-        for window in target.workspace.allLeafWindowsRecursive where window != focused {
+        // A window that closed meanwhile (e.g. its app quit with --quit-if-last-window) is skipped
+        for window in target.workspace.allLeafWindowsRecursive where window != focused && window.isAlive {
             do {
                 try await delegate(to: CloseCommand(quitIfLastWindow: quitIfLastWindow), CmdContext(env: cx.env.withWindowId(window.windowId), io: cx.io))
             } catch {
@@ -141,6 +143,7 @@ struct MacosNativeFullscreenCommand: nonisolated Command {
     func run(_ cx: CmdContext) async throws(CmdFail) {
         let window = try cx.window(windowId: windowId)
         guard let prevState = try? await window.isMacosFullscreen(.nonCancellable) else { throw CmdFail(bugPrompt()) }
+        guard window.isAlive else { return } // The window closed at the suspension point above
         let newState = toggle.resolve(current: prevState)
         if newState == prevState {
             return try noop(cx, failIfNoop: failIfNoop, (newState ? "Already fullscreen. " : "Already not fullscreen. ") +
@@ -194,6 +197,7 @@ struct MacosNativeMinimizeCommand: nonisolated Command {
         // It would be easier if minimized windows were part of the workspace in tree hierarchy
         let window = try cx.window(windowId: windowId)
         guard let newState: Bool = try? await !window.isMacosMinimized(.nonCancellable) else { throw CmdFail(bugPrompt()) }
+        guard window.isAlive else { return } // The window closed at the suspension point above
         window.asMacWindow().setNativeMinimized(newState)
         if newState { // minimize
             window.move(to: macosMinimizedWindowsContainer, weight: .value(1))

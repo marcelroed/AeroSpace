@@ -99,7 +99,7 @@ final class Workspace: TreeNode, Hashable, Comparable {
                 !workspace.isEffectivelyEmpty ||
                 workspace.isVisible ||
                 workspace.name == focus.workspace.name
-            if !isUsed { world.workspacesByName.removeValue(forKey: name) }
+            if !isUsed { world.workspacesByName.removeValue(forKey: name)?.destroy() }
         }
     }
 

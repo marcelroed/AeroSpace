@@ -131,6 +131,8 @@ struct FocusCommand: nonisolated Command {
             case .windowId: false // Doesn't look at the tree
         }
         let floatingWindows = floatingAsTiling ? await floatingWindowCenters(target.workspace) : []
+        // The window may have closed or moved at the suspension points above
+        guard target.isValid else { return }
         // Focus sees the floating windows as tiling windows only while it decides. Then the tree is as before: order and MRU
         // findChange only reads the tree. Without floating windows there's nothing to bind, so nothing to restore
         let change: FocusChange? = if floatingWindows.isEmpty {

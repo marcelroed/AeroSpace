@@ -51,6 +51,7 @@ private func focusWindow(under location: CGPoint) async throws {
     }
     if let window {
         try await runLightSession(.focusFollowsMouse, token) {
+            guard window.isAlive else { return } // The window closed at a suspension point
             _ = window.focusWindow()
             window.nativeFocus()
         }

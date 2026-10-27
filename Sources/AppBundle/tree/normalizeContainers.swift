@@ -11,7 +11,7 @@ extension TilingContainer {
     fileprivate func unbindEmptyAndAutoFlatten() {
         if let child = children.singleOrNil(), config.enableNormalizationFlattenContainers && (child is TilingContainer || !isRootContainer) {
             let mru = parent?.mostRecentChild
-            child.move(to: unbindFromParent()) // The child takes the container's place
+            child.move(to: destroy().orDie()) // The child takes the container's place
             (child as? TilingContainer)?.unbindEmptyAndAutoFlatten()
             if mru != self {
                 mru?.markAsMostRecentChild()
@@ -23,7 +23,7 @@ extension TilingContainer {
                 (child as? TilingContainer)?.unbindEmptyAndAutoFlatten()
             }
             if children.isEmpty && !isRootContainer {
-                unbindFromParent()
+                destroy()
             }
         }
     }

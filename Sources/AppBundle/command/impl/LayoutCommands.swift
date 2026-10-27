@@ -120,7 +120,7 @@ struct LayoutCommand: nonisolated Command {
                 guard case .floatingWindow(let window, let workspace) = subject else { return } // Already tiling
                 let size = try? await window.getAxSize(.nonCancellable)
                 // The window may have closed or moved at the suspension point above
-                guard window.placement == .floating(workspace) else { return }
+                guard workspace.isAlive, window.placement == .floating(workspace) else { return }
                 window.lastFloatingSize = size ?? window.lastFloatingSize
                 do {
                     try await window.relayoutWindow(on: workspace, .nonCancellable, forceTile: true)

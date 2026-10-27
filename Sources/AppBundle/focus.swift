@@ -10,6 +10,10 @@ struct LiveFocus: Equatable {
 
     var windowOrNil: Window? { windowAndPlacement?.window }
 
+    /// Whether the workspace still exists and the window is still on it. A command that holds a focus across an `await`
+    /// checks it after the await, and skips its work if it's false (stale-object policy)
+    var isValid: Bool { workspace.isAlive && windowOrNil.map { $0.toLiveFocusOrNil() == self } ?? true }
+
     static func == (lhs: LiveFocus, rhs: LiveFocus) -> Bool {
         lhs.workspace == rhs.workspace && lhs.windowOrNil == rhs.windowOrNil
     }

@@ -58,7 +58,7 @@ func restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: Window) async throws
         }
         let prevRoot = workspace.existingRootTilingContainer // Save prevRoot into a variable to avoid it being garbage collected earlier than needed
         let potentialOrphans = prevRoot?.allLeafWindowsRecursive ?? []
-        prevRoot?.unbindFromParent()
+        prevRoot?.destroy()
         if let frozenRoot = frozenWorkspace.rootTilingNode {
             restoreTreeRecursive(frozenContainer: frozenRoot, parent: workspace, index: nil)
         }

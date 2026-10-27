@@ -113,6 +113,25 @@ struct TreeNodeTest {
     }
 
     @Test
+    func relayoutSkipsAClosedWindowAndAGarbageCollectedWorkspace() async throws { // Stale-object policy
+        let workspace = setUpTree("h_tiles(1 v_tiles(2))", workspace: "a")
+        let nested = testWindow(2).parent.orDie()
+        setUpTree("h_tiles(3)")
+        let closed = testWindow(1)
+        closed.closeAxWindow()
+        testWindow(2).move(to: focus.workspace.rootTilingContainerCreatingIfNeeded())
+        workspace.normalizeContainers()
+        #expect(!closed.isAlive)
+        #expect(!nested.isAlive)
+
+        try await closed.relayoutWindow(on: focus.workspace, .cancellable, forceTile: true) // Used to crash: it's unbound
+        Workspace.garbageCollectUnusedWorkspaces()
+        #expect(!workspace.isAlive)
+        try await testWindow(2).relayoutWindow(on: workspace, .cancellable, forceTile: true) // The window would be lost
+        expectEqual(describeTree(), "h_tiles(3 *2)")
+    }
+
+    @Test
     func mostRecentChildIsTheLastMarkedOne() {
         let workspace = setUpTree("h_tiles(1 v_tiles(2 3) 4)", workspace: "a")
         let root = workspace.existingRootTilingContainer.orDie()

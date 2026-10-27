@@ -53,6 +53,8 @@ extension Workspace {
             window.lastAppliedLayoutPhysicalRect = nil
             window.lastAppliedLayoutVirtualRect = nil
             let windowRect = try await window.getAxRect(.cancellable) // Probably not idempotent
+            // The window may have closed or moved at the suspension point above
+            if window.placement != .floating(self) { continue }
             // The screens may disappear at the suspension point above. Don't move the window to the fake mainMonitorInfo
             if !hasScreens { continue }
             if let windowRect, let topLeft = floatingTopLeft(windowRect) {

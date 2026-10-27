@@ -26,7 +26,7 @@ final class TestWindow: Window, CustomStringConvertible {
     }
 
     override func closeAxWindow() {
-        unbindFromParent()
+        destroy()
     }
 
     override func getTitle(_ cm: CancellationMode) async throws -> String { description }

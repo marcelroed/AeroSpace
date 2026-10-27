@@ -17,15 +17,9 @@ final class MacWindow: Window {
     static func getOrRegister(windowId: UInt32, macApp: MacApp) async throws -> MacWindow {
         if let existing = allWindowsMap[windowId] { return existing }
         let rect = try await macApp.getAxRect(windowId, .cancellable)
-        let slot = try await unbindAndGetSlotForNewWindow(
-            windowId,
-            macApp,
-            isStartup
-                ? (rect?.center.monitorApproximation ?? mainMonitorInfo).activeWorkspace
-                : focus.workspace,
-            window: nil,
-            .cancellable,
-        )
+        let workspace = isStartup ? (rect?.center.monitorApproximation ?? mainMonitorInfo).activeWorkspace : focus.workspace
+        let type = try await macApp.getAxUiElementWindowType(windowId, getWindowLevel(for: windowId), .cancellable)
+        let slot = unbindAndGetSlotForNewWindow(type, workspace, window: nil)
 
         // atomic synchronous section
         if let existing = allWindowsMap[windowId] { return existing }
@@ -54,7 +48,7 @@ final class MacWindow: Window {
             return
         }
         if !skipClosedWindowsCache { cacheClosedWindowIfNeeded() }
-        let parent = unbindFromParent().parent
+        guard let parent = destroy()?.parent else { return }
         let deadWindowWorkspace = parent.nodeWorkspace
         let focus = focus
         if let deadWindowWorkspace, deadWindowWorkspace == focus.workspace ||
@@ -174,9 +168,12 @@ final class MacWindow: Window {
 
 extension Window {
     func relayoutWindow(on workspace: Workspace, _ cm: CancellationMode, forceTile: Bool = false) async throws {
-        let slot = forceTile
-            ? unbindAndGetSlotForNewTilingWindow(workspace, window: self)
-            : try await unbindAndGetSlotForNewWindow(windowId, self.asMacWindow().macApp, workspace, window: self, cm)
+        let type: AxUiElementWindowType = forceTile
+            ? .window
+            : try await asMacWindow().macApp.getAxUiElementWindowType(windowId, getWindowLevel(for: windowId), cm)
+        // The window or the workspace may be gone after the suspension point above
+        guard isAlive, workspace.isAlive else { return }
+        let slot = unbindAndGetSlotForNewWindow(type, workspace, window: self)
         move(to: slot.parent, at: slot.index)
     }
 }
@@ -184,21 +181,16 @@ extension Window {
 /// Where a new window goes: index nil is the last one
 private typealias NewWindowSlot = (parent: Container, index: Int?)
 
-// The function is private because it's unsafe. It leaves the window in unbound state
-private func unbindAndGetSlotForNewWindow(_ windowId: UInt32, _ macApp: MacApp, _ workspace: Workspace, window: Window?, _ cm: CancellationMode) async throws -> NewWindowSlot {
-    let windowLevel = getWindowLevel(for: windowId)
-    return switch try await macApp.getAxUiElementWindowType(windowId, windowLevel, cm) {
-        case .popup: (macosPopupWindowsContainer, nil)
-        case .dialog: (workspace.containerCreatingIfNeeded(.floating), nil)
-        case .window: unbindAndGetSlotForNewTilingWindow(workspace, window: window)
+// The function is private because it's unsafe. A tiling slot leaves the window in unbound state
+private func unbindAndGetSlotForNewWindow(_ type: AxUiElementWindowType, _ workspace: Workspace, window: Window?) -> NewWindowSlot {
+    switch type {
+        case .popup: return (macosPopupWindowsContainer, nil)
+        case .dialog: return (workspace.containerCreatingIfNeeded(.floating), nil)
+        case .window:
+            window?.unbindFromParent() // See newTilingWindowSlot
+            let slot = workspace.newTilingWindowSlot()
+            return (slot.parent, slot.index)
     }
-}
-
-// The function is private because it's unsafe. It leaves the window in unbound state
-private func unbindAndGetSlotForNewTilingWindow(_ workspace: Workspace, window: Window?) -> NewWindowSlot {
-    window?.unbindFromParent() // See newTilingWindowSlot
-    let slot = workspace.newTilingWindowSlot()
-    return (slot.parent, slot.index)
 }
 
 func runOnWindowDetected(ifConventional window: Window) async {

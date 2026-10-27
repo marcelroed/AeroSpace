@@ -23,6 +23,10 @@ open class TreeNode: Equatable {
     // - resize with mouse
     var weightBeforeResizeWithMouse: CGFloat? = nil
     var isBound: Bool { parent != nil } // todo drop, once https://github.com/nikitabobko/AeroSpace/issues/1215 is fixed
+    /// false once the node is gone for good: a garbage-collected window or workspace, a container that normalization or the
+    /// closed-windows cache dropped. Never set again. Code that holds a node across an `await` checks it, or the node's
+    /// expected placement, after the await and skips its work silently if the node is gone (stale-object policy)
+    private(set) final var isAlive = true
 
     /// See ``move(to:at:weight:)`` for `index`. `weight` nil: ``WeightPolicy/auto``
     init(parent: TreeNode, weight: CGFloat? = nil, index: Int? = nil) {
@@ -96,6 +100,13 @@ open class TreeNode: Equatable {
         parent.children.remove(at: index)
         self.parent = nil
         return NodeBinding(parent: parent, weight: weight, index: index)
+    }
+
+    /// Unbinds the node for good, see ``isAlive``. Returns where it was bound, nil if it was unbound
+    @discardableResult
+    func destroy() -> NodeBinding? {
+        isAlive = false
+        return parent != nil ? unbindFromParent() : nil
     }
 
     /// Makes the node the most recent child of its parent, and the parent the most recent child of its parent, and so on.
