@@ -93,6 +93,7 @@ final class FormatTest: XCTestCase {
             .interVar(.formatVar(.window(.windowTitle))),
         ])
         let msg = result.failureOrNil?.map(\.description).joined(separator: "\n")
+        assertNotNil(msg)
         assertTrue(msg?.contains("Unknown interpolation variable 'window-id'") == true)
         assertTrue(msg?.contains("Unknown interpolation variable 'window-title'") == true)
     }
@@ -332,6 +333,7 @@ final class FormatTest: XCTestCase {
             [newWindowObj(id: 8)],
             [.interVar(.formatVar(.window(.windowId))), .interVar(.plainInterVar(.rightPadding))],
             [["window-id": Primitive.int(8)]],
+            ignoreRightPaddingVar: true,
         )
     }
 
@@ -361,6 +363,7 @@ final class FormatTest: XCTestCase {
             [.interVar(.formatVar(.window(.windowId)))],
             ignoreRightPaddingVar: true,
         )
+        assertFail(result)
         assertTrue(result.failureOrNil?.starts(with: "Unknown interpolation variable 'window-id'.") == true)
     }
 
@@ -397,17 +400,18 @@ final class FormatTest: XCTestCase {
         .window(.forTest(window: TestWindow.new(id: id, parent: parent ?? Workspace.get(byName: name).rootTilingContainer), title: title))
     }
 
-    /// Checks that `objects` format (ignoring right-padding) to the JSON encoding of `expected`
+    /// Checks that `objects` format to the JSON encoding of `expected`
     private func assertFormatToJson(
         _ objects: [AeroObj],
         _ format: [InterToken<InterVar>],
         _ expected: [[String: Primitive]],
+        ignoreRightPaddingVar: Bool = true,
         fileID: String = #fileID,
         filePath: StaticString = #filePath,
         line: Int = #line,
         column: Int = #column,
     ) {
-        let result = objects.formatToJson(format, ignoreRightPaddingVar: true)
+        let result = objects.formatToJson(format, ignoreRightPaddingVar: ignoreRightPaddingVar)
         assertSucc(result, JSONEncoder.aeroSpaceDefault.encodeToString(expected).orDie(), fileID: fileID, filePath: filePath, line: line, column: column)
     }
 }
