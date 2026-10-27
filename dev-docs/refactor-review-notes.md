@@ -40,7 +40,7 @@ Branch `restructure` starts from `refactor-cleanup` at `ba6b0d70`. It rewrites t
 - **Fixed on `restructure` in `<commit>`:** like **Fixed in**, but on `restructure`.
 - **Moot on `restructure`:** the code was deleted or redesigned, so the bug can't happen. The status says why.
 
-The summary table marks an entry that was open until then as "fixed on restructure" or "moot on restructure". Entries RB-115 and up were found during the restructure. RB-115 to RB-119 and RB-130 to RB-133 are already fixed there. Every open entry was checked against `restructure` at `6fee1079`. These restructure items got no ID:
+The summary table marks an entry that was open until then as "fixed on restructure" or "moot on restructure". Entries RB-115 and up were found during the restructure. RB-115 to RB-120 and RB-130 to RB-133 are already fixed there. Every open entry was checked against `restructure` at `6fee1079`. These restructure items got no ID:
 - `subscribe` in a config binding fails with "subscribe is not supported in the eval", where there is no eval: 858762f5 changed the message to "subscribe is only available from the CLI".
 - A bug study of the restructure's prototype branches also listed RB-04, RB-05, RB-10, RB-13, RB-19, RB-22, RB-23, RB-24, RB-25, RB-38, RB-42, RB-44 and RB-101.
 - The initial `subscribe` events come in random order: RB-114.
@@ -86,7 +86,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 | [RB-71](#rb-71-a-die-on-an-ax-thread-deadlocks-termination) | medium | likely | Core model | A die on an AX thread deadlocks termination | fixed |
 | [RB-115](#rb-115---monitor-with-the-smallest-integer-crashes-aerospace) | medium | likely | Commands and CLI | `--monitor` with the smallest integer crashes AeroSpace | fixed on restructure |
 | [RB-116](#rb-116-deeply-nested-or-long-shell-expressions-overflow-the-stack) | medium | likely | Config, shell and UI | Deeply nested or long shell expressions overflow the stack | fixed on restructure |
-| [RB-120](#rb-120-a-binding-or-callback-that-runs-itself-recurses-without-bound) | medium | likely | Commands and CLI | A binding or callback that runs itself recurses without bound | open |
+| [RB-120](#rb-120-a-binding-or-callback-that-runs-itself-recurses-without-bound) | medium | likely | Commands and CLI | A binding or callback that runs itself recurses without bound | fixed on restructure |
 | [RB-130](#rb-130-a-long-interpolated-string-takes-quadratic-time-to-tokenize) | medium | likely | Shared utilities | A long interpolated string takes quadratic time to tokenize | fixed on restructure |
 | [RB-131](#rb-131-a-config-array-of-thousands-of-commands-overflows-the-stack) | medium | likely | Config, shell and UI | A config array of thousands of commands overflows the stack | fixed on restructure |
 | [RB-07](#rb-07-ax-size-and-position-getters-crash-on-unexpected-values-and-can-deadlock-on-quit) | medium | possible | Shared utilities | AX size and position getters crash on unexpected values and can deadlock on quit | fixed |
@@ -777,9 +777,9 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-120: A binding or callback that runs itself recurses without bound
 
-- **Status:** Open. Found in a review of `restructure`. The code before it does the same.
+- **Status:** Fixed on `restructure` in f7c20cad: `runReportingFailure` runs each command of a `Shell` one level deeper than the command that runs it, and tracks the depth in a task-local value. Past 32 levels, the command fails with "Commands nest too deeply (more than 32 levels). A binding or callback probably runs itself: <the command that runs it>", and the rest of the outermost command fails silently. The limit covers `eval` and on-mode-changed (run by `mode`) too. Key bindings and callbacks drop their errors, so the message shows only when the CLI runs `trigger-binding` or `run-callback`. Regression tests: `TriggerBindingCommandTest.bindingThatTriggersItselfFails`, `bindingsThatTriggerEachOtherFail`, `bindingThatTriggersItselfTwiceFailsOnce` and `nestingIsLimitedTo32Levels`, `RunCallbackCommandTest.callbackThatRunsItselfFails` and `focusChangeCallbackThatRunsItselfStops`, and `ModeCommandTest.onModeChangedThatChangesTheModeBackAndForthStops`.
 - **Severity:** medium · **Confidence:** likely (not run)
-- **Location:** `Sources/AppBundle/command/impl/ShellCommands.swift:289-298` (`trigger-binding`) and `:129-143` (`run-callback`). The guard that stops on-focus-changed callbacks from re-entering is at `Sources/AppBundle/focus.swift:150`.
+- **Location:** `Sources/AppBundle/shell/Shell.swift:125-175` (`runReportingFailure` and `CommandNesting`). The guard that stops on-focus-changed callbacks from re-entering stays at `Sources/AppBundle/focus.swift:150`.
 - **Description:** `trigger-binding` runs the commands of a binding, and `run-callback` runs the configured callbacks through `onFocusChanged`, `onFocusedMonitorChanged` or `onWindowDetected`. Nothing limits how deep these nest. `isRunningOnFocusChangedCallbacks` guards only the callbacks that a focus change runs, not `run-callback`.
 - **How it shows up:** a config with `alt-a = 'trigger-binding --mode main alt-a'`, or with `on-focus-changed = 'run-callback on-focus-changed'`, makes the key press or the focus change run forever. AeroSpace stops responding, and it crashes when memory or the stack runs out. Two bindings that trigger each other do the same.
 - **Fix direction:** limit the nesting depth of `trigger-binding` and `run-callback`, for example with a task-local counter, and fail with a message past the limit.
