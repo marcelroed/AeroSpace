@@ -49,10 +49,8 @@ struct Field<S> {
         apply = { target, raw, path, d in decodeTable(raw, into: &target[keyPath: keyPath], fields, path, &d) }
     }
 
-    /// The key is decoded elsewhere (`check == nil`) or only produces diagnostics (deprecated keys)
-    static func ignored(_ check: ((OrderedJson, ConfigBacktrace, inout Diagnostics) -> Void)? = nil) -> Self {
-        Field { _, raw, path, d in check?(raw, path, &d) }
-    }
+    /// A known key that is decoded elsewhere
+    static var ignored: Self { Field { _, _, _, _ in } }
 }
 
 func decodeTable<S>(_ raw: OrderedJson, into target: inout S, _ fields: [String: Field<S>], _ path: ConfigBacktrace, _ d: inout Diagnostics) {

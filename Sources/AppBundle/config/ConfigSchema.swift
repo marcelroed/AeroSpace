@@ -30,8 +30,8 @@ private let rootFields: [String: Field<Config>] = [
     "exec-on-workspace-change": Field(\.execOnWorkspaceChange, decodeStringArray),
     "exec": Field(\.execConfig, decodeExecConfig),
 
-    keyMappingKey: .ignored(),
-    modeKey: .ignored(),
+    keyMappingKey: .ignored,
+    modeKey: .ignored,
 
     "gaps": Field(\.gaps, gapsFields),
     "focus-follows-mouse": Field(\.focusFollowsMouse, ["enabled": Field(\.enabled, decodeBool)]),
