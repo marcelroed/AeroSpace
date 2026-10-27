@@ -223,11 +223,11 @@ final class LivePlatform: Platform {
                 shown[app.info.pid, default: (ax, [])].placements.append(placement)
             }
         }
-        let nativeFocus = focus.flatMap(nativeFocus)
+        let nativeFocus = focus.flatMap(decideNativeFocus)
         let shownJobs = ShownJobs(deadline: .now() + parkWaitLimit)
         for (pid, (ax, placements)) in shown {
-            let focus = nativeFocus.flatMap { $0.app.info.pid == pid ? $0.run : nil }
-            ax.postPlacements(placements, .shown(shownJobs, focus: focus), trustsLastSeen: trustsLastSeen)
+            let jobFocus = nativeFocus.flatMap { $0.app.info.pid == pid ? $0.run : nil }
+            ax.postPlacements(placements, .shown(shownJobs, focus: jobFocus), trustsLastSeen: trustsLastSeen)
         }
         for (ax, placements) in parks.values {
             ax.postPlacements(placements, .parks(waitingFor: shownJobs), trustsLastSeen: trustsLastSeen)
@@ -250,11 +250,11 @@ final class LivePlatform: Platform {
     }
 
     func focus(_ id: WindowId) {
-        nativeFocus(id)?.runAlone()
+        decideNativeFocus(id)?.runAlone()
     }
 
     /// Decides the window's native focus now. nil in `--read-only` mode, or once its app is gone
-    private func nativeFocus(_ id: WindowId) -> NativeFocus? {
+    private func decideNativeFocus(_ id: WindowId) -> NativeFocus? {
         if serverArgs.isReadOnly { return nil }
         // Bump first: a focus posted earlier for another window must not run, even if this window's app is gone
         let generation = nativeFocusGeneration.wrappingAdd(1, ordering: .sequentiallyConsistent).newValue

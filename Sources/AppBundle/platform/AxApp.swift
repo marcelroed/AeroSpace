@@ -283,7 +283,7 @@ actor AxApp {
         window.setFrame(topLeft: frame.topLeft, size: frame.size)
     }
 
-    /// The slow path of the native focus (#101, LivePlatform's `nativeFocus(_:)` picks it)
+    /// The slow path of the native focus (#101, LivePlatform's `decideNativeFocus(_:)` picks it)
     func focus(_ windowId: UInt32, _ nsApp: NSRunningApplication) {
         guard let window = windows[windowId]?.ax else { return }
         // Raise firstly to make sure that by the time we activate the app, the window would be already on top
