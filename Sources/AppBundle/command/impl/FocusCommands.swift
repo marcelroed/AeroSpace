@@ -132,9 +132,14 @@ struct FocusCommand: nonisolated Command {
         }
         let floatingWindows = floatingAsTiling ? await floatingWindowCenters(target.workspace) : []
         // Focus sees the floating windows as tiling windows only while it decides. Then the tree is as before: order and MRU
-        let change = try world.withTemporaryTreeEdits { () throws(CmdFail) -> FocusChange? in
-            bindAsTiling(floatingWindows, target.workspace)
-            return try findChange(target)
+        // findChange only reads the tree. Without floating windows there's nothing to bind, so nothing to restore
+        let change: FocusChange? = if floatingWindows.isEmpty {
+            try findChange(target)
+        } else {
+            try world.withTemporaryTreeEdits { () throws(CmdFail) -> FocusChange? in
+                bindAsTiling(floatingWindows, target.workspace)
+                return try findChange(target)
+            }
         }
         switch change {
             case nil: return
