@@ -192,18 +192,27 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
                 if.during-aerospace-startup = true
                 run = 'layout floating'
             [[on-window-detected]]
-                if.app-id = 'com.bar'
+                if.app-id = 'com."bar"'
+                check-further-callbacks = true
                 run = ['layout floating', 'focus left']
             """,
         )
         assertEquals(result.errors, [])
         assertEquals(result.config.onWindowDetected.map(\.debugJson), [
             .dict([
-                "matcher": .string(#"appId="com.foo", appNameRegexSubstring="name", windowTitleRegexSubstring="title", workspace="w", duringAeroSpaceStartup=true"#),
+                "matcher": .dict([
+                    "app-id": .string("com.foo"),
+                    "app-name-regex-substring": .string("name"),
+                    "window-title-regex-substring": .string("title"),
+                    "workspace": .string("w"),
+                    "during-aerospace-startup": .bool(true),
+                ]),
+                "check-further-callbacks": .bool(false),
                 "commands": .string("layout floating"),
             ]),
             .dict([
-                "matcher": .string(#"appId="com.bar""#),
+                "matcher": .dict(["app-id": .string(#"com."bar""#)]),
+                "check-further-callbacks": .bool(true),
                 "commands": .string("layout floating; focus left"),
             ]),
         ])

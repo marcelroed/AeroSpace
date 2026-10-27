@@ -11,6 +11,7 @@ struct WindowDetectedCallback: Equatable {
             case .command(let command): .string(command.shellOfCommandsDescription)
             case .legacy(let legacy): legacy.debugJson
         }
+        result["check-further-callbacks"] = .bool(checkFurtherCallbacks)
         result["commands"] = .string(run.shellOfCommandsDescription)
         return .dict(result)
     }
@@ -51,15 +52,15 @@ struct LegacyWindowDetectedCallbackMatcher: Equatable {
     var workspace: String?
     var duringAeroSpaceStartup: Bool?
 
+    /// Keyed like the config, so that JSON escapes the values
     var debugJson: OrderedJson {
-        let parts: [String?] = [
-            appId.map { "appId=\"\($0)\"" },
-            appNameRegexSubstring.map { "appNameRegexSubstring=\"\($0.origin)\"" },
-            windowTitleRegexSubstring.map { "windowTitleRegexSubstring=\"\($0.origin)\"" },
-            workspace.map { "workspace=\"\($0)\"" },
-            duringAeroSpaceStartup.map { "duringAeroSpaceStartup=\($0)" },
-        ]
-        return .string(parts.compactMap { $0 }.joined(separator: ", "))
+        var result: OrderedJson.JsonDict = [:]
+        result["app-id"] = appId.map(OrderedJson.string)
+        result["app-name-regex-substring"] = appNameRegexSubstring.map { .string($0.origin) }
+        result["window-title-regex-substring"] = windowTitleRegexSubstring.map { .string($0.origin) }
+        result["workspace"] = workspace.map(OrderedJson.string)
+        result["during-aerospace-startup"] = duringAeroSpaceStartup.map(OrderedJson.bool)
+        return .dict(result)
     }
 }
 
