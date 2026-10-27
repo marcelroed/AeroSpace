@@ -125,17 +125,23 @@ extension Window {
 extension Workspace {
     func focusWorkspace() -> Bool { setFocus(to: toLiveFocus()) }
 
+    /// The workspace with its most recent window. Never a window of a hidden app: the native focus would unhide the app,
+    /// and moving the window to macos_hidden made it the most recent one (RB-145)
     func toLiveFocus() -> LiveFocus {
-        let window = mostRecentWindowRecursive ?? mostRecentWindowPastEmptyRoot ?? anyLeafWindowRecursive
+        func isShown(_ child: TreeNode) -> Bool { (child as? Container)?.kind != .macosHiddenApp }
+        let mostRecentFirst = mruChildren.filter(isShown)
+        let window = mostRecentFirst.first?.mostRecentWindowRecursive
+            ?? mostRecentWindow(pastEmptyRoot: mostRecentFirst)
+            ?? children.lazy.filter(isShown).compactMap(\.anyLeafWindowRecursive).first
         // The window is on this workspace, so it has a workspace placement. No window: the workspace is empty
         return window?.toLiveFocusOrNil() ?? LiveFocus(workspace: self, windowAndPlacement: nil)
     }
 
     /// After the last tiling window closes, the empty root stays the most recent child (RB-77). Then the most recent window
     /// of the other children, instead of the first one in DFS order
-    private var mostRecentWindowPastEmptyRoot: Window? {
-        guard let root = mostRecentChild as? TilingContainer, root.isEffectivelyEmpty else { return nil }
-        return mruChildren.dropFirst().lazy.compactMap(\.mostRecentWindowRecursive).first
+    private func mostRecentWindow(pastEmptyRoot mostRecentFirst: [TreeNode]) -> Window? {
+        guard let root = mostRecentFirst.first as? TilingContainer, root.isEffectivelyEmpty else { return nil }
+        return mostRecentFirst.dropFirst().lazy.compactMap(\.mostRecentWindowRecursive).first
     }
 }
 

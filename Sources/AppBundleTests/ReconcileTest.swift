@@ -601,6 +601,28 @@ struct ReconcileTest {
     }
 
     @Test
+    func aHiddenAppsWindowDoesntTakeTheFocus() async throws { // RB-145
+        fake.apps = [appA, appB]
+        openWindow(1, appA)
+        openWindow(2, appA)
+        openWindow(3, appB)
+        fake.focused = 2
+        await heavyRefresh()
+        fake.hiddenApps = [appB.pid] // cmd-h on B
+        await heavyRefresh() // 3 moves to macos_hidden: that makes it the workspace's most recent window
+        expectEqual(describeTree(), "h_tiles(1 *2) macos_hidden(3)")
+
+        fake.resetCalls()
+        _ = try await world.sessions.light(.hotkeyBinding, .forceRun) { await runCmd("move-node-to-workspace b") }
+        world.sessions.cancelHeavy()
+        expectEqual(focus.windowOrNil?.windowId, 1)
+        _ = try await world.sessions.light(.hotkeyBinding, .forceRun) { await runCmd("move-node-to-workspace b") }
+        world.sessions.cancelHeavy()
+        expectEqual(focus.windowOrNil?.windowId, nil) // Only 3 is left: the workspace is focused as an empty one
+        expectEqual(fake.calls(of: .focus), [.focus(1)]) // The native focus would unhide B
+    }
+
+    @Test
     func focusFollowsMouseKeepsTheScheduledHeavyRefresh() async throws {
         setUpTree("h_tiles(*1)")
         openWindow(2)
