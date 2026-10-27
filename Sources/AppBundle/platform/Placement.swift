@@ -1,7 +1,8 @@
 import AppKit
 
 /// Where a window goes, see ``Platform/apply(_:)``. The platform runs the placements of each app in the batch's order (the
-/// shown workspaces' placements, then the parks), latest wins per window. AxApp and FakePlatform run them with the same
+/// shown workspaces' placements, then the parks, which also wait for the other apps' shown placements), latest wins per
+/// window. AxApp and FakePlatform run them with the same
 /// code: ``PlacementState``
 nonisolated enum Placement: Equatable, Sendable {
     /// The layout's frame of a window. It's written only if the window isn't there already, see

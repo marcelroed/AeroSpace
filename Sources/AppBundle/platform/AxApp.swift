@@ -100,10 +100,18 @@ actor AxApp {
 
     /// Posts one job for the app's placements of a batch, in the batch's order. Each placement is its window's latest
     /// write until a newer write of the window is posted (as ``postWindowWrite(_:_:)``), and it stops, also between its AX
-    /// calls, once it's stale or termination starts
-    nonisolated func postPlacements(_ placements: [Placement]) {
+    /// calls, once it's stale or termination starts. The job runs `before` and `after` on the app's thread
+    nonisolated func postPlacements(
+        _ placements: [Placement],
+        before: @escaping @Sendable () -> Void = {},
+        after: @escaping @Sendable () -> Void = {},
+    ) {
         let generations: [UInt64] = self.generations.withLock { generations in placements.map { generations.bump($0.windowId.raw) } }
-        post { app in app.place(placements, generations) }
+        post { app in
+            before()
+            app.place(placements, generations)
+            after()
+        }
     }
 
     // MARK: Isolated: AX calls
@@ -211,7 +219,7 @@ actor AxApp {
         return .facts(NativeFacts(isFullscreen: isFullscreen, isMinimized: !isFullscreen && isMinimized))
     }
 
-    /// See ``postPlacements(_:)``. The app's animations are off from the batch's first write to its end
+    /// See ``postPlacements(_:before:after:)``. The app's animations are off from the batch's first write to its end
     private func place(_ placements: [Placement], _ generations: [UInt64]) {
         let animations = AnimationsOff(element)
         defer { animations.restore() }

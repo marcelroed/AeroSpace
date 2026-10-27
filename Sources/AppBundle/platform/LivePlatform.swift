@@ -209,15 +209,28 @@ final class LivePlatform: Platform {
 
     // MARK: Effects
 
-    /// One job per app: its placements in the batch's order
+    /// Two jobs per app: its shown workspaces' placements, then its parks, each in the batch's order. The apps run their
+    /// jobs in parallel, so the parks wait until every app has run its shown placements (at most ``parkWaitLimit``): a
+    /// window leaves for its corner only once the windows that replace it are there, or the desktop shows for a few frames
     func apply(_ batch: [Placement]) {
-        var jobs: [pid_t: (app: LiveApp, placements: [Placement])] = [:]
+        var shown: [pid_t: (ax: AxApp, placements: [Placement])] = [:]
+        var parks: [pid_t: (ax: AxApp, placements: [Placement])] = [:]
         for placement in batch {
-            guard let app = liveApp(of: placement.windowId) else { continue }
-            jobs[app.info.pid, default: (app, [])].placements.append(placement)
+            guard let app = liveApp(of: placement.windowId), let ax = app.ax else { continue }
+            if case .park = placement {
+                parks[app.info.pid, default: (ax, [])].placements.append(placement)
+            } else {
+                shown[app.info.pid, default: (ax, [])].placements.append(placement)
+            }
         }
-        for (app, placements) in jobs.values {
-            app.ax?.postPlacements(placements)
+        let shownJobs = DispatchGroup()
+        for (ax, placements) in shown.values {
+            shownJobs.enter()
+            ax.postPlacements(placements, after: { shownJobs.leave() })
+        }
+        let deadline: DispatchTime = .now() + parkWaitLimit
+        for (ax, placements) in parks.values {
+            ax.postPlacements(placements, before: { _ = shownJobs.wait(timeout: deadline) })
         }
     }
 
@@ -485,6 +498,9 @@ nonisolated private func eachUntilAbandoned<T>(_ raws: [UInt32], _ isAbandoned: 
 
 /// The latest-wins slot of the native focus's slow path: a newer focus request makes a pending one stale
 nonisolated private let nativeFocusGeneration: Atomic<UInt64> = Atomic(0)
+
+/// How long the parks of a batch wait for the apps that show windows: a hung app's windows don't hold the others in place
+nonisolated private let parkWaitLimit: DispatchTimeInterval = .milliseconds(200)
 
 /// A registered app, main's side. Its AX state and calls live in ``AxApp``, on the app's own thread
 private final class LiveApp {
