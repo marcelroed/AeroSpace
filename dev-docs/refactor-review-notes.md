@@ -187,7 +187,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 | [RB-125](#rb-125-subscribe-loses-the-events-sent-before-the-subscriber-is-registered) | low | speculative | Commands and CLI | `subscribe` loses the events sent before the subscriber is registered | open |
 | [RB-126](#rb-126-an-exec-table-that-doesnt-set-path-drops-the-homebrew-directories) | low | speculative | Config, shell and UI | An `[exec]` table that doesn't set `PATH` drops the Homebrew directories | open |
 | [RB-128](#rb-128-crlf-line-endings-dont-end-commands-comments-or-line-continuations) | low | speculative | Config, shell and UI | CRLF line endings don't end commands, comments or line continuations | open |
-| [RB-113](#rb-113-an-app-whose-ax-subscription-fails-is-retried-on-every-refresh) | low | possible | Core model | An app whose AX subscription fails is retried on every refresh | open |
+| [RB-113](#rb-113-an-app-whose-ax-subscription-fails-is-retried-on-every-refresh) | low | possible | Core model | An app whose AX subscription fails is retried on every refresh | fixed on restructure |
 | [RB-114](#rb-114-subscribe-sends-the-initial-events-in-random-order) | low | possible | Commands and CLI | `subscribe` sends the initial events in random order | open |
 | [RB-61](#rb-61-tests-cant-reset-two-private-focus-globals) | low | possible | Tests | Tests can't reset two private focus globals | fixed |
 | [RB-64](#rb-64-all-ax-dumps-run-in-one-test-that-crashes-on-a-malformed-dump) | low | possible | Tests | All AX dumps run in one test that crashes on a malformed dump | fixed |
@@ -416,7 +416,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-113: An app whose AX subscription fails is retried on every refresh
 
-- **Status:** Open. Found by the `perf` stream.
+- **Status:** Open. Found by the `perf` stream. Fixed on `restructure` in 5de87986: after a failed subscription, `MacApp.getOrRegister` skips the pid for 1 s, and the wait doubles after each further failure, up to 60 s (`RegistrationBackoff` in `Sources/AppBundle/platform/MacApp.swift`). The app launching, activating or terminating clears its backoff. Concurrent lookups of one pid await the same registration. The lock screen and AeroSpace itself are never registered, as before. Regression test: `AxAppTest.failedRegistrationsBackOffFrom1To60Seconds` covers the delays; clearing it has no test, since that needs NSWorkspace notifications.
 - **Severity:** low · **Confidence:** possible
 - **Location:** `Sources/AppBundle/tree/MacApp.swift:76-87`
 - **Description:** If `AxSubscription.bulkSubscribe` fails for a regular app, `getOrRegister` stores `nil` in `allAppsMap` and the app thread exits. The next lookup finds nothing, so it creates a new per-app thread and tries to subscribe again.
