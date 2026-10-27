@@ -2,11 +2,11 @@
 import Common
 import Testing
 
-/// The deadlines of the window listings (R2b L3), on a listing that the test holds with ``Gate``s
+/// The deadlines of the window listings, on a listing that the test holds with ``Gate``s
 @Suite(.aeroSpaceGlobalState)
 struct ListingDeadlinesTest {
     @Test
-    func aCancelledListingDoesntClearTheLateMarkOfANewerOne() async throws { // R2c L1
+    func aCancelledListingDoesntClearTheLateMarkOfANewerOne() async throws {
         let deadline = Gate()
         let deadlines = ListingDeadlines(minDeadline: .milliseconds(1), maxDeadline: .seconds(1)) { _ in await deadline.wait() }
         let (first, second) = (Gate(), Gate())
@@ -39,7 +39,7 @@ struct ListingDeadlinesTest {
     }
 
     @Test
-    func aSlowAnswerDoesntStretchTheDeadlinePastTheCap() async throws { // R2c M2
+    func aSlowAnswerDoesntStretchTheDeadlinePastTheCap() async throws {
         let deadlines = ListingDeadlines(minDeadline: .milliseconds(1), maxDeadline: .milliseconds(20))
         let answer = try await deadlines.list(7, hasDeadline: false) { () async throws(CancellationError) -> [Int]? in
             try? await Task.sleep(for: .milliseconds(30)) // E.g. AX timeouts inside the listing of an app that turned busy
@@ -54,7 +54,7 @@ struct ListingDeadlinesTest {
     }
 
     @Test
-    func aLateAnswerGivesOnlyTheNextListingALongerDeadline() async throws { // R2c M2
+    func aLateAnswerGivesOnlyTheNextListingALongerDeadline() async throws {
         let deadlines = ListingDeadlines(minDeadline: .milliseconds(1), maxDeadline: .milliseconds(20))
         let slowness = Gate()
         fake.resetCalls()
@@ -75,7 +75,7 @@ struct ListingDeadlinesTest {
     }
 
     @Test
-    func aCancelledListingKeepsTheLongerDeadline() async throws { // R2d M1
+    func aCancelledListingKeepsTheLongerDeadline() async throws {
         let longDeadline = Gate()
         let deadlines = ListingDeadlines(minDeadline: .nanoseconds(1), maxDeadline: .nanoseconds(1)) { deadline in
             if deadline > .nanoseconds(1) { await longDeadline.wait() } // A deadline past the cap passes at the end
@@ -114,7 +114,7 @@ struct ListingDeadlinesTest {
     }
 
     @Test
-    func aListingThatMissesTheLongerDeadlineUsesItUp() async throws { // R2d M1
+    func aListingThatMissesTheLongerDeadlineUsesItUp() async throws {
         let longDeadline = Gate()
         let deadlines = ListingDeadlines(minDeadline: .nanoseconds(1), maxDeadline: .nanoseconds(1)) { deadline in
             if deadline > .nanoseconds(1) { await longDeadline.wait() }

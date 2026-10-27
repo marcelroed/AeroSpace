@@ -154,7 +154,7 @@ private let allScenarios: [Scenario] = [
     Scenario(name: "A minimized window of unknown kind appears (13, browser)") {
         try await settled {
             let window = FakeWindow(app: browser, rect: Rect(topLeftX: 200, topLeftY: 150, width: 1000, height: 700), title: "Window 13")
-            window.kind = nil // Off-screen, with a kind that depends on its level (R2a M1): AeroSpace doesn't register it
+            window.kind = nil // Off-screen, with a kind that depends on its level: AeroSpace doesn't register it
             window.level = nil
             window.isMinimized = true
             fake.windows[13] = window

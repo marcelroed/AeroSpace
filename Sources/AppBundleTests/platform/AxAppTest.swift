@@ -128,7 +128,7 @@ struct AxAppTest {
     }
 
     /// Once termination starts, a read that runs on the app's thread returns without running its body: the restore job
-    /// waits behind it (R2a L2)
+    /// waits behind it
     @Test
     func terminationSkipsTheBodiesOfTheReads() async {
         let app = AxApp(pid: 0, threadName: "AxAppTest")
@@ -208,7 +208,7 @@ nonisolated private let timerCallbackEnteredTheActor: Atomic<Bool> = Atomic(fals
 
 nonisolated private func enterTheActor(_: CFRunLoopTimer?, _ info: UnsafeMutableRawPointer?) {
     guard let info = unsafe info else { return }
-    // Traps unless the executor tells the runtime that this thread is the actor's (P1)
+    // Traps unless the executor tells the runtime that this thread is the actor's (isIsolatingCurrentContext)
     let windowIds = unsafe Unmanaged<AxApp>.fromOpaque(info).takeUnretainedValue().assumeIsolated { $0.windowIds }
     timerCallbackEnteredTheActor.store(windowIds.isEmpty, ordering: .sequentiallyConsistent)
 }
