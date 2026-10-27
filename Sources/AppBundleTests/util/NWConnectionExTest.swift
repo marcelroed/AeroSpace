@@ -204,7 +204,13 @@ nonisolated final class TestSocketServer: Sendable {
                     case .closeWithoutAnswer: return
                     case .answer, .legacyServer, .recordMaxSizeFailure: break
                 }
-                guard let request = try? JSONDecoder().decode(ClientRequest.self, from: raw) else { return }
+                let request: ClientRequest
+                do {
+                    request = try JSONDecoder().decode(ClientRequest.self, from: raw)
+                } catch {
+                    Issue.record("The test server can't decode the request: \(error)")
+                    return
+                }
                 let answer = ServerAnswer(
                     exitCode: 0,
                     stdout: request.args.joined(separator: " "),

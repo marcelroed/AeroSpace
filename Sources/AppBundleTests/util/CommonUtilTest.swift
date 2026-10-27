@@ -63,6 +63,17 @@ struct CommonUtilTest {
     }
 
     @Test
+    func testGetOrNilAtIndex() {
+        #expect([10, 20].getOrNil(atIndex: 1) == 20)
+        #expect([10, 20].getOrNil(atIndex: 2) == nil)
+        #expect([10, 20].getOrNil(atIndex: -1) == nil)
+        let slice = [10, 20, 30][1...] // Indices 1 and 2
+        #expect(slice.getOrNil(atIndex: 1) == 20)
+        #expect(slice.getOrNil(atIndex: 0) == nil)
+        #expect(slice.getOrNil(atIndex: 3) == nil)
+    }
+
+    @Test
     func testTransposed() {
         #expect([[Int]]().transposed() == [])
         #expect([[1]].transposed() == [[1]])
