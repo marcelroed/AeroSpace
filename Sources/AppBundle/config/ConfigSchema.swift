@@ -17,7 +17,7 @@ private let rootFields: [String: Field<Config>] = [
     "enable-normalization-flatten-containers": Field(\.enableNormalizationFlattenContainers, decodeBool),
     "enable-normalization-opposite-orientation-for-nested-containers": Field(\.enableNormalizationOppositeOrientationForNestedContainers, decodeBool),
 
-    "default-root-container-layout": Field(\.defaultRootContainerLayout, decodeParsed { $0.parseLayout().toResult("Can't parse layout '\($0)'") }),
+    "default-root-container-layout": Field(\.defaultRootContainerLayout, decodeParsed { Layout(rawValue: $0).toResult("Can't parse layout '\($0)'") }),
     "default-root-container-orientation": Field(\.defaultRootContainerOrientation, decodeParsed {
         DefaultContainerOrientation(rawValue: $0).toResult("Can't parse default container orientation '\($0)'")
     }),

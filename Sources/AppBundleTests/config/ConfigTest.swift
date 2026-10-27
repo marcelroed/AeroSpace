@@ -523,9 +523,8 @@ struct ConfigTest {
         #expect(result.errors == [])
         #expect(result.config.defaultRootContainerLayout == .accordion)
 
-        let listResult = parseConfig("default-root-container-layout = 'list'")
-        #expect(listResult.errors == [])
-        #expect(listResult.config.defaultRootContainerLayout == .tiles)
+        // 'list' was the old name of 'tiles'
+        #expect(parseConfig("default-root-container-layout = 'list'").strErrors == ["[ERROR] default-root-container-layout: Can't parse layout 'list'"])
 
         let bad = parseConfig("default-root-container-layout = 'bogus'")
         #expect(bad.strErrors == ["[ERROR] default-root-container-layout: Can\'t parse layout \'bogus\'"])
