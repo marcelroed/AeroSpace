@@ -35,4 +35,23 @@ struct MoveWithMouseTest {
         expectEqual(window.nodeWorkspace, visible)
         #expect(window.isFloating)
     }
+
+    @Test
+    func aWindowThatStopsFloatingDuringTheDragStaysTiling() async throws { // RB-87
+        let visible = Workspace.get(byName: "a")
+        #expect(visible.focusWorkspace())
+        let invisible = Workspace.get(byName: "invisible")
+        let window = TestWindow.new(
+            id: 1,
+            parent: invisible.containerCreatingIfNeeded(.floating),
+            rect: Rect(topLeftX: 100, topLeftY: 100, width: 300, height: 200),
+        )
+        // `layout tiling` runs while the drag reads the window's frame
+        fake.onRead = { if $0 == .observedRect(1) { window.relayoutWindow(on: invisible, as: .window) } }
+
+        try await moveWithMouse(window)
+
+        expectEqual(window.nodeWorkspace, invisible)
+        #expect(!window.isFloating)
+    }
 }

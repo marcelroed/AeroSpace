@@ -13,8 +13,10 @@ func moveWithMouse(_ window: Window) async throws { // todo cover with tests
 
 private func moveFloatingWindow(_ window: Window) async throws {
     guard let center = try await world.platform.observedRect(window.windowId)?.center else { return }
+    // The window may have closed or stopped floating (e.g. `layout tiling`) at the suspension point above. Don't make it
+    // floating again (RB-87)
+    guard case .floating(let workspace) = window.placement else { return }
     let targetWorkspace = world.monitors.approximation(center).activeWorkspace
-    guard let workspace = window.nodeWorkspace else { return }
     if targetWorkspace != workspace {
         window.move(to: targetWorkspace.containerCreatingIfNeeded(.floating))
     }
