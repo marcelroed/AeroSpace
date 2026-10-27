@@ -221,7 +221,7 @@ func runOnWindowDetected(ifConventional window: Window) async {
             }
             // The layout is applied both before and after the on-window-detected callbacks on purpose
             await applyLayoutForNextDetectedWindow()
-            _ = await onWindowDetected(.defaultEnv, CmdIoImpl.emptyStdinIgnoringOut, window)
+            _ = await onWindowDetected(.defaultEnv, CmdIo.emptyStdinIgnoringOut, window)
             await applyLayoutForNextDetectedWindow()
         case .macosPopupWindowsContainer, .workspace, nil:
             break

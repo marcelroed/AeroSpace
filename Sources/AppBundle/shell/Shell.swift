@@ -102,7 +102,7 @@ extension Shell where T == any Command {
     }
 
     @discardableResult @MainActor func run(_ env: CmdEnv, _ stdin: consuming CmdStdin) async -> CmdResult {
-        let io: CmdIo = CmdIoImpl(stdin: stdin)
+        let io = CmdIo(stdin: stdin)
         let exitCode = await run(env, io)
         return CmdResult(stdout: io.stdout, stderr: io.stderr, exitCode: exitCode)
     }
@@ -124,13 +124,13 @@ extension Shell where T == any Command {
 /// The semantics is similar to 'set -o pipefail'
 @MainActor private func runShellPipe(_ commands: [Shell<any Command>], _ env: CmdEnv, _ originalIo: CmdIo) async -> Int32ExitCode {
     var rightmostNonZeroExitCode = Int32ExitCode(rawValue: EXIT_CODE_ZERO)
-    var io: CmdIo = CmdIoForwardingStdin(stdin: originalIo)
+    var io = CmdIo(forwardingStdinOf: originalIo)
     var lastStdout = [String]()
     for command in commands {
         let exitCode = await command.run(env, io)
         originalIo.stderr += io.stderr
         lastStdout = io.stdout
-        io = CmdIoImpl(stdin: .init(lastStdout.joined(separator: "\n")))
+        io = CmdIo(stdin: .init(lastStdout.joined(separator: "\n")))
         if exitCode.rawValue != 0 {
             rightmostNonZeroExitCode = exitCode
         }
