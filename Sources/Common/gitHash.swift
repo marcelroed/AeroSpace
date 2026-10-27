@@ -1,4 +1,4 @@
 import BuildInfo
 
-public let gitHash = unsafe String(cString: aerospaceGitHash)
-public let gitShortHash = unsafe String(cString: aerospaceGitShortHash)
+public let gitHash: String = unsafe String(cString: aerospaceGitHash)
+public let gitShortHash: String = unsafe String(cString: aerospaceGitShortHash)

@@ -42,7 +42,7 @@ nonisolated func toggleReleaseServerIfDebug(_ state: ToggleEnum) async {
     }
 }
 
-nonisolated private let serverVersionAndHash = "\(aeroSpaceAppVersion) \(gitHash)"
+nonisolated private let serverVersionAndHash: String = "\(aeroSpaceAppVersion) \(gitHash)"
 
 /// Answers the one request of the connection. Runs off the main actor: the connection I/O doesn't wait for the main
 /// thread

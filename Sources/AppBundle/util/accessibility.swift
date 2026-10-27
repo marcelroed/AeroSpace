@@ -81,7 +81,7 @@ nonisolated enum Ax {
         )
     }
 
-    static let parentWindowRecursive = ReadableAttrImpl<AXUIElement>(
+    static let parentWindowRecursive: ReadableAttrImpl<AXUIElement> = ReadableAttrImpl(
         key: kAXWindowAttribute,
         getter: { CFGetTypeID($0) == AXUIElementGetTypeID() ? ($0 as! AXUIElement) : nil },
     )
@@ -99,11 +99,11 @@ nonisolated enum Ax {
     static let topLeftCornerAttr = writableAxValue(kAXPositionAttribute, .cgPoint, CGPoint.zero)
     /// Returns windows visible on all monitors
     /// If some windows are located on not active macOS Spaces then they won't be returned
-    static let windowsAttr = ReadableAttrImpl<[WindowIdAndAxUiElement]>(
+    static let windowsAttr: ReadableAttrImpl<[WindowIdAndAxUiElement]> = ReadableAttrImpl(
         key: kAXWindowsAttribute,
         getter: { ($0 as? NSArray)?.compactMap(axWindowOrNil) ?? [] },
     )
-    static let focusedWindowAttr = ReadableAttrImpl<WindowIdAndAxUiElementMock>(
+    static let focusedWindowAttr: ReadableAttrImpl<WindowIdAndAxUiElementMock> = ReadableAttrImpl(
         key: kAXFocusedWindowAttribute,
         getter: windowOrNil,
     )

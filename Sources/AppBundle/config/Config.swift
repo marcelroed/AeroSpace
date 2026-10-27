@@ -21,7 +21,7 @@ struct Config {
     var enableNormalizationOppositeOrientationForNestedContainers: Bool = true
     var persistentWorkspaces: OrderedSet<String> = []
     var execOnWorkspaceChange: [String] = [] // todo deprecate
-    var keyMapping = KeyMapping()
+    var keyMapping: KeyMapping = KeyMapping()
     var execConfig: ExecConfig = ExecConfig()
     var focusFollowsMouse: FocusFollowsMouse = FocusFollowsMouse()
 

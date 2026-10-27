@@ -3,7 +3,7 @@ import Darwin
 import Foundation
 import Network
 
-let usage =
+let usage: String =
     """
     USAGE: \(CommandLine.arguments.first ?? "aerospace") [-h|--help] [-v|--version] <subcommand> [<args>...]
 
@@ -11,9 +11,9 @@ let usage =
     \(subcommandTable.joined(separator: "\n"))
     """
 
-private let subcommandTable = CmdKind.allCases
-    .filter { $0 != .execAndForget } // exec-and-forget isn't a CLI subcommand
-    .map { ["  " + $0.rawValue, $0.purpose] }
+private let subcommandTable: [String] = CmdKind.allCases
+    .filter { $0 != CmdKind.execAndForget } // exec-and-forget isn't a CLI subcommand
+    .map { (kind: CmdKind) -> [String] in ["  \(kind.rawValue)", kind.purpose] }
     .sortedBy { $0[0] }
     .toPaddingTable(columnSeparator: "   ")
 

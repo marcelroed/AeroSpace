@@ -3,7 +3,7 @@ import Darwin
 import Foundation
 import Synchronization
 
-public let socketPath = "/tmp/\(aeroSpaceAppId)-\(unixUserName).sock"
+public let socketPath: String = "/tmp/\(aeroSpaceAppId)-\(unixUserName).sock"
 public let unixUserName = NSUserName()
 public let mainModeId = "main"
 

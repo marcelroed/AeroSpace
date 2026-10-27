@@ -6,7 +6,7 @@ import Observation
 /// Assigning an equal value doesn't notify them
 @Observable
 public final class TrayMenuModel {
-    public static let shared = TrayMenuModel()
+    public static let shared: TrayMenuModel = TrayMenuModel()
 
     private init() {}
 

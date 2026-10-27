@@ -6,7 +6,7 @@ private let iconSize = CGSize(width: 50, height: 50)
 private let textSize = CGSize(width: 440, height: 110)
 
 final class SecureInputPanel: NSPanelHud {
-    static let shared = SecureInputPanel()
+    static let shared: SecureInputPanel = SecureInputPanel()
     private var hostingView: NSHostingView<SecureInputView>?
 
     override private init() {

@@ -16,7 +16,7 @@ public func getMessageWindow(messageModel: MessageModel) -> some Scene {
     .windowLevel(.floating)
 }
 
-public let messageWindowId = "\(aeroSpaceAppName).messageView"
+public let messageWindowId: String = "\(aeroSpaceAppName).messageView"
 
 struct MessageView: View {
     private let model: MessageModel
@@ -91,7 +91,7 @@ struct MessageView: View {
 
 @Observable
 public final class MessageModel {
-    public static let shared = MessageModel()
+    public static let shared: MessageModel = MessageModel()
     public var message: Message? = nil
 
     private init() {}

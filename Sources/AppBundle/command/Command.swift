@@ -42,7 +42,7 @@ struct CmdFail: Error, Equatable, ExpressibleByStringInterpolation {
     init(stringLiteral message: String) { self.init(message) }
 
     /// Fail without a message: the command has already explained, or `--fail-if-noop` asked for silence
-    static let silent = CmdFail(nil)
+    static let silent: CmdFail = CmdFail(nil)
     static let no = CmdFail(nil, exitCode: 1)
 
     /// Makes the exit code of a nested shell (`eval`, a callback, a binding) the exit code of the command

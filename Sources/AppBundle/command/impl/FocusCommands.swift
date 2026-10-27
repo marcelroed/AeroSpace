@@ -285,7 +285,7 @@ nonisolated enum MonitorTarget: Equatable, Sendable {
     case relative(NextPrev)
     case patterns([MonitorDescription])
 
-    static let casesExceptPatterns = CardinalDirection.cliArgsCases + NextPrev.cliArgsCases
+    static let casesExceptPatterns: [String] = CardinalDirection.cliArgsCases + NextPrev.cliArgsCases
     static let placeholder = (casesExceptPatterns + ["<monitor-pattern>"]).joinedCliArgs
 
     /// A direction or `next`/`prev`, unless it comes after `--`. Otherwise all the positional args are patterns

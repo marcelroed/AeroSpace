@@ -3,7 +3,7 @@ import Dispatch
 /// Completed on an AX thread
 nonisolated final class CompletableFuture<T: Sendable>: Sendable {
     nonisolated(unsafe) private var value: T?
-    private let semaphore = DispatchSemaphore(value: 0)
+    private let semaphore: DispatchSemaphore = DispatchSemaphore(value: 0)
 
     func complete(_ t: T) {
         unsafe value = t

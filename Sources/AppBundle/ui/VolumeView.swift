@@ -3,7 +3,7 @@ import Common
 import SwiftUI
 
 final class VolumePanel: NSPanelHud {
-    static let shared = VolumePanel()
+    static let shared: VolumePanel = VolumePanel()
     private static let size = CGSize(width: 50, height: 206)
     private var timer: Timer?
     private let hostingView = NSHostingView(rootView: VolumeView(volume: 0))
