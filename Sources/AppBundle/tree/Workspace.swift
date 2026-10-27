@@ -57,7 +57,10 @@ final class Workspace: TreeNode, NonLeafTreeNodeObject, Hashable, Comparable {
     }
 
     nonisolated static func < (lhs: Workspace, rhs: Workspace) -> Bool {
-        lhs.nameLogicalSegments < rhs.nameLogicalSegments
+        // Names that differ only in leading zeros ("1", "01") have equal segments. Order them by name to keep the order total
+        lhs.nameLogicalSegments != rhs.nameLogicalSegments
+            ? lhs.nameLogicalSegments < rhs.nameLogicalSegments
+            : lhs.name < rhs.name
     }
 
     override func getWeight(_ targetOrientation: Orientation) -> CGFloat {

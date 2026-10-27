@@ -34,6 +34,17 @@ struct ListWorkspacesTest: AeroSpaceTestSuite {
     }
 
     @Test
+    func testRunAll_namesThatDifferOnlyInLeadingZerosAreOrderedByName() async {
+        #expect(Workspace.get(byName: "01") < Workspace.get(byName: "1"))
+        #expect(!(Workspace.get(byName: "1") < Workspace.get(byName: "01")))
+        TestWindow.new(id: 1, parent: Workspace.get(byName: "1").rootTilingContainer)
+        TestWindow.new(id: 2, parent: Workspace.get(byName: "01").rootTilingContainer)
+        TestWindow.new(id: 3, parent: Workspace.get(byName: "001").rootTilingContainer)
+        let result = await parseCommand("list-workspaces --all").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result.stdout, ["001", "01", "1", "setUpWorkspacesForTests"])
+    }
+
+    @Test
     func testRunVisible() async {
         TestWindow.new(id: 1, parent: Workspace.get(byName: "a").rootTilingContainer)
         let result = await parseCommand("list-workspaces --monitor all --visible").cmdOrDie.run(.defaultEnv, .emptyStdin)
