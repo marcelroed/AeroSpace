@@ -14,8 +14,8 @@ import Common
 ///
 /// | Work                          | Mechanism                                             | Preempted by                          |
 /// |-------------------------------|-------------------------------------------------------|---------------------------------------|
-/// | Heavy refresh                 | `heavy`, a ``LatestTaskSlot``                         | A newer heavy refresh, a light session: P1 stops, P3 runs to the end, P4 is skipped |
-/// | Light session                 | Runs at once in its caller's task, cancels `heavy`    | — (but see the next row)              |
+/// | Heavy refresh                 | `heavy`, a ``LatestTaskSlot``                         | A newer heavy refresh, a light session (but ffm): P1 stops, P3 runs to the end, P4 is skipped |
+/// | Light session                 | Runs at once in its caller's task, cancels `heavy` (not ffm's) | — (but see the next row)     |
 /// | ffm, mouse move, mouse resize | One ``LatestTaskSlot`` per kind around a light session | A newer event of the same kind       |
 /// | AX read of a heavy refresh    | An observe read of ``Platform`` (`AxApp.call`): abandonable | Cancellation of the heavy refresh: it returns at once |
 /// | AX read of a command          | A single read of ``Platform`` (`AxApp.run`): awaited  | —                                     |
@@ -36,8 +36,10 @@ final class Sessions {
 
     /// Runs `body` as a light session (design-m2.md D4): it cancels the scheduled heavy refresh, takes the native focus
     /// (``Reconcile/syncFocus(isStartup:)``), refreshes the model, runs `body`, refreshes the model again, presents
-    /// (``Reconcile/present(nativeFocusBaseline:isTrayDeferred:isLayout:)``) and schedules a heavy refresh. Focus follows
-    /// mouse doesn't lay out and doesn't schedule one
+    /// (``Reconcile/present(nativeFocusBaseline:isTrayDeferred:isLayout:)``) and schedules a heavy refresh.
+    ///
+    /// Focus follows mouse changes only the focus: it doesn't lay out, and it keeps the scheduled heavy refresh instead of
+    /// replacing it. It runs on every mouse move, so cancelling would starve the heavy refresh while the mouse moves
     func light<T>(
         _ event: RefreshSessionEvent,
         _: RunSessionGuard,
@@ -46,7 +48,7 @@ final class Sessions {
         let state = signposter.beginInterval(#function, "event: \(event)")
         defer { signposter.endInterval(#function, state) }
         let isFocusFollowsMouse = event.isFocusFollowsMouse
-        cancelHeavy() // Give priority to the light session
+        if !isFocusFollowsMouse { cancelHeavy() } // Give priority to the light session
         updateMonitors() // While there are no screens, the commands fail with a message or work on the last monitors
         try await Reconcile.syncFocus(isStartup: event.isStartup)
         let focusBefore = focus.windowOrNil
