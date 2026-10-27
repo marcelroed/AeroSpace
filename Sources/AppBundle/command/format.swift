@@ -183,18 +183,11 @@ extension FormatVar {
 
 enum InterVarExpansionError: LocalizedError, CustomStringConvertible {
     case unknownInterpolationVariable(String)
-    case nullParent(String)
-    case notPossible(String)
-    case windowParentIllegalRelation(String)
-    case rightPaddingCannotBeExpanded(String)
+    case other(String)
 
     var description: String {
         switch self {
-            case .unknownInterpolationVariable(let msg): msg
-            case .nullParent(let msg): msg
-            case .notPossible(let msg): msg
-            case .windowParentIllegalRelation(let msg): msg
-            case .rightPaddingCannotBeExpanded(let msg): msg
+            case .unknownInterpolationVariable(let msg), .other(let msg): msg
         }
     }
 
@@ -204,8 +197,7 @@ enum InterVarExpansionError: LocalizedError, CustomStringConvertible {
     var cmdErrorMessage: String {
         switch self {
             case .unknownInterpolationVariable: noWindowIsFocused
-            case .notPossible, .nullParent,
-                 .rightPaddingCannotBeExpanded, .windowParentIllegalRelation: description
+            case .other: description
         }
     }
 }
@@ -216,7 +208,7 @@ extension PlainInterVar {
             case .newline: .success(.string("\n"))
             case .tab: .success(.string("\t"))
             case .rightPadding:
-                .failure(.rightPaddingCannotBeExpanded("\(PlainInterVar.rightPadding.rawValue.singleQuoted) interpolation variable cannot be expanded"))
+                .failure(.other("\(PlainInterVar.rightPadding.rawValue.singleQuoted) interpolation variable cannot be expanded"))
         }
     }
 }
@@ -245,7 +237,7 @@ func unknownInterpolationVariable(variable: String, _ obj: AeroObj) -> String {
 }
 
 @MainActor private func toLayoutResult(w: Window) -> Result<Primitive, InterVarExpansionError> {
-    guard let parent = w.parent else { return .failure(.nullParent("NULL-PARENT")) }
+    guard let parent = w.parent else { return .failure(.other("NULL-PARENT")) }
     return switch getChildParentRelation(child: w, parent: parent) {
         case .tiling(let tc): .success(.string(toLayoutString(tc: tc)))
         case .floatingWindow: .success(.string(LayoutCmdArgs.LayoutDescription.floating.rawValue))
@@ -254,7 +246,7 @@ func unknownInterpolationVariable(variable: String, _ obj: AeroObj) -> String {
         case .macosNativeMinimizedWindow: .success(.string("macos_native_minimized"))
         case .macosPopupWindow: .success(.string("NULL-WINDOW-LAYOUT"))
 
-        case .rootTilingContainer: .failure(.notPossible("Not possible"))
-        case .shimContainerRelation: .failure(.windowParentIllegalRelation("Window cannot have a shim container relation"))
+        case .rootTilingContainer: .failure(.other("Not possible"))
+        case .shimContainerRelation: .failure(.other("Window cannot have a shim container relation"))
     }
 }
