@@ -104,7 +104,7 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
     @Test
     func testGetRoot_json() async {
         config.modes = ["main": Mode(bindings: [:])]
-        let expectedMap: ConfigMapValue = .map(["mode": .map(["main": .map(["binding": .map([:])])])])
+        let expectedMap: OrderedJson = .dict(["mode": .dict(["main": .dict(["binding": .dict([:])])])])
         let expectedJson = JSONEncoder.aeroSpaceDefault.encodeToString(expectedMap)
 
         let result = await parseCommand("config --get . --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
@@ -118,7 +118,7 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
         config.modes = ["main": Mode(bindings: [:])]
         // --keys converts the map into an array of string-scalar keys, which is then JSON-encoded.
         let expected = JSONEncoder.aeroSpaceDefault.encodeToString(
-            ConfigMapValue.array([.scalar(.string("mode"))]),
+            OrderedJson.array([.string("mode")]),
         )
 
         let result = await parseCommand("config --get . --keys --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
@@ -210,31 +210,31 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
     }
 
     // The naturally-built configMap (buildConfigMap) never produces arrays, so the array branches
-    // of ConfigMapValue.find/dumpAllKeysRecursive are exercised directly here.
+    // of OrderedJson.find/dumpAllKeysRecursive are exercised directly here.
     @Test
     func testFindArrayIndex_success() {
-        let arr: ConfigMapValue = .array([.scalar(.string("a")), .scalar(.string("b"))])
+        let arr: OrderedJson = .array([.string("a"), .string("b")])
         switch arr.find(keyPath: ["1"].slice) {
-            case .success(.scalar(.string(let s))): assertEquals(s, "b")
-            default: fail("expected .scalar(.string(\"b\"))")
+            case .success(.string(let s)): assertEquals(s, "b")
+            default: fail("expected .string(\"b\")")
         }
     }
 
     @Test
     func testFindArrayIndex_outOfBounds() {
-        let arr: ConfigMapValue = .array([.scalar(.string("a"))])
+        let arr: OrderedJson = .array([.string("a")])
         assertFail(arr.find(keyPath: ["5"].slice), "Index out of bounds. Index: 5, Size: 1")
     }
 
     @Test
     func testFindArrayIndex_notInt() {
-        let arr: ConfigMapValue = .array([.scalar(.string("a"))])
+        let arr: OrderedJson = .array([.string("a")])
         assertFail(arr.find(keyPath: ["foo"].slice), "Can't convert key token 'foo' to Int")
     }
 
     @Test
     func testDumpAllKeys_array() {
-        let value: ConfigMapValue = .array([.scalar(.string("a")), .map(["k": .scalar(.int(1))])])
+        let value: OrderedJson = .array([.string("a"), .dict(["k": .int(1)])])
         var result: [String] = []
         value.dumpAllKeysRecursive(path: ".", result: &result)
         assertEquals(result, [".", "0", "1", "1.k"])
@@ -297,7 +297,7 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
 
     @Test
     func testEncodeArray_literal() {
-        let value: ConfigMapValue = .array([.scalar(.string("a/b")), .scalar(.int(1)), .map(["k": .array([])]), .array([.scalar(.int(0))])])
+        let value: OrderedJson = .array([.string("a/b"), .int(1), .dict(["k": .array([])]), .array([.int(0)])])
         let expected = """
             [
               "a/b",

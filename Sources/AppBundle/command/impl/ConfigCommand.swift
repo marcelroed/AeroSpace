@@ -42,12 +42,12 @@ extension String {
     guard var configMap = buildConfigMap().find(keyPath: keyPath.slice).getOrNil(appendErrorTo: &io.stderr) else { return .fail }
     if args.keys {
         switch configMap {
-            case .scalar(let scalar):
-                return .fail(io.err("--keys flag cannot be applied to scalar object '\(scalar)'"))
-            case .map(let map):
-                configMap = .array(map.keys.map { .scalar(.string($0)) })
+            case .string, .int, .bool, .null:
+                return .fail(io.err("--keys flag cannot be applied to scalar object '\(configMap)'"))
+            case .dict(let dict):
+                configMap = .array(dict.keys.map { .string($0) })
             case .array(let array):
-                configMap = .array((0 ..< array.count).map { .scalar(.int($0)) })
+                configMap = .array((0 ..< array.count).map { .int($0) })
         }
     }
     if args.json {
@@ -57,18 +57,15 @@ extension String {
         }
     } else {
         switch configMap {
-            case .scalar(let scalar):
-                return .succ(io.out(scalar.describe))
-            case .map:
+            case .string, .int, .bool, .null:
+                return .succ(io.out(configMap.scalarDescription.orDie()))
+            case .dict:
                 let msg = "Complicated objects can be printed only with --json flag. Alternatively, you can try to inspect keys of the object with --keys flag"
                 return .fail(io.err(msg))
             case .array(let array):
                 let plainArray: Result<[String], String> = array.mapAllOrFailure {
-                    switch $0 {
-                        case .scalar(let scalar): .success(scalar.describe)
-                        default: .failure("Printing array of non-string objects is supported only with --json flag." +
-                                "Alternatively, you can try to inspect keys of the object with --keys flag")
-                    }
+                    $0.scalarDescription.toResult("Printing array of non-string objects is supported only with --json flag." +
+                        "Alternatively, you can try to inspect keys of the object with --keys flag")
                 }
                 return switch plainArray {
                     case .success(let array): .succ(io.out(array.sorted().joined(separator: "\n")))
@@ -78,15 +75,26 @@ extension String {
     }
 }
 
-extension ConfigMapValue {
-    func find(keyPath: StrArrSlice) -> Result<ConfigMapValue, String> {
-        guard let key = keyPath.first else { return .success(self) }
-        let child: ConfigMapValue
+extension OrderedJson {
+    /// The plain text of a scalar, nil for a dict or an array
+    fileprivate var scalarDescription: String? {
         switch self {
-            case .scalar(let scalar):
-                return .failure("Can't dereference scalar value '\(scalar.describe)'")
-            case .map(let map):
-                guard let value = map[key] else { return .failure("No value at key token '\(key)'") }
+            case .string(let string): string
+            case .int(let int): String(int)
+            case .bool(let bool): String(bool)
+            case .null: "null"
+            case .dict, .array: nil
+        }
+    }
+
+    func find(keyPath: StrArrSlice) -> Result<OrderedJson, String> {
+        guard let key = keyPath.first else { return .success(self) }
+        let child: OrderedJson
+        switch self {
+            case .string, .int, .bool, .null:
+                return .failure("Can't dereference scalar value '\(scalarDescription.orDie())'")
+            case .dict(let dict):
+                guard let value = dict[key] else { return .failure("No value at key token '\(key)'") }
                 child = value
             case .array(let array):
                 guard let index = Int(key) else { return .failure("Can't convert key token '\(key)' to Int") }
@@ -101,9 +109,9 @@ extension ConfigMapValue {
     func dumpAllKeysRecursive(path: String, result: inout [String]) {
         result.append(path)
         switch self {
-            case .scalar: break
-            case .map(let map):
-                for (key, value) in map {
+            case .string, .int, .bool, .null: break
+            case .dict(let dict):
+                for (key, value) in dict {
                     let path = path == "." ? key : path + "." + key
                     value.dumpAllKeysRecursive(path: path, result: &result)
                 }
@@ -120,51 +128,13 @@ extension Shell<any Command> {
     var shellOfCommandsDescription: String { buildDescription { $0.args.description } }
 }
 
-@MainActor func buildConfigMap() -> ConfigMapValue {
-    let mode = config.modes.mapValues { (mode: Mode) -> ConfigMapValue in
-        var keyNotationToScript: [String: ConfigMapValue] = [:]
+@MainActor func buildConfigMap() -> OrderedJson {
+    let mode = config.modes.mapValues { (mode: Mode) -> OrderedJson in
+        var keyNotationToScript: OrderedJson.JsonDict = [:]
         for binding in mode.bindings.values {
-            keyNotationToScript[binding.descriptionWithKeyNotation] =
-                .scalar(.string(binding.commands.shellOfCommandsDescription))
+            keyNotationToScript[binding.descriptionWithKeyNotation] = .string(binding.commands.shellOfCommandsDescription)
         }
-        return .map(["binding": .map(keyNotationToScript)])
+        return .dict(["binding": .dict(keyNotationToScript)])
     }
-    return .map(["mode": .map(mode)])
-}
-
-enum ConfigScalarValue: Encodable {
-    case string(String)
-    case int(Int)
-
-    var describe: String {
-        return switch self {
-            case .string(let string): string
-            case .int(let int): String(int)
-        }
-    }
-
-    func encode(to encoder: Encoder) throws {
-        let value: Encodable = switch self {
-            case .string(let string): string
-            case .int(let int): int
-        }
-        var container = encoder.singleValueContainer()
-        try container.encode(value)
-    }
-}
-
-enum ConfigMapValue: Encodable {
-    case scalar(ConfigScalarValue)
-    case map([String: ConfigMapValue])
-    case array([ConfigMapValue])
-
-    func encode(to encoder: Encoder) throws {
-        let value: Encodable = switch self {
-            case .scalar(let scalar): scalar
-            case .map(let map): map
-            case .array(let array): array
-        }
-        var container = encoder.singleValueContainer()
-        try container.encode(value)
-    }
+    return .dict(["mode": .dict(OrderedJson.JsonDict(uniqueKeysWithValues: mode))])
 }
