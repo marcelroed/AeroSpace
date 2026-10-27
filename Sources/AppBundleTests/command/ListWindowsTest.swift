@@ -101,6 +101,17 @@ final class ListWindowsTest: XCTestCase {
         assertEquals(result.stdout.sorted(), ["1", "2"])
     }
 
+    func testRunAll_windowsOfTheSameAppAndTitleAreOrderedById() async {
+        // The title isn't fetched for this format, so all the windows tie on the app name and the title. The windows
+        // are collected from a Set of workspaces, whose order is random, and ten of them make it fail reliably (RB-13)
+        for id: UInt32 in (1 ... 10).reversed() {
+            TestWindow.new(id: id, parent: Workspace.get(byName: "w\(id)").rootTilingContainer)
+        }
+        let result = await parseCommand("list-windows --all --format '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result.exitCode.rawValue, 0)
+        assertEquals(result.stdout, (1 ... 10).map(String.init))
+    }
+
     func testRunCount() async {
         let workspace = Workspace.get(byName: "a")
         TestWindow.new(id: 1, parent: workspace.rootTilingContainer)

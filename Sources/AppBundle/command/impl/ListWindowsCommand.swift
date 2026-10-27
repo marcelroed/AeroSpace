@@ -50,7 +50,8 @@ struct ListWindowsCommand: Command {
         }
         let list = resolved
             .filter { $0.window.isBound }
-            .sortedBy([{ $0.window.app.name ?? "" }, { $0.title ?? "" }])
+            // The window ID breaks ties, the windows are collected from a Set of workspaces
+            .sorted { a, b in (a.window.app.name ?? "", a.title ?? "", a.window.windowId) < (b.window.app.name ?? "", b.title ?? "", b.window.windowId) }
             .map(AeroObj.window)
         return args.printList(list, io)
     }
