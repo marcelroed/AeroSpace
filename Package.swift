@@ -41,8 +41,13 @@ let package = Package(
             path: "Sources/PrivateApi",
             publicHeadersPath: "include",
         ),
+        // The git hash, in C so that a new commit doesn't recompile the Swift modules (see BuildInfo.h)
+        .target(name: "BuildInfo"),
         .target(
             name: "Common",
+            dependencies: [
+                .target(name: "BuildInfo"),
+            ],
             swiftSettings: swiftSettings,
         ),
         .target(
