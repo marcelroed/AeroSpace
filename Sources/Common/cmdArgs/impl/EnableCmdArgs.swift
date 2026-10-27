@@ -6,18 +6,14 @@ public struct EnableCmdArgs: CmdArgs {
         flags: [
             "--fail-if-noop": trueBoolFlag(\.failIfNoop),
         ],
-        posArgs: [newMandatoryPosArgParser(\.targetState, enumPosArg(State.self), placeholder: EnableCmdArgs.State.unionLiteral)],
+        posArgs: [newMandatoryPosArgParser(\.targetState, enumPosArg(ToggleEnum.self), placeholder: ToggleEnum.unionLiteral)],
     )
-    public var targetState: Lateinit<State> = .uninitialized
+    public var targetState: Lateinit<ToggleEnum> = .uninitialized
     public var failIfNoop: Bool = false
 
-    public init(rawArgs: [String], targetState: State) {
+    public init(rawArgs: [String], targetState: ToggleEnum) {
         self.commonState = .init(rawArgs.slice)
         self.targetState = .initialized(targetState)
-    }
-
-    public enum State: String, CaseIterable, Sendable {
-        case on, off, toggle
     }
 }
 

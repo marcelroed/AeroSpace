@@ -19,7 +19,7 @@ func parseMacosNativeFullscreenCmdArgs(_ args: StrArrSlice) -> ParsedCmd<MacosNa
         .filter("--fail-if-noop requires 'on' or 'off' argument") { $0.failIfNoop.implies($0.toggle == .on || $0.toggle == .off) }
 }
 
-public enum ToggleEnum: Sendable {
+public enum ToggleEnum: String, CaseIterable, Sendable {
     case on, off, toggle
 }
 

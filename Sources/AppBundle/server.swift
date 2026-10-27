@@ -17,7 +17,7 @@ func startUnixSocketServer() {
     listener.start(queue: .global())
 }
 
-func toggleReleaseServerIfDebug(_ state: EnableCmdArgs.State) async {
+func toggleReleaseServerIfDebug(_ state: ToggleEnum) async {
     if serverArgs.isReadOnly || !isDebug { return }
     let socketFile = "/tmp/\(stableAeroSpaceAppId)-\(unixUserName).sock"
     let connection = NWConnection(to: NWEndpoint.unix(path: socketFile), using: .tcp)

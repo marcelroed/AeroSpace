@@ -28,13 +28,3 @@ extension DfsNextPrev {
         }
     }
 }
-
-extension EnableCmdArgs.State {
-    func resolve(current: Bool) -> Bool {
-        switch self {
-            case .on: true
-            case .off: false
-            case .toggle: !current
-        }
-    }
-}
