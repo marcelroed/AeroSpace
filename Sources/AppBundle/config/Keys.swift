@@ -31,14 +31,15 @@ let keyMappingFields: [String: Field<KeyMapping>] = [
         guard let table = decodeDict(raw, path, &d) else { return nil }
         var result: [String: Key] = [:]
         for (notation, value) in table {
+            let path = path + .key(notation)
             guard notation.rangeOfCharacter(from: .whitespacesAndNewlines) == nil && !notation.contains("-") else {
                 d.error(path, "\(notation.singleQuoted) is invalid key notation")
                 continue
             }
-            guard let keyCode = decodeString(value, path + .key(notation), &d) else { continue }
+            guard let keyCode = decodeString(value, path, &d) else { continue }
             switch keyNotationToKeyCode[keyCode] {
                 case let key?: result[notation] = key
-                case nil: d.error(path + .key(notation), "\(keyCode.singleQuoted) is invalid key code")
+                case nil: d.error(path, "\(keyCode.singleQuoted) is invalid key code")
             }
         }
         return result

@@ -561,7 +561,7 @@ struct ConfigTest {
             """,
         ).strErrors
         #expect(errors1 == [
-            "[ERROR] key-mapping.key-notation-to-key-code: ' f' is invalid key notation",
+            "[ERROR] key-mapping.key-notation-to-key-code. f: ' f' is invalid key notation",
             "[ERROR] key-mapping.key-notation-to-key-code.q: 'qw' is invalid key code",
         ])
 
