@@ -7,65 +7,64 @@ import Testing
 
 @Suite(.aeroSpaceGlobalState)
 struct TrayMenuModelTest {
-    @Test
-    func testUpdateTrayText_mainMode() {
-        setUpTree("h_tiles(2)", workspace: "b")
-        setUpTree("h_tiles(*1)", workspace: "a")
+    nonisolated enum TrayTree: Sendable {
+        /// Only the empty focused workspace
+        case empty
+        /// Window 1 focused on workspace a, window 2 on workspace b
+        case twoWorkspaces(fullscreen: Bool)
+    }
 
-        updateTrayText()
+    struct TrayCase: Sendable, CustomTestStringConvertible {
+        let tree: TrayTree
+        let mode: String
+        let text: String
+        let items: [TrayItem]
+        let workspaces: [WorkspaceViewModel]
+        var testDescription: String { "\(tree) in mode \(mode)" }
+    }
 
-        let model = world.ui.trayMenuModel
-        expectEqual(model.trayText, "a")
-        expectEqual(model.trayItems, [
+    @Test(arguments: [
+        TrayCase(tree: .empty, mode: mainModeId, text: "setUpWorkspacesForTests", items: [
+            TrayItem(type: .workspace, name: "setUpWorkspacesForTests", isActive: true, hasFullscreenWindows: false),
+        ], workspaces: [
+            WorkspaceViewModel(name: "setUpWorkspacesForTests", suffix: " - Test Monitor", isFocused: true, isEffectivelyEmpty: true, isVisible: true, hasFullscreenWindows: false),
+        ]),
+        TrayCase(tree: .twoWorkspaces(fullscreen: false), mode: mainModeId, text: "a", items: [
             TrayItem(type: .workspace, name: "a", isActive: true, hasFullscreenWindows: false),
-        ])
-        expectEqual(model.workspaces, [
+        ], workspaces: [
             WorkspaceViewModel(name: "a", suffix: " - bobko.AeroSpace.test-app", isFocused: true, isEffectivelyEmpty: false, isVisible: true, hasFullscreenWindows: false),
             WorkspaceViewModel(name: "b", suffix: " - bobko.AeroSpace.test-app", isFocused: false, isEffectivelyEmpty: false, isVisible: false, hasFullscreenWindows: false),
             WorkspaceViewModel(name: "setUpWorkspacesForTests", suffix: "", isFocused: false, isEffectivelyEmpty: true, isVisible: false, hasFullscreenWindows: false),
-        ])
-    }
-
-    @Test
-    func testUpdateTrayText_nonMainModeAndFullscreen() {
-        world.activeMode = "service"
-        defer { world.activeMode = mainModeId }
-        setUpTree("h_tiles(2)", workspace: "b")
-        setUpTree("h_tiles(*1)", workspace: "a")
-        testWindow(1).isFullscreen = true
-        testWindow(2).isFullscreen = true
-
-        updateTrayText()
-
-        let model = world.ui.trayMenuModel
-        expectEqual(model.trayText, "(S) [a]")
-        expectEqual(model.trayItems, [
+        ]),
+        TrayCase(tree: .twoWorkspaces(fullscreen: true), mode: "service", text: "(S) [a]", items: [
             TrayItem(type: .mode, name: "S", isActive: true, hasFullscreenWindows: false),
             TrayItem(type: .workspace, name: "a", isActive: true, hasFullscreenWindows: true),
-        ])
-        expectEqual(model.workspaces, [
+        ], workspaces: [
             WorkspaceViewModel(name: "a", suffix: " - bobko.AeroSpace.test-app", isFocused: true, isEffectivelyEmpty: false, isVisible: true, hasFullscreenWindows: true),
             WorkspaceViewModel(name: "b", suffix: " - bobko.AeroSpace.test-app", isFocused: false, isEffectivelyEmpty: false, isVisible: false, hasFullscreenWindows: true),
             WorkspaceViewModel(name: "setUpWorkspacesForTests", suffix: "", isFocused: false, isEffectivelyEmpty: true, isVisible: false, hasFullscreenWindows: false),
-        ])
-    }
+        ]),
+    ] as [TrayCase])
+    func trayShowsTheVisibleWorkspaces(_ row: TrayCase) {
+        world.activeMode = row.mode
+        defer { world.activeMode = mainModeId }
+        if case .twoWorkspaces(let fullscreen) = row.tree {
+            setUpTree("h_tiles(2)", workspace: "b")
+            setUpTree("h_tiles(*1)", workspace: "a")
+            testWindow(1).isFullscreen = fullscreen
+            testWindow(2).isFullscreen = fullscreen
+        }
 
-    @Test
-    func testUpdateTrayText_emptyFocusedWorkspace() {
         updateTrayText()
 
         let model = world.ui.trayMenuModel
-        expectEqual(model.trayText, "setUpWorkspacesForTests")
-        expectEqual(model.trayItems, [
-            TrayItem(type: .workspace, name: "setUpWorkspacesForTests", isActive: true, hasFullscreenWindows: false),
-        ])
-        expectEqual(model.workspaces, [
-            WorkspaceViewModel(name: "setUpWorkspacesForTests", suffix: " - Test Monitor", isFocused: true, isEffectivelyEmpty: true, isVisible: true, hasFullscreenWindows: false),
-        ])
+        expectEqual(model.trayText, row.text)
+        expectEqual(model.trayItems, row.items)
+        expectEqual(model.workspaces, row.workspaces)
     }
 
     @Test
-    func testUpdateTrayText_notifiesOnlyChangedValues() {
+    func updateTrayTextNotifiesOnlyChangedValues() {
         updateTrayText()
         expectEqual(notifiedProperties { updateTrayText() }, [])
 
@@ -73,25 +72,25 @@ struct TrayMenuModelTest {
         expectEqual(notifiedProperties { updateTrayText() }, ["trayText", "workspaces", "trayItems"])
     }
 
+    /// Nothing notifies us when the appearance or the editor of .toml files changes. Opening a menu polls them, so the
+    /// menu shows the new values; a refresh doesn't
     @Test
-    func testUpdateTrayText_notifiesAppearanceChange() {
+    func openingAMenuPollsTheAppearance() {
         let app = NSApplication.shared
         let prevAppearance = app.appearance
-        defer {
-            app.appearance = prevAppearance
-            updateTrayText()
-        }
+        defer { app.appearance = prevAppearance }
+        let model = world.ui.trayMenuModel
+        func openMenu() { NotificationCenter.default.post(name: NSMenu.didBeginTrackingNotification, object: NSMenu()) }
         app.appearance = NSAppearance(named: .aqua)
-        updateTrayText()
-        expectEqual(world.ui.trayMenuModel.appearanceTheme, .light)
+        openMenu()
+        expectEqual(model.appearanceTheme, .light)
 
-        // The tray text stays the same, but the menu must still be rebuilt with the new appearance
-        let notified = notifiedProperties {
-            app.appearance = NSAppearance(named: .darkAqua)
-            updateTrayText()
-        }
-        expectEqual(world.ui.trayMenuModel.appearanceTheme, .dark)
-        expectEqual(notified, ["appearanceTheme"])
+        updateTrayText()
+        app.appearance = NSAppearance(named: .darkAqua)
+        expectEqual(notifiedProperties { updateTrayText() }, [])
+        expectEqual(model.appearanceTheme, .light)
+        expectEqual(notifiedProperties { openMenu() }, ["appearanceTheme"])
+        expectEqual(model.appearanceTheme, .dark)
     }
 
     /// The views re-render only on the changes they observe

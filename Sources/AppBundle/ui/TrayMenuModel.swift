@@ -8,14 +8,25 @@ import Observation
 final class TrayMenuModel {
     var trayText: String = ""
     var trayItems: [TrayItem] = []
+    var workspaces: [WorkspaceViewModel] = []
     /// A copy of `world.isEnabled`, which the views can observe
     var isEnabled: Bool = true
-    var workspaces: [WorkspaceViewModel] = []
     var sponsorshipMessage: String = sponsorshipPrompts.randomElement().orDie()
     var axPermissionStatus: AxPermissionStatus = .waitingWithPrompt
-    // Polled by updateTrayText, since nothing notifies us when these change
+    // Only the menu shows these, and nothing notifies us when they change. They are polled when a menu opens, not on
+    // every refresh: the editor lookup asks LaunchServices (about 100 µs)
     var appearanceTheme: AppearanceTheme = .current
     var textEditorToOpenConfig: URL = getTextEditorToOpenConfig()
+
+    // periphery:ignore - assign-only: dropping the token removes the observation
+    @ObservationIgnored private var menuOpenObservation: NotificationCenter.ObservationToken? = nil
+
+    init() {
+        menuOpenObservation = NotificationCenter.default.addObserver(of: NSMenu.self, for: .didBeginTracking) { [weak self] _ in
+            self?.appearanceTheme = .current
+            self?.textEditorToOpenConfig = getTextEditorToOpenConfig()
+        }
+    }
 
     /// Stored in UserDefaults
     var menuBarStyle: MenuBarStyle {
@@ -40,57 +51,30 @@ enum AxPermissionStatus: Equatable {
     case waitingWithPrompt
 }
 
+/// Runs on every refresh: the menu bar icon, and the menu's list of workspaces
 func updateTrayText() {
     let monitors = world.monitors.all
     let focusedWorkspace = focus.workspace
-    let activeWorkspaces = monitors.map { monitor in
-        let workspace = monitor.activeWorkspace
-        return (workspace: workspace, hasFullscreenWindows: workspace.allLeafWindowsRecursive.hasFullscreenWindows)
-    }
     let modeLetter: String? = world.activeMode == mainModeId ? nil : world.activeMode?.first?.uppercased()
-
-    let trayText = (modeLetter.map { "(\($0)) " } ?? "") +
-        activeWorkspaces
-        .map { workspace, hasFullscreenWindows in
-            let name = hasFullscreenWindows ? "[\(workspace.name)]" : workspace.name
-            return (workspace == focusedWorkspace && monitors.count > 1 ? "*" : "") + name
-        }
-        .joined(separator: " │ ")
-    let workspaces = Workspace.all.map { workspace in
-        let windows = workspace.allLeafWindowsRecursive
-        let apps = windows.compactMap(\.app.name).filter { !$0.isEmpty }.toSet()
-        let dash = " - "
-        let suffix = switch true {
-            case !apps.isEmpty: dash + apps.sorted().joinTruncating(separator: ", ", length: 25)
-            case workspace.isVisible: dash + workspace.workspaceMonitor.name
-            default: ""
-        }
-        return WorkspaceViewModel(
+    let visibleWorkspaces = monitors.map { monitor in
+        let workspace = monitor.activeWorkspace
+        return TrayItem(
+            type: .workspace,
             name: workspace.name,
-            suffix: suffix,
-            isFocused: focusedWorkspace == workspace,
-            isEffectivelyEmpty: workspace.isEffectivelyEmpty,
-            isVisible: workspace.isVisible,
-            hasFullscreenWindows: windows.hasFullscreenWindows,
+            isActive: workspace == focusedWorkspace,
+            hasFullscreenWindows: workspace.allLeafWindowsRecursive.hasFullscreenWindows,
         )
     }
-    var trayItems = activeWorkspaces.map { workspace, hasFullscreenWindows in
-        TrayItem(type: .workspace, name: workspace.name, isActive: workspace == focusedWorkspace, hasFullscreenWindows: hasFullscreenWindows)
+    let workspaceTexts = visibleWorkspaces.map { item in
+        let name = item.hasFullscreenWindows ? "[\(item.name)]" : item.name
+        return (item.isActive && monitors.count > 1 ? "*" : "") + name
     }
-    if let modeLetter {
-        trayItems.insert(TrayItem(type: .mode, name: modeLetter, isActive: true, hasFullscreenWindows: false), at: 0)
-    }
+    let modeItems = modeLetter.map { [TrayItem(type: .mode, name: $0, isActive: true, hasFullscreenWindows: false)] } ?? []
 
-    // updateTrayText runs on every refresh session. Only the changed values re-render the views
-    // (and the menu bar image): assigning an equal value doesn't notify them
     let model = world.ui.trayMenuModel
-    model.trayText = trayText
-    model.workspaces = workspaces
-    model.trayItems = trayItems
-    // The menu also shows values that nothing notifies us about. Poll them here, so that the first refresh after they
-    // change still rebuilds the menu
-    model.appearanceTheme = AppearanceTheme.current
-    model.textEditorToOpenConfig = getTextEditorToOpenConfig()
+    model.trayText = (modeLetter.map { "(\($0)) " } ?? "") + workspaceTexts.joined(separator: " │ ")
+    model.trayItems = modeItems + visibleWorkspaces
+    model.workspaces = Workspace.all.map { WorkspaceViewModel($0, isFocused: $0 == focusedWorkspace) }
 }
 
 extension [Window] {
@@ -99,11 +83,33 @@ extension [Window] {
 
 struct WorkspaceViewModel: Hashable {
     let name: String
+    /// The workspace's apps, or the monitor of an empty visible workspace
     let suffix: String
     let isFocused: Bool
     let isEffectivelyEmpty: Bool
     let isVisible: Bool
     let hasFullscreenWindows: Bool
+}
+
+extension WorkspaceViewModel {
+    init(_ workspace: Workspace, isFocused: Bool) {
+        let windows = workspace.allLeafWindowsRecursive
+        let apps = windows.compactMap(\.app.name).filter { !$0.isEmpty }.toSet()
+        let dash = " - "
+        let suffix = switch true {
+            case !apps.isEmpty: dash + apps.sorted().joinTruncating(separator: ", ", length: 25)
+            case workspace.isVisible: dash + workspace.workspaceMonitor.name
+            default: ""
+        }
+        self.init(
+            name: workspace.name,
+            suffix: suffix,
+            isFocused: isFocused,
+            isEffectivelyEmpty: workspace.isEffectivelyEmpty,
+            isVisible: workspace.isVisible,
+            hasFullscreenWindows: windows.hasFullscreenWindows,
+        )
+    }
 }
 
 enum TrayItemType: String {
