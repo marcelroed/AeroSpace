@@ -38,13 +38,17 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 Branch `restructure` starts from `refactor-cleanup` at `ba6b0d70`. It rewrites the CLI and its protocol, the commands, the config, the tree and the code that spans them. Unlike `refactor-cleanup`, it may change behavior, so it fixes bugs too. Its outcomes are added to the **Status** line. The statuses from the earlier branches stay as they were:
 - **Fixed on `restructure` in `<commit>`:** like **Fixed in**, but on `restructure`.
+- **Partly fixed on `restructure` in `<commit>`:** part of the bug is fixed there. The status says what is still open.
 - **Moot on `restructure`:** the code was deleted or redesigned, so the bug can't happen. The status says why.
 
-The summary table marks an entry that was open until then as "fixed on restructure" or "moot on restructure". Entries RB-115 and up were found during the restructure. RB-115 to RB-120 and RB-130 to RB-133 are already fixed there. Every open entry was checked against `restructure` at `6fee1079`. These restructure items got no ID:
+The summary table marks an entry that was open until then as "fixed on restructure", "partly fixed on restructure" or "moot on restructure". Entries RB-115 and up were found during the restructure. RB-134 to RB-141 come from its second milestone (M2): RB-136 to RB-139 were bugs in M2's own code that shipped in a deployed stage, RB-141 came with M2 and hasn't shipped, and the others are older. RB-115 to RB-120, RB-130 to RB-134 and RB-136 to RB-140 are fixed there, and RB-129 partly. Every open entry was checked against `restructure` at `6fee1079`, and again after M2 at `22228538`. These restructure items got no ID:
 - `subscribe` in a config binding fails with "subscribe is not supported in the eval", where there is no eval: 858762f5 changed the message to "subscribe is only available from the CLI".
 - A bug study of the restructure's prototype branches also listed RB-04, RB-05, RB-10, RB-13, RB-19, RB-22, RB-23, RB-24, RB-25, RB-38, RB-42, RB-44 and RB-101.
 - The initial `subscribe` events come in random order: RB-114.
 - `floatingWindowsContainer` creates the container on read, like RB-03: the RB-03 fix holds, because creating a container restores the most recent child. The other effects of creating containers on read are RB-129. Since 7b7de1d0, reads don't create containers.
+- A workspace that left a monitor (`summon-workspace` from another monitor, the closed-windows restore, focus under force assignment) left that monitor without a workspace until the next heavy refresh. Since 3cdeedea, it leaves a stub workspace right away.
+- A display change took effect only at the next session that something else started. M2-MON listed it as a suspected older bug, and 6905b25b schedules a heavy refresh when the displays change.
+- The reviews of M2's code found bugs that were fixed before any deployed stage: R1's L1 to L5 (`AxApp` and termination), R-TSM's M-1, L-1 and L-2 (the monitor snapshot), and R-PLAT's L1 (the platform seam). Part of R1's L2 shipped: RB-139.
 
 **Severity** is about user impact:
 - **High:** a crash or hang that can happen in normal use.
@@ -68,7 +72,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 - Entries RB-71 and up give a single **Location**. For a fixed entry, it is on `fix-review-bugs`, before the fix.
 - Entries that `restructure` fixed or made moot keep the **Location** they had before. For an entry that was open, that is `integrate` `99679420`.
 - Open entries give their **Location** at `restructure` `6fee1079`.
-- Entries RB-115 and up give their **Location** at `6fee1079`. For a fixed one, that is where the fix is.
+- Entries RB-115 to RB-133 give their **Location** at `6fee1079`, and RB-134 and up at `22228538`. For a fixed one, that is where the fix is. Entries RB-136 to RB-140 give the buggy code at the commit they name.
 - RB-19 and RB-67 also have an **At integrate** line, because `simplify` rewrote the code they point at.
 
 **IDs are stable.** A gap in the summary table is an entry that moved to [Resolved by the refactor](#resolved-by-the-refactor) or [Dropped entries](#dropped-entries).
@@ -89,6 +93,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 | [RB-120](#rb-120-a-binding-or-callback-that-runs-itself-recurses-without-bound) | medium | likely | Commands and CLI | A binding or callback that runs itself recurses without bound | fixed on restructure |
 | [RB-130](#rb-130-a-long-interpolated-string-takes-quadratic-time-to-tokenize) | medium | likely | Shared utilities | A long interpolated string takes quadratic time to tokenize | fixed on restructure |
 | [RB-131](#rb-131-a-config-array-of-thousands-of-commands-overflows-the-stack) | medium | likely | Config, shell and UI | A config array of thousands of commands overflows the stack | fixed on restructure |
+| [RB-134](#rb-134-focus-follows-mouse-drops-a-pending-heavy-refresh) | medium | likely | Core model | Focus follows mouse drops a pending heavy refresh | fixed on restructure |
 | [RB-07](#rb-07-ax-size-and-position-getters-crash-on-unexpected-values-and-can-deadlock-on-quit) | medium | possible | Shared utilities | AX size and position getters crash on unexpected values and can deadlock on quit | fixed |
 | [RB-08](#rb-08-readbytes-busy-loops-when-the-peer-closes-early) | medium | possible | Shared utilities | `read(bytes:)` busy-loops when the peer closes early | closed |
 | [RB-09](#rb-09-on-quit-windows-are-centered-without-the-monitors-origin) | medium | possible | Shared utilities | On quit, windows are centered without the monitor's origin | fixed |
@@ -125,6 +130,10 @@ The summary table marks an entry that was open until then as "fixed on restructu
 | [RB-118](#rb-118-focus-over-floating-windows-reorders-the-floating-container-and-the-mru-order) | low | likely | Commands and CLI | Focus over floating windows reorders the floating container and the MRU order | fixed on restructure |
 | [RB-119](#rb-119-focus---window-id-and---dfs-index-accept-options-given-with-their-default-values) | low | likely | Commands and CLI | `focus --window-id` and `--dfs-index` accept options given with their default values | fixed on restructure |
 | [RB-132](#rb-132-aerospace---version-hangs-when-aerospaceapp-doesnt-answer) | low | likely | Commands and CLI | `aerospace --version` hangs when AeroSpace.app doesn't answer | fixed on restructure |
+| [RB-137](#rb-137-hotkeys-stall-during-a-debug-windows-recording-while-an-app-is-slow) | low | likely | Core model | Hotkeys stall during a `debug-windows` recording while an app is slow | fixed on restructure |
+| [RB-139](#rb-139-after-a-crash-off-the-main-thread-windows-are-restored-at-the-full-display-size) | low | likely | Core model | After a crash off the main thread, windows are restored at the full display size | fixed on restructure |
+| [RB-140](#rb-140-move-workspace-to-monitor---workspace-with-a-hidden-workspace-replaces-the-visible-workspace-of-its-monitor) | low | likely | Commands and CLI | `move-workspace-to-monitor --workspace` with a hidden workspace replaces the visible workspace of its monitor | fixed on restructure |
+| [RB-141](#rb-141-the-heavy-refresh-that-the-startup-schedules-doesnt-lay-out) | low | likely | Core model | The heavy refresh that the startup schedules doesn't lay out | open |
 | [RB-31](#rb-31-workspace-back-and-forth-ignores-whether-focusing-succeeded) | low | possible | Commands and CLI | `workspace-back-and-forth` ignores whether focusing succeeded | fixed |
 | [RB-32](#rb-32-run-callback---for-every-window-differs-from-real-window-detection) | low | possible | Commands and CLI | `run-callback --for-every-window` differs from real window detection | fixed |
 | [RB-33](#rb-33-resize-accepts-doubled-signs) | low | possible | Commands and CLI | `resize` accepts doubled signs | fixed |
@@ -140,8 +149,8 @@ The summary table marks an entry that was open until then as "fixed on restructu
 | [RB-76](#rb-76-termination-helpers-still-wait-without-a-bound) | low | possible | Core model | Termination helpers still wait without a bound | fixed |
 | [RB-80](#rb-80-exec-and-forget-with-leading-whitespace-is-an-unknown-command) | low | possible | Commands and CLI | `exec-and-forget` with leading whitespace is an unknown command | open |
 | [RB-84](#rb-84-the-main-axis-of-virtual-rects-uses-the-physical-size) | low | possible | Core model | The main axis of virtual rects uses the physical size | open |
-| [RB-85](#rb-85-a-window-first-seen-off-screen-is-classified-as-a-popup) | low | possible | Core model | A window first seen off-screen is classified as a popup | open |
-| [RB-88](#rb-88-a-monitor-that-disappears-briefly-loses-its-visible-workspace) | low | possible | Core model | A monitor that disappears briefly loses its visible workspace | open |
+| [RB-85](#rb-85-a-window-first-seen-off-screen-is-classified-as-a-popup) | low | possible | Core model | A window first seen off-screen is classified as a popup | fixed on restructure |
+| [RB-88](#rb-88-a-monitor-that-disappears-briefly-loses-its-visible-workspace) | low | possible | Core model | A monitor that disappears briefly loses its visible workspace | partly fixed on restructure |
 | [RB-90](#rb-90-parse-errors-with-an-explicit-exit-code-have-no-error-prefix) | low | possible | Commands and CLI | Parse errors with an explicit exit code have no `ERROR:` prefix | moot on restructure |
 | [RB-91](#rb-91-the-list-windows-order-depends-on-the-format) | low | possible | Commands and CLI | The `list-windows` order depends on the format | open |
 | [RB-92](#rb-92-workspace-names-that-differ-only-in-leading-zeros-have-no-stable-order) | low | possible | Core model | Workspace names that differ only in leading zeros have no stable order | fixed |
@@ -155,8 +164,11 @@ The summary table marks an entry that was open until then as "fixed on restructu
 | [RB-123](#rb-123-moving-into-a-container-of-the-moves-orientation-always-inserts-at-its-start) | low | possible | Commands and CLI | Moving into a container of the move's orientation always inserts at its start | open |
 | [RB-124](#rb-124-concurrent-debug-windows-dumps-can-exceed-the-window-limit) | low | possible | Commands and CLI | Concurrent `debug-windows` dumps can exceed the window limit | open |
 | [RB-127](#rb-127-the-shell-lexer-drops-a-last-word-that-ends-in-a-unicode-prepend-character) | low | possible | Config, shell and UI | The shell lexer drops a last word that ends in a Unicode Prepend character | open |
-| [RB-129](#rb-129-a-hidden-workspaces-root-container-gets-the-auto-orientation-of-the-wrong-monitor) | low | possible | Core model | A hidden workspace's root container gets the `auto` orientation of the wrong monitor | open |
+| [RB-129](#rb-129-a-hidden-workspaces-root-container-gets-the-auto-orientation-of-the-wrong-monitor) | low | possible | Core model | A hidden workspace's root container gets the `auto` orientation of the wrong monitor | partly fixed on restructure |
 | [RB-133](#rb-133---stdin-on-a-terminal-waits-for-typed-input-or-fails-without-saying-why) | low | possible | Commands and CLI | `--stdin` on a terminal waits for typed input, or fails without saying why | fixed on restructure |
+| [RB-135](#rb-135-a-parked-floating-window-of-a-hidden-app-stays-in-the-corner-after-the-app-is-unhidden) | low | possible | Core model | A parked floating window of a hidden app stays in the corner after the app is unhidden | open |
+| [RB-136](#rb-136-a-cancelled-heavy-refresh-can-move-a-window-back-after-the-user-moved-it) | low | possible | Core model | A cancelled heavy refresh can move a window back after the user moved it | fixed on restructure |
+| [RB-138](#rb-138-quitting-right-after-a-workspace-switch-can-leave-a-slow-apps-windows-in-the-corner) | low | possible | Core model | Quitting right after a workspace switch can leave a slow app's windows in the corner | fixed on restructure |
 | [RB-40](#rb-40-inconsistent-reporting-of-impossible-paths) | low | speculative | Commands and CLI | Inconsistent reporting of "impossible" paths | fixed |
 | [RB-41](#rb-41-workspace-gc-evaluates-focus-inside-its-filter) | low | speculative | Core model | Workspace GC evaluates `focus` inside its filter | fixed |
 | [RB-42](#rb-42-hotkey-events-can-report-another-modes-key-notation) | low | speculative | Config, shell and UI | Hotkey events can report another mode's key notation | fixed |
@@ -169,12 +181,12 @@ The summary table marks an entry that was open until then as "fixed on restructu
 | [RB-48](#rb-48-topaddingtable-mixes-character-and-utf-16-counts) | low | speculative | Shared utilities | `toPaddingTable` mixes Character and UTF-16 counts | fixed |
 | [RB-49](#rb-49-transposed-assumes-a-rectangular-table) | low | speculative | Shared utilities | `transposed()` assumes a rectangular table | fixed |
 | [RB-69](#rb-69-isunittest-depends-on-xctest-being-loaded) | low | speculative | Shared utilities | `isUnitTest` depends on XCTest being loaded | fixed |
-| [RB-78](#rb-78-debug-windows-stays-recording-after-a-failed-first-dump) | low | speculative | Commands and CLI | `debug-windows` stays recording after a failed first dump | open |
+| [RB-78](#rb-78-debug-windows-stays-recording-after-a-failed-first-dump) | low | speculative | Commands and CLI | `debug-windows` stays recording after a failed first dump | moot on restructure |
 | [RB-79](#rb-79-the-server-writes-an-error-into-a-connection-the-client-closed) | low | speculative | Shared utilities | The server writes an error into a connection the client closed | moot on restructure |
 | [RB-81](#rb-81-subscribe-drops-the-duplicate-event-error-when-an-unknown-event-follows) | low | speculative | Commands and CLI | `subscribe` drops the duplicate-event error when an unknown event follows | moot on restructure |
 | [RB-82](#rb-82-the-workspace-back-and-forth-docs-say-it-always-succeeds) | low | speculative | Commands and CLI | The `workspace-back-and-forth` docs say it always succeeds | fixed |
-| [RB-86](#rb-86-getorregister-can-bind-a-new-window-into-a-workspace-that-was-garbage-collected) | low | speculative | Core model | `getOrRegister` can bind a new window into a workspace that was garbage-collected | open |
-| [RB-87](#rb-87-dragging-can-make-a-window-floating-again-after-it-became-tiling) | low | speculative | Core model | Dragging can make a window floating again after it became tiling | open |
+| [RB-86](#rb-86-getorregister-can-bind-a-new-window-into-a-workspace-that-was-garbage-collected) | low | speculative | Core model | `getOrRegister` can bind a new window into a workspace that was garbage-collected | fixed on restructure |
+| [RB-87](#rb-87-dragging-can-make-a-window-floating-again-after-it-became-tiling) | low | speculative | Core model | Dragging can make a window floating again after it became tiling | fixed on restructure |
 | [RB-95](#rb-95-subscribe-works-while-the-server-is-disabled) | low | speculative | Shared utilities | `subscribe` works while the server is disabled | open |
 | [RB-98](#rb-98-config-error-paths-dont-quote-keys-with-dots-or-spaces) | low | speculative | Config, shell and UI | Config error paths don't quote keys with dots or spaces | fixed on restructure |
 | [RB-99](#rb-99-the-on-window-detected-debug-json-omits-check-further-callbacks-and-doesnt-escape-values) | low | speculative | Config, shell and UI | The `on-window-detected` debug JSON omits `check-further-callbacks` and doesn't escape values | fixed on restructure |
@@ -194,9 +206,9 @@ The summary table marks an entry that was open until then as "fixed on restructu
 | [RB-70](#rb-70-testservereventdecoding-checks-only-the-event-type) | low | possible | Tests | `testServerEventDecoding` checks only the event type | fixed |
 | [RB-83](#rb-83-converting-a-test-ax-dump-can-still-crash-the-test-run) | low | speculative | Tests | Converting a test AX dump can still crash the test run | fixed |
 | [RB-94](#rb-94-newscalarornil-reads-json-booleans-as-integers) | low | speculative | Tests | `newScalarOrNil` reads JSON booleans as integers | open |
-| [RB-102](#rb-102-syncfocusfrommacos-crashes-on-test-windows) | low | speculative | Tests | `syncFocusFromMacOs` crashes on test windows | open |
+| [RB-102](#rb-102-syncfocusfrommacos-crashes-on-test-windows) | low | speculative | Tests | `syncFocusFromMacOs` crashes on test windows | moot on restructure |
 
-**Totals:** 55 entries were open before `fix-review-bugs`: 2 high, 8 medium and 45 low. Of these, 51 fixed and 4 closed. The fixes turned up 22 new entries (RB-71 to RB-92; 1 medium and 21 low): 8 fixed and 14 open (RB-76 was fixed after the user chose a 2 s limit per app). A further 18 entries were resolved by the refactor, and 3 were dropped. The `simplify` stream added 20 entries (RB-93 to RB-112; 1 medium and 19 low), all open. Two more low entries came from the `perf` stream and from merging (RB-113 and RB-114), both open. The `perf` stream's other report, about stale cached window levels, is already covered by RB-35 and RB-85. On `restructure`, 10 of these 36 open entries were fixed and 6 became moot, so 20 are still open. Seven entries that were already fixed or closed became moot too (RB-05, RB-10, RB-12, RB-16, RB-43, RB-44 and RB-61). The restructure added 19 entries (RB-115 to RB-133; 5 medium and 14 low): 9 are fixed there and 10 are open.
+**Totals:** 55 entries were open before `fix-review-bugs`: 2 high, 8 medium and 45 low. Of these, 51 fixed and 4 closed. The fixes turned up 22 new entries (RB-71 to RB-92; 1 medium and 21 low): 8 fixed and 14 open (RB-76 was fixed after the user chose a 2 s limit per app). A further 18 entries were resolved by the refactor, and 3 were dropped. The `simplify` stream added 20 entries (RB-93 to RB-112; 1 medium and 19 low), all open. Two more low entries came from the `perf` stream and from merging (RB-113 and RB-114), both open. The `perf` stream's other report, about stale cached window levels, is already covered by RB-35 and RB-85. On `restructure`, 14 of these 36 open entries were fixed, 1 was partly fixed (RB-88) and 8 became moot, so 13 are still open. Twelve entries that were already fixed or closed became moot too (RB-02, RB-05, RB-10, RB-12, RB-16, RB-35, RB-43, RB-44, RB-61, RB-69, RB-71 and RB-76). The restructure added 27 entries (RB-115 to RB-141; 6 medium and 21 low): 16 are fixed there, 1 is partly fixed (RB-129) and 10 are open.
 
 ## Core model
 
@@ -215,6 +227,15 @@ The summary table marks an entry that was open until then as "fixed on restructu
   - If the screens vanish between the check in `enable off` and its layout, AeroSpace is disabled while the windows of hidden workspaces stay in the corners. They keep their remembered positions, and the next `enable off` with screens, or `enable on`, restores them.
   - If the screens vanish again between the startup wait and the startup session, that session is still skipped.
   - A monitor that disappears only briefly still loses its visible workspace: see RB-88.
+
+  On `restructure`, M2 changed the no-screens handling:
+  - 3cdeedea: `world.monitors` is a snapshot that keeps the last monitors while there are no screens, instead of a fake monitor. `monitorApproximation` and `mainMonitorInfo` are gone.
+  - dbec281a: the heavy refresh skips while there are no screens (`Sources/AppBundle/Reconcile.swift:25`), and checks the live screens again after its reads (`:118-121`). Window registration and the window GC are sync after that check, so the first gap is closed for them.
+  - a2863221 and d60f5110: the layout is sync, and `placements()` checks the live screens (`Sources/AppBundle/layout/layout.swift:20`). Still open of the first gap: the screens can vanish between a placement's post and its AX job.
+  - The second and third gaps are unchanged: `enable off` checks the snapshot (`Sources/AppBundle/command/impl/MiscCommands.swift:304`), and startup waits for the screens before its first refresh (`Sources/AppBundle/initAppBundle.swift:21`).
+  - RB-88 is partly fixed.
+
+  Regression tests: `NoScreensTest`, on `FakePlatform` instead of the task-local, and `ReconcileTest.withoutScreensTheRefreshReadsNothing` and `screensThatDisappearDuringTheReadsLeaveTheTreeAlone`. The second one covers screens that vanish during the reads.
 - **Severity:** high · **Confidence:** possible
 - **Original location:** `Sources/AppBundle/util/appBundleUtil.swift:102 @812da7fa`, `Sources/AppBundle/model/MonitorInfo.swift:97-111 @812da7fa`
 - **Current location:** `Sources/AppBundle/util/appBundleUtil.swift:102`, `Sources/AppBundle/model/MonitorInfo.swift:62-85`. The bug is unchanged: CM-12 turned `MonitorInfo` into a struct but kept both fallbacks.
@@ -233,7 +254,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-02: Termination helpers can block the main thread forever
 
-- **Status:** Fixed in 2afad54e. No regression test: the helpers block on a real app's AX thread. Verified by reading every path of the new job (window missing, body throws). The unbounded waits for a hung app were fixed in RB-76.
+- **Status:** Fixed in 2afad54e. No regression test: the helpers block on a real app's AX thread. Verified by reading every path of the new job (window missing, body throws). The unbounded waits for a hung app were fixed in RB-76. Moot on `restructure`: 5de87986 deleted these helpers. On quit, each window's restore is one job on its app's `AxApp`, and termination waits at most 2 s for it (`AxApp.postAndWait`, `Sources/AppBundle/platform/termination.swift:43-51`).
 - **Severity:** high · **Confidence:** possible
 - **Original location:** `Sources/AppBundle/tree/MacApp.swift:159-171` (`setAxFrameForTermination`), `:186-195` (`getAxRectForTermination`) and `:354-359` (`withWindowAsync`) `@812da7fa`
 - **Current location:** `Sources/AppBundle/tree/MacApp.swift:159-171`, `:186-195` and `:354-359`. Unchanged.
@@ -248,7 +269,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-03: Reading a special container creates it and makes it the most-recent child
 
-- **Status:** Fixed in a9c1685f. Regression tests in `TreeNodeTest`. The empty root container can still become the most recent child in another way: see RB-77. On `restructure`, 7b7de1d0 removed the trigger: reads return nil for a missing container, and only binding a window creates one (`Sources/AppBundle/tree/WorkspaceEx.swift:6-57`). Regression tests: `TreeNodeTest.focusAfterAWindowClosesGoesToTheMostRecentWindow` and `onlyBindingCreatesContainers`.
+- **Status:** Fixed in a9c1685f. Regression tests in `TreeNodeTest`. The empty root container can still become the most recent child in another way: see RB-77. On `restructure`, 7b7de1d0 removed the trigger: reads return nil for a missing container, and only binding a window creates one (`Sources/AppBundle/tree/WorkspaceEx.swift:6-77`). Regression tests: `TreeNodeTest.focusAfterAWindowClosesGoesToTheMostRecentWindow` and `onlyBindingCreatesContainers`.
 - **Severity:** medium · **Confidence:** likely
 - **Original location:** `Sources/AppBundle/tree/WorkspaceEx.swift:27-52 @812da7fa`, `Sources/AppBundle/tree/TreeNode.swift:95 @812da7fa`
 - **Current location:** `Sources/AppBundle/tree/WorkspaceEx.swift:19-35` (the shared `singleChild` helper from CM-6 is at `:38-54`) and `Sources/AppBundle/tree/TreeNode.swift:97`. Behavior is unchanged.
@@ -296,7 +317,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-35: The window-level cache misses on every lookup for off-screen windows
 
-- **Status:** Fixed in c2c0fe59 and reworked in 4f530915. After one query in a refresh session, a known window that is missing from the cache is taken as off-screen without another query. The cache is kept across sessions, as before, so an on-screen popup such as a browser picture-in-picture window costs no query. No regression test: the query is the real `CGWindowListCopyWindowInfo`, and known windows must be real `MacWindow`s. Verified by reading every lookup sequence: unless the set of on-screen windows changes during a session, it never queries more than the original code. If the set does change, it can make one more query, which returns fresher data. A cached level is still refreshed only when a miss causes a query, as in the original code. A related case is RB-85.
+- **Status:** Fixed in c2c0fe59 and reworked in 4f530915. After one query in a refresh session, a known window that is missing from the cache is taken as off-screen without another query. The cache is kept across sessions, as before, so an on-screen popup such as a browser picture-in-picture window costs no query. No regression test: the query is the real `CGWindowListCopyWindowInfo`, and known windows must be real `MacWindow`s. Verified by reading every lookup sequence: unless the set of on-screen windows changes during a session, it never queries more than the original code. If the set does change, it can make one more query, which returns fresher data. A cached level is still refreshed only when a miss causes a query, as in the original code. A related case is RB-85. Moot on `restructure`: 2f480e2b deleted the cache. Each classification queries the levels of the on-screen windows once (`onScreenWindowLevels`, `Sources/AppBundle/platform/LivePlatform.swift:479-492`), and since 22228538 an empty classification makes no query.
 - **Severity:** low · **Confidence:** possible
 - **Original location:** `Sources/AppBundle/windowLevelCache.swift:8-26 @812da7fa`
 - **Current location:** `Sources/AppBundle/windowLevelCache.swift:8-26`. Unchanged.
@@ -326,7 +347,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-71: A die on an AX thread deadlocks termination
 
-- **Status:** Fixed in f91a5d30: `dieT` records the dying thread first, and the termination helpers skip it. No regression test: needs a real AX thread that dies during termination. Verified by reading the termination paths. The remaining unbounded waits were fixed in RB-76.
+- **Status:** Fixed in f91a5d30: `dieT` records the dying thread first, and the termination helpers skip it. No regression test: needs a real AX thread that dies during termination. Verified by reading the termination paths. The remaining unbounded waits were fixed in RB-76. Moot on `restructure`: 95089e01 runs the termination handler on the dying thread, without `MainActor.runSync`, and skips the dying thread's own app (`Sources/AppBundle/platform/termination.swift:56-69`). b1c4ff28 lets only the first terminating thread restore the windows: a die on another thread parks (`claimTermination`, `Sources/Common/util/commonUtil.swift:23-31`).
 - **Severity:** medium · **Confidence:** likely
 - **Location:** `Sources/AppBundle/tree/MacApp.swift:159-195` and `dieT` in `Sources/Common/util/commonUtil.swift`
 - **Description:** A die on an app's AX thread blocks that thread in `MainActor.runSync` while the main thread runs `beforeTermination`. That schedules `getAxRect` and `setFrame` jobs on the same AX thread and waits for them forever.
@@ -335,7 +356,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-76: Termination helpers still wait without a bound
 
-- **Status:** Fixed in 9b990ae5 with option (b), chosen by the user. Each termination wait times out after 2 s, and after an app's first timeout its remaining windows are skipped. They stay where AeroSpace hid them, but AeroSpace exits. Regression test for the timed wait: `CommonUtilTest.testCompletableFutureBlockingGetTimesOut`. The termination paths themselves need a real AX thread, so they were verified by reading them.
+- **Status:** Fixed in 9b990ae5 with option (b), chosen by the user. Each termination wait times out after 2 s, and after an app's first timeout its remaining windows are skipped. They stay where AeroSpace hid them, but AeroSpace exits. Regression test for the timed wait: `CommonUtilTest.testCompletableFutureBlockingGetTimesOut`. The termination paths themselves need a real AX thread, so they were verified by reading them. Moot on `restructure`: 5de87986 deleted the helpers and `CompletableFuture` with its test. On main, each window's restore is one job on its app's `AxApp`, and termination waits at most 2 s for it. After an app's first timeout, its other windows are skipped (`Sources/AppBundle/platform/termination.swift:43-51`). Off main, 424015f8 posts every app's job first and waits once against a shared 2 s deadline (`:56-69`). a2863221 makes pending placements stop before their first AX call once termination starts (RB-138). Regression test: `AxAppTest.postAndWaitGivesUpOnAHungApp`.
 - **Severity:** low · **Confidence:** possible
 - **Location:** `Sources/AppBundle/tree/MacApp.swift:159-195`
 - **Description:** After RB-02 and RB-71, the termination helpers still wait forever if the target AX thread starts dying after main has scheduled the job (a die inside the termination job, or a second thread dying at the same time). For a hung app they wait for about 9 AX calls × 6 s per window.
@@ -362,7 +383,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-85: A window first seen off-screen is classified as a popup
 
-- **Status:** Open.
+- **Status:** Open. Fixed on `restructure` in 2f480e2b: the window-level cache is gone. Each classification queries the levels of the on-screen windows once, and an unknown level no longer makes a window a popup (`Sources/AppBundle/model/AxUiElementWindowType.swift:114-118`). Regression test: `AxUiElementWindowTypeTest.testUnknownWindowLevelIsNotAPopup`.
 - **Severity:** low · **Confidence:** possible
 - **Location:** `Sources/AppBundle/model/AxUiElementWindowType.swift:107-112` and `Sources/AppBundle/windowLevelCache.swift:14-37`
 - **Description:** The window-level cache holds on-screen windows only. A window first detected while off-screen (minimized at startup, or of a hidden app) gets a nil level. For Slack, Chrome, Firefox, iTerm2 and the other listed apps, `windowLevel != .normalWindow` then holds, so it is classified as a popup.
@@ -371,7 +392,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-86: `getOrRegister` can bind a new window into a workspace that was garbage-collected
 
-- **Status:** Open.
+- **Status:** Open. Fixed on `restructure` in dbec281a: the heavy refresh reads the new windows first, then registers them in a sync step. `registerWindow` reads `focus.workspace` when it binds the window, with no await in between (`Sources/AppBundle/registerWindow.swift:6-14`). No regression test: no await is left for a session to run in.
 - **Severity:** low · **Confidence:** speculative
 - **Location:** `Sources/AppBundle/tree/MacWindow.swift:17-39` and `:188-195`
 - **Description:** `getOrRegister` reads `focus.workspace` before its AX awaits and binds the new window into it afterwards. If a concurrent light session changed focus and garbage-collected that empty, now invisible workspace in between, the window lands in a workspace that is no longer registered.
@@ -380,7 +401,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-87: Dragging can make a window floating again after it became tiling
 
-- **Status:** Open.
+- **Status:** Open. Fixed on `restructure` in 9f9b5281: after the frame read, `moveFloatingWindow` checks that the window is still floating (`Sources/AppBundle/mouse/moveWithMouse.swift:18`). Regression test: `MoveWithMouseTest.aWindowThatStopsFloatingDuringTheDragStaysTiling`.
 - **Severity:** low · **Confidence:** speculative
 - **Location:** `Sources/AppBundle/mouse/moveWithMouse.swift:21-27`
 - **Description:** If the window became tiling during the `getCenter` await (for example, `layout tiling` ran in between), the move into the target workspace's floating container (`:25`, `bindAsFloatingWindow` before `restructure`) makes it floating again when the target workspace differs. This was already the case before RB-20.
@@ -389,7 +410,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-88: A monitor that disappears briefly loses its visible workspace
 
-- **Status:** Open.
+- **Status:** Open. Partly fixed on `restructure` in 161d1b7a: a monitor that comes back at the same top-left corner (monitors that wake one after another, a replug) gets back the workspace that it showed, unless another monitor shows that workspace by then (`Sources/AppBundle/tree/Workspace.swift:170-173`, read by the stub rule). Regression test: `MonitorsTest.aMonitorThatComesBackAtTheSamePlaceGetsItsWorkspaceBack`. Still open: if the focus moves to the missing monitor's workspace while the monitor is away, that workspace shows on a remaining monitor, and the monitor gets a stub when it comes back.
 - **Severity:** low · **Confidence:** possible
 - **Location:** `Sources/AppBundle/tree/Workspace.swift:182-213` (`rearrangeWorkspacesOnMonitors`)
 - **Description:** RB-01 keeps the arrangement while there are no screens at all. When only some screens are missing for a moment, for example while monitors wake one after another, `rearrangeWorkspacesOnMonitors` maps the visible workspaces to the remaining screens and forgets the others. When the missing monitor comes back, it gets a stub workspace.
@@ -416,7 +437,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-113: An app whose AX subscription fails is retried on every refresh
 
-- **Status:** Open. Found by the `perf` stream. Fixed on `restructure` in 5de87986: after a failed subscription, the refresh's scan of all apps skips the pid for 1 s, and the wait doubles after each further failure, up to 60 s (`RegistrationBackoff` in `Sources/AppBundle/platform/MacApp.swift`). The app launching, activating or terminating clears its backoff. The lookup of the frontmost app ignores the backoff, so a just-launched app's focused window is never hidden by it. Concurrent lookups of one pid await the same registration. The lock screen and AeroSpace itself are never registered, as before. Regression tests: `AxAppTest.failedRegistrationsBackOffFrom1To60Seconds` covers the delays, and `anActivationForgetsTheFailedRegistrationsOfItsApp` the clearing, with a synthetic notification.
+- **Status:** Open. Found by the `perf` stream. Fixed on `restructure` in 5de87986 and 5e7d8365: after a failed subscription, the refresh's scan of all apps skips the pid for 1 s, and the wait doubles after each further failure, up to 60 s (`RegistrationBackoff`, `Sources/AppBundle/platform/LivePlatform.swift:494-504`; 14fc5f4f moved it there from `MacApp.swift`). The app launching, activating or terminating clears its backoff. The lookup of the frontmost app ignores the backoff, so a just-launched app's focused window is never hidden by it. Concurrent lookups of one pid await the same registration. The lock screen and AeroSpace itself are never registered, as before. Regression tests: `AxAppTest.failedRegistrationsBackOffFrom1To60Seconds` covers the delays, and `anActivationForgetsTheFailedRegistrationsOfItsApp` the clearing, with a synthetic notification.
 - **Severity:** low · **Confidence:** possible
 - **Location:** `Sources/AppBundle/tree/MacApp.swift:76-87`
 - **Description:** If `AxSubscription.bulkSubscribe` fails for a regular app, `getOrRegister` stores `nil` in `allAppsMap` and the app thread exits. The next lookup finds nothing, so it creates a new per-app thread and tries to subscribe again.
@@ -425,7 +446,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-129: A hidden workspace's root container gets the `auto` orientation of the wrong monitor
 
-- **Status:** Found on `restructure`. Partly fixed on `restructure` in 7b7de1d0: reads don't create the root or the special containers, so normalization and the closed-windows cache no longer do. The root is created when the first tiling window is bound, or by a command that writes the root's layout, with the orientation of the workspace's monitor at that moment. An empty workspace has no root. Still open: moving a window to a workspace that was never visible gives its new root the main monitor's orientation. Regression tests: `TreeNodeTest.onlyBindingCreatesContainers` and `ClosedWindowsCacheTest.restoringAWorkspaceWithoutRootCreatesNone`. The wrong monitor itself isn't testable with the one test monitor.
+- **Status:** Found on `restructure`. Partly fixed on `restructure` in 7b7de1d0: reads don't create the root or the special containers, so normalization and the closed-windows cache no longer do. The root is created when the first tiling window is bound, or by a command that writes the root's layout, with the orientation of the workspace's monitor at that moment. An empty workspace has no root. Still open: moving a window to a workspace that was never visible gives its new root the main monitor's orientation. M2's monitor snapshot (3cdeedea) didn't change that: for a workspace that was never visible and isn't force-assigned, `workspaceMonitor` is `world.monitors.main` (`Sources/AppBundle/tree/Workspace.swift:104-106`), and `newRootOrientation` reads it (`Sources/AppBundle/tree/WorkspaceEx.swift:22-28`). Regression tests: `TreeNodeTest.onlyBindingCreatesContainers` and `ClosedWindowsCacheTest.restoringAWorkspaceWithoutRootCreatesNone`. The wrong monitor itself isn't testable with the one test monitor.
 - **Severity:** low · **Confidence:** possible
 - **Location:** `Sources/AppBundle/tree/WorkspaceEx.swift:6-8` and `:20-26` (`rootTilingContainer` and `newRootOrientation`), `Sources/AppBundle/tree/normalizeContainers.swift:3`, `Sources/AppBundle/layout/refresh.swift:106-108`
 - **Description:** Reading `rootTilingContainer` creates the root when there is none. With the `auto` orientation, the workspace's monitor at that moment decides the root's orientation. `refreshModel_nonCancellable` normalizes every workspace, and that reads the root, so every persistent workspace has a root from the first session on. For a workspace that was never visible and isn't force-assigned, `workspaceMonitor` is `mainMonitorInfo` (`Sources/AppBundle/tree/Workspace.swift:113-118`). An empty root is never removed, and nothing changes its orientation later. The code before `restructure` did the same.
@@ -433,6 +454,69 @@ The summary table marks an entry that was open until then as "fixed on restructu
   Reads create the special containers too. `cacheClosedWindowIfNeeded` reads the root and all three special containers of every workspace (`Sources/AppBundle/tree/frozen/closedWindowsCache.swift:21-28`), so `workspace.children` are in the order of the first reads. Creating a container restores the most recent child, so the RB-03 fix holds. 083bfaad and b76587e1 removed two such reads: expanding `%{workspace-root-container-layout}` and `balance-sizes` no longer create the root.
 - **How it shows up:** with `default-root-container-orientation = 'auto'` (the default) and a portrait monitor that isn't the main monitor, a persistent workspace that is first shown on the portrait monitor tiles its windows side by side. The order of `workspace.children` matters only where focus falls back to `anyLeafWindowRecursive`, which is speculative.
 - **Fix direction:** read `existingRootTilingContainer` in `normalizeContainers` and in the closed-windows cache, so that the root is created when the first window is placed. Alternatively, decide the orientation of an empty root again when its workspace becomes visible.
+
+### RB-134: Focus follows mouse drops a pending heavy refresh
+
+- **Status:** Fixed on `restructure` in ece9683a: a focus-follows-mouse session keeps the scheduled heavy refresh. Regression test: `ReconcileTest.focusFollowsMouseKeepsTheScheduledHeavyRefresh`. Found by the review of M2's monitor snapshot (R-TSM).
+- **Severity:** medium · **Confidence:** likely
+- **Location:** `Sources/AppBundle/Sessions.swift:43-63` (`light`)
+- **Description:** Every light session cancels the scheduled heavy refresh, so that the light session runs first, and schedules a new one at its end. The focus-follows-mouse session doesn't schedule one, because it runs on every mouse move, but it still cancelled the scheduled one. The code at `812da7fa` did the same (`runLightSession` in `Sources/AppBundle/layout/refresh.swift`).
+- **How it shows up:** with `focus-follows-mouse` on, moving the mouse over a window while a heavy refresh is pending drops that refresh. A window that just opened isn't registered or tiled until the next event, and while the mouse keeps moving, each new heavy refresh is dropped too.
+- **Fix direction:** don't cancel the scheduled heavy refresh in focus-follows-mouse sessions.
+
+### RB-135: A parked floating window of a hidden app stays in the corner after the app is unhidden
+
+- **Status:** Open. Found on `restructure` (M2-AXP). The code before M2 did the same: `unhideFromCorner` forgot the position of a window that wasn't floating without moving it.
+- **Severity:** low · **Confidence:** possible
+- **Location:** `Sources/AppBundle/platform/Placement.swift:120-121` (`.leave`) and `Sources/AppBundle/layout/layout.swift:67-71`
+- **Description:** A floating window on a hidden workspace is parked in a corner, and its position is remembered. If its app is hidden (cmd-h) when the workspace is shown, the window is in the hidden-app container, so the layout leaves it where it is (`.leave`). That forgets the remembered position without moving the window. When the app is unhidden, the window is floating again but no longer parked, so nothing moves it back. The layout moves a floating window only if it is off its workspace's monitor, and the corner is on the monitor.
+- **How it shows up:** hide an app whose floating window is on a hidden workspace, switch to that workspace, then unhide the app: the window stays in the screen corner, almost entirely off-screen.
+- **Fix direction:** keep the remembered position for `.leave`, and unpark the window when it is floating again.
+
+### RB-136: A cancelled heavy refresh can move a window back after the user moved it
+
+- **Status:** Fixed on `restructure` in dbec281a. Found by the review of M2's platform seam (R-PLAT L2). It shipped in the deployed stage `restructure-m2-s2` (e8365260). The heavy refresh reads the windows' kinds with its other abandonable reads, then moves the windows in a sync step: `normalizeLayoutReason` (`Sources/AppBundle/normalizeLayoutReason.swift:4-13`) takes the kinds that the reads returned (`Sources/AppBundle/Reconcile.swift:112` and `:196`). No regression test: it needs a slow app and a hotkey during the read.
+- **Severity:** low · **Confidence:** possible
+- **Location:** `Sources/AppBundle/registerWindow.swift:27-32` (`relayoutWindow(on:)`) and `Sources/AppBundle/normalizeLayoutReason.swift:57-66` `@e8365260`
+- **Description:** When a window leaves macOS fullscreen or the minimized state, the heavy refresh can read the window's kind to put it back. In `restructure-m2-s2`, that read waits for the app instead of being abandoned when a light session cancels the refresh, and the refresh is past its last cancellation check. After the read, it moves the window to the tiling slot of the workspace that it captured before the read. Before M2, a cancelled read left the window in the fullscreen container instead.
+- **How it shows up:** leave fullscreen with the green button while the app is slow, then move the window to another workspace with a hotkey: when the read returns, the window jumps back.
+- **Fix direction:** read the kind with the abandonable reads, and check for cancellation after them.
+
+### RB-137: Hotkeys stall during a `debug-windows` recording while an app is slow
+
+- **Status:** Fixed on `restructure` in dbec281a. Found by the review of M2's platform seam (R-PLAT L3). It shipped in the deployed stage `restructure-m2-s2` (e8365260). The heavy refresh dumps the new and focused windows with its other abandonable reads (`readDebugInfos`, `Sources/AppBundle/Reconcile.swift:127-141`), and the light session leaves the dump to the heavy refresh that it schedules. No regression test: it needs a slow app.
+- **Severity:** low · **Confidence:** likely
+- **Location:** `Sources/AppBundle/registerWindow.swift:19`, `Sources/AppBundle/focusCache.swift:7` and `Sources/AppBundle/command/impl/MiscCommands.swift:121-135` `@e8365260`
+- **Description:** While `debug-windows` records, the sessions dump each new or focused window: many attributes, each of which can take up to the AX timeout. In `restructure-m2-s2`, that dump waits for the app, and a light session dumps the focused window before its body runs. Before M2, a hotkey cancelled the dump.
+- **How it shows up:** while the user records a bug with a slow or hung app, hotkeys stall for seconds, just when the user tries to reproduce the bug. Only during a recording.
+- **Fix direction:** dump with the abandonable reads on the session paths, and keep the waiting read for `debug-windows --window-id`.
+
+### RB-138: Quitting right after a workspace switch can leave a slow app's windows in the corner
+
+- **Status:** Fixed on `restructure` in a2863221. Found by the review of M2's platform seam (R-PLAT L4). It shipped in the deployed stage `restructure-m2-s2` (e8365260). A placement checks that it is current, which includes that termination hasn't started, before its first AX call (`PlacementState.apply`, `Sources/AppBundle/platform/Placement.swift:82-83`). Regression test: `PlacementTest.aStalePlacementStopsBeforeItsNextAxCallAndAStaleUnparkKeepsTheWindowParked`.
+- **Severity:** low · **Confidence:** possible
+- **Location:** `Sources/AppBundle/platform/AxApp.swift:168-177` (`park`) `@e8365260`
+- **Description:** A park reads the window's size before it checks whether termination started. The restore on quit waits in the app's queue behind every pending park, and each of them makes that AX call first. Before M2, the size was read on the main thread before the job was posted, so a pending park stopped without an AX call.
+- **How it shows up:** quit AeroSpace within a few hundred milliseconds of a workspace switch, with a slow app that has several windows to park: the restore of that app times out, and its windows stay in the screen corner after the quit.
+- **Fix direction:** check for termination at the top of `park`, before the size read.
+
+### RB-139: After a crash off the main thread, windows are restored at the full display size
+
+- **Status:** Fixed on `restructure` in efff56ad. Found by the review of M2's `AxApp` (R1 L2). 424015f8 fixed the rest of that finding before any deploy, but this part shipped in the deployed stages `restructure-m2-s1` (dfc5f82e) and `restructure-m2-s2` (e8365260). Both termination paths now center a window on the visible rect of its monitor at its last floating size: the main thread publishes the monitors for termination, and each app's `AxApp` keeps the last floating sizes of its windows (`TerminationMonitors.restoreFrame`, `Sources/AppBundle/platform/termination.swift:80-89`). Regression test: `TerminationTest.aWindowIsRestoredCenteredOnTheVisibleRectOfItsMonitor`.
+- **Severity:** low · **Confidence:** likely
+- **Location:** `Sources/AppBundle/platform/termination.swift:72-88` and `:126-140` `@dfc5f82e`
+- **Description:** When AeroSpace dies on a thread other than the main thread, it restores the windows without the main thread. In `restructure-m2-s1` and `restructure-m2-s2`, it gave every window that the apps know, including dialogs and panels, the full bounds of the nearest display: under the menu bar and the Dock, and without the last floating size. Before M2, the restore ran on the main thread with the visible rect and the last floating size.
+- **How it shows up:** after a crash off the main thread, every window fills its display, small dialogs and panels included.
+- **Fix direction:** give the off-main path the main thread's geometry: the monitors' visible rects and the last floating sizes.
+
+### RB-141: The heavy refresh that the startup schedules doesn't lay out
+
+- **Status:** Open. Found on `restructure` (M2-FIN). dbec281a introduced it, and no deployed stage has it yet.
+- **Severity:** low · **Confidence:** likely (checked with a test on `FakePlatform`)
+- **Location:** `Sources/AppBundle/Sessions.swift:61` and `Sources/AppBundle/Reconcile.swift:38`
+- **Description:** Startup runs a heavy refresh that registers the open windows without moving them, then a light session that lays them out. Like every light session, that session ends by scheduling a heavy refresh with its own event, here `.startup`. `Reconcile.heavy` returns before P4 for every `.startup` refresh, so this second one registers the windows that opened in between and runs their callbacks, but doesn't lay out or park anything. Before dbec281a, it laid out. As before, it registers the windows as the startup does.
+- **How it shows up:** a window that opens while AeroSpace starts, for example from a login item, isn't tiled until the next event, and the other tiles of its workspace aren't resized for it.
+- **Fix direction:** skip P4 only in the startup's own heavy refresh, for example with a parameter, or have the startup's light session schedule its heavy refresh with another event.
 
 ## Commands and CLI
 
@@ -642,7 +726,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-78: `debug-windows` stays recording after a failed first dump
 
-- **Status:** Open.
+- **Status:** Open. Moot on `restructure`: 14fc5f4f made the dump return nil for a window that closed, instead of throwing. The first dump can't fail the command any more: a closed window isn't recorded, and the recording starts as the command says (`Sources/AppBundle/command/impl/MiscCommands.swift:62-75`). No regression test.
 - **Severity:** low · **Confidence:** speculative
 - **Location:** `Sources/AppBundle/command/impl/MiscCommands.swift:62-79`: the state is set at `:64`, and a failed dump throws at `:77`
 - **Description:** The state is set to `.recording` before the starting window is dumped. If that dump throws, the command exits 2 with a bug prompt but stays in `.recording`.
@@ -846,6 +930,15 @@ The summary table marks an entry that was open until then as "fixed on restructu
 - **Description:** With `--stdin`, the CLI sends its stdin along with the command. On `restructure`, `workspace`, `move-node-to-workspace` and `eval` take it. Before `restructure`, the CLI read stdin to its end, so on a terminal it waited until the user typed the input and pressed Ctrl-D. a28d3095 made the CLI skip reading from a terminal and send an empty stdin instead.
 - **How it shows up:** `aerospace workspace --stdin next` typed in a terminal seemed to hang. On `restructure` before the fix, it failed with "The list of workspaces is empty", which doesn't say why.
 - **Fix direction:** reject `--stdin` when stdin is a terminal.
+
+### RB-140: `move-workspace-to-monitor --workspace` with a hidden workspace replaces the visible workspace of its monitor
+
+- **Status:** Fixed on `restructure` in 3cdeedea: showing a workspace on a monitor leaves a stub only on the monitor that showed that workspace (`setActiveWorkspace`, `Sources/AppBundle/tree/Workspace.swift:120-129`). Regression test: `MoveWorkspaceToMonitorCommandTest.twoMonitors_movesAnInvisibleWorkspace`. Found on `restructure` (M2-MON).
+- **Severity:** low · **Confidence:** likely
+- **Location:** `Sources/AppBundle/command/impl/MoveCommands.swift:354-374` `@d9face19` (`MoveWorkspaceToMonitorCommand.run` and `moveWorkspace`). At `812da7fa`: `Sources/AppBundle/command/impl/MoveWorkspaceToMonitorCommand.swift:8-33`.
+- **Description:** The command shows the workspace on the target monitor, then shows a stub workspace on the workspace's monitor. With `--workspace`, the workspace can be hidden. Its monitor (where it was last visible, or the main monitor) didn't show it, but still got the stub in place of the workspace that it showed.
+- **How it shows up:** with workspace 3 hidden and last shown on monitor 1, `aerospace move-workspace-to-monitor --workspace 3 next` shows 3 on monitor 2, and also replaces monitor 1's workspace with an empty one.
+- **Fix direction:** leave a stub only if the workspace was visible on its monitor.
 
 ## Config, shell and UI
 
@@ -1101,7 +1194,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-06: Dying recurses forever when `/tmp/bobko.aerospace` isn't writable
 
-- **Status:** Fixed in f7721310: the report goes to a per-user temporary directory, and a failed write skips opening Console instead of dying. No regression test: the path opens Console. Verified by reading the code.
+- **Status:** Fixed in f7721310: the report goes to a per-user temporary directory, and a failed write skips opening Console instead of dying. No regression test: the path opens Console. Verified by reading the code. The fix holds on `restructure`: `showMessageInGui` is unchanged. 95089e01 replaced the recursion detector with a flag, and b1c4ff28 with `claimTermination` (`Sources/Common/util/commonUtil.swift:23-31`): a die inside the termination handler writes the recursion file and doesn't restore the windows again.
 - **Severity:** medium · **Confidence:** likely (when the directory isn't writable)
 - **Original location:** `Sources/Common/util/showMessageInGui.swift:9-12` and `Sources/Common/util/commonUtil.swift:59-66` `@812da7fa`
 - **Current location:** same lines. Unchanged.
@@ -1113,7 +1206,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-07: AX size and position getters crash on unexpected values and can deadlock on quit
 
-- **Status:** Fixed in df0c4dac. Regression test: `AccessibilityTest.testSizeAndPositionGettersReturnNilForUnexpectedValues`.
+- **Status:** Fixed in df0c4dac. Regression test: `AccessibilityTest.testSizeAndPositionGettersReturnNilForUnexpectedValues`. The getter fix holds on `restructure`, and the deadlock is moot: 95089e01 deleted `MainActor.runSync` from `dieT`, and termination never waits for the main thread.
 - **Severity:** medium · **Confidence:** possible for the crash, speculative for the deadlock
 - **Original location:** `Sources/AppBundle/util/accessibility.swift:252,264 @812da7fa`
 - **Current location:** `Sources/AppBundle/util/accessibility.swift:85,97`. Unchanged in substance.
@@ -1138,7 +1231,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-09: On quit, windows are centered without the monitor's origin
 
-- **Status:** Fixed in 3366b949. No regression test: the code runs only on quit, with real windows. Verified by reading the code; before db226755 windows were placed relative to their own monitor too.
+- **Status:** Fixed in 3366b949. No regression test: the code runs only on quit, with real windows. Verified by reading the code; before db226755 windows were placed relative to their own monitor too. The fix holds on `restructure`: `TerminationMonitors.restoreFrame` (`Sources/AppBundle/platform/termination.swift:80-89`) adds the visible rect's origin, on both termination paths since efff56ad. Regression test: `TerminationTest.aWindowIsRestoredCenteredOnTheVisibleRectOfItsMonitor`.
 - **Severity:** medium · **Confidence:** possible
 - **Original location:** `Sources/AppBundle/util/appBundleUtil.swift:33-40 @812da7fa`
 - **Current location:** `Sources/AppBundle/util/appBundleUtil.swift:33-40`. Unchanged.
@@ -1260,7 +1353,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-69: `isUnitTest` depends on XCTest being loaded
 
-- **Status:** Fixed in 9515ab00: test runs are detected with a class that the test target defines. Verified in every test run mode (Swift Testing only, XCTest only, both). The fix holds on `restructure`: the check is at `Sources/Common/util/commonUtil.swift:166` and the marker class at `Sources/AppBundleTests/SwiftTestingSupport.swift:42-43`. Since 459fceae, every test is a Swift Testing test and runs with `--disable-xctest`. Regression test: `IsUnitTestTest.testIsUnitTest`.
+- **Status:** Fixed in 9515ab00: test runs are detected with a class that the test target defines. Verified in every test run mode (Swift Testing only, XCTest only, both). The fix holds on `restructure`: the check is at `Sources/Common/util/commonUtil.swift:166` and the marker class at `Sources/AppBundleTests/SwiftTestingSupport.swift:42-43`. Since 459fceae, every test is a Swift Testing test and runs with `--disable-xctest`. Regression test: `IsUnitTestTest.testIsUnitTest`. Moot on `restructure`: 44801b2b deleted `isUnitTest`, the marker class and `IsUnitTestTest`. Tests install a `FakePlatform` with `World.reset(platform:)` (`Sources/AppBundleTests/testUtil.swift:18`), so no code asks whether it runs in a test.
 - **Severity:** low · **Confidence:** speculative
 - **Original location:** `Sources/Common/util/commonUtil.swift:151 @812da7fa`
 - **Current location:** `Sources/Common/util/commonUtil.swift:149`. It is now a `let` instead of a computed property, with the same check.
@@ -1359,7 +1452,7 @@ Test-suite issues are all low severity: they hide regressions but don't affect u
 
 ### RB-61: Tests can't reset two private focus globals
 
-- **Status:** Fixed in a404d01a: `setUpWorkspacesForTests` resets both globals through a test-only reset function. Regression tests in `SetUpWorkspacesForTestsTest`. Moot on `restructure`: cd44e123 moved both globals into `world.focusStore` (`Sources/AppBundle/focus.swift:43-58`), and `setUpWorkspacesForTests` starts from a new `World` (`Sources/AppBundleTests/testUtil.swift:18`), so there is no reset function to forget. Regression tests: `SetUpWorkspacesForTestsTest.forgetsThePreviousFocus`, `forgetsTheLastKnownNativeFocusedWindow` and `startsFromAnEmptyWorld`.
+- **Status:** Fixed in a404d01a: `setUpWorkspacesForTests` resets both globals through a test-only reset function. Regression tests in `SetUpWorkspacesForTestsTest`. Moot on `restructure`: cd44e123 moved both globals into `world.focusStore` (now `Sources/AppBundle/focus.swift:54-70`). Since 77ee893a, `world` is a constant, and `World.reset(platform:)` (`Sources/AppBundle/World.swift:71-94`) puts each property back to its initial value, `focusStore` included. A property missing there leaks from test to test: 361870c1 added `isEnabled`, the message and the scheduled heavy refresh. Regression tests: `SetUpWorkspacesForTestsTest.forgetsThePreviousFocus`, `forgetsTheLastKnownNativeFocusedWindow`, `startsFromAnEmptyWorld` and `startsEnabledWithoutAMessage`.
 - **Severity:** low · **Confidence:** possible
 - **Original location (`@812da7fa`):**
   - the test suites `Sources/AppBundleTests/command/FormatTest.swift:200, 206`, `Sources/AppBundleTests/command/ListModesTest.swift:5, 20` and `Sources/AppBundleTests/command/WorkspaceCommandTest.swift:9`
@@ -1418,7 +1511,7 @@ Test-suite issues are all low severity: they hide regressions but don't affect u
 
 ### RB-102: `syncFocusFromMacOs` crashes on test windows
 
-- **Status:** Open.
+- **Status:** Open. Moot on `restructure`: 14fc5f4f made `Window` a final class, so there are no test windows of another type, and `asMacWindow()` is gone. `syncFocusFromMacOs(_:)` takes a `Window?` (`Sources/AppBundle/focusCache.swift:6`). Tests run the sessions on `FakePlatform`, for example in `ReconcileTest`.
 - **Severity:** low · **Confidence:** speculative
 - **Location:** `Sources/AppBundle/focusCache.swift:17`. `asMacWindow()` is at `Sources/AppBundle/tree/Window.swift:76`.
 - **Description:** `syncFocusFromMacOs` ends with `nativeFocused?.asMacWindow()`, which is `self as! MacWindow`. In unit tests, the native focused window comes from `appForTests` and is a `TestWindow`.
