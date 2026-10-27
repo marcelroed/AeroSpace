@@ -32,7 +32,7 @@ enum Reconcile {
                 }
                 try present(nativeFocusBaseline: focus.windowOrNil, isTrayDeferred: false)
             }
-            guard let observation = try await observe() else { return } // P1
+            guard let observation = try await observe(isStartup: isStartup) else { return } // P1
             let committed = commit(observation, isStartup: isStartup) // P2
             // P3. A task that the refresh's cancellation doesn't reach
             let nativeFocusBaseline = await Task.immediate { @MainActor in await runCallbacks(committed, isStartup: isStartup) }.value
@@ -90,13 +90,13 @@ enum Reconcile {
         let debugInfos: [(id: WindowId, info: WindowDebugInfo)]
     }
 
-    /// P1. Abandonable: every read throws once the refresh is cancelled, and a hung app's windows aren't read. nil if the
-    /// screens disappeared meanwhile
-    static func observe() async throws(CancellationError) -> Observation? {
+    /// P1. Abandonable: every read throws once the refresh is cancelled, and a hung app's windows aren't read: its listing
+    /// has a deadline, but at startup. nil if the screens disappeared meanwhile
+    static func observe(isStartup: Bool) async throws(CancellationError) -> Observation? {
         let platform = world.platform
         let known = Set(world.windows.keys)
         let focused = try await platform.focusedWindow()
-        let apps = try await platform.listWindows()
+        let apps = try await platform.listWindows(waitingForEveryApp: isStartup)
 
         var new: [(id: WindowId, app: AppInfo)] = []
         var listed: Set<WindowId> = []

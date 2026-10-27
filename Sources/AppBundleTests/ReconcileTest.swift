@@ -109,6 +109,56 @@ struct ReconcileTest {
     }
 
     @Test
+    func aHungAppDoesntHoldTheRefreshAndItsWindowsComeWhenItAnswers() async { // R2b L3
+        fake.apps = [appA, appB]
+        openWindow(1, appA)
+        await heavyRefresh()
+        fake.listingDeadlines = ListingDeadlines(minDeadline: .milliseconds(1))
+        let hang = Gate()
+        var listingsOfA = 0
+        fake.beforeListing = { app in
+            guard app == appA else { return }
+            listingsOfA += 1
+            await hang.wait()
+        }
+        openWindow(2, appA)
+        openWindow(3, appB)
+
+        await heavyRefresh() // A misses its deadline
+        expectEqual(Set(world.windows.keys), [1, 3])
+        await heavyRefresh() // A's listing still runs: A isn't asked again
+        expectEqual(listingsOfA, 1)
+        expectEqual(Set(world.windows.keys), [1, 3])
+
+        hang.open() // A answers late. A heavy refresh lists it again
+        for _ in 0 ..< 100 where Window.get(byId: 2) == nil { await Task.yield() }
+        expectEqual(listingsOfA, 2)
+        expectEqual(Set(world.windows.keys), [1, 2, 3])
+    }
+
+    @Test
+    func theStartupWaitsForEveryApp() async { // R2b L3
+        fake.apps = [appA, appB]
+        openWindow(1, appA)
+        openWindow(2, appB)
+        fake.listingDeadlines = ListingDeadlines(minDeadline: .milliseconds(1))
+        let slowness = Gate()
+        fake.beforeListing = { app in if app == appA { await slowness.wait() } }
+
+        var isDone = false
+        let startup = Task.startUnstructured {
+            await Reconcile.heavy(.startup)
+            isDone = true
+        }
+        await slowness.untilWaiting()
+        try? await Task.sleep(for: .milliseconds(20)) // Past the deadline
+        #expect(!isDone)
+        slowness.open()
+        await startup.value
+        expectEqual(Set(world.windows.keys), [1, 2])
+    }
+
+    @Test
     func anOffScreenPopupStaysAPopup() async { // R2a M1
         openWindow(1)
         openWindow(2)

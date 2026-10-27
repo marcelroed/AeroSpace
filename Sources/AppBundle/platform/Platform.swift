@@ -31,8 +31,9 @@ protocol Platform: AnyObject, Sendable {
     // The heavy refresh's reads (Reconcile.swift, P1). Each is one batch: the apps answer in parallel, each on its own
     // thread
 
-    /// The windows of every registered app; registers the new apps. An app that is missing terminated
-    func listWindows() async throws(CancellationError) -> [AppWindows]
+    /// The windows of every registered app; registers the new apps. An app that is missing terminated. An app that
+    /// doesn't answer by its deadline (see ``ListingDeadlines``) is `.noAnswer`, unless `waitingForEveryApp`
+    func listWindows(waitingForEveryApp: Bool) async throws(CancellationError) -> [AppWindows]
     /// The kind and the frame of each window, keyed by its app: the app of a new window is known only from the listing. A
     /// window that is gone is missing, and so is an off-screen window whose kind depends on its level (see
     /// ``AxUiElementMock/getWindowType(axApp:_:_:_:)``): a later refresh classifies it

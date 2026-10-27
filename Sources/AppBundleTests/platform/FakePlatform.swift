@@ -26,6 +26,10 @@ final class FakePlatform: Platform {
     var onRead: ((PlatformCall) -> ())? = nil
     /// Awaited before each title read: a ``Gate`` there holds a callback's title matcher, as a busy app does
     var beforeTitle: ((WindowId) async -> ())? = nil
+    /// Awaited before an app lists its windows: a ``Gate`` there makes the app miss its listing deadline
+    var beforeListing: ((AppInfo) async -> ())? = nil
+    /// LivePlatform's deadlines. A test that holds an app in `beforeListing` shortens them
+    var listingDeadlines = ListingDeadlines(minDeadline: .milliseconds(250))
 
     func calls(of kind: PlatformCall.Kind, _ id: WindowId? = nil) -> [PlatformCall] {
         calls.filter { $0.kind == kind && (id == nil || $0.windowId == id) }
@@ -51,11 +55,18 @@ final class FakePlatform: Platform {
     // MARK: Observe reads
 
     /// Each app lists its windows in the order of their ids
-    func listWindows() -> [AppWindows] {
+    func listWindows(waitingForEveryApp: Bool) async throws(CancellationError) -> [AppWindows] {
         defer { logRead(.listWindows) }
-        return apps.map { app in
-            answers[app.pid] == false ? .noAnswer(app) : .listed(app, windows.filter { $0.value.app == app }.keys.sorted())
+        var result: [AppWindows] = []
+        for app in apps {
+            let ids = try await listingDeadlines.list(app.pid, hasDeadline: !waitingForEveryApp) {
+                [self] () async throws(CancellationError) -> [WindowId]? in
+                await beforeListing?(app)
+                return answers[app.pid] == false ? nil : windows.filter { $0.value.app == app }.keys.sorted()
+            }
+            result.append(ids.map { .listed(app, $0) } ?? .noAnswer(app))
         }
+        return result
     }
 
     func focusedWindow() -> FocusedWindow? {

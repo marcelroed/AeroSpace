@@ -11,6 +11,7 @@ final class LivePlatform: Platform {
     /// Internal for tests
     var failedRegistrations: [pid_t: RegistrationBackoff] = [:]
     private var backoffObservers: [any NSObjectProtocol] = []
+    private let listingDeadlines = ListingDeadlines(minDeadline: .milliseconds(250))
     /// The registered apps, for a die off the main thread: it can't read `apps`
     nonisolated private let terminationApps: Mutex<[pid_t: AxApp]> = Mutex([:])
     /// The last monitors with screens, see ``monitors()``. nil before the first: then nothing is parked
@@ -47,7 +48,7 @@ final class LivePlatform: Platform {
 
     // MARK: Observe reads
 
-    func listWindows() async throws(CancellationError) -> [AppWindows] {
+    func listWindows(waitingForEveryApp: Bool) async throws(CancellationError) -> [AppWindows] {
         let frontmostAppBundleId = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         for (_, app) in apps { // gc dead apps
             try checkCancellation()
@@ -66,8 +67,12 @@ final class LivePlatform: Platform {
                     refreshedPids.insert(pid)
                     scanOrder.append(pid)
                     group.addTask { @Sendable @MainActor [self] in
-                        guard let app = try await register(nsApp, pid: pid, isBulkScan: true) else { return (pid, []) }
-                        return (pid, try await aliveWindowIds(app, frontmostAppBundleId: frontmostAppBundleId))
+                        let windowIds = try await listingDeadlines.list(pid, hasDeadline: !waitingForEveryApp) {
+                            [self] () async throws(CancellationError) -> [UInt32]? in
+                            guard let app = try await register(nsApp, pid: pid, isBulkScan: true) else { return [] }
+                            return try await aliveWindowIds(app, frontmostAppBundleId: frontmostAppBundleId)
+                        }
+                        return (pid, windowIds)
                     }
                 }
                 // Register new apps

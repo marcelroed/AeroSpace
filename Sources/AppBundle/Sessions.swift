@@ -19,6 +19,7 @@ import Common
 /// | Light session                 | Runs at once in its caller's task, cancels `heavy` (not ffm's) | — (but see the next row)     |
 /// | ffm, mouse move, mouse resize | One ``LatestTaskSlot`` per kind around a light session | A newer event of the same kind       |
 /// | AX read of a heavy refresh    | An observe read of ``Platform`` (`AxApp.call`): abandonable | Cancellation of the heavy refresh: it returns at once |
+/// | Listing of a heavy refresh    | A deadline per app (``ListingDeadlines``): an app that misses it doesn't answer, and isn't asked again until its listing returns | Cancellation of the heavy refresh before the deadline |
 /// | AX read of a command          | A single read of ``Platform`` (`AxApp.run`): awaited  | —                                     |
 /// | Placement                     | `AxApp.postPlacements`: a generation per window       | A newer placement, attribute write or close of it |
 /// | Native focus (slow path)      | A post with a global generation (`LivePlatform.focus`) | A newer native focus                 |
@@ -206,6 +207,8 @@ nonisolated enum RefreshSessionEvent: Sendable, CustomStringConvertible {
     case startup
     /// The heavy refresh that the startup's light session schedules
     case afterStartup
+    /// An app answered a listing that missed its deadline (``ListingDeadlines``)
+    case lateListing
     case socketServer([String])
     case resetManipulatedWithMouse
     case ax(String)
@@ -231,6 +234,7 @@ nonisolated enum RefreshSessionEvent: Sendable, CustomStringConvertible {
             case .socketServer(let args): "socketServer: \(args.joinArgs())"
             case .startup: "startup"
             case .afterStartup: "afterStartup"
+            case .lateListing: "lateListing"
             case .focusFollowsMouse: "focusFollowsMouse"
         }
     }
