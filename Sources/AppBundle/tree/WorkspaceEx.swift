@@ -36,15 +36,24 @@ extension Workspace {
     /// the root container, which is created if there is none. Unbind a window before it moves there: otherwise it could
     /// land next to itself
     func newTilingWindowSlot() -> (parent: TilingContainer, index: Int) {
-        if let (parent, index) = shownMruChildren.first?.mostRecentWindowRecursive?.tilingSlot { return (parent, index + 1) }
+        if let (parent, index) = mostRecentShownWindow?.tilingSlot { return (parent, index + 1) }
         let root = rootTilingContainerCreatingIfNeeded()
         return (root, root.children.count)
     }
 
-    /// The children, most recent first, without the hidden apps' container. Normalization moves a hidden app's windows
-    /// there, and that makes them the most recent ones, though the user didn't focus them (RB-145)
-    var shownMruChildren: [TreeNode] {
-        mruChildren.filter { ($0 as? Container)?.kind != .macosHiddenApp }
+    /// The children in tree order, without the hidden apps' container. Normalization moves a hidden app's windows there,
+    /// and that makes them the most recent ones, though the user didn't focus them (RB-145)
+    var shownChildren: LazyFilterSequence<[TreeNode]> {
+        children.lazy.filter { ($0 as? Container)?.kind != .macosHiddenApp }
+    }
+
+    /// The most recent window of the most recent shown child. After the last tiling window closes, the empty root stays
+    /// the most recent child (RB-77): then the most recent window of the other shown children
+    var mostRecentShownWindow: Window? {
+        guard let mostRecent = shownChildren.mostRecent else { return nil }
+        if let window = mostRecent.mostRecentWindowRecursive { return window }
+        guard let root = mostRecent as? TilingContainer, root.isEffectivelyEmpty else { return nil }
+        return shownChildren.mostRecentFirst.dropFirst().lazy.compactMap(\.mostRecentWindowRecursive).first
     }
 
     var floatingWindows: [Window] {

@@ -114,13 +114,19 @@ open class TreeNode: Equatable {
         }
     }
 
-    var mostRecentChild: TreeNode? { children.max { $0.mruStamp < $1.mruStamp } }
+    var mostRecentChild: TreeNode? { children.mostRecent }
 
-    var mruChildren: [TreeNode] { children.sorted { $0.mruStamp > $1.mruStamp } }
+    var mruChildren: [TreeNode] { children.mostRecentFirst }
 
     nonisolated public static func == (lhs: TreeNode, rhs: TreeNode) -> Bool {
         lhs === rhs
     }
+}
+
+extension Sequence<TreeNode> {
+    /// The most recent of these siblings, see ``TreeNode/markAsMostRecentChild()``
+    var mostRecent: TreeNode? { self.max { $0.mruStamp < $1.mruStamp } }
+    var mostRecentFirst: [TreeNode] { sorted { $0.mruStamp > $1.mruStamp } }
 }
 
 /// The weight of a node whose parent isn't a tiling container. It's observable: commands that keep a node's weight
