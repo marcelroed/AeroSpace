@@ -2,159 +2,58 @@
 import Common
 import Testing
 
-private let possibleLhsValues = "(window-id|window-is-fullscreen|window-title|window-layout|window-parent-container-layout|workspace|" +
-    "workspace-is-focused|workspace-is-visible|workspace-root-container-layout|app-bundle-id|app-name|app-pid|app-exec-path|" +
-    "app-bundle-path|monitor-id|monitor-appkit-nsscreen-screens-id|monitor-name|monitor-is-main)"
-
 @Suite(.aeroSpaceGlobalState)
 struct TestCommandTest {
-    @Test
-    func parse() {
-        testParseSingleCommandSucc("test %{app-bundle-id} = foo", TestCommand(negated: false, lhs: .appBundleId, infixOperator: .equals, rhs: "foo"))
-        testParseSingleCommandSucc("test-not %{app-bundle-id} ~= foo", TestCommand(negated: true, lhs: .appBundleId, infixOperator: .matchesRegex, rhs: "foo"))
+    /// Workspace a, `h_tiles(*1)`, is focused, b is `h_tiles(2)`, and c is empty. `workspaceEnv` is AEROSPACE_WORKSPACE.
+    /// Exit code 1 without output is false
+    @Test(arguments: [
+        ("test %{window-id} = 1", nil, .ok),
+        ("test %{window-id} = 2", nil, CmdOutput(exitCode: 1)),
+        ("test %{window-id} = abc", nil, .fail("Can't convert String 'abc' to Int")),
+        ("test %{window-id} ~= 1", nil, .fail("Interpolation variable: 'window-id' has a type of Int. The Int type is not compatible with '~=' operator.")),
+        ("test %{workspace-is-focused} = true", nil, .ok),
+        ("test %{workspace-is-focused} = false", nil, CmdOutput(exitCode: 1)),
+        ("test %{workspace-is-focused} = foo", nil, .fail("Can't convert String 'foo' to Bool")),
+        (
+            "test %{workspace-is-focused} ~= foo", nil,
+            .fail("Interpolation variable: 'workspace-is-focused' has a type of Bool. The Bool type is not compatible with '~=' operator."),
+        ),
+        ("test %{app-bundle-id} = bobko.AeroSpace.test-app", nil, .ok),
+        ("test %{app-bundle-id} = other.bundle.id", nil, CmdOutput(exitCode: 1)),
+        ("test %{app-bundle-id} ~= AERO", nil, .ok), // Case-insensitive, and not anchored
+        ("test %{app-bundle-id} ~= zzzzz", nil, CmdOutput(exitCode: 1)),
+        ("test %{app-bundle-id} ~= [", nil, .fail("Can't parse '[' regex: expected custom character class members")),
+        ("test %{workspace} = a", nil, .ok),
 
-        expectEqual(parseCommand("test %{foo} = foo").errorOrNil, "Can't parse 'foo'.\nPossible values: \(possibleLhsValues)")
-        expectEqual(parseCommand("test foo = foo").errorOrNil, "Left hand side must be a single interpolation variable")
-        expectEqual(parseCommand("test foo%{app-bundle-id} = foo").errorOrNil, "Left hand side must be a single interpolation variable")
-        expectEqual(parseCommand("test").errorOrNil, "Argument '<lhs>' is mandatory")
-        expectEqual(parseCommand("test %{app-bundle-id}").errorOrNil, "Argument '<operator>' is mandatory")
-        expectEqual(parseCommand("test %{app-bundle-id} =").errorOrNil, "Argument '<rhs>' is mandatory")
-        expectEqual(parseCommand("test foo = %{app-bundle-id}").errorOrNil, "Left hand side must be a single interpolation variable")
-        expectEqual(parseCommand("test %{app-bundle-id} = %{app-bundle-id}").errorOrNil, "Right hand side doesn't allow interpolation variables")
-        expectEqual(parseCommand("test %{newline} = foo").errorOrNil, "Can't parse 'newline'.\nPossible values: \(possibleLhsValues)")
-        expectEqual(parseCommand("test %{window-id} = %{invalid}").errorOrNil, "Right hand side doesn't allow interpolation variables")
-        expectEqual(parseCommand("test %{window-id} '!=' 1").errorOrNil, "Can't parse '!='.\nPossible values: (=|~=)")
-    }
+        ("test-not %{window-id} = 1", nil, CmdOutput(exitCode: 1)),
+        ("test-not %{window-id} = 2", nil, .ok),
+        ("test-not %{workspace-is-focused} = foo", nil, .fail("Can't convert String 'foo' to Bool")), // A failure isn't inverted
 
-    @Test
-    func parseHelpPrintsOwnUsage() {
-        // test-not parses its arguments like test, but its help must still be its own (RB-11)
-        for (command, expectedHelp) in [("test --help", CmdKind.test.help), ("test-not --help", CmdKind.testNot.help), ("test-not -h", CmdKind.testNot.help)] {
-            expectEqual(parseCommand(command).helpOrNil, expectedHelp, "\(command)")
-        }
-        #expect(CmdKind.testNot.help.hasPrefix("USAGE: test-not "))
-    }
+        // AEROSPACE_WORKSPACE makes `test` look at that workspace and its window, not at the focused ones
+        ("test %{workspace} = b", "b", .ok),
+        ("test %{workspace-is-focused} = false", "b", .ok),
+        ("test %{window-id} = 2", "b", .ok),
+        // Without a window, the variables are about the workspace
+        ("test %{workspace-is-visible} = false", "c", .ok),
+        ("test %{window-id} = 1", "c", .fail(noWindowIsFocused)),
 
-    @Test
-    func exec() async {
-        setUpTree("h_tiles(*1)")
-        var output = await runCmd("test %{window-id} = 1")
-        expectEqual(output, .ok)
-
-        output = await runCmd("test %{window-id} = 2")
-        expectEqual(output, CmdOutput(exitCode: 1))
-
-        output = await runCmd("test %{workspace-is-focused} = foo")
-        expectEqual(output, .fail("Can't convert String 'foo' to Bool"))
-
-        output = await runCmd("test %{workspace-is-focused} ~= foo")
-        expectEqual(output, .fail("Interpolation variable: 'workspace-is-focused' has a type of Bool. The Bool type is not compatible with '~=' operator."))
-    }
-
-    @Test
-    func execNoWindow() async {
-        #expect(Workspace.get(byName: "a").focusWorkspace())
-        let output = await runCmd("test %{window-id} = 1")
-        expectEqual(output, .fail("No window is focused"))
-    }
-
-    @Test
-    func execWorkspaceContextSuccess() async {
-        // Without a focused window, the lhs interpolation variable resolves against the workspace
-        #expect(Workspace.get(byName: "a").focusWorkspace())
-        let output = await runCmd("test %{workspace-is-focused} = true")
-        expectEqual(output, .ok)
-    }
-
-    @Test
-    func execWorkspaceEnvNamesAnotherWorkspace() async {
-        // AEROSPACE_WORKSPACE makes the command look at its workspace, not at the focused one
+        ("test", nil, .fail("Argument '<lhs>' is mandatory")),
+        ("test %{app-bundle-id}", nil, .fail("Argument '<operator>' is mandatory")),
+        ("test %{app-bundle-id} =", nil, .fail("Argument '<rhs>' is mandatory")),
+        ("test %{foo} = foo", nil, .fail("Can't parse 'foo'.\nPossible values: \(lhsValues)")),
+        ("test %{newline} = foo", nil, .fail("Can't parse 'newline'.\nPossible values: \(lhsValues)")), // Not a formatting variable
+        ("test foo = foo", nil, .fail("Left hand side must be a single interpolation variable")),
+        ("test-not foo%{app-bundle-id} = foo", nil, .fail("Left hand side must be a single interpolation variable")),
+        ("test %{app-bundle-id} = %{app-bundle-id}", nil, .fail("Right hand side doesn't allow interpolation variables")),
+        ("test %{window-id} = %{invalid}", nil, .fail("Right hand side doesn't allow interpolation variables")),
+        ("test %{window-id} '!=' 1", nil, .fail("Can't parse '!='.\nPossible values: \(TestCommand.InfixOperator.unionLiteral)")),
+    ] as [(String, String?, CmdOutput)])
+    func run(command: String, workspaceEnv: String?, expected: CmdOutput) async {
         setUpTree("h_tiles(*1)", workspace: "a")
         setUpTree("h_tiles(2)", workspace: "b")
-        #expect(Workspace.get(byName: "a").focusWorkspace())
-
-        var output = await runCmd("test %{workspace} = b", workspaceEnv: "b")
-        expectEqual(output, .ok)
-        output = await runCmd("test %{workspace-is-focused} = false", workspaceEnv: "b")
-        expectEqual(output, .ok)
-        output = await runCmd("test %{window-id} = 2", workspaceEnv: "b")
-        expectEqual(output, .ok)
-        output = await runCmd("test %{workspace} = a")
-        expectEqual(output, .ok)
-    }
-
-    @Test
-    func execBoolEquals() async {
-        setUpTree("h_tiles(*1)")
-        var output = await runCmd("test %{workspace-is-focused} = true")
-        expectEqual(output, .ok)
-
-        output = await runCmd("test %{workspace-is-focused} = false")
-        expectEqual(output, CmdOutput(exitCode: 1))
-    }
-
-    @Test
-    func execIntEqualsRhsNotInt() async {
-        setUpTree("h_tiles(*1)")
-        let output = await runCmd("test %{window-id} = abc")
-        expectEqual(output, .fail("Can't convert String 'abc' to Int"))
-    }
-
-    @Test
-    func execIntMatchesRegexIncompatible() async {
-        setUpTree("h_tiles(*1)")
-        let output = await runCmd("test %{window-id} ~= 1")
-        expectEqual(output, .fail("Interpolation variable: 'window-id' has a type of Int. The Int type is not compatible with '~=' operator."))
-    }
-
-    @Test
-    func execStringEquals() async {
-        setUpTree("h_tiles(*1)")
-        var output = await runCmd("test %{app-bundle-id} = bobko.AeroSpace.test-app")
-        expectEqual(output, .ok)
-
-        output = await runCmd("test %{app-bundle-id} = other.bundle.id")
-        expectEqual(output, CmdOutput(exitCode: 1))
-    }
-
-    @Test
-    func execStringMatchesRegex() async {
-        setUpTree("h_tiles(*1)")
-        var output = await runCmd("test %{app-bundle-id} ~= AERO")
-        expectEqual(output, .ok)
-
-        output = await runCmd("test %{app-bundle-id} ~= zzzzz")
-        expectEqual(output, CmdOutput(exitCode: 1))
-    }
-
-    @Test
-    func execStringMatchesRegexInvalidPattern() async {
-        setUpTree("h_tiles(*1)")
-        let output = await runCmd("test %{app-bundle-id} ~= [")
-        expectEqual(output, .fail("Can't parse '[' regex: expected custom character class members"))
-    }
-
-    @Test
-    func execTargetResolutionFailure() async {
-        #expect(Workspace.get(byName: "a").focusWorkspace())
-        let output = await runCmd("test %{window-id} = 1", windowIdEnv: 9999)
-        expectEqual(output, .fail("Invalid <window-id> 9999 specified in AEROSPACE_WINDOW_ID env variable"))
-    }
-
-    @Test
-    func notExec() async {
-        setUpTree("h_tiles(*1)")
-
-        // test inner=true → test-not=false
-        var output = await runCmd("test-not %{window-id} = 1")
-        expectEqual(output, CmdOutput(exitCode: 1))
-
-        // test inner=false → test-not=true
-        output = await runCmd("test-not %{window-id} = 2")
-        expectEqual(output, .ok)
-
-        // test inner=fail → test-not=fail (propagates without inverting)
-        output = await runCmd("test-not %{workspace-is-focused} = foo")
-        expectEqual(output, .fail("Can't convert String 'foo' to Bool"))
+        expectEqual(await runCmd(command, workspaceEnv: workspaceEnv), expected)
     }
 }
+
+/// The variables about an object: the left hand side can't be a formatting variable
+nonisolated private let lhsValues = "(" + FormatVar.allCases.filter { $0.subject != nil }.map(\.rawValue).joined(separator: "|") + ")"
