@@ -52,9 +52,8 @@ func unhideMacosHiddenAppsIfConfigured() {
        // "Hide app" (cmd-h) -> force focus
        world.platform.runningApps().count(where: world.platform.isHidden) == 1
     {
-        // Force focus
+        // Force focus. The light session gives it the native focus when it presents, after the unhide below
         _ = w.focusWindow()
-        w.nativeFocus()
     }
     for app in world.platform.runningApps() where world.platform.isHidden(app) {
         world.platform.unhideApp(app)

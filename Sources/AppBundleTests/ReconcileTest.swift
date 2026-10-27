@@ -622,6 +622,25 @@ struct ReconcileTest {
     }
 
     @Test
+    func automaticallyUnhideUnhidesTheAppThenFocusesItsWindowOnce() async throws {
+        world.config.automaticallyUnhideMacosHiddenApps = true
+        fake.apps = [appA, appB]
+        openWindow(1, appA)
+        openWindow(2, appB)
+        fake.focused = 1
+        await heavyRefresh()
+        fake.hiddenApps = [appA.pid] // cmd-h on A: macOS focuses B
+        fake.focused = 2
+
+        fake.resetCalls()
+        try await world.sessions.onAppHidden()
+        world.sessions.cancelHeavy()
+        expectEqual(focus.windowOrNil?.windowId, 1)
+        let effects: [PlatformCall] = fake.calls.filter { $0.kind == .unhideApp || $0.kind == .focus }
+        expectEqual(effects, [.unhideApp(appA.pid), .focus(1)])
+    }
+
+    @Test
     func minimizingAWindowThatMacosMinimizedBeforeTheRefreshKeepsItMinimized() async {
         openWindow(1)
         openWindow(2)
