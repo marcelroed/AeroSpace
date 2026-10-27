@@ -145,6 +145,7 @@ struct FocusCommandTest {
             testWindow(id).rect = rect
             testWindow(id).lastAppliedLayoutVirtualRect = rect
         }
+        testWindow(1).parent?.lastAppliedLayoutVirtualRect = rect(0, 0, 960, 1080) // v_tiles
         testWindow(4).rect = rect(100, 100, 200, 200) // Seen as the first tiling window of v_tiles, above window 1
         let mruBefore = describeNode(workspace, mru: true)
         let output = await runCmd("focus left") // Nothing on the left
