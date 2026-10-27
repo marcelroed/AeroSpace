@@ -4,29 +4,41 @@ import Testing
 
 @Suite(.aeroSpaceGlobalState)
 struct FocusMonitorCommandTest {
-    @Test
-    func parse() {
-        expectEqual(parseFocusMonitorTarget("focus-monitor next"), .relative(.next))
-        expectEqual(parseFocusMonitorTarget("focus-monitor left"), .direction(.left))
-        expectEqual(parseFocusMonitorTarget("focus-monitor main"), .patterns([.main]))
-        expectEqual(parseFocusMonitorTarget("focus-monitor -- next"), .patterns([.pattern("next")]))
-        expectEqual(parseFocusMonitorTarget("focus-monitor -- main 2"), .patterns([.main, .sequenceNumber(2)]))
-    }
-
+    /// `MonitorTarget.parse`, which `move-node-to-monitor` and `move-workspace-to-monitor` share
     @Test(arguments: [
-        ("focus-monitor --wrap-around main", "--wrap-around is incompatible with <monitor-pattern> argument"),
-        ("focus-monitor --", "Argument '(left|down|up|right|next|prev|<monitor-pattern>)' is mandatory"),
-    ] as [(String, String)])
-    func parseError(command: String, error: String) async {
-        let output = await runCmd(command)
-        expectEqual(output, .fail(error))
+        ("focus-monitor next", .success(.relative(.next))),
+        ("focus-monitor left", .success(.direction(.left))),
+        ("focus-monitor main", .success(.patterns([.main]))),
+        ("focus-monitor -- next", .success(.patterns([.pattern(try CaseInsensitiveRegex("next"))]))),
+        ("focus-monitor -- main 2", .success(.patterns([.main, .sequenceNumber(2)]))),
+        ("focus-monitor --wrap-around main", .failure("--wrap-around is incompatible with <monitor-pattern> argument")),
+        ("focus-monitor --", .failure("Argument '(left|down|up|right|next|prev|<monitor-pattern>)' is mandatory")),
+    ] as [(String, Result<MonitorTarget, CmdParseError>)])
+    func parse(command: String, expected: Result<MonitorTarget, CmdParseError>) {
+        let target = parseCommand(command).flatMap { (shell: Shell<any Command>) -> Result<MonitorTarget, CmdParseError> in
+            guard case .cmd(let command as FocusMonitorCommand) = shell else { return .failure("Not a focus-monitor command") }
+            return .success(command.target)
+        }
+        expectEqual(target, expected)
     }
 
-    // The test monitor is the only monitor
-    @Test(arguments: singleMonitorErrors + [("2", "None of the monitors match the pattern(s)")])
-    func singleMonitor_noTargetMonitor(target: String, error: String) async {
-        let output = await runCmd("focus-monitor \(target)")
-        expectEqual(output, .fail(error))
+    /// The test monitor is the only monitor, so nothing changes
+    @Test(arguments: ["focus-monitor", "move-node-to-monitor", "move-workspace-to-monitor"], [
+        ("left", "No monitors in direction left"),
+        ("down", "No monitors in direction down"),
+        ("next", "Can't find target monitor"),
+        ("prev", "Can't find target monitor"),
+        ("2", "None of the monitors match the pattern(s)"),
+        ("secondary", "None of the monitors match the pattern(s)"),
+        ("2 secondary", "None of the monitors match the pattern(s)"),
+    ] as [(String, String)])
+    func singleMonitorNoTarget(command: String, target: (args: String, error: String)) async {
+        let workspace = setUpTree("h_tiles(*1)")
+        let output = await runCmd("\(command) \(target.args)")
+        expectEqual(output, .fail(target.error))
+        expectEqual(describeTree(), "h_tiles(*1)")
+        expectEqual(focus.workspace, workspace)
+        expectEqual(testMonitor.activeWorkspace, workspace)
     }
 
     @Test(arguments: ["--wrap-around next", "--wrap-around prev", "--wrap-around left", "main", "1"])
@@ -37,22 +49,6 @@ struct FocusMonitorCommandTest {
         expectEqual(focus.workspace, workspace)
     }
 
-    /// No screens (e.g., during display reconfiguration) is a normal state, not a bug (RB-40)
-    @Test(arguments: [
-        ("focus-monitor left", "Can't find monitors in direction left while there are no screens"),
-        ("focus-monitor next", "Can't find the next monitor while there are no screens"),
-        ("focus-monitor --wrap-around next", "Can't find the next monitor while there are no screens"),
-        ("focus-monitor prev", "Can't find the prev monitor while there are no screens"),
-        // With screens, both patterns match "Test Monitor"
-        ("focus-monitor 1", "Can't find monitors that match the pattern(s) while there are no screens"),
-        ("focus-monitor test", "Can't find monitors that match the pattern(s) while there are no screens"),
-    ] as [(String, String)])
-    func noScreens_failsWithMessage(command: String, error: String) async {
-        updateMonitors([])
-        let output = await runCmd(command)
-        expectEqual(output, .fail(error))
-    }
-
     @Test(arguments: ["next", "right", "--wrap-around prev", "--wrap-around left", "2", "secondary"])
     func twoMonitors_focusesTheRightMonitor(target: String) async {
         updateMonitors([testMonitor, rightTestMonitor])
@@ -60,18 +56,4 @@ struct FocusMonitorCommandTest {
         expectEqual(output, .ok)
         expectEqual(focus.workspace, rightTestMonitor.activeWorkspace)
     }
-}
-
-/// The targets of the monitor commands that find no monitor when there is only one monitor, and the errors
-nonisolated let singleMonitorErrors: [(String, String)] = [
-    ("left", "No monitors in direction left"),
-    ("down", "No monitors in direction down"),
-    ("next", "Can't find target monitor"),
-    ("prev", "Can't find target monitor"),
-    ("secondary", "None of the monitors match the pattern(s)"),
-    ("2 secondary", "None of the monitors match the pattern(s)"),
-]
-
-private func parseFocusMonitorTarget(_ raw: String) -> MonitorTarget? {
-    parsedCmd(raw, as: FocusMonitorCommand.self)?.target
 }

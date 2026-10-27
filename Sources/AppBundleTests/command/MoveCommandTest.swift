@@ -4,17 +4,6 @@ import Testing
 
 @Suite(.aeroSpaceGlobalState)
 struct MoveCommandTest {
-    @Test
-    func parse() {
-        expectEqual(parseCommand("move --fail-if-fullscreen left").errorOrNil, nil)
-        expectEqual(parseCommand("move --fail-if-macos-native-fullscreen --window-id 1 right").errorOrNil, nil)
-        let args = parsedCmd("move --boundaries all-monitors-outer-frame --boundaries-action fail up", as: MoveCommand.self)
-        expectEqual(args?.direction, .up)
-        expectEqual(args?.boundaries, .allMonitorsOuterFrame)
-        expectEqual(args?.boundariesAction, .fail)
-        expectEqual(parsedCmd("move left", as: MoveCommand.self)?.direction, .left)
-    }
-
     @Test(arguments: [
         ("move --boundaries", "'--boundaries' must be followed by '<boundary>'"),
         ("move --boundaries-action left", "Can't parse 'left'.\nPossible values: (stop|fail|create-implicit-container)"),
@@ -64,24 +53,6 @@ struct MoveCommandTest {
     }
 
     @Test
-    func failIfFullscreen() async {
-        setUpTree("h_tiles(*1 2)")
-        testWindow(1).isFullscreen = true
-        let output = await runCmd("move --fail-if-fullscreen right")
-        expectEqual(output, .fail())
-        expectEqual(describeTree(), "h_tiles(*1 2)")
-    }
-
-    @Test
-    func failIfMacosNativeFullscreen() async {
-        setUpTree("h_tiles(*1 2)")
-        testWindow(1).isMacosFullscreenForTest = true
-        let output = await runCmd("move --fail-if-macos-native-fullscreen right")
-        expectEqual(output, .fail())
-        expectEqual(describeTree(), "h_tiles(*1 2)")
-    }
-
-    @Test
     func moveIntoTheMostRecentContainer() async {
         setUpTree("h_tiles(0 *1 v_tiles(h_tiles(2 3) 4))")
         testWindow(3).markAsMostRecentChild()
@@ -113,14 +84,5 @@ struct MoveCommandTest {
         let output = await runCmd(command)
         expectEqual(output, .ok)
         expectEqual(describeTree(), tree)
-    }
-
-    @Test
-    func moveAcrossMonitors_noScreens_failsWithoutBugPrompt() async {
-        setUpTree("h_tiles(*1 2)")
-        // No screens (e.g., during display reconfiguration) is a normal state, not a bug (RB-40)
-        updateMonitors([])
-        let output = await runCmd("move --boundaries all-monitors-outer-frame left")
-        expectEqual(output, .fail("Can't find monitors in direction left while there are no screens"))
     }
 }

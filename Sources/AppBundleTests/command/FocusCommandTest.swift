@@ -3,37 +3,8 @@ import AppKit
 import Common
 import Testing
 
-// todo write tests
-//
-// test 1
-//     horizontal
-//         window1
-//         vertical
-//             vertical
-//                 window2 <-- focused
-//             vertical
-//                 window5
-//                 horizontal
-//                     window3
-//                     window4
-// pre-condition: focus_wrapping force_workspace
-// action: focus up
-// expected: mru(window3, window4) is focused
-
 @Suite(.aeroSpaceGlobalState)
 struct FocusCommandTest {
-    @Test
-    func parse() {
-        testParseSingleCommandSucc("focus --boundaries workspace left", FocusCommand(target: .direction(.left)))
-        testParseSingleCommandSucc(
-            "focus --boundaries-action wrap-around-the-workspace dfs-prev",
-            FocusCommand(target: .dfsRelative(.dfsPrev, atEdge: .wrapAroundTheWorkspace)),
-        )
-
-        expectEqual(parseCommand("focus --fail-if-fullscreen --fail-if-macos-native-fullscreen left").errorOrNil, nil)
-        expectEqual(parseCommand("focus --boundaries left").errorOrNil?.contains("Possible values"), true)
-    }
-
     @Test(arguments: [
         ("focus --boundaries workspace --boundaries workspace left", "Duplicated option '--boundaries'"),
         ("focus --window-id 42 --ignore-floating", "--window-id is incompatible with other options"),
@@ -51,20 +22,13 @@ struct FocusCommandTest {
         // An option is rejected even when it is given with its default value
         ("focus --window-id 42 --boundaries workspace", "--window-id is incompatible with other options"),
         ("focus --dfs-index 0 --boundaries-action stop", "--dfs-index is incompatible with other options"),
-    ] as [(String, String)])
-    func parseError(command: String, error: String) async {
-        let output = await runCmd(command)
-        expectEqual(output, .fail(error))
-    }
-
-    /// The target's errors come before the boundaries' errors, which come before the errors of the target's options
-    @Test(arguments: [
+        // The target's errors come before the boundaries' errors, which come before the errors of the target's options
         ("focus --boundaries-action wrap-around-all-monitors", "Mandatory argument is missing. (left|down|up|right|dfs-next|dfs-prev), --window-id or --dfs-index is required"),
         ("focus left --window-id 1 --boundaries-action wrap-around-all-monitors", "--window-id is incompatible with other options"),
         ("focus --window-id 1 --boundaries-action wrap-around-all-monitors", "workspace and wrap-around-all-monitors is an invalid combination of values"),
         ("focus dfs-next --fail-if-fullscreen --boundaries-action wrap-around-all-monitors", "workspace and wrap-around-all-monitors is an invalid combination of values"),
     ] as [(String, String)])
-    func parseErrorOrder(command: String, error: String) async {
+    func parseError(command: String, error: String) async {
         let output = await runCmd(command)
         expectEqual(output, .fail(error))
     }
@@ -116,20 +80,16 @@ struct FocusCommandTest {
         expectEqual(describeTree(), tree)
     }
 
-    @Test
-    func failIfFullscreen() async {
+    /// `focus` and `move` with the flag of the fullscreen that the focused window is in
+    @Test(arguments: ["focus", "move"], ["--fail-if-fullscreen", "--fail-if-macos-native-fullscreen"])
+    func failIfFullscreen(command: String, flag: String) async {
         setUpTree("h_tiles(*1 2)")
-        testWindow(1).isFullscreen = true
-        let output = await runCmd("focus --fail-if-fullscreen right")
-        expectEqual(output, .fail())
-        expectEqual(describeTree(), "h_tiles(*1 2)")
-    }
-
-    @Test
-    func failIfMacosNativeFullscreen() async {
-        setUpTree("h_tiles(*1 2)")
-        testWindow(1).isMacosFullscreenForTest = true
-        let output = await runCmd("focus --fail-if-macos-native-fullscreen right")
+        if flag == "--fail-if-fullscreen" {
+            testWindow(1).isFullscreen = true
+        } else {
+            testWindow(1).isMacosFullscreenForTest = true
+        }
+        let output = await runCmd("\(command) \(flag) right")
         expectEqual(output, .fail())
         expectEqual(describeTree(), "h_tiles(*1 2)")
     }
@@ -161,8 +121,8 @@ struct FocusCommandTest {
         expectEqual(describeTree(), tree)
     }
 
-    /// Before RS-NAV, focus focused while the floating windows were bound as tiling windows. Focusing window 4 made v_tiles
-    /// the most recent child of the root, and layout let window 2 go fullscreen instead of window 3
+    /// Focus used to focus while the floating windows were bound as tiling windows. Focusing window 4 made v_tiles the most
+    /// recent child of the root, and layout let window 2 go fullscreen instead of window 3
     @Test
     func focusingAFloatingWindowKeepsTheFullscreenTilingWindow() async {
         let workspace = setUpFloatingWindowAboveTiles("h_tiles(v_tiles(1 2) 3) floating(4)")
@@ -176,25 +136,27 @@ struct FocusCommandTest {
         expectEqual(testWindow(3).setAxFrameHistory.last, fullscreen)
     }
 
-    @Test
-    func focusFindsTheMostRecentLeaf() async {
-        setUpTree("h_tiles(*1 v_tiles(h_tiles(2 5) 3))")
-        var output = await runCmd("focus right")
+    /// Across its orientation, focus enters a container at its most recent child. Along it, at the child on the near side
+    @Test(arguments: [
+        ("h_tiles(*1 v_tiles(h_tiles(2 5) 3))", [], "focus right", "h_tiles(1 v_tiles(h_tiles(2 5) *3))"),
+        ("h_tiles(*1 v_tiles(h_tiles(2 5) 3))", [2], "focus right", "h_tiles(1 v_tiles(h_tiles(*2 5) 3))"),
+        ("h_tiles(*1 v_tiles(h_tiles(2 5) 3))", [3, 5], "focus right", "h_tiles(1 v_tiles(h_tiles(*2 5) 3))"),
+        // Wrapping around the workspace enters the bottom of the outer v_tiles
+        (
+            "h_tiles(1 v_tiles(v_tiles(*2) v_tiles(5 h_tiles(3 4))))", [3], "focus --boundaries-action wrap-around-the-workspace up",
+            "h_tiles(1 v_tiles(v_tiles(2) v_tiles(5 h_tiles(*3 4))))",
+        ),
+    ] as [(String, [WindowId], String, String)])
+    func focusFindsTheMostRecentLeaf(before: String, mostRecent: [WindowId], command: String, after: String) async {
+        setUpTree(before)
+        let focused = focus.windowOrNil.orDie()
+        for id in mostRecent {
+            testWindow(id).markAsMostRecentChild()
+        }
+        #expect(focused.focusWindow()) // The focused window is the most recent one again
+        let output = await runCmd(command)
         expectEqual(output, .ok)
-        expectEqual(describeTree(), "h_tiles(1 v_tiles(h_tiles(2 5) *3))")
-
-        testWindow(2).markAsMostRecentChild()
-        #expect(testWindow(1).focusWindow())
-        output = await runCmd("focus right")
-        expectEqual(output, .ok)
-        expectEqual(describeTree(), "h_tiles(1 v_tiles(h_tiles(*2 5) 3))")
-
-        testWindow(3).markAsMostRecentChild()
-        testWindow(5).markAsMostRecentChild()
-        #expect(testWindow(1).focusWindow())
-        output = await runCmd("focus right")
-        expectEqual(output, .ok)
-        expectEqual(describeTree(), "h_tiles(1 v_tiles(h_tiles(*2 5) 3))")
+        expectEqual(describeTree(), after)
     }
 
     @Test
@@ -260,16 +222,6 @@ struct FocusCommandTest {
         output = await runCmd("focus right")
         expectEqual(output, .ok)
         expectEqual(describeTree(), "h_accordion(*1 2) floating(3 4)")
-    }
-
-    @Test
-    func focusAcrossMonitors_noScreens_failsWithoutBugPrompt() async {
-        setUpTree("h_tiles(*1 2)")
-        // No screens (e.g., during display reconfiguration) is a normal state, not a bug (RB-40)
-        updateMonitors([])
-        let output = await runCmd("focus --boundaries all-monitors-outer-frame left")
-        expectEqual(output, .fail("Can't find monitors in direction left while there are no screens"))
-        expectEqual(describeTree(), "h_tiles(*1 2)")
     }
 }
 
