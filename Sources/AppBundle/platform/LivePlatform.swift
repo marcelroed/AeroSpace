@@ -203,15 +203,19 @@ final class LivePlatform: Platform {
 
     // MARK: Effects
 
-    /// Two jobs per app: its shown workspaces' placements, then its parks, each in the batch's order. The apps run their
-    /// jobs in parallel, so a parks job waits, before its first write, until the window server shows the tiles that every
-    /// shown job unparked (at most ``parkWaitLimit``): a window leaves for its corner only once the windows that replace it
-    /// are on screen, see ``ShownJobs``.
+    /// Two jobs per app, each in the batch's order (the other docs of the sequence link here). The apps run their jobs in
+    /// parallel.
+    /// 1. The shown job: the app's placements on the shown workspaces, then the native focus if it's of the app's window,
+    ///    then a wait of at most 100 ms (`onScreenWaitLimit`, AxApp.swift) until the window server shows the tiles that
+    ///    the job unparked. Then it lets the parks go.
+    /// 2. The parks job: before its first write, it waits until every app's shown job has let the parks go, at most
+    ///    ``parkWaitLimit`` from the post. A window leaves for its corner only once the windows that replace it are on
+    ///    screen, see ``ShownJobs``.
     ///
-    /// The native focus runs in the shown job of its app, right after the writes. An activation that reaches the app
-    /// before them keeps its main thread busy: cmux then takes ~10 ms for the size write and ~30 ms for the position write
-    /// instead of ~1 ms each, and shows ~80 ms after the command instead of ~33 ms. Not after the on-screen wait either:
-    /// the focus would wait for the app's lag (cmux: ~25 ms). Without a shown job of its app, the focus runs as ``focus(_:)``
+    /// The native focus goes right after the writes. An activation that reaches the app before them keeps its main thread
+    /// busy: cmux then takes ~10 ms for the size write and ~30 ms for the position write instead of ~1 ms each, and shows
+    /// ~80 ms after the command instead of ~33 ms. Not after the on-screen wait either: the focus would wait for the app's
+    /// lag (cmux: ~25 ms). Without a shown job of its app, the focus runs as ``focus(_:)``
     func apply(_ batch: [Placement], focus: WindowId?, trustsLastSeen: Bool) {
         var shown: [pid_t: (ax: AxApp, placements: [Placement])] = [:]
         var parks: [pid_t: (ax: AxApp, placements: [Placement])] = [:]

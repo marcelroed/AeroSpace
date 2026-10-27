@@ -220,9 +220,9 @@ actor AxApp {
         return .facts(NativeFacts(isFullscreen: isFullscreen, isMinimized: !isFullscreen && isMinimized))
     }
 
-    /// See ``postPlacements(_:_:trustsLastSeen:)``. A shown job writes, gives the native focus it carries, waits until the window server
-    /// shows the tiles it unparked, lets the parks go, and only then turns the animations back on: the parks don't wait for
-    /// that, and a move that the app makes late is still a jump
+    /// Runs a job of ``postPlacements(_:_:trustsLastSeen:)``, in the order that
+    /// ``LivePlatform/apply(_:focus:trustsLastSeen:)`` states. A shown job turns the animations back on only after it lets
+    /// the parks go: the parks don't wait for that, and a move that the app makes late is still a jump
     private func place(_ placements: [Placement], _ generations: [UInt64], _ job: PlacementJob, trustsLastSeen: Bool) {
         let beforeFirstWrite: (() -> Void)? = if case .parks(let shownJobs) = job { shownJobs.wait } else { nil }
         let animations = AnimationsOff(element, beforeFirstWrite: beforeFirstWrite)
@@ -356,10 +356,9 @@ nonisolated struct WindowGenerations {
 
 /// An app's job of a batch (``LivePlatform/apply(_:focus:trustsLastSeen:)``)
 nonisolated enum PlacementJob: Sendable {
-    /// The shown workspaces' placements. Right after its writes, the job gives the native focus that it carries (see
-    /// ``LivePlatform/apply(_:focus:trustsLastSeen:)``). It ends once the window server shows the tiles it unparked
+    /// The shown workspaces' placements, and the native focus of the app's window if the job carries it
     case shown(ShownJobs, focus: (@Sendable (isolated AxApp) -> Void)?)
-    /// The parks. Before its first write, the job waits for the shown jobs
+    /// The parks, which wait for the shown jobs
     case parks(waitingFor: ShownJobs)
 }
 

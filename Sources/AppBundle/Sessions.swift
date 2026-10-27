@@ -22,6 +22,8 @@ import Common
 ///   runs to the end, P4 is skipped.
 /// - Startup heavy refresh: awaited in ``startup(_:)``, outside the slot. It skips P4. Nothing preempts it.
 /// - Light session: runs at once in its caller's task, and cancels `heavy`. Nothing preempts it, but see the next item.
+///   Its present trusts what its heavy refresh checks in P4: a light session that cancels that refresh before P4 leaves
+///   the checks to its own heavy refresh.
 /// - Focus follows mouse, mouse move, mouse resize: one ``LatestTaskSlot`` per kind around its session. Preempted by a
 ///   newer event of the same kind.
 /// - AX read of a heavy refresh: an observe read of ``Platform`` (`AxApp.call`), abandonable. Preempted by the heavy
@@ -35,11 +37,9 @@ import Common
 ///   (`LivePlatform.decideNativeFocus`). Preempted by a newer native focus.
 /// - App registration: one pending task per pid (`LivePlatform.pendingRegistrations`). A failed one backs off 1–60 s
 ///   (``RegistrationBackoffs``). Nothing preempts it.
-/// - Order within an app: FIFO on its actor's thread (posts and awaited calls share one queue). Per layout, two jobs:
-///   the shown job (the visible workspaces' placements, then the native focus of the app's window, then a wait of at
-///   most 100 ms until the window server shows the tiles it unparked), then the parks, which wait before their first
-///   write for every app's shown job of the layout, at most 200 ms (`ShownJobs`). A focus outside a layout's shown job
-///   is posted after them (slow path) or runs from main at once (fast path). Nothing preempts it.
+/// - Order within an app: FIFO on its actor's thread (posts and awaited calls share one queue). Per layout, a shown job
+///   and a parks job (``LivePlatform/apply(_:focus:trustsLastSeen:)``). A focus outside a layout's shown job is posted
+///   after them (slow path) or runs from main at once (fast path). Nothing preempts it.
 ///
 /// A cancelled heavy refresh stops at its next observe read or at the end of P1, and skips P4. Nothing is queued for
 /// retry: the tree is the desired state, and every heavy refresh lays out every window again.

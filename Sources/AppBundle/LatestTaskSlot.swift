@@ -1,7 +1,7 @@
 import Common
 
-/// Keeps only the most recently started task alive. Starting a new task cancels the previous one. See the table in
-/// Sessions.swift
+/// Keeps only the most recently started task alive. Starting a new task cancels the previous one. See the list of how
+/// concurrent work coalesces in ``Sessions``
 final class LatestTaskSlot {
     private var task: Task<(), any Error>? = nil
     /// Tells the current task from the replaced ones when it returns
