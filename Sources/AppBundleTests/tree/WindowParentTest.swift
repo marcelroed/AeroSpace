@@ -95,7 +95,7 @@ struct WindowParentTest {
     @Test
     func runOnWindowDetectedSkipsPopupAndUnboundWindows() async {
         let workspace = focus.workspace
-        config.onWindowDetected = [
+        world.config.onWindowDetected = [
             WindowDetectedCallback(matcher: .command(.empty), run: parseCommand("workspace callback-ran").cmdOrDie),
         ]
         world.layoutForNextDetectedWindow = .floating

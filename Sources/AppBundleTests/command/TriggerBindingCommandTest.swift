@@ -31,7 +31,7 @@ struct TriggerBindingCommandTest {
     func unknownMode_listsAvailableModesSorted() async {
         // Ten modes, so that the dictionary order can't match the sorted order by chance (RB-13)
         let modeNames = ["main", "service", "resize", "move", "a", "z", "b", "y", "c", "x"]
-        config.modes = Dictionary(uniqueKeysWithValues: modeNames.map { ($0, Mode(bindings: [:])) })
+        world.config.modes = Dictionary(uniqueKeysWithValues: modeNames.map { ($0, Mode(bindings: [:])) })
 
         let output = await runCmd("trigger-binding alt-h --mode unknown")
         #expect(output == .fail("Mode 'unknown' doesn't exist. Available modes: a,b,c,main,move,resize,service,x,y,z"))

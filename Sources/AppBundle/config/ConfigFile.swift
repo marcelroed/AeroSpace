@@ -4,7 +4,6 @@ import Foundation
 import ServiceManagement
 
 let configDotfileName = ".aerospace.toml"
-var configUrl: URL = defaultConfigUrl
 
 var defaultConfigUrl: URL {
     // The project's copy is useful for debug builds that are not app bundles
@@ -72,22 +71,28 @@ private struct ConfigFileWatcher: ~Copyable {
     }
 }
 
-// periphery:ignore - assign-only: the value keeps the watcher alive
-private var currentWatcher: ConfigFileWatcher? = nil
-private var debounceTask: Task<Void, any Error>? = nil
+func syncConfigFileWatcher() { configAutoReload.sync() }
 
-private let debounceDelay: Duration = .milliseconds(200)
+private let configAutoReload = ConfigAutoReload()
 
-func syncConfigFileWatcher() {
-    currentWatcher = nil
-    if !config.autoReloadConfig { return }
-    currentWatcher = ConfigFileWatcher(url: configUrl) {
-        debounceTask?.cancel()
-        debounceTask = Task.startUnstructured {
-            try await Task.sleep(for: debounceDelay)
-            if let token: RunSessionGuard = .isServerEnabled {
-                try await runLightSession(.configAutoReload, token) {
-                    _ = await reloadConfig_nonCancellable()
+/// While auto-reload-config is on, reloads the config after its file changes
+private final class ConfigAutoReload {
+    // periphery:ignore - assign-only: the value keeps the watcher alive
+    private var watcher: ConfigFileWatcher? = nil
+    /// Editors write a file in several steps: reload after the last one
+    private let debounced = LatestTaskSlot()
+    private let debounceDelay: Duration = .milliseconds(200)
+
+    func sync() {
+        watcher = nil
+        if !config.autoReloadConfig { return }
+        watcher = ConfigFileWatcher(url: world.configUrl) { [debounced, debounceDelay] in
+            debounced.replace {
+                try await Task.sleep(for: debounceDelay)
+                if let token: RunSessionGuard = .isServerEnabled {
+                    try await runLightSession(.configAutoReload, token) {
+                        _ = await reloadConfig_nonCancellable()
+                    }
                 }
             }
         }

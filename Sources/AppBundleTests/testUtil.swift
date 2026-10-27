@@ -15,17 +15,15 @@ nonisolated let projectRoot: URL = {
 }()
 
 func setUpWorkspacesForTests() {
-    config = defaultConfig
-    configUrl = defaultConfigUrl
-    config.enableNormalizationFlattenContainers = false // Make layout tests more predictable
-    config.enableNormalizationOppositeOrientationForNestedContainers = false // Make layout tests more predictable
-    config.defaultRootContainerOrientation = .horizontal // Make default layout predictable
+    world = World()
+    world.config.enableNormalizationFlattenContainers = false // Make layout tests more predictable
+    world.config.enableNormalizationOppositeOrientationForNestedContainers = false // Make layout tests more predictable
+    world.config.defaultRootContainerOrientation = .horizontal // Make default layout predictable
 
     // Don't create any bindings and workspaces for tests
-    config.modes = [mainModeId: Mode(bindings: [:])]
-    config.persistentWorkspaces = []
+    world.config.modes = [mainModeId: Mode(bindings: [:])]
+    world.config.persistentWorkspaces = []
 
-    world = World()
     check(Workspace.get(byName: "setUpWorkspacesForTests").focusWorkspace())
     markFocusAsKnownForTests()
     Workspace.garbageCollectUnusedWorkspaces()
@@ -37,7 +35,6 @@ func setUpWorkspacesForTests() {
     TestApp.shared.windows = []
     appForTests = nil
 
-    activeMode = mainModeId
     TrayMenuModel.shared.isEnabled = true
 }
 

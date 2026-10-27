@@ -14,7 +14,7 @@ final class SecureInputPanel: NSPanelHud {
     }
 
     func refresh() {
-        if let activeMode, TrayMenuModel.shared.isEnabled &&
+        if let activeMode = world.activeMode, TrayMenuModel.shared.isEnabled &&
             config.modes[activeMode]?.bindings.isEmpty == false && IsSecureEventInputEnabled()
         {
             if isVisible { return }

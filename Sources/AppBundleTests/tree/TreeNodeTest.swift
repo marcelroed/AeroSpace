@@ -31,7 +31,7 @@ struct TreeNodeTest {
 
     @Test(arguments: [false, true])
     func normalizeContainers_dontRemoveRoot(flattenContainers: Bool) {
-        config.enableNormalizationFlattenContainers = flattenContainers
+        world.config.enableNormalizationFlattenContainers = flattenContainers
         let workspace = focus.workspace
         weak let root = workspace.rootTilingContainer
         #expect(root?.isEffectivelyEmpty == true)
@@ -48,7 +48,7 @@ struct TreeNodeTest {
         (true, "h_tiles(0 h_tiles(1))", "h_tiles(0 1)"),
     ])
     func normalizeContainers(flattenContainers: Bool, before: String, after: String) {
-        config.enableNormalizationFlattenContainers = flattenContainers
+        world.config.enableNormalizationFlattenContainers = flattenContainers
         let workspace = setUpTree(before, workspace: "a")
         workspace.normalizeContainers()
         #expect(describeTree("a") == after)

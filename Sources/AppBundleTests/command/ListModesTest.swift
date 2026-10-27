@@ -22,7 +22,7 @@ struct ListModesTest {
 
     @Test
     func listModesOutput() async {
-        config.modes = [
+        world.config.modes = [
             "main": Mode(bindings: [:]),
             "service": Mode(bindings: [:]),
             "resize": Mode(bindings: [:]),

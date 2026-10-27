@@ -108,7 +108,7 @@ struct MoveCommandTest {
 
     @Test(arguments: [("h_tiles(1 *2)", "move right"), ("h_tiles(*1 2)", "move left")])
     func moveOutWithNormalization(tree: String, command: String) async {
-        config.enableNormalizationFlattenContainers = true
+        world.config.enableNormalizationFlattenContainers = true
         setUpTree(tree)
         let output = await runCmd(command)
         #expect(output == .ok)

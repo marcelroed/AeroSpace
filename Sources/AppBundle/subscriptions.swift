@@ -70,7 +70,7 @@ func handleSubscribeAndWaitTillError(_ connection: NWConnection, _ args: Subscri
                 case .workspaceChanged:
                     event = .workspaceChanged(workspace: f.workspace.name, prevWorkspace: f.workspace.name)
                 case .modeChanged:
-                    event = .modeChanged(mode: activeMode)
+                    event = .modeChanged(mode: world.activeMode)
                 case .focusedMonitorChanged:
                     event = .focusedMonitorChanged(
                         workspace: f.workspace.name,

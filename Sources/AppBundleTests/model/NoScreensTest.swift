@@ -60,7 +60,7 @@ struct NoScreensTest {
                 #expect(output == .fail("Can't disable \(aeroSpaceAppName) while there are no screens"), "\(command)")
                 #expect(TrayMenuModel.shared.isEnabled, "\(command)")
             }
-            #expect(activeMode == mainModeId)
+            #expect(world.activeMode == mainModeId)
 
             // Enabling still works: the layout does nothing until the screens come back
             TrayMenuModel.shared.isEnabled = false
@@ -83,36 +83,36 @@ struct NoScreensTest {
     @Test
     func focusCallbacksDontFireWhenTheScreensDisappearAndComeBack() async {
         await checkOnFocusChangedCallbacks_nonCancellable() // Remember the focus
-        config.onFocusChanged = parseCommand("mode on-focus-changed").cmdOrDie
-        config.onFocusedMonitorChanged = parseCommand("mode on-focused-monitor-changed").cmdOrDie
+        world.config.onFocusChanged = parseCommand("mode on-focus-changed").cmdOrDie
+        world.config.onFocusedMonitorChanged = parseCommand("mode on-focused-monitor-changed").cmdOrDie
 
         await $noScreensForTests.withValue(true) {
             await checkOnFocusChangedCallbacks_nonCancellable()
         }
-        #expect(activeMode == mainModeId)
+        #expect(world.activeMode == mainModeId)
 
         await checkOnFocusChangedCallbacks_nonCancellable() // The screens are back
-        #expect(activeMode == mainModeId)
+        #expect(world.activeMode == mainModeId)
     }
 
     @Test
     func focusChangeWhileThereAreNoScreensIsReportedWhenTheScreensComeBack() async {
         setUpTree("h_tiles(*1 2)")
         await checkOnFocusChangedCallbacks_nonCancellable() // Remember the focus
-        config.onFocusChanged = parseCommand("mode on-focus-changed").cmdOrDie
+        world.config.onFocusChanged = parseCommand("mode on-focus-changed").cmdOrDie
 
         await $noScreensForTests.withValue(true) {
             testWindow(1).closeAxWindow()
             #expect(focus.windowOrNil?.windowId == 2)
             await checkOnFocusChangedCallbacks_nonCancellable()
         }
-        #expect(activeMode == mainModeId)
+        #expect(world.activeMode == mainModeId)
 
         await checkOnFocusChangedCallbacks_nonCancellable() // The screens are back
-        #expect(activeMode == "on-focus-changed")
+        #expect(world.activeMode == "on-focus-changed")
 
-        activeMode = mainModeId
+        world.activeMode = mainModeId
         await checkOnFocusChangedCallbacks_nonCancellable()
-        #expect(activeMode == mainModeId) // Reported only once
+        #expect(world.activeMode == mainModeId) // Reported only once
     }
 }

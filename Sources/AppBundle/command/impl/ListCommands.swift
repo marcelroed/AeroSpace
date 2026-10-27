@@ -325,7 +325,7 @@ struct ListModesCommand: nonisolated Command {
     }
 
     func run(_ cx: CmdContext) async throws(CmdFail) {
-        let modes: [String] = current ? [activeMode ?? mainModeId] : config.modes.keys.sorted()
+        let modes: [String] = current ? [world.activeMode ?? mainModeId] : config.modes.keys.sorted()
         if count {
             cx.out("\(modes.count)")
         } else if json {

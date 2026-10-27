@@ -27,7 +27,7 @@ struct LayoutTest {
 
     @Test
     func tilesNestedWithGaps() async throws {
-        config.gaps = Gaps(inner: .init(vertical: 10, horizontal: 20), outer: .init(left: 10, bottom: 19, top: 20, right: 10))
+        world.config.gaps = Gaps(inner: .init(vertical: 10, horizontal: 20), outer: .init(left: 10, bottom: 19, top: 20, right: 10))
         let workspace = setUpTree("h_tiles(1:450 v_tiles:1050(2:1 3:3))", workspace: "a")
         let root = workspace.rootTilingContainer
         let (w1, w2, w3) = (testWindow(1), testWindow(2), testWindow(3))
@@ -58,7 +58,7 @@ struct LayoutTest {
     func tilesPerMonitorGaps() async throws {
         let main = [PerMonitorValue(description: .main, value: 100)]
         let secondary = [PerMonitorValue(description: .secondary, value: 100)]
-        config.gaps = Gaps(
+        world.config.gaps = Gaps(
             inner: .init(vertical: .constant(0), horizontal: .perMonitor([PerMonitorValue(description: .main, value: 40)], default: 0)),
             outer: .init(left: .perMonitor(main, default: 0), bottom: .constant(0), top: .constant(0), right: .perMonitor(secondary, default: 20)),
         )
@@ -75,7 +75,7 @@ struct LayoutTest {
 
     @Test
     func accordionHorizontal() async throws {
-        config.accordionPadding = 30
+        world.config.accordionPadding = 30
         let workspace = setUpTree("h_accordion(0 1 2)", workspace: "a")
         let root = workspace.rootTilingContainer
         let windows = (0 ..< 3).map(testWindow)
@@ -117,7 +117,7 @@ struct LayoutTest {
 
     @Test
     func accordionVertical() async throws {
-        config.accordionPadding = 30
+        world.config.accordionPadding = 30
         let workspace = setUpTree("v_accordion(0 1 2 3)", workspace: "a")
         let windows = (0 ..< 4).map(testWindow)
         windows[1].markAsMostRecentChild()
@@ -134,7 +134,7 @@ struct LayoutTest {
 
     @Test
     func accordionSingleChild() async throws {
-        config.accordionPadding = 30
+        world.config.accordionPadding = 30
         let workspace = setUpTree("h_accordion(1)", workspace: "a")
         let window = testWindow(1)
 
@@ -145,7 +145,7 @@ struct LayoutTest {
 
     @Test
     func accordionInsideTiles() async throws {
-        config.accordionPadding = 10
+        world.config.accordionPadding = 10
         let workspace = setUpTree("h_tiles(1 v_accordion(2 3))", workspace: "a")
         let (w1, w2, w3) = (testWindow(1), testWindow(2), testWindow(3))
         let accordion = w2.parent.orDie()
@@ -161,7 +161,7 @@ struct LayoutTest {
 
     @Test
     func fullscreenTilingWindow() async throws {
-        config.gaps = Gaps(inner: .zero, outer: .init(left: 5, bottom: 5, top: 5, right: 5))
+        world.config.gaps = Gaps(inner: .zero, outer: .init(left: 5, bottom: 5, top: 5, right: 5))
         let workspace = setUpTree("h_tiles(1 2)", workspace: "a") // 2 is the most recent window
         let (w1, w2) = (testWindow(1), testWindow(2))
         w2.isFullscreen = true

@@ -28,8 +28,8 @@ struct TrayMenuModelTest {
 
     @Test
     func testUpdateTrayText_nonMainModeAndFullscreen() {
-        activeMode = "service"
-        defer { activeMode = mainModeId }
+        world.activeMode = "service"
+        defer { world.activeMode = mainModeId }
         setUpTree("h_tiles(2)", workspace: "b")
         setUpTree("h_tiles(*1)", workspace: "a")
         testWindow(1).isFullscreen = true

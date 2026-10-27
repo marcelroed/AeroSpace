@@ -15,7 +15,7 @@ struct OnWindowDetectedTest {
     @Test
     func runCommandReceivesTheDetectedWindowIdInEnv() async {
         setUpTree("h_tiles(*1 2)", workspace: "a")
-        config.onWindowDetected = [
+        world.config.onWindowDetected = [
             WindowDetectedCallback(matcher: .command(.empty), run: parseCommand("move-node-to-workspace b").cmdOrDie), // matches every window
         ]
         await runOnWindowDetected(ifConventional: testWindow(2)) // todo: tryOnWindowDetected must not be called manually in tests

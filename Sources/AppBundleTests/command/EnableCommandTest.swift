@@ -40,11 +40,11 @@ struct EnableCommandTest {
         var output = await runCmd("enable toggle")
         #expect(output == .ok)
         #expect(!TrayMenuModel.shared.isEnabled)
-        #expect(activeMode == nil)
+        #expect(world.activeMode == nil)
 
         output = await runCmd("enable toggle")
         #expect(output == .ok)
         #expect(TrayMenuModel.shared.isEnabled)
-        #expect(activeMode == mainModeId)
+        #expect(world.activeMode == mainModeId)
     }
 }

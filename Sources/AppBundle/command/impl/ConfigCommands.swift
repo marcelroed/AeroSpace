@@ -63,7 +63,7 @@ struct ConfigCommand: nonisolated Command {
                 configMap.dumpAllKeysRecursive(path: ".", result: &allKeys)
                 cx.out(allKeys.joined(separator: "\n"))
             case .configPath:
-                cx.out(configUrl.absoluteURL.path)
+                cx.out(world.configUrl.absoluteURL.path)
         }
     }
 
@@ -167,9 +167,9 @@ func reloadConfig_nonCancellable(
 /// Synchronous on purpose: no hotkey press, CLI request or window rule can observe a half-applied config
 private func applyConfig(_ newConfig: Config, url: URL) {
     resetHotKeys()
-    config = newConfig
-    configUrl = url
-    registerHotkeys(for: activeMode) // A removed mode keeps its stale name and gets no hotkeys
+    world.config = newConfig
+    world.configUrl = url
+    registerHotkeys(for: world.activeMode) // A removed mode keeps its stale name and gets no hotkeys
     syncStartAtLogin()
     syncFocusFollowsMouse(config)
 }

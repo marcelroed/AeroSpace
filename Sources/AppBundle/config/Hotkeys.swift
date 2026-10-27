@@ -3,16 +3,37 @@ import Common
 import Foundation
 import HotKey
 
-private var hotkeys: [String: HotKey] = [:]
+/// The registered global hotkeys by key code. Only the active mode's ones are enabled
+private final class Hotkeys {
+    private var byKeyCode: [String: HotKey] = [:]
 
-func resetHotKeys() {
-    // Explicitly unregister all hotkeys. We cannot always rely on destruction of the HotKey object to trigger
-    // unregistration because we might be running inside a hotkey handler that is keeping its HotKey object alive.
-    for (_, key) in hotkeys {
-        key.isEnabled = false
+    func reset() {
+        // Explicitly unregister all hotkeys. We cannot always rely on destruction of the HotKey object to trigger
+        // unregistration because we might be running inside a hotkey handler that is keeping its HotKey object alive.
+        for (_, key) in byKeyCode {
+            key.isEnabled = false
+        }
+        byKeyCode = [:]
     }
-    hotkeys = [:]
+
+    /// Registers the missing hotkeys of `mode` and pauses all others. Never suspends
+    func register(for mode: String?) {
+        let bindings = mode.flatMap { config.modes[$0] }?.bindings ?? [:]
+        for binding in bindings.values where byKeyCode[binding.descriptionWithKeyCode] == nil {
+            byKeyCode[binding.descriptionWithKeyCode] = HotKey(key: binding.keyCode, modifiers: binding.modifiers, keyDownHandler: {
+                Task.startUnstructured { try await onHotkeyPressed(binding) }
+            })
+        }
+        for (keyCode, hotkey) in byKeyCode {
+            hotkey.isEnabled = bindings.keys.contains(keyCode)
+        }
+    }
 }
+
+private let hotkeys = Hotkeys()
+
+func resetHotKeys() { hotkeys.reset() }
+func registerHotkeys(for mode: String?) { hotkeys.register(for: mode) }
 
 extension HotKey {
     var isEnabled: Bool {
@@ -25,33 +46,20 @@ extension HotKey {
     }
 }
 
-var activeMode: String? = mainModeId
 func activateMode_nonCancellable(_ targetMode: String?) async {
     registerHotkeys(for: targetMode)
-    let oldMode = activeMode
-    activeMode = targetMode
+    let oldMode = world.activeMode
+    world.activeMode = targetMode
     if oldMode != targetMode {
         broadcastEvent(.modeChanged(mode: targetMode))
         _ = await config.onModeChanged.run(.defaultEnv, .emptyStdin)
     }
 }
 
-/// Registers the missing hotkeys of `mode` and pauses all others. Never suspends
-func registerHotkeys(for mode: String?) {
-    let bindings = mode.flatMap { config.modes[$0] }?.bindings ?? [:]
-    for binding in bindings.values where hotkeys[binding.descriptionWithKeyCode] == nil {
-        hotkeys[binding.descriptionWithKeyCode] = HotKey(key: binding.keyCode, modifiers: binding.modifiers, keyDownHandler: {
-            Task.startUnstructured { try await onHotkeyPressed(binding) }
-        })
-    }
-    for (keyCode, hotkey) in hotkeys {
-        hotkey.isEnabled = bindings.keys.contains(keyCode)
-    }
-}
 
 /// Runs the binding of the *current* config and mode with the pressed key
 private func onHotkeyPressed(_ binding: HotkeyBinding) async throws {
-    guard let activeMode else { return }
+    guard let activeMode = world.activeMode else { return }
     // The HotKey is registered by the first mode that binds the key code. Another mode can bind the same
     // key code with another notation (e.g. 'shift-alt-a' and 'alt-shift-a')
     let activeBinding = config.modes[activeMode]?.bindings[binding.descriptionWithKeyCode]

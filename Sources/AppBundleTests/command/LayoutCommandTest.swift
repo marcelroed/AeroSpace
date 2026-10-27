@@ -164,7 +164,7 @@ struct LayoutCommandTest {
     @Test
     func forNextDetectedWindow_appliedBeforeAndAfterOnWindowDetectedCallbacks() async {
         let workspace = setUpTree("h_tiles(*1)")
-        config.onWindowDetected = [
+        world.config.onWindowDetected = [
             WindowDetectedCallback(matcher: .command(.empty), run: parseCommand("layout floating tiling").cmdOrDie), // matches every window
         ]
         let output = await runCmd("layout floating --for-next-detected-window")

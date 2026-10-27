@@ -43,12 +43,12 @@ struct ConfigCommandTest {
     @Test
     func testConfigPath() async {
         let output = await runCmd("config --config-path")
-        #expect(output == CmdOutput(stdout: [configUrl.absoluteURL.path]))
+        #expect(output == CmdOutput(stdout: [world.configUrl.absoluteURL.path]))
     }
 
     @Test
     func testMajorKeys() async {
-        config.modes = [
+        world.config.modes = [
             "main": Mode(bindings: [:]),
             "service": Mode(bindings: [:]),
         ]
@@ -60,7 +60,7 @@ struct ConfigCommandTest {
     @Test
     func testMajorKeys_sortedOutput() async {
         // Ten modes, so that the dictionary order can't match the sorted order by chance (RB-13)
-        config.modes = manyModes()
+        world.config.modes = manyModes()
         let expected = [".", "mode"] + manyModeNames.sorted().map { "mode.\($0).binding" }
         let output = await runCmd("config --major-keys")
         #expect(output == CmdOutput(stdout: [expected.joined(separator: "\n")]))
@@ -79,7 +79,7 @@ struct ConfigCommandTest {
     func testAllKeys_sortedOutput() async {
         let command = parseCommand("focus left").cmdOrDie
         let bindings = [HotkeyBinding(.option, .k, command), HotkeyBinding(.option, .h, command), HotkeyBinding(.option, .j, command)]
-        config.modes = manyModes(bindings: Dictionary(uniqueKeysWithValues: bindings.map { ($0.descriptionWithKeyCode, $0) }))
+        world.config.modes = manyModes(bindings: Dictionary(uniqueKeysWithValues: bindings.map { ($0.descriptionWithKeyCode, $0) }))
 
         let expected = [".", "mode"] + manyModeNames.sorted().flatMap { mode in
             ["mode.\(mode)", "mode.\(mode).binding"] + ["alt-h", "alt-j", "alt-k"].map { "mode.\(mode).binding.\($0)" }
@@ -96,14 +96,14 @@ struct ConfigCommandTest {
 
     @Test
     func testGetRoot_keys() async {
-        config.modes = ["main": Mode(bindings: [:])]
+        world.config.modes = ["main": Mode(bindings: [:])]
         let output = await runCmd("config --get . --keys")
         #expect(output == CmdOutput(stdout: ["mode"]))
     }
 
     @Test
     func testGetRoot_json() async {
-        config.modes = ["main": Mode(bindings: [:])]
+        world.config.modes = ["main": Mode(bindings: [:])]
         let expectedMap: OrderedJson = .dict(["mode": .dict(["main": .dict(["binding": .dict([:])])])])
         let expectedJson = JSONEncoder.aeroSpaceDefault.encodeToString(expectedMap)
 
@@ -113,7 +113,7 @@ struct ConfigCommandTest {
 
     @Test
     func testGetRoot_keysJson() async {
-        config.modes = ["main": Mode(bindings: [:])]
+        world.config.modes = ["main": Mode(bindings: [:])]
         // --keys converts the map into an array of string-scalar keys, which is then JSON-encoded.
         let expected = JSONEncoder.aeroSpaceDefault.encodeToString(
             OrderedJson.array([.string("mode")]),
@@ -125,7 +125,7 @@ struct ConfigCommandTest {
 
     @Test
     func testGetMode_keys_sortedOutput() async {
-        config.modes = [
+        world.config.modes = [
             "main": Mode(bindings: [:]),
             "service": Mode(bindings: [:]),
         ]
@@ -136,7 +136,7 @@ struct ConfigCommandTest {
 
     @Test
     func testGetMode_keysJson_sortedOutput() async {
-        config.modes = manyModes()
+        world.config.modes = manyModes()
         let expected = JSONEncoder.aeroSpaceDefault.encodeToString(
             OrderedJson.array(manyModeNames.sorted().map { .string($0) }),
         )
@@ -198,7 +198,7 @@ struct ConfigCommandTest {
         let command = parseCommand("focus left").cmdOrDie
         let binding = HotkeyBinding(.option, .h, command)
         let binding2 = HotkeyBinding(.option, .j, parseCommand("focus down").cmdOrDie)
-        config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding, binding2.descriptionWithKeyCode: binding2])]
+        world.config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding, binding2.descriptionWithKeyCode: binding2])]
 
         let expected = """
             {
@@ -216,7 +216,7 @@ struct ConfigCommandTest {
 
     @Test
     func testGetRoot_json_literal() async {
-        config.modes = ["main": Mode(bindings: [:])]
+        world.config.modes = ["main": Mode(bindings: [:])]
         let expected = """
             {
               "mode" : {
@@ -234,7 +234,7 @@ struct ConfigCommandTest {
 
     @Test
     func testGetMode_keysJson_literal() async {
-        config.modes = ["main": Mode(bindings: [:])]
+        world.config.modes = ["main": Mode(bindings: [:])]
         let output = await runCmd("config --get mode.main --keys --json")
         #expect(output == CmdOutput(stdout: ["[\n  \"binding\"\n]"]))
     }
@@ -271,7 +271,7 @@ struct ConfigCommandTest {
     private func bindAltHToFocusLeft() -> Shell<any Command> {
         let command = parseCommand("focus left").cmdOrDie
         let binding = HotkeyBinding(.option, .h, command)
-        config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
+        world.config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
         return command
     }
 }

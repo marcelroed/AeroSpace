@@ -8,7 +8,6 @@ let defaultConfig: Config = {
     }
     return config
 }()
-var config: Config = defaultConfig // todo move to Ctx?
 
 struct Config {
     var afterStartupCommand: Shell<any Command> = .empty

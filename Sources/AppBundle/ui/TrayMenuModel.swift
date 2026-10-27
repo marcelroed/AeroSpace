@@ -52,7 +52,7 @@ func updateTrayText() {
         let workspace = monitor.activeWorkspace
         return (workspace: workspace, hasFullscreenWindows: workspace.allLeafWindowsRecursive.hasFullscreenWindows)
     }
-    let modeLetter: String? = activeMode == mainModeId ? nil : activeMode?.first?.uppercased()
+    let modeLetter: String? = world.activeMode == mainModeId ? nil : world.activeMode?.first?.uppercased()
 
     let trayText = (modeLetter.map { "(\($0)) " } ?? "") +
         activeWorkspaces

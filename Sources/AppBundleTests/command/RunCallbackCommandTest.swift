@@ -57,7 +57,7 @@ struct RunCallbackCommandTest {
         setUpTree("h_tiles(3 4) floating(1) macos_popup(2)")
         let unbound = testWindow(4)
         unbound.unbindFromParent()
-        config.onWindowDetected = [
+        world.config.onWindowDetected = [
             WindowDetectedCallback(run: parseCommand("echo -- '%{window-id}'; test %{window-id} = 3").cmdOrDie),
         ]
 
