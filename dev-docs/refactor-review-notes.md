@@ -41,7 +41,7 @@ Branch `restructure` starts from `refactor-cleanup` at `ba6b0d70`. It rewrites t
 - **Partly fixed on `restructure` in `<commit>`:** part of the bug is fixed there. The status says what is still open.
 - **Moot on `restructure`:** the code was deleted or redesigned, so the bug can't happen. The status says why.
 
-The summary table marks an entry that was open until then as "fixed on restructure", "partly fixed on restructure" or "moot on restructure". Entries RB-115 and up were found during the restructure. RB-134 to RB-144 come from its second milestone (M2): RB-136 to RB-139 were bugs in M2's own code that shipped in a deployed stage, RB-141 came with M2 and never shipped, and the others are older. RB-115 to RB-120, RB-130 to RB-134 and RB-136 to RB-144 are fixed there, and RB-129 partly. Every open entry was checked against `restructure` at `6fee1079`, and again after M2 at `22228538`. These restructure items got no ID:
+The summary table marks an entry that was open until then as "fixed on restructure", "partly fixed on restructure" or "moot on restructure". Entries RB-115 and up were found during the restructure. RB-134 to RB-144 come from its second milestone (M2): RB-136 to RB-139 were bugs in M2's own code that shipped in a deployed stage, RB-141 came with M2 and never shipped, and the others are older. RB-145 comes from round 4 and is older than the restructure. RB-115 to RB-120, RB-130 to RB-134 and RB-136 to RB-145 are fixed there, and RB-129 partly. Every open entry was checked against `restructure` at `6fee1079`, and again after M2 at `22228538`. These restructure items got no ID:
 - `subscribe` in a config binding fails with "subscribe is not supported in the eval", where there is no eval: 858762f5 changed the message to "subscribe is only available from the CLI".
 - A bug study of the restructure's prototype branches also listed RB-04, RB-05, RB-10, RB-13, RB-19, RB-22, RB-23, RB-24, RB-25, RB-38, RB-42, RB-44 and RB-101.
 - The initial `subscribe` events come in random order: RB-114.
@@ -72,7 +72,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 - Entries RB-71 and up give a single **Location**. For a fixed entry, it is on `fix-review-bugs`, before the fix.
 - Entries that `restructure` fixed or made moot keep the **Location** they had before. For an entry that was open, that is `integrate` `99679420`.
 - Open entries give their **Location** at `restructure` `6fee1079`.
-- Entries RB-115 to RB-133 give their **Location** at `6fee1079`, and RB-134 and up at `22228538`. For a fixed one, that is where the fix is. Entries RB-136 to RB-140 and RB-142 to RB-144 give the buggy code at the commit they name.
+- Entries RB-115 to RB-133 give their **Location** at `6fee1079`, and RB-134 and up at `22228538`. For a fixed one, that is where the fix is. Entries RB-136 to RB-140 and RB-142 to RB-145 give the buggy code at the commit they name.
 - RB-19 and RB-67 also have an **At integrate** line, because `simplify` rewrote the code they point at.
 
 **IDs are stable.** A gap in the summary table is an entry that moved to [Resolved by the refactor](#resolved-by-the-refactor) or [Dropped entries](#dropped-entries).
@@ -94,6 +94,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 | [RB-130](#rb-130-a-long-interpolated-string-takes-quadratic-time-to-tokenize) | medium | likely | Shared utilities | A long interpolated string takes quadratic time to tokenize | fixed on restructure |
 | [RB-131](#rb-131-a-config-array-of-thousands-of-commands-overflows-the-stack) | medium | likely | Config, shell and UI | A config array of thousands of commands overflows the stack | fixed on restructure |
 | [RB-134](#rb-134-focus-follows-mouse-drops-a-pending-heavy-refresh) | medium | likely | Core model | Focus follows mouse drops a pending heavy refresh | fixed on restructure |
+| [RB-145](#rb-145-a-hidden-apps-window-takes-the-focus-when-its-workspace-falls-back-to-its-most-recent-window) | medium | likely | Core model | A hidden app's window takes the focus when its workspace falls back to its most recent window | fixed on restructure |
 | [RB-07](#rb-07-ax-size-and-position-getters-crash-on-unexpected-values-and-can-deadlock-on-quit) | medium | possible | Shared utilities | AX size and position getters crash on unexpected values and can deadlock on quit | fixed |
 | [RB-08](#rb-08-readbytes-busy-loops-when-the-peer-closes-early) | medium | possible | Shared utilities | `read(bytes:)` busy-loops when the peer closes early | closed |
 | [RB-09](#rb-09-on-quit-windows-are-centered-without-the-monitors-origin) | medium | possible | Shared utilities | On quit, windows are centered without the monitor's origin | fixed |
@@ -211,7 +212,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 | [RB-94](#rb-94-newscalarornil-reads-json-booleans-as-integers) | low | speculative | Tests | `newScalarOrNil` reads JSON booleans as integers | open |
 | [RB-102](#rb-102-syncfocusfrommacos-crashes-on-test-windows) | low | speculative | Tests | `syncFocusFromMacOs` crashes on test windows | moot on restructure |
 
-**Totals:** 55 entries were open before `fix-review-bugs`: 2 high, 8 medium and 45 low. Of these, 51 fixed and 4 closed. The fixes turned up 22 new entries (RB-71 to RB-92; 1 medium and 21 low): 8 fixed and 14 open (RB-76 was fixed after the user chose a 2 s limit per app). A further 18 entries were resolved by the refactor, and 3 were dropped. The `simplify` stream added 20 entries (RB-93 to RB-112; 1 medium and 19 low), all open. Two more low entries came from the `perf` stream and from merging (RB-113 and RB-114), both open. The `perf` stream's other report, about stale cached window levels, is already covered by RB-35 and RB-85. On `restructure`, 14 of these 36 open entries were fixed, 1 was partly fixed (RB-88) and 8 became moot, so 13 are still open. Twelve entries that were already fixed or closed became moot too (RB-02, RB-05, RB-10, RB-12, RB-16, RB-35, RB-43, RB-44, RB-61, RB-69, RB-71 and RB-76). The restructure added 30 entries (RB-115 to RB-144; 6 medium and 24 low): 21 are fixed there, 1 is partly fixed (RB-129) and 8 are open.
+**Totals:** 55 entries were open before `fix-review-bugs`: 2 high, 8 medium and 45 low. Of these, 51 fixed and 4 closed. The fixes turned up 22 new entries (RB-71 to RB-92; 1 medium and 21 low): 8 fixed and 14 open (RB-76 was fixed after the user chose a 2 s limit per app). A further 18 entries were resolved by the refactor, and 3 were dropped. The `simplify` stream added 20 entries (RB-93 to RB-112; 1 medium and 19 low), all open. Two more low entries came from the `perf` stream and from merging (RB-113 and RB-114), both open. The `perf` stream's other report, about stale cached window levels, is already covered by RB-35 and RB-85. On `restructure`, 14 of these 36 open entries were fixed, 1 was partly fixed (RB-88) and 8 became moot, so 13 are still open. Twelve entries that were already fixed or closed became moot too (RB-02, RB-05, RB-10, RB-12, RB-16, RB-35, RB-43, RB-44, RB-61, RB-69, RB-71 and RB-76). The restructure added 31 entries (RB-115 to RB-145; 7 medium and 24 low): 22 are fixed there, 1 is partly fixed (RB-129) and 8 are open.
 
 ## Core model
 
@@ -547,6 +548,15 @@ The summary table marks an entry that was open until then as "fixed on restructu
 - **Description:** The heavy refresh lists the windows of all apps in parallel, but waits for every app. A hung app answers only after the AX timeout (about 6 s by default), and each new listing queues behind the hung one on that app's thread. A light session or an AX event cancels the waiting refresh and starts a new one, which waits again.
 - **How it shows up:** while one app hangs, new windows of the other apps aren't tiled and closed ones aren't removed until the user stops for the whole timeout.
 - **Fix direction:** give each app's listing a deadline, and don't queue a new listing behind one that is late.
+
+### RB-145: A hidden app's window takes the focus when its workspace falls back to its most recent window
+
+- **Status:** Fixed on `restructure` in de17850c: `Workspace.toLiveFocus` skips the `macos_hidden` container, so a workspace whose only windows belong to hidden apps is focused as an empty one (`Sources/AppBundle/focus.swift:128-138`). Regression test: `ReconcileTest.aHiddenAppsWindowDoesntTakeTheFocus`. Found by the round-4 AX-call study, which counted a native focus of the hidden app's window after `move-node-to-workspace`. It is older than the restructure: `main` has the same chain (`Sources/AppBundle/focus.swift:93-101` and `Sources/AppBundle/normalizeLayoutReason.swift:42` `@812da7fa`).
+- **Severity:** medium · **Confidence:** likely (reproduced on `FakePlatform` up to the native focus; that activating the hidden app unhides it wasn't checked on macOS 27)
+- **Location:** `Sources/AppBundle/focus.swift:128-132` `@28ab3d65`
+- **Description:** When a heavy refresh finds an app hidden, it moves the app's windows into their workspace's `macos_hidden` container (`Sources/AppBundle/normalizeLayoutReason.swift:36`). Like every move, that makes them the workspace's most recent windows, and the refresh does it after it took the focus from macOS. `toLiveFocus()` follows the most recent children into `macos_hidden`, and every fallback to a workspace's focus goes through it. The session then gives the hidden window the native focus, which raises it and activates its app.
+- **How it shows up:** with `automatically-unhide-macos-hidden-apps` off (the default), hide an app with cmd-h. Then either move or close the focused window of a workspace where the app has windows, or switch to a workspace where the app has windows and that the user left before hiding the app. The hidden app comes back.
+- **Fix direction:** skip the windows of hidden apps in `toLiveFocus`, or don't mark the most recent child when normalization moves a window. The second leaves the other ways a hidden window becomes the most recent one, such as leaving a workspace whose focused window is hidden.
 
 ## Commands and CLI
 
