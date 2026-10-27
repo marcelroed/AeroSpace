@@ -21,6 +21,7 @@ struct AxUiElementWindowTypeTest: AeroSpaceTestSuite {
     func testMalformedDumpValuesAreRejectedWithoutDying() {
         #expect(Json.newOrNilRecursive(["x": 1.5] as [String: Any]) == nil)
         #expect(Json.newOrNilRecursive(["x": [1, 2.5]] as [String: Any]) == nil)
+        #expect(Json.newOrNilRecursive(["x": UInt.max] as [String: Any]) == nil) // JSONSerialization gives UInt above Int64.max
         #expect(Json.newOrNilRecursive(["x": [1, "a"]] as [String: Any]) == .dict(["x": .array([.int(1), .string("a")])]))
         #expect(axUiElementMockFromTestDump(NSNumber(value: 5)) == nil)
         #expect(axUiElementMockFromTestDump("garbage, not an element" as NSString) == nil)

@@ -45,7 +45,7 @@ enum Json: Encodable, Equatable { // todo rename to Dto? (data transfer object)
             case let value as Int64: .int(value)
             case let value as Int: .int(Int64(value))
             case let value as UInt32: .int(Int64(value))
-            case let value as UInt: .int(Int64(value))
+            case let value as UInt: Int64(exactly: value).map { .int($0) } // nil above Int64.max instead of trapping
             case let value as Bool: .bool(value)
             case let value as String: .string(value)
             case nil, is NSNull: .null
