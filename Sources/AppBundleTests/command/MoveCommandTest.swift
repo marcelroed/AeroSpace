@@ -1,332 +1,118 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
 @MainActor
-final class MoveCommandTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
-
-    func testParse() {
-        assertNil(parseCommand("move --fail-if-fullscreen left").errorOrNil)
-        assertNil(parseCommand("move --fail-if-macos-native-fullscreen --window-id 1 right").errorOrNil)
-    }
-
-    func testParseBoundaries() {
+@Suite(.aeroSpaceGlobalState)
+struct MoveCommandTest {
+    @Test
+    func parse() {
+        #expect(parseCommand("move --fail-if-fullscreen left").errorOrNil == nil)
+        #expect(parseCommand("move --fail-if-macos-native-fullscreen --window-id 1 right").errorOrNil == nil)
         let args = parsedArgs("move --boundaries all-monitors-outer-frame --boundaries-action fail up", as: MoveCmdArgs.self)
-        assertEquals(args?.direction.val, .up)
-        assertEquals(args?.rawBoundaries, .allMonitorsOuterFrame)
-        assertEquals(args?.rawBoundariesAction, .fail)
-        assertEquals(parsedArgs("move left", as: MoveCmdArgs.self)?.direction.val, .left)
-
-        assertEquals(parseCommand("move --boundaries").errorOrNil, "ERROR: <boundary> is mandatory\nERROR: Argument '(left|down|up|right)' is mandatory")
-        assertEquals(parseCommand("move --boundaries-action left").errorOrNil, "ERROR: Can't parse 'left'.\n       Possible values: (stop|fail|create-implicit-container)\nERROR: Argument '(left|down|up|right)' is mandatory")
-        assertEquals(parseCommand("move --boundaries-action --boundaries workspace left").errorOrNil, "ERROR: <action> is mandatory")
-        assertEquals(parseCommand("move foo").errorOrNil, "ERROR: Can't parse 'foo'.\n       Possible values: (left|down|up|right)")
+        #expect(args?.direction.val == .up)
+        #expect(args?.rawBoundaries == .allMonitorsOuterFrame)
+        #expect(args?.rawBoundariesAction == .fail)
+        #expect(parsedArgs("move left", as: MoveCmdArgs.self)?.direction.val == .left)
     }
 
-    func testFailIfFullscreen() async {
-        let root = Workspace.get(byName: name).rootTilingContainer.apply {
-            let window = TestWindow.new(id: 1, parent: $0)
-            assertEquals(window.focusWindow(), true)
-            window.isFullscreen = true
-            TestWindow.new(id: 2, parent: $0)
-        }
-
-        await assertRun("move --fail-if-fullscreen right", exitCode: 2)
-        assertEquals(root.layoutDescription, .h_tiles([.window(1), .window(2)]))
+    @Test(arguments: [
+        ("move --boundaries", "ERROR: <boundary> is mandatory\nERROR: Argument '(left|down|up|right)' is mandatory"),
+        ("move --boundaries-action left", "ERROR: Can't parse 'left'.\n       Possible values: (stop|fail|create-implicit-container)\nERROR: Argument '(left|down|up|right)' is mandatory"),
+        ("move --boundaries-action --boundaries workspace left", "ERROR: <action> is mandatory"),
+        ("move foo", "ERROR: Can't parse 'foo'.\n       Possible values: (left|down|up|right)"),
+    ])
+    func parseError(command: String, error: String) async {
+        #expect(await runCmd(command) == .fail(error))
     }
 
-    func testFailIfMacosNativeFullscreen() async {
-        let root = Workspace.get(byName: name).rootTilingContainer.apply {
-            let window = TestWindow.new(id: 1, parent: $0)
-            assertEquals(window.focusWindow(), true)
-            window.isMacosFullscreenForTest = true
-            TestWindow.new(id: 2, parent: $0)
-        }
-
-        await assertRun("move --fail-if-macos-native-fullscreen right", exitCode: 2)
-        assertEquals(root.layoutDescription, .h_tiles([.window(1), .window(2)]))
+    @Test(arguments: [
+        // Swaps with the sibling
+        ("h_tiles(*1 2)", "move right", "h_tiles(2 *1)"),
+        ("h_tiles(*1 2)", "move --fail-if-fullscreen --fail-if-macos-native-fullscreen right", "h_tiles(2 *1)"),
+        // Moves into the top-most container with the right orientation
+        ("h_tiles(0 *1 h_tiles(h_tiles(2)))", "move right", "h_tiles(0 h_tiles(*1 h_tiles(2)))"),
+        // Moves out of the container
+        ("h_tiles(1 v_tiles(*2 3 4))", "move left", "h_tiles(1 *2 v_tiles(3 4))"),
+        // At the root, across its orientation: the window goes to a new root with the old root as its sibling
+        ("h_tiles(1 *2 3)", "move up", "v_tiles(*2 h_tiles(1 3))"),
+        ("h_tiles(*1 2 3)", "move --boundaries-action stop left", "h_tiles(*1 2 3)"),
+        ("h_tiles(*1 2 3)", "move --boundaries-action stop up", "h_tiles(*1 2 3)"),
+        ("h_tiles(1 *2 3)", "move --boundaries-action stop left", "h_tiles(*2 1 3)"),
+        ("h_tiles(1 v_tiles(*2 3))", "move --boundaries-action stop right", "h_tiles(1 v_tiles(3) *2)"),
+        // The test monitor is the only monitor, so there is never a monitor in the direction of the move
+        ("h_tiles(*1 2)", "move --boundaries all-monitors-outer-frame --boundaries-action stop left", "h_tiles(*1 2)"),
+        ("h_tiles(*1 2)", "move --boundaries all-monitors-outer-frame --boundaries-action create-implicit-container left", "h_tiles(*1 h_tiles(2))"),
+        ("h_tiles(*1 2)", "move --boundaries all-monitors-outer-frame down", "v_tiles(h_tiles(2) *1)"),
+    ])
+    func succeeds(before: String, command: String, after: String) async {
+        setUpTree(before)
+        #expect(await runCmd(command) == .ok)
+        #expect(describeTree() == after)
     }
 
-    func testFailIfFullscreenAllowsRegularWindows() async {
-        let root = Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-            TestWindow.new(id: 2, parent: $0)
-        }
-
-        await assertRun("move --fail-if-fullscreen --fail-if-macos-native-fullscreen right", exitCode: 0)
-        assertEquals(root.layoutDescription, .h_tiles([.window(2), .window(1)]))
+    @Test(arguments: [
+        ("h_tiles(*1 2 3)", "move --boundaries-action fail left"),
+        ("h_tiles(1 *2)", "move --boundaries all-monitors-outer-frame --boundaries-action fail right"),
+    ])
+    func fails(tree: String, command: String) async {
+        setUpTree(tree)
+        #expect(await runCmd(command) == .fail())
+        #expect(describeTree() == tree)
     }
 
-    func testMove_swapWindows() async {
-        let root = Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-            TestWindow.new(id: 2, parent: $0)
-        }
-
-        await parseCommand("move right").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(root.layoutDescription, .h_tiles([.window(2), .window(1)]))
+    @Test
+    func failIfFullscreen() async {
+        setUpTree("h_tiles(*1 2)")
+        testWindow(1).isFullscreen = true
+        #expect(await runCmd("move --fail-if-fullscreen right").exitCode == 2)
+        #expect(describeTree() == "h_tiles(*1 2)")
     }
 
-    func testMoveInto_findTopMostContainerWithRightOrientation() async {
-        let root = Workspace.get(byName: name).rootTilingContainer.apply {
-            TestWindow.new(id: 0, parent: $0)
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-            TilingContainer.newHTiles(parent: $0, adaptiveWeight: 1).apply {
-                TilingContainer.newHTiles(parent: $0, adaptiveWeight: 1).apply {
-                    TestWindow.new(id: 2, parent: $0)
-                }
-            }
-        }
-
-        await parseCommand("move right").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(
-            root.layoutDescription,
-            .h_tiles([
-                .window(0),
-                .h_tiles([
-                    .window(1),
-                    .h_tiles([
-                        .window(2),
-                    ]),
-                ]),
-            ]),
-        )
+    @Test
+    func failIfMacosNativeFullscreen() async {
+        setUpTree("h_tiles(*1 2)")
+        testWindow(1).isMacosFullscreenForTest = true
+        #expect(await runCmd("move --fail-if-macos-native-fullscreen right").exitCode == 2)
+        #expect(describeTree() == "h_tiles(*1 2)")
     }
 
-    func testMove_mru() async {
-        var window3: Window!
-        let root = Workspace.get(byName: name).rootTilingContainer.apply {
-            TestWindow.new(id: 0, parent: $0)
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-            TilingContainer.newVTiles(parent: $0, adaptiveWeight: 1).apply {
-                TilingContainer.newHTiles(parent: $0, adaptiveWeight: 1).apply {
-                    TestWindow.new(id: 2, parent: $0)
-                    window3 = TestWindow.new(id: 3, parent: $0)
-                }
-                TestWindow.new(id: 4, parent: $0)
-            }
-        }
-        window3.markAsMostRecentChild()
-
-        await parseCommand("move right").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(
-            root.layoutDescription,
-            .h_tiles([
-                .window(0),
-                .v_tiles([
-                    .h_tiles([
-                        .window(1),
-                        .window(2),
-                        .window(3),
-                    ]),
-                    .window(4),
-                ]),
-            ]),
-        )
+    @Test
+    func moveIntoTheMostRecentContainer() async {
+        setUpTree("h_tiles(0 *1 v_tiles(h_tiles(2 3) 4))")
+        testWindow(3).markAsMostRecentChild()
+        #expect(await runCmd("move right") == .ok)
+        #expect(describeTree() == "h_tiles(0 v_tiles(h_tiles(*1 2 3) 4))")
     }
 
-    func testSwap_preserveWeight() async {
-        let root = Workspace.get(byName: name).rootTilingContainer
-        let window1 = TestWindow.new(id: 1, parent: root, adaptiveWeight: 1)
-        let window2 = TestWindow.new(id: 2, parent: root, adaptiveWeight: 2)
-        _ = window2.focusWindow()
-
-        await parseCommand("move left").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(window2.hWeight, 2)
-        assertEquals(window1.hWeight, 1)
+    @Test
+    func swapPreservesWeights() async {
+        setUpTree("h_tiles(1:1 *2:2)")
+        #expect(await runCmd("move left") == .ok)
+        #expect(describeTree(weights: true) == "h_tiles(*2:2 1:1)")
     }
 
-    func testMoveIn_newWeight() async {
-        var window1: Window!
-        var window2: Window!
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            TestWindow.new(id: 0, parent: $0, adaptiveWeight: 1)
-            window1 = TestWindow.new(id: 1, parent: $0, adaptiveWeight: 2)
-            TilingContainer.newVTiles(parent: $0, adaptiveWeight: 1).apply {
-                window2 = TestWindow.new(id: 2, parent: $0, adaptiveWeight: 1)
-            }
-        }
-        _ = window1.focusWindow()
-
-        await parseCommand("move right").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(window2.hWeight, 1)
-        assertEquals(window2.vWeight, 1)
-        assertEquals(window1.vWeight, 1)
-        assertEquals(window1.hWeight, 1)
+    @Test
+    func moveInResetsTheWeight() async {
+        setUpTree("h_tiles(0 *1:2 v_tiles(2))")
+        #expect(await runCmd("move right") == .ok)
+        #expect(describeTree(weights: true) == "h_tiles(0:1 v_tiles:1(2:1 *1:1))")
     }
 
-    func testCreateImplicitContainer() async {
-        let workspace = Workspace.get(byName: name)
-        workspace.rootTilingContainer.apply {
-            TestWindow.new(id: 1, parent: $0)
-            assertEquals(TestWindow.new(id: 2, parent: $0).focusWindow(), true)
-            TestWindow.new(id: 3, parent: $0)
-        }
-
-        await assertRun("move up", exitCode: 0)
-        assertEquals(workspace.layoutDescription, .workspace([.v_tiles([.window(2), .h_tiles([.window(1), .window(3)])])]))
-    }
-
-    func testStop_onRootNode() async {
-        let workspace = Workspace.get(byName: name)
-        workspace.rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-            TestWindow.new(id: 2, parent: $0)
-            TestWindow.new(id: 3, parent: $0)
-        }
-
-        await assertRun("move --boundaries-action stop left", exitCode: 0)
-        assertEquals(workspace.layoutDescription, .workspace([.h_tiles([.window(1), .window(2), .window(3)])]))
-    }
-
-    func testStop_onRootNode_withOppositeOrientation() async {
-        let workspace = Workspace.get(byName: name)
-        workspace.rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-            TestWindow.new(id: 2, parent: $0)
-            TestWindow.new(id: 3, parent: $0)
-        }
-
-        await assertRun("move --boundaries-action stop up", exitCode: 0)
-        assertEquals(workspace.layoutDescription, .workspace([.h_tiles([.window(1), .window(2), .window(3)])]))
-    }
-
-    func testStop_onRootNode_whenNoBoundary() async {
-        let workspace = Workspace.get(byName: name)
-        workspace.rootTilingContainer.apply {
-            TestWindow.new(id: 1, parent: $0)
-            assertEquals(TestWindow.new(id: 2, parent: $0).focusWindow(), true)
-            TestWindow.new(id: 3, parent: $0)
-        }
-
-        await assertRun("move --boundaries-action stop left", exitCode: 0)
-        assertEquals(workspace.layoutDescription, .workspace([.h_tiles([.window(2), .window(1), .window(3)])]))
-    }
-
-    func testStop_onInnerNode() async {
-        let workspace = Workspace.get(byName: name)
-        workspace.rootTilingContainer.apply {
-            TestWindow.new(id: 1, parent: $0)
-            TilingContainer.newVTiles(parent: $0, adaptiveWeight: 1).apply {
-                assertEquals(TestWindow.new(id: 2, parent: $0).focusWindow(), true)
-                TestWindow.new(id: 3, parent: $0)
-            }
-        }
-
-        await assertRun("move --boundaries-action stop right", exitCode: 0)
-        assertEquals(workspace.layoutDescription, .workspace([.h_tiles([.window(1), .v_tiles([.window(3)]), .window(2)])]))
-    }
-
-    func testFail() async {
-        let workspace = Workspace.get(byName: name)
-        workspace.rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-            TestWindow.new(id: 2, parent: $0)
-            TestWindow.new(id: 3, parent: $0)
-        }
-
-        await assertRun("move --boundaries-action fail left", exitCode: 2)
-        assertEquals(workspace.layoutDescription, .workspace([.h_tiles([.window(1), .window(2), .window(3)])]))
-    }
-
-    func testMoveOut() async {
-        let root = Workspace.get(byName: name).rootTilingContainer.apply {
-            TestWindow.new(id: 1, parent: $0)
-            TilingContainer.newVTiles(parent: $0, adaptiveWeight: 1).apply {
-                assertEquals(TestWindow.new(id: 2, parent: $0).focusWindow(), true)
-                TestWindow.new(id: 3, parent: $0)
-                TestWindow.new(id: 4, parent: $0)
-            }
-        }
-
-        await parseCommand("move left").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(root.layoutDescription, .h_tiles([.window(1), .window(2), .v_tiles([.window(3), .window(4)])]))
-    }
-
-    func testMoveOutWithNormalization_right() async {
+    @Test(arguments: [("h_tiles(1 *2)", "move right"), ("h_tiles(*1 2)", "move left")])
+    func moveOutWithNormalization(tree: String, command: String) async {
         config.enableNormalizationFlattenContainers = true
-
-        let workspace = Workspace.get(byName: name).apply {
-            TestWindow.new(id: 1, parent: $0.rootTilingContainer)
-            assertEquals(TestWindow.new(id: 2, parent: $0.rootTilingContainer).focusWindow(), true)
-        }
-
-        await parseCommand("move right").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(workspace.rootTilingContainer.layoutDescription, .h_tiles([.window(1), .window(2)]))
-        assertEquals(focus.windowOrNil?.windowId, 2)
+        setUpTree(tree)
+        #expect(await runCmd(command) == .ok)
+        #expect(describeTree() == tree)
     }
 
-    func testMoveOutWithNormalization_left() async {
-        config.enableNormalizationFlattenContainers = true
-
-        let workspace = Workspace.get(byName: name).apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0.rootTilingContainer).focusWindow(), true)
-            TestWindow.new(id: 2, parent: $0.rootTilingContainer)
-        }
-
-        await parseCommand("move left").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(workspace.rootTilingContainer.layoutDescription, .h_tiles([.window(1), .window(2)]))
-        assertEquals(focus.windowOrNil?.windowId, 1)
-    }
-
-    // The test monitor is the only monitor, so there is never a monitor in the direction of the move
-    func testAllMonitorsOuterFrame_noMonitorInDirection_stop() async {
-        let workspace = Workspace.get(byName: name)
-        workspace.rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-            TestWindow.new(id: 2, parent: $0)
-        }
-
-        await assertRun("move --boundaries all-monitors-outer-frame --boundaries-action stop left", exitCode: 0, stdout: [], stderr: [])
-        assertEquals(workspace.layoutDescription, .workspace([.h_tiles([.window(1), .window(2)])]))
-        assertEquals(focus.windowOrNil?.windowId, 1)
-    }
-
-    func testAllMonitorsOuterFrame_noMonitorInDirection_fail() async {
-        let workspace = Workspace.get(byName: name)
-        workspace.rootTilingContainer.apply {
-            TestWindow.new(id: 1, parent: $0)
-            assertEquals(TestWindow.new(id: 2, parent: $0).focusWindow(), true)
-        }
-
-        await assertRun("move --boundaries all-monitors-outer-frame --boundaries-action fail right", exitCode: 2, stdout: [], stderr: [])
-        assertEquals(workspace.layoutDescription, .workspace([.h_tiles([.window(1), .window(2)])]))
-        assertEquals(focus.windowOrNil?.windowId, 2)
-    }
-
-    func testAllMonitorsOuterFrame_noMonitorInDirection_createImplicitContainer() async {
-        let workspace = Workspace.get(byName: name)
-        workspace.rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-            TestWindow.new(id: 2, parent: $0)
-        }
-
-        await assertRun("move --boundaries all-monitors-outer-frame --boundaries-action create-implicit-container left", exitCode: 0, stdout: [], stderr: [])
-        assertEquals(workspace.layoutDescription, .workspace([.h_tiles([.window(1), .h_tiles([.window(2)])])]))
-        assertEquals(focus.windowOrNil?.windowId, 1)
-    }
-
-    func testAllMonitorsOuterFrame_noMonitorInDirection_defaultActionAcrossOrientation() async {
-        let workspace = Workspace.get(byName: name)
-        workspace.rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-            TestWindow.new(id: 2, parent: $0)
-        }
-
-        await assertRun("move --boundaries all-monitors-outer-frame down", exitCode: 0, stdout: [], stderr: [])
-        assertEquals(workspace.layoutDescription, .workspace([.v_tiles([.h_tiles([.window(2)]), .window(1)])]))
-        assertEquals(focus.windowOrNil?.windowId, 1)
-    }
-
-    func testMoveAcrossMonitors_noScreens_failsWithoutBugPrompt() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-            TestWindow.new(id: 2, parent: $0)
-        }
+    @Test
+    func moveAcrossMonitors_noScreens_failsWithoutBugPrompt() async {
+        setUpTree("h_tiles(*1 2)")
         // No screens (e.g., during display reconfiguration) is a normal state, not a bug (RB-40)
         await $noScreensForTests.withValue(true) {
-            await assertRun("move --boundaries all-monitors-outer-frame left", exitCode: 2, stdout: [], stderr: ["Can't move the window across monitors while there are no screens"])
+            #expect(await runCmd("move --boundaries all-monitors-outer-frame left") == .fail("Can't move the window across monitors while there are no screens"))
         }
     }
 }
