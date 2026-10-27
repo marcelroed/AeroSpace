@@ -100,10 +100,8 @@ private struct ShellLexer {
             word.unicodeScalars.append(char)
             index += 1
         }
-        switch char {
-            case "'", "\"": throw "\(location): Please put a space in front of the quote character."
-            case "\\" where next == "#": throw "\(location): Please put a space between backslash and a comment start"
-            default: break
+        if char == "'" || char == "\"" {
+            throw "\(location): Please put a space in front of the quote character."
         }
         if word != "~=", let reservedChar = word.unicodeScalars.first(where: { reservedChars.contains($0) }) {
             throw "\(start): Bare word '\(word)' contains reserved character: \(reservedChar). Please quote the bare word if you want to use the character."
