@@ -160,6 +160,7 @@ final class Sessions {
         slot.replace { [self] in
             try checkCancellation()
             try await light(event, token) {
+                guard window.isAlive else { return } // The window closed at a suspension point
                 try await manipulateWithMouse(window)
             }
         }
