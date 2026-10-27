@@ -61,22 +61,18 @@ actor AxApp {
         _ body: @escaping @Sendable (isolated AxApp, _ isAbandoned: () -> Bool) -> T,
     ) async throws(CancellationError) -> T {
         try checkCancellation()
-        let box = CallBox<T>()
-        let result: Result<T, CancellationError> = await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                box.suspend(continuation)
-                post { app in
-                    func isTerminatingNow() -> Bool { isTerminating.load(ordering: .sequentiallyConsistent) }
-                    if box.isResolved { return } // Cancelled before the body started: skip the AX calls
-                    if isTerminatingNow() { return box.resolve(.failure(CancellationError())) }
-                    let value = body(app) { box.isResolved || isTerminatingNow() }
-                    box.resolve(isTerminatingNow() ? .failure(CancellationError()) : .success(value))
-                }
+        let result: FirstOutcome<Result<T, CancellationError>> = FirstOutcome()
+        post { app in
+            func isTerminatingNow() -> Bool { isTerminating.load(ordering: .sequentiallyConsistent) }
+            if result.isResolved { return } // Cancelled before the body started: skip the AX calls
+            if isTerminatingNow() {
+                result.resolve(.failure(CancellationError()))
+            } else {
+                let value = body(app) { result.isResolved || isTerminatingNow() }
+                result.resolve(isTerminatingNow() ? .failure(CancellationError()) : .success(value))
             }
-        } onCancel: {
-            box.resolve(.failure(CancellationError()))
         }
-        return try result.get()
+        return try await result.wait(onCancel: .failure(CancellationError())).get()
     }
 
     /// For termination, which can't await: posts `body` and waits at most `timeout` for it. false if it timed out (RB-76).
@@ -330,60 +326,6 @@ nonisolated struct WindowGenerations {
         if isLatest(windowId, generation) {
             latest[windowId] = nil
         }
-    }
-}
-
-/// The resume-once box of ``AxApp/call(_:)``: the body's result or the caller's cancellation, whichever comes first,
-/// resumes the caller
-nonisolated private final class CallBox<T: Sendable>: Sendable {
-    typealias Continuation = CheckedContinuation<Result<T, CancellationError>, Never>
-    private enum State {
-        case starting // The caller hasn't suspended yet
-        case suspended(Continuation)
-        case resolvedEarly(Result<T, CancellationError>) // Resolved before the caller suspended: it resumes itself
-        case resumed
-    }
-
-    private let state: Mutex<State> = Mutex(.starting)
-
-    var isResolved: Bool {
-        state.withLock { state in
-            switch state {
-                case .starting, .suspended: false
-                case .resolvedEarly, .resumed: true
-            }
-        }
-    }
-
-    func suspend(_ continuation: Continuation) {
-        let early: Result<T, CancellationError>? = state.withLock { state in
-            guard case .resolvedEarly(let result) = state else {
-                state = .suspended(continuation)
-                return nil
-            }
-            state = .resumed
-            return result
-        }
-        if let early {
-            continuation.resume(returning: early)
-        }
-    }
-
-    /// The first call wins
-    func resolve(_ result: Result<T, CancellationError>) {
-        let continuation: Continuation? = state.withLock { state in
-            switch state {
-                case .starting:
-                    state = .resolvedEarly(result)
-                    return nil
-                case .suspended(let continuation):
-                    state = .resumed
-                    return continuation
-                case .resolvedEarly, .resumed:
-                    return nil
-            }
-        }
-        continuation?.resume(returning: result)
     }
 }
 

@@ -1,6 +1,5 @@
 import Common
 import Foundation
-import Synchronization
 
 /// The deadline of each app's window listing in a heavy refresh: a hung app doesn't hold the refresh's reads of
 /// the other apps. An app that misses its deadline doesn't answer for this refresh, and its listing goes on; until that
@@ -60,51 +59,43 @@ final class ListingDeadlines {
             return answer
         }
         let deadline = deadline(pid)
-        let race = ListingRace<T>()
-        var listing: Task<(), Never>? = nil
-        var timer: Task<(), Never>? = nil
-        let outcome = await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                race.suspend(continuation)
-                listing = Task.startUnstructured { [self] in
-                    let answer: T?? = try? await list() // nil: cancelled
-                    switch race.resolve(answer.map { .answer($0) } ?? .cancelled) {
-                        case nil: // By the deadline
-                            if let answer {
-                                record(pid, answer, since: start)
-                                lateAnswerTimes[pid] = nil
-                            }
-                        case .deadline:
-                            // Late: the refresh went on without the app. Only a late listing clears the mark: the listing
-                            // of a refresh that was cancelled before the deadline didn't set it, a newer listing did
-                            lateApps.remove(pid)
-                            switch answer {
-                                case .some(.some):
-                                    lateAnswerTimes[pid] = start.duration(to: .now)
-                                    world.sessions.scheduleHeavy(.lateListing)
-                                case .some(.none): answerTimes[pid] = nil
-                                case .none: break
-                            }
-                        case .answer, .cancelled: break // The refresh was cancelled first
+        let race: FirstOutcome<ListingOutcome<T>> = FirstOutcome()
+        let listing = Task.startUnstructured { [self] in
+            let answer: T?? = try? await list() // nil: cancelled
+            switch race.resolve(answer.map { .answer($0) } ?? .cancelled) {
+                case nil: // By the deadline
+                    if let answer {
+                        record(pid, answer, since: start)
+                        lateAnswerTimes[pid] = nil
                     }
-                }
-                timer = Task.startUnstructured { [self] in
-                    await sleep(deadline)
-                    if race.resolve(.deadline) == nil {
-                        lateApps.insert(pid)
-                        lateAnswerTimes[pid] = nil // Here, not after the refresh resumes: the late answer may come first
+                case .deadline:
+                    // Late: the refresh went on without the app. Only a late listing clears the mark: the listing of a
+                    // refresh that was cancelled before the deadline didn't set it, a newer listing did
+                    lateApps.remove(pid)
+                    switch answer {
+                        case .some(.some):
+                            lateAnswerTimes[pid] = start.duration(to: .now)
+                            world.sessions.scheduleHeavy(.lateListing)
+                        case .some(.none): answerTimes[pid] = nil
+                        case .none: break
                     }
-                }
+                case .answer, .cancelled: break // The refresh was cancelled first
             }
-        } onCancel: {
-            race.resolve(.cancelled)
         }
-        timer?.cancel()
+        let timer = Task.startUnstructured { [self] in
+            await sleep(deadline)
+            if race.resolve(.deadline) == nil {
+                lateApps.insert(pid)
+                lateAnswerTimes[pid] = nil // Here, not after the refresh resumes: the late answer may come first
+            }
+        }
+        let outcome = await race.wait(onCancel: .cancelled)
+        timer.cancel()
         switch outcome {
             case .answer(let answer): return answer
             case .deadline: return nil
             case .cancelled:
-                listing?.cancel()
+                listing.cancel()
                 throw CancellationError()
         }
     }
@@ -116,31 +107,4 @@ final class ListingDeadlines {
 
 nonisolated private enum ListingOutcome<T: Sendable>: Sendable {
     case answer(T?), deadline, cancelled
-}
-
-/// Resolved once: by the listing, by the deadline, or by the refresh's cancellation (on any thread)
-nonisolated private final class ListingRace<T: Sendable>: Sendable {
-    typealias Continuation = CheckedContinuation<ListingOutcome<T>, Never>
-    private let state: Mutex<(continuation: Continuation?, outcome: ListingOutcome<T>?)> = Mutex((nil, nil))
-
-    func suspend(_ continuation: Continuation) {
-        let early: ListingOutcome<T>? = state.withLock { state in
-            if state.outcome == nil { state.continuation = continuation }
-            return state.outcome
-        }
-        if let early { continuation.resume(returning: early) }
-    }
-
-    /// nil if this call resolved the race, else the outcome that did
-    @discardableResult
-    func resolve(_ outcome: ListingOutcome<T>) -> ListingOutcome<T>? {
-        let (earlier, continuation): (ListingOutcome<T>?, Continuation?) = state.withLock { state in
-            if let earlier = state.outcome { return (earlier, nil) }
-            state.outcome = outcome
-            defer { state.continuation = nil }
-            return (nil, state.continuation)
-        }
-        continuation?.resume(returning: outcome)
-        return earlier
-    }
 }
