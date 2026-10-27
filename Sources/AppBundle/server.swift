@@ -59,18 +59,22 @@ nonisolated private func newConnection(_ connection: NWConnection) async {
         case .failure(.endOfStream), .failure(.closed): return // Nobody to answer
         case .failure(let err): return await answer(exitCode: EXIT_CODE_TWO, stderr: "Can't read the request. \(err)")
     }
-    if let message = protocolMismatchMessage(rawRequest) {
-        return await answer(exitCode: EXIT_CODE_TWO, stderr: message)
-    }
+    // One JSON decode on the common path. The version probe decodes again, so it runs only for other requests
     let request: ClientRequest
     do {
         request = try JSONDecoder().decode(ClientRequest.self, from: rawRequest)
     } catch {
+        if let message = protocolMismatchMessage(rawRequest) {
+            return await answer(exitCode: EXIT_CODE_TWO, stderr: message)
+        }
         let msg = """
             Can't parse request \(String(describing: String(data: rawRequest, encoding: .utf8)).singleQuoted).
             Error: \(error.localizedDescription)
             """
         return await answer(exitCode: EXIT_CODE_TWO, stderr: msg)
+    }
+    if request.protocolVersion != socketProtocolVersion, let message = protocolMismatchMessage(rawRequest) {
+        return await answer(exitCode: EXIT_CODE_TWO, stderr: message)
     }
     switch await handle(request) {
         case .answer(let exitCode, let stdout, let stderr):
