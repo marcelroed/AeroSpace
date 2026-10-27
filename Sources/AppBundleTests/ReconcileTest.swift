@@ -511,6 +511,50 @@ struct ReconcileTest {
     }
 
     @Test
+    func focusChangesDuringSuspendedFocusCallbacksRunThemOnceForTheLatestFocus() async throws { // R2d L1
+        setUpTree("h_tiles(*1)", workspace: "a")
+        setUpTree("h_tiles(3)", workspace: "b")
+        fake.focused = 1
+        await heavyRefresh()
+        let gate = Gate()
+        logFocusOnFocusChanged(.workspace, then: gate)
+
+        fake.focused = 3 // The user focuses workspace b
+        let heavy = Task.startUnstructured { await heavyRefresh() }
+        await gate.untilWaiting() // b's callback suspends
+        for workspace in ["c", "d", "e"] {
+            _ = try await world.sessions.light(.hotkeyBinding, .forceRun) { await runCmd("workspace \(workspace)") }
+        }
+        world.sessions.cancelHeavy()
+        gate.open()
+        await heavy.value
+        expectEqual(focusLog, ["b", "e"]) // Not c and d: the user has left them
+    }
+
+    @Test
+    func focusChangesDuringSuspendedFocusCallbacksThatEndWhereTheyStartedRunNothing() async throws { // R2d L1
+        setUpTree("h_tiles(*1)", workspace: "a")
+        setUpTree("h_tiles(3)", workspace: "b")
+        fake.focused = 1
+        await heavyRefresh()
+        let gate = Gate()
+        logFocusOnFocusChanged(.workspace, then: gate)
+
+        fake.focused = 3
+        let heavy = Task.startUnstructured { await heavyRefresh() }
+        await gate.untilWaiting()
+        for workspace in ["c", "b"] { // The user goes to c and comes back while b's callback suspends
+            _ = try await world.sessions.light(.hotkeyBinding, .forceRun) { await runCmd("workspace \(workspace)") }
+        }
+        world.sessions.cancelHeavy()
+        gate.open()
+        await heavy.value
+        expectEqual(focusLog, ["b"])
+    }
+
+    /// Passes on the code before R2c L2 too, which dropped every change during the callbacks, the callbacks' own included.
+    /// It fails if the callbacks queue their own changes too
+    @Test
     func aFocusChangeThatTheFocusCallbacksMakeDoesntRunThemAgain() async throws {
         setUpTree("h_tiles(*1 2 3)")
         fake.focused = 1

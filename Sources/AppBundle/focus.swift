@@ -65,8 +65,8 @@ struct FocusStore {
     }
     private(set) var prevWorkspaceDate: Date = .distantPast
     fileprivate var isRunningOnFocusChangedCallbacks = false
-    /// The changes whose callbacks wait for the running ones, in order. See ``runFocusChangedCallbacks(_:)``
-    fileprivate var pendingFocusChanges: [RecordedFocusChange] = []
+    /// The changes whose callbacks wait for the running ones, as one change. See ``runFocusChangedCallbacks(_:)``
+    fileprivate var pendingFocusChange: RecordedFocusChange? = nil
     /// See ``syncFocusFromMacOs(_:)``
     var lastKnownNativeFocusedWindowId: WindowId? = nil
     /// The native focus that a session read last, also when the read changed nothing: it was
@@ -158,10 +158,17 @@ func checkOnFocusChangedCallbacks_nonCancellable() async {
 
 /// A focus change, see ``recordFocusChange()``
 struct RecordedFocusChange {
+    fileprivate let prev: FrozenFocus
     fileprivate let focus: FrozenFocus
+
     /// The workspace that the focus left. nil if the focused workspace didn't change
-    fileprivate let prevWorkspaceName: String?
-    fileprivate let isMonitorChanged: Bool
+    fileprivate var prevWorkspaceName: String? { prev.workspaceName == focus.workspaceName ? nil : prev.workspaceName }
+    fileprivate var isMonitorChanged: Bool { prev.monitorId_oneBased != focus.monitorId_oneBased }
+
+    /// This change, then `next`, as one change. nil if they cancel out
+    fileprivate func then(_ next: RecordedFocusChange) -> RecordedFocusChange? {
+        prev == next.focus ? nil : RecordedFocusChange(prev: prev, focus: next.focus)
+    }
 }
 
 /// The bookkeeping half of the focus check: remembers the previous focus (focus-back-and-forth) and the previous
@@ -173,32 +180,35 @@ func recordFocusChange() -> RecordedFocusChange? {
     let frozenFocus = focus.frozen
     if frozenFocus == lastKnownFocus { return nil }
     world.focusStore.prev = lastKnownFocus
-    let isWorkspaceChanged = frozenFocus.workspaceName != lastKnownFocus.workspaceName
-    if isWorkspaceChanged { world.focusStore.prevWorkspaceName = lastKnownFocus.workspaceName }
+    let change = RecordedFocusChange(prev: lastKnownFocus, focus: frozenFocus)
+    if let prevWorkspaceName = change.prevWorkspaceName { world.focusStore.prevWorkspaceName = prevWorkspaceName }
     world.focusStore.lastKnown = frozenFocus
-    return RecordedFocusChange(
-        focus: frozenFocus,
-        prevWorkspaceName: isWorkspaceChanged ? lastKnownFocus.workspaceName : nil,
-        isMonitorChanged: frozenFocus.monitorId_oneBased != lastKnownFocus.monitorId_oneBased,
-    )
+    return change
 }
 
 /// The callbacks half of the focus check: on-focus-changed, exec-on-workspace-change, on-focused-monitor-changed. One
 /// change at a time, in the order of the changes:
 /// - A change that a callback's own commands make records it without running the callbacks again: no recursion.
-/// - Another session's change while the callbacks suspend (e.g. a hotkey while a callback reads AX) runs its callbacks
-///   right after them, in the task that runs them (R2c L2). That session doesn't wait for them
+/// - Other sessions' changes while the callbacks suspend (e.g. hotkeys while a callback reads AX) run the callbacks
+///   right after them, in the task that runs them (R2c L2). That session doesn't wait for them. Those changes run the
+///   callbacks once, as one change to the latest focus: no callback runs for a focus that the user has left (R2d L1)
 func runFocusChangedCallbacks(_ change: RecordedFocusChange) async {
     if world.focusStore.isRunningOnFocusChangedCallbacks {
-        if !FocusChangedCallbacks.isRunningInThisTask { world.focusStore.pendingFocusChanges.append(change) }
+        if FocusChangedCallbacks.isRunningInThisTask { return }
+        if let pending = world.focusStore.pendingFocusChange {
+            world.focusStore.pendingFocusChange = pending.then(change)
+        } else {
+            world.focusStore.pendingFocusChange = change
+        }
         return
     }
     world.focusStore.isRunningOnFocusChangedCallbacks = true
     defer { world.focusStore.isRunningOnFocusChangedCallbacks = false }
-    world.focusStore.pendingFocusChanges = [change]
-    while !world.focusStore.pendingFocusChanges.isEmpty {
-        let change = world.focusStore.pendingFocusChanges.removeFirst()
+    var next: RecordedFocusChange? = change
+    while let change = next {
         await FocusChangedCallbacks.$isRunningInThisTask.withValue(true) { await runCallbacks(of: change) }
+        next = world.focusStore.pendingFocusChange
+        world.focusStore.pendingFocusChange = nil
     }
 }
 
