@@ -19,6 +19,21 @@ struct WorkspaceBackAndForthCommandTest: AeroSpaceTestSuite {
     }
 
     @Test
+    func testFailsWhenFocusingPrevWorkspaceFails() async {
+        // RB-31: the command used to exit 0 whenever there was a previous workspace, even if focusing it failed
+        _ = Workspace.get(byName: "b")
+        assertTrue(Workspace.get(byName: "a").focusWorkspace())
+        _prevFocusedWorkspaceName = "b"
+
+        await $noScreensForTests.withValue(true) {
+            // Without screens, only visible workspaces can be focused, and "b" is hidden
+            let result = await parseCommand("workspace-back-and-forth").cmdOrDie.run(.defaultEnv, .emptyStdin)
+            assertNotEquals(result.exitCode.rawValue, 0)
+        }
+        assertEquals(focus.workspace.name, "a")
+    }
+
+    @Test
     func testNoPrevWorkspace_failsWithMessage() async {
         // RB-31: the command used to fail silently
         assertTrue(Workspace.get(byName: "a").focusWorkspace())
