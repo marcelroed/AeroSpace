@@ -84,6 +84,9 @@ private func connectOrExit() async -> NWConnection {
     return connection
 }
 
+/// `--version` is how to tell what's wrong with AeroSpace.app, also when its main thread is stuck, so it doesn't wait long
+private let versionAnswerTimeoutSeconds = 3
+
 /// Prints the client version, and the server version if the server answers. Exits with 2 if the server is there but
 /// doesn't answer: `--version` is how to tell that the CLI and the server don't fit
 private func printVersionAndExit() async -> Never {
@@ -94,7 +97,10 @@ private func printVersionAndExit() async -> Never {
         server = nil
     } else {
         // Any answer carries the server version, even the failure of an empty request
-        server = await trySend(connection, ClientRequest(args: [], stdin: "", windowId: nil, workspace: nil)).map(\.serverVersionAndHash)
+        let request = ClientRequest(args: [], stdin: "", windowId: nil, workspace: nil)
+        let answer = await withTimeout(seconds: versionAnswerTimeoutSeconds) { await trySend(connection, request) }
+        let timeout = NoAnswer.failed("AeroSpace.app accepted the connection, but didn't answer within \(versionAnswerTimeoutSeconds) seconds")
+        server = (answer ?? .failure(timeout)).map(\.serverVersionAndHash)
     }
     let serverLine = switch server {
         case nil: "Unknown. The server is not responding"

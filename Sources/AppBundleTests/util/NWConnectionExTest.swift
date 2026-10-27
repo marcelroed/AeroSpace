@@ -39,6 +39,21 @@ struct NWConnectionExTest {
     }
 
     @Test
+    func readOfServerThatDoesntAnswerTimesOut() async throws {
+        let server = try await TestSocketServer.start(.neverAnswer)
+        defer { server.stop() }
+        let connection = NWConnection(to: .unix(path: server.path), using: .tcp)
+        defer { connection.cancel() }
+
+        #expect(await connection.initConnection().error == nil)
+        let request = ClientRequest(args: [], stdin: "", windowId: nil, workspace: nil)
+        #expect(await connection.writeAtomic(request).error == nil)
+        // Like `aerospace --version` when the main thread of AeroSpace.app is stuck
+        let answer = await withTimeout(seconds: 1) { await connection.readFrame() }
+        #expect(answer == nil)
+    }
+
+    @Test
     func clientDetectsServerOfLegacyProtocol() async throws {
         let server = try await TestSocketServer.start(.legacyServer)
         defer { server.stop() }
@@ -131,23 +146,6 @@ nonisolated private final class NeverReadyFramer: NWProtocolFramerImplementation
 /// $TMPDIR can be too long for a unix socket path (sun_path is capped at 104 bytes). Like the real socketPath, use /tmp
 nonisolated private func testSocketPath() -> String { "/tmp/aerospace-test-\(UUID().uuidString.prefix(8)).sock" }
 
-/// Returns nil if `body` doesn't finish in time. `body` can't be cancelled and keeps running in that case
-nonisolated private func withTimeout<T: Sendable>(seconds: Int, _ body: @escaping @Sendable () async -> T) async -> T? {
-    await withCheckedContinuation { cont in
-        let isDone = OSAllocatedUnfairLock(initialState: false)
-        let resume: @Sendable (T?) -> Void = { result in
-            // Make sure to resume continuation only once
-            let wasAlreadyDone = isDone.withLock { isDone in
-                defer { isDone = true }
-                return isDone
-            }
-            if !wasAlreadyDone { cont.resume(returning: result) }
-        }
-        Task.startUnstructured { resume(await body()) }
-        DispatchQueue.global().asyncAfter(deadline: .now() + .seconds(seconds)) { resume(nil) }
-    }
-}
-
 /// Mirrors the real server (server.swift): read one request, answer it
 nonisolated final class TestSocketServer: Sendable {
     enum Behavior: Sendable {
@@ -155,6 +153,8 @@ nonisolated final class TestSocketServer: Sendable {
         /// Announce an answer, then close the connection without sending it
         case closeMidAnswer
         case closeWithoutAnswer
+        /// Read the request, and keep the connection open without answering
+        case neverAnswer
         /// Like a server from before the frames: read the frame length as the client's protocol version, answer with
         /// version 1, and close the connection
         case legacyServer
@@ -180,7 +180,7 @@ nonisolated final class TestSocketServer: Sendable {
                 defer { connection.cancel() }
                 connection.start(queue: .global())
                 switch behavior {
-                    case .answer, .closeMidAnswer, .closeWithoutAnswer: break
+                    case .answer, .closeMidAnswer, .closeWithoutAnswer, .neverAnswer: break
                     case .legacyServer:
                         _ = await connection.receiveUInt32()
                         await connection.sendAndWait(withUnsafeBytes(of: UInt32(1)) { unsafe Data($0) })
@@ -202,6 +202,7 @@ nonisolated final class TestSocketServer: Sendable {
                         await connection.sendAndWait(withUnsafeBytes(of: UInt32(100)) { unsafe Data($0) }) // The answer size
                         return
                     case .closeWithoutAnswer: return
+                    case .neverAnswer: return await connection.readTillError() // Until the client closes the connection
                     case .answer, .legacyServer, .recordMaxSizeFailure: break
                 }
                 let request: ClientRequest
