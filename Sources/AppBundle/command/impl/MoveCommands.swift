@@ -282,7 +282,10 @@ func moveWindowToWorkspace(
         ? targetWorkspace.containerCreatingIfNeeded(.floating)
         : targetWorkspace.rootTilingContainerCreatingIfNeeded()
     window.move(to: targetContainer, at: index)
-    if focusFollowsWindow && !window.focusWindow() { throw .silent }
+    // On a workspace, focusing the window fails only while there are no screens, if the workspace isn't visible
+    if focusFollowsWindow && !window.focusWindow() {
+        throw "Can't follow the window to workspace '\(targetWorkspace.name)' while there are no screens"
+    }
 }
 
 struct MoveNodeToMonitorCommand: nonisolated Command {

@@ -60,6 +60,7 @@ struct NoScreensTest {
         ("move-workspace-to-monitor next", "Can't find the next monitor while there are no screens"),
         // Only the visible workspaces can be focused (RB-31: the command used to succeed)
         ("workspace-back-and-forth", "Can't focus workspace 'prev' while there are no screens"),
+        ("workspace other", "Can't focus workspace 'other' while there are no screens"),
     ] as [(String, String)])
     func commandsFailWithoutScreens(command: String, error: String) async {
         let workspace = setUpTree("h_tiles(*1 2)")
@@ -70,6 +71,18 @@ struct NoScreensTest {
         expectEqual(describeTree(), "h_tiles(*1 2)")
         expectEqual(focus.workspace, workspace)
         #expect(world.isEnabled)
+    }
+
+    /// The window moves, but the focus can't follow it to a workspace that isn't visible
+    @Test
+    func theFocusCantFollowAMovedWindowWithoutScreens() async {
+        let workspace = setUpTree("h_tiles(*1 2)")
+        updateMonitors([])
+        let output = await runCmd("move-node-to-workspace --focus-follows-window other")
+        expectEqual(output, .fail("Can't follow the window to workspace 'other' while there are no screens"))
+        expectEqual(focus.workspace, workspace)
+        expectEqual(describeTree(), "h_tiles(*2)")
+        expectEqual(describeTree("other"), "h_tiles(1)")
     }
 
     /// Enabling doesn't need the screens: the layout does nothing until they come back
