@@ -335,7 +335,7 @@ extension FormatVar {
                     case .workspace: return .string(w.name)
                     case .workspaceIsVisible: return .bool(w.isVisible)
                     case .workspaceIsFocused: return .bool(focus.workspace == w)
-                    case .workspaceRootContainerLayout: return .string(layoutString(w.rootTilingContainer))
+                    case .workspaceRootContainerLayout: return .string(layoutString(w.rootLayout))
                     default: throw .unavailable(self, obj.subject)
                 }
             case (.monitor(let m), .monitor):
@@ -362,7 +362,11 @@ extension FormatVar {
 }
 
 private func layoutString(_ tc: TilingContainer) -> String {
-    let layout: LayoutCommand.LayoutDescription = switch (tc.layout, tc.orientation) {
+    layoutString((tc.layout, tc.orientation))
+}
+
+private func layoutString(_ kind: (layout: Layout, orientation: Orientation)) -> String {
+    let layout: LayoutCommand.LayoutDescription = switch kind {
         case (.tiles, .h): .h_tiles
         case (.tiles, .v): .v_tiles
         case (.accordion, .h): .h_accordion

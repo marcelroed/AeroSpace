@@ -191,6 +191,15 @@ struct FormatTest {
     }
 
     @Test
+    func expandingTheRootContainerLayoutDoesntCreateTheRoot() {
+        let workspace = setUpTree("floating(1)", workspace: workspaceName)
+        #expect(expanded(.workspaceRootContainerLayout, .workspace(workspace)) == "String(h_tiles)") // The config's default
+        #expect(workspace.existingRootTilingContainer == nil)
+        workspace.rootTilingContainer.layout = .accordion
+        #expect(expanded(.workspaceRootContainerLayout, .workspace(workspace)) == "String(h_accordion)")
+    }
+
+    @Test
     func expandWorkspaceFocusedAndVisibleForOtherWorkspace() {
         let obj = AeroObj.workspace(Workspace.get(byName: "other"))
         #expect(expanded(.workspaceIsFocused, obj) == "Bool(false)")
