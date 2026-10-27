@@ -12,6 +12,10 @@ import Foundation
             await toggleReleaseServerIfDebug(.off)
             interceptTermination(SIGINT)
         }
+        // No screens (e.g. AeroSpace was started during display reconfiguration). The startup sessions below would
+        // return early, and nothing would replay them: a regular session would register the existing windows later.
+        // Wait for the screens here, before the hotkeys (config), the server and the observers can start a session
+        while !hasScreens { try? await Task.sleep(for: .milliseconds(100)) }
 
         await bootstrapConfig_nonCancellable()
         _ = await reloadConfig_nonCancellable()
