@@ -50,17 +50,19 @@ struct MoveCommand: Command {
     _ direction: CardinalDirection,
     _ env: CmdEnv,
 ) -> BinaryExitCode {
-    if args.boundaries == .allMonitorsOuterFrame {
-        guard let (monitors, index) = window.nodeMonitor?.findRelativeMonitor(inDirection: direction) else {
-            return .fail(io.err("Should never happen. Can't find the current monitor"))
-        }
-        if monitors.indices.contains(index) {
-            let moveNodeToMonitorArgs = MoveNodeToMonitorCmdArgs(target: .direction(direction))
-                .copy(\.windowId, window.windowId)
-                .copy(\.focusFollowsWindow, focus.windowOrNil == window)
+    switch args.boundaries {
+        case .workspace: break
+        case .allMonitorsOuterFrame:
+            guard let (monitors, index) = window.nodeMonitor?.findRelativeMonitor(inDirection: direction) else {
+                return .fail(io.err("Should never happen. Can't find the current monitor"))
+            }
+            if monitors.indices.contains(index) {
+                let moveNodeToMonitorArgs = MoveNodeToMonitorCmdArgs(target: .direction(direction))
+                    .copy(\.windowId, window.windowId)
+                    .copy(\.focusFollowsWindow, focus.windowOrNil == window)
 
-            return MoveNodeToMonitorCommand(args: moveNodeToMonitorArgs).run(env, io)
-        }
+                return MoveNodeToMonitorCommand(args: moveNodeToMonitorArgs).run(env, io)
+            }
     }
     switch args.boundariesAction {
         case .stop: return .succ

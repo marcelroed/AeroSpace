@@ -69,16 +69,18 @@ struct FocusCommand: Command {
     _ args: FocusCmdArgs,
     _ direction: CardinalDirection,
 ) -> BinaryExitCode {
-    var wrappedMonitor: MonitorInfo? = nil
-    if args.boundaries == .allMonitorsOuterFrame {
-        guard let (monitors, index) = target.workspace.workspaceMonitor.findRelativeMonitor(inDirection: direction) else {
-            return .fail(io.err(bugPrompt("Should never happen. Can't find the current monitor")))
-        }
-        if let targetMonitor = monitors.getOrNil(atIndex: index) {
-            return .from(bool: targetMonitor.activeWorkspace.focusWorkspace())
-        }
-        guard let wrapped = monitors.get(wrappingIndex: index) else { return .fail(io.err(bugPrompt("\(index) \(monitors)"))) }
-        wrappedMonitor = wrapped
+    let wrappedMonitor: MonitorInfo?
+    switch args.boundaries {
+        case .workspace: wrappedMonitor = nil
+        case .allMonitorsOuterFrame:
+            guard let (monitors, index) = target.workspace.workspaceMonitor.findRelativeMonitor(inDirection: direction) else {
+                return .fail(io.err(bugPrompt("Should never happen. Can't find the current monitor")))
+            }
+            if let targetMonitor = monitors.getOrNil(atIndex: index) {
+                return .from(bool: targetMonitor.activeWorkspace.focusWorkspace())
+            }
+            guard let wrapped = monitors.get(wrappingIndex: index) else { return .fail(io.err(bugPrompt("\(index) \(monitors)"))) }
+            wrappedMonitor = wrapped
     }
     switch args.boundariesAction {
         case .stop: return .succ
@@ -89,7 +91,7 @@ struct FocusCommand: Command {
             }
             return .from(bool: windowToFocus.focusWindow())
         case .wrapAroundAllMonitors:
-            guard let wrappedMonitor else { return .fail(io.err("Must be discarded by args parser")) }
+            guard let wrappedMonitor else { return .fail(io.err("Must be discarded by args parser")) } // --boundaries workspace
             wrappedMonitor.activeWorkspace.findLeafWindowRecursive(snappedTo: direction.opposite)?.markAsMostRecentChild()
             return .from(bool: wrappedMonitor.activeWorkspace.focusWorkspace())
     }
