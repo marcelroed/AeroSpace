@@ -106,10 +106,9 @@ final class Workspace: TreeNode, Hashable, Comparable {
         }
     }
 
-    nonisolated static func == (lhs: Workspace, rhs: Workspace) -> Bool {
-        check((lhs === rhs) == (lhs.name == rhs.name), "lhs: \(lhs.name) rhs: \(rhs.name)")
-        return lhs === rhs
-    }
+    /// Identity. `workspacesByName` keeps the names of live workspaces unique, but a workspace held across an await can be
+    /// garbage collected and replaced by a new one with the same name: the two are different workspaces
+    nonisolated static func == (lhs: Workspace, rhs: Workspace) -> Bool { lhs === rhs }
 
     nonisolated func hash(into hasher: inout Hasher) { hasher.combine(name) }
 }
