@@ -123,6 +123,7 @@ final class LivePlatform: Platform {
     }
 
     func classify(_ windows: [AppInfo: [WindowId]]) async throws(CancellationError) -> [WindowId: DetectedWindow] {
+        if windows.isEmpty { return [:] } // An idle heavy refresh classifies nothing: no window server query
         let levels = onScreenWindowLevels()
         return try await observe(windows) { app in
             let classifier = app.classifier
