@@ -36,7 +36,7 @@ final class Sessions {
 
     // MARK: Light sessions and heavy refreshes
 
-    /// Runs `body` as a light session (design-m2.md D4): it cancels the scheduled heavy refresh, takes the native focus
+    /// Runs `body` as a light session: it cancels the scheduled heavy refresh, takes the native focus
     /// (``Reconcile/syncFocus(isStartup:)``), refreshes the model, runs `body`, refreshes the model again, presents
     /// (``Reconcile/present(nativeFocusBaseline:isLayout:)``) and schedules a heavy refresh.
     ///
@@ -47,7 +47,7 @@ final class Sessions {
         _: RunSessionGuard,
         body: () async throws -> T,
     ) async throws -> T {
-        let state = signposter.beginInterval(#function, "event: \(event)")
+        let state = signposter.beginInterval(#function, "event: \(String(describing: event))")
         defer { signposter.endInterval(#function, state) }
         let isFocusFollowsMouse = event.isFocusFollowsMouse
         if !isFocusFollowsMouse { cancelHeavy() } // Give priority to the light session
@@ -148,7 +148,6 @@ final class Sessions {
         scheduleHeavy(.globalObserver(name.rawValue), preLayout: name == NSWorkspace.didActivateApplicationNotification)
     }
 
-    /// An app was hidden (cmd-h or cmd-alt-h)
     func onAppHidden() async throws {
         guard let token: RunSessionGuard = .isServerEnabled else { return }
         try await light(.globalObserver(NSWorkspace.didHideApplicationNotification.rawValue), token) {
@@ -198,7 +197,7 @@ struct RunSessionGuard: Sendable {
 }
 
 /// What started a session. Sessions pass it explicitly; it also names the session in the signposts
-nonisolated enum RefreshSessionEvent: Sendable, CustomStringConvertible {
+nonisolated enum RefreshSessionEvent: Sendable {
     case configAutoReload
     case globalObserver(String)
     case globalObserverLeftMouseUp
@@ -221,38 +220,12 @@ nonisolated enum RefreshSessionEvent: Sendable, CustomStringConvertible {
     var isFocusFollowsMouse: Bool {
         if case .focusFollowsMouse = self { return true } else { return false }
     }
-
-    var description: String {
-        switch self {
-            case .ax(let str): "ax(\(str))"
-            case .configAutoReload: "configAutoReload"
-            case .globalObserver(let str): "globalObserver(\(str))"
-            case .globalObserverLeftMouseUp: "globalObserverLeftMouseUp"
-            case .hotkeyBinding: "hotkeyBinding"
-            case .menuBarButton: "menuBarButton"
-            case .resetManipulatedWithMouse: "resetManipulatedWithMouse"
-            case .socketServer(let args): "socketServer: \(args.joinArgs())"
-            case .startup: "startup"
-            case .afterStartup: "afterStartup"
-            case .lateListing: "lateListing"
-            case .focusFollowsMouse: "focusFollowsMouse"
-        }
-    }
 }
 
 /// An AX notification, as an app's AX observer reports it to ``Sessions/onAxEvent(pid:_:)``. It crosses from the app's AX
 /// thread to the main actor
 nonisolated enum AxEvent: Sendable, Equatable {
-    /// kAXWindowCreatedNotification, observed on the app
-    case windowCreated
-    /// kAXFocusedWindowChangedNotification, observed on the app
-    case focusedWindowChanged
-    /// kAXUIElementDestroyedNotification, observed on a window
-    case destroyed
-    /// kAXWindowMiniaturizedNotification, observed on a window
-    case miniaturized
-    /// kAXWindowDeminiaturizedNotification, observed on a window
-    case deminiaturized
+    case windowCreated, focusedWindowChanged, destroyed, miniaturized, deminiaturized
     /// kAXMovedNotification, observed on a window: by the user's mouse, by AeroSpace's layout or by the app itself.
     /// The window's id, nil if AX can't tell it (e.g. the window is being destroyed)
     case moved(windowId: WindowId?)

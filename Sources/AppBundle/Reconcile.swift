@@ -1,7 +1,7 @@
 import AppKit
 import Common
 
-/// The phased reconcile (design-m2.md D4): how a session brings the tree and macOS together. A heavy refresh runs five
+/// The phased reconcile: how a session brings the tree and macOS together. A heavy refresh runs five
 /// phases:
 /// - P0 begin (sync): skip while disabled or without screens; take the snapshot of the monitors.
 /// - P1 observe (async, abandonable): read macOS. No tree writes: a cancelled refresh leaves the model as it was.
@@ -19,7 +19,7 @@ enum Reconcile {
     /// startup's light session does. `preLayout`: present
     /// before P1 too, so that an app activation shows the app's workspace without waiting for the windows of all apps
     static func heavy(_ event: RefreshSessionEvent, preLayout: Bool = false) async {
-        let state = signposter.beginInterval(#function, "event: \(event)")
+        let state = signposter.beginInterval(#function, "event: \(String(describing: event))")
         defer { signposter.endInterval(#function, state) }
         // P0. No screens (e.g., during display reconfiguration): nothing can be laid out. The first session after the
         // screens come back catches up
@@ -37,7 +37,7 @@ enum Reconcile {
             // P3. A task that the refresh's cancellation doesn't reach
             let nativeFocusBaseline = await Task.immediate { @MainActor in await runCallbacks(committed, isStartup: isStartup) }.value
             if isStartup { return }
-            // P3's callbacks may have changed the tree after the session that cancelled this refresh presented (R2b L1).
+            // P3's callbacks may have changed the tree after the session that cancelled this refresh presented.
             // A heavy refresh that is scheduled or running presents anyway
             if Task.isCancelled && committed.hasCallbacks && world.sessions.isHeavyIdle { world.sessions.scheduleHeavy(event) }
             try present(nativeFocusBaseline: nativeFocusBaseline) // P4
@@ -51,8 +51,8 @@ enum Reconcile {
     static func syncFocus(isStartup: Bool) async throws(CancellationError) {
         guard let focused = try await readNativeFocus() else { return syncFocusFromMacOs(nil) }
         if let window = Window.get(byId: focused.windowId) { return syncFocusFromMacOs(window) }
-        // The read is stale once another session reads another native focus at a suspension point below (R2b M1), even
-        // the one that the model has already (R2c M1)
+        // The read is stale once another session reads another native focus at a suspension point below, even one that
+        // the model has already: the newest read wins
         func isNativeFocusCurrent() -> Bool { world.focusStore.lastReadNativeFocusedWindowId == focused.windowId }
         let detected = try await world.platform.classify([focused.app: [focused.windowId]])[focused.windowId]
         let debugInfos = detected == nil ? [] : try await readDebugInfos(focused, [])
@@ -121,7 +121,7 @@ enum Reconcile {
         let detected = try await platform.classify(toClassify)
         // A new window that classify didn't detect (gone, or off-screen with a kind that depends on its level) isn't
         // registered in P2: its states and its dump would go unused. E.g. a minimized Chrome window stays unregistered
-        // for as long as it's minimized, and every heavy refresh would read them again (R2c L5)
+        // for as long as it's minimized, and every heavy refresh would read them again
         let registrable = new.filter { detected[$0.id] != nil }
         var toRead: [AppInfo: [WindowId]] = [:]
         for (id, app) in registrable { toRead[app, default: []].append(id) }
@@ -146,7 +146,7 @@ enum Reconcile {
         return focused
     }
 
-    /// Abandonable like the other reads of P1 (R-PLAT L3): a hung app doesn't hold the sessions while debug-windows records
+    /// Abandonable like the other reads of P1: a hung app doesn't hold the sessions while debug-windows records
     private static func readDebugInfos(
         _ focused: FocusedWindow?,
         _ new: [(id: WindowId, app: AppInfo)],
@@ -170,7 +170,7 @@ enum Reconcile {
         /// the closed-windows cache placed excluded), then the former popups
         let detected: [WindowId]
         /// The focused window if it's new: it takes the focus in P3, after its callbacks, unless another session read
-        /// another native focus meanwhile: `lastReadNativeFocusedWindowId` isn't it anymore (R2b M1, R2c M1)
+        /// another native focus meanwhile: `lastReadNativeFocusedWindowId` isn't it anymore
         let newFocusedWindow: WindowId?
         /// The focus change that the focus sync made, recorded before the GC (#1089). Its callbacks run first in P3
         let focusChange: RecordedFocusChange?
@@ -207,7 +207,7 @@ enum Reconcile {
         }
 
         // 3. Register the new windows in listing order. A window that is unclassified (gone, or off-screen with a kind
-        // that depends on its level: R2a M1) or that another session registered meanwhile is skipped. The next refresh
+        // that depends on its level) or that another session registered meanwhile is skipped. The next refresh
         // tries again
         var newWindows: [Window] = []
         for (id, app) in o.new {
@@ -249,7 +249,7 @@ enum Reconcile {
     /// P3. Shielded: it runs to the end even if the refresh is cancelled. Each window is resolved again: a callback may
     /// close another one. Returns the focus as macOS sees it: P4 gives the native focus if the focus differs from it then
     private static func runCallbacks(_ c: Committed, isStartup: Bool) async -> Window? {
-        // First, before any suspension point: a newer focus change's callbacks can't run before them (R2b M2)
+        // First, before any suspension point: a newer focus change's callbacks can't run before them
         if let change = c.focusChange { await runFocusChangedCallbacks(change) }
         await recordDebugWindows(c.debugInfos)
         for id in c.detected {
