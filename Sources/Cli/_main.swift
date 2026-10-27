@@ -11,6 +11,8 @@ let usage: String =
     \(subcommandTable.joined(separator: "\n"))
     """
 
+private let cliClientVersionAndHash: String = "\(aeroSpaceAppVersion) \(gitHash)"
+
 private let subcommandTable: [String] = CmdKind.allCases
     .filter { $0 != CmdKind.execAndForget } // exec-and-forget isn't a CLI subcommand
     .map { (kind: CmdKind) -> [String] in ["  \(kind.rawValue)", kind.purpose] }
@@ -34,9 +36,8 @@ struct Main {
         if let kind, kind != .execAndForget, options.contains(where: { $0 == "-h" || $0 == "--help" }) {
             exit(EXIT_CODE_ZERO, out: kind.help)
         }
-        // Optimizations
         if args == [CmdKind._true.rawValue] { exit(EXIT_CODE_ZERO) }
-        if args == [CmdKind._false.rawValue] { exit(1) }
+        if args == [CmdKind._false.rawValue] { exit(EXIT_CODE_ONE) }
 
         // The server rejects --stdin for the other subcommands, so don't wait for stdin first
         let readsStdin = kind?.takesStdin == true && options.contains("--stdin")
@@ -57,18 +58,7 @@ struct Main {
 
         if !ans.stdout.isEmpty { print(ans.stdout) }
         if !ans.stderr.isEmpty { eprint(ans.stderr) }
-        if ans.exitCode != EXIT_CODE_ZERO && ans.serverVersionAndHash != cliClientVersionAndHash {
-            eprint(
-                """
-                Warning: AeroSpace client/server versions don't match
-                  - aerospace CLI client version: \(cliClientVersionAndHash)
-                  - AeroSpace.app server version: \(ans.serverVersionAndHash)
-                  Possible fixes:
-                  - Restart AeroSpace.app (server restart is required after each update)
-                  - Reinstall and restart AeroSpace (corrupted installation)
-                """,
-            )
-        }
+        if ans.exitCode != EXIT_CODE_ZERO { warnIfVersionsDiffer(serverVersionAndHash: ans.serverVersionAndHash) }
         if subcommand == CmdKind.subscribe.rawValue && ans.exitCode == EXIT_CODE_ZERO {
             await printEventsAndExit(connection)
         }
@@ -116,17 +106,25 @@ private func printVersionAndExit() async -> Never {
     )
     switch server {
         case .failure(let e): exit(EXIT_CODE_TWO, err: e.message)
-        case .success(let it) where it != cliClientVersionAndHash:
-            eprint(
-                """
-                Warning: AeroSpace client/server versions don't match. Possible fixes:
-                  - Restart AeroSpace.app (server restart is required after each update)
-                  - Reinstall and restart AeroSpace (corrupted installation)
-                """,
-            )
-        case .success, nil: break
+        case .success(let it): warnIfVersionsDiffer(serverVersionAndHash: it)
+        case nil: break
     }
     exit(EXIT_CODE_ZERO)
+}
+
+/// AeroSpace.app runs its old version after an update until it restarts, and the CLI is already the new one
+private func warnIfVersionsDiffer(serverVersionAndHash: String) {
+    if serverVersionAndHash == cliClientVersionAndHash { return }
+    eprint(
+        """
+        Warning: AeroSpace client/server versions don't match
+          - aerospace CLI client version: \(cliClientVersionAndHash)
+          - AeroSpace.app server version: \(serverVersionAndHash)
+          Possible fixes:
+          - Restart AeroSpace.app (server restart is required after each update)
+          - Reinstall and restart AeroSpace (corrupted installation)
+        """,
+    )
 }
 
 private func readStdinOrExit() -> String {

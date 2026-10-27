@@ -18,6 +18,8 @@ public let socketProtocolVersion = 2
 public let maxRequestSize: UInt32 = 16 << 20
 
 public let EXIT_CODE_ZERO: Int32 = 0
+/// A "no" rather than a failure
+public let EXIT_CODE_ONE: Int32 = 1
 public let EXIT_CODE_TWO: Int32 = 2
 
 public struct ClientRequest: Codable, Sendable, Equatable {

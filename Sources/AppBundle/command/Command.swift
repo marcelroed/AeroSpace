@@ -28,8 +28,7 @@ nonisolated struct SourceWords: Equatable, Sendable, ExpressibleByArrayLiteral {
     static func == (_: Self, _: Self) -> Bool { true }
 }
 
-/// A command's user-facing failure. `message`, if any, goes to stderr. `test` and `false` exit with 1: a "no"
-/// rather than a failure
+/// A command's user-facing failure. `message`, if any, goes to stderr
 struct CmdFail: Error, Equatable, ExpressibleByStringInterpolation {
     let message: String?
     /// Never EXIT_CODE_ZERO
@@ -46,7 +45,8 @@ struct CmdFail: Error, Equatable, ExpressibleByStringInterpolation {
 
     /// Fail without a message: the command has already explained, or `--fail-if-noop` asked for silence
     static let silent: CmdFail = CmdFail(nil)
-    static let no = CmdFail(nil, exitCode: 1)
+    /// The answer of `false` and of a `test` whose condition doesn't hold
+    static let no = CmdFail(nil, exitCode: EXIT_CODE_ONE)
 
     /// Makes the exit code of a nested shell (`eval`, a callback, a binding) the exit code of the command
     static func passThrough(_ exitCode: Int32) throws(CmdFail) {
