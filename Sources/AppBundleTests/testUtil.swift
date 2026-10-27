@@ -55,8 +55,7 @@ extension Result<Shell<any Command>, CmdParseError> {
         }
     }
 
-    var cmdOrNil: Shell<any Command>? { try? get() }
-    var cmdOrDie: Shell<any Command> { cmdOrNil ?? dieT("\(self)") }
+    var cmdOrDie: Shell<any Command> { (try? get()) ?? dieT("\(self)") }
 }
 
 extension Result {
@@ -87,6 +86,20 @@ nonisolated struct CmdOutput: Equatable {
     static func fail(_ stderr: String...) -> CmdOutput { CmdOutput(stderr: stderr, exitCode: 2) }
 }
 
+extension CmdOutput {
+    init(_ result: CmdResult) {
+        self.init(stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode)
+    }
+
+    /// The way the CLI prints a parse error: the help on stdout, an error on stderr with exit code 2
+    init(_ error: CmdParseError) {
+        self = switch error {
+            case .help(let kind): CmdOutput(stdout: [kind.help])
+            case .invalid(let msg): .fail(msg)
+        }
+    }
+}
+
 /// `json` with sorted keys and without whitespace, so that JSON compares by its keys, types and values only
 func compactJson(_ json: String) -> String {
     let options: JSONSerialization.WritingOptions = [.sortedKeys, .withoutEscapingSlashes, .fragmentsAllowed]
@@ -106,30 +119,18 @@ func compactJson(_ json: String) -> String {
 @discardableResult
 func runCmd(_ command: String, stdin: String = "", windowIdEnv: WindowId? = nil, workspaceEnv: String? = nil) async -> CmdOutput {
     switch parseCommand(command) {
-        case .success(let shell):
-            let result = await shell.run(CmdEnv(windowId: windowIdEnv, workspaceName: workspaceEnv), CmdStdin(stdin))
-            return CmdOutput(stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode)
-        case .failure(.help(let kind)): return CmdOutput(stdout: [kind.help])
-        case .failure(.invalid(let msg)): return CmdOutput(stderr: [msg], exitCode: EXIT_CODE_TWO)
+        case .success(let shell): await CmdOutput(shell.run(CmdEnv(windowId: windowIdEnv, workspaceName: workspaceEnv), CmdStdin(stdin)))
+        case .failure(let error): CmdOutput(error)
     }
 }
 
 /// Parses `args` the way the server parses a CLI request, and runs the command like `runCmd`
 func runCliArgs(_ args: [String], stdin: String = "") async -> CmdOutput {
-    let command: any Command
-    do throws(CmdParseError) {
-        switch try parseRequest(args) {
-            case .command(let it): command = it
-            case .subscribe: return .ok
-        }
-    } catch {
-        return switch error {
-            case .help(let kind): CmdOutput(stdout: [kind.help])
-            case .invalid(let msg): CmdOutput(stderr: [msg], exitCode: EXIT_CODE_TWO)
-        }
+    switch Result(catching: { () throws(CmdParseError) in try parseRequest(args) }) {
+        case .success(.command(let command)): await CmdOutput(Shell.cmd(command).run(CmdEnv(windowId: nil, workspaceName: nil), CmdStdin(stdin)))
+        case .success(.subscribe): .ok
+        case .failure(let error): CmdOutput(error)
     }
-    let result = await Shell.cmd(command).run(CmdEnv(windowId: nil, workspaceName: nil), CmdStdin(stdin))
-    return CmdOutput(stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode)
 }
 
 extension Workspace {
