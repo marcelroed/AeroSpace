@@ -141,7 +141,7 @@ struct MacosNativeFullscreenCommand: nonisolated Command {
 
     func run(_ cx: CmdContext) async throws(CmdFail) {
         let window = try cx.window(windowId: windowId)
-        guard let prevState = await world.platform.facts(window.windowId)?.isFullscreen else { throw CmdFail(windowClosed(window)) }
+        let prevState = try await nativeFacts(of: window).isFullscreen
         guard window.isAlive else { return } // The window closed at the suspension point above
         let newState = toggle.resolve(current: prevState)
         if newState == prevState {
@@ -186,7 +186,7 @@ struct MacosNativeMinimizeCommand: nonisolated Command {
         // resolveTargetOrReportError on already minimized windows will always fail
         // It would be easier if minimized windows were part of the workspace in tree hierarchy
         let window = try cx.window(windowId: windowId)
-        guard let isMinimized = await world.platform.facts(window.windowId)?.isMinimized else { throw CmdFail(windowClosed(window)) }
+        let isMinimized = try await nativeFacts(of: window).isMinimized
         guard window.isAlive else { return } // The window closed at the suspension point above
         let newState = !isMinimized
         world.platform.setNative(window.windowId, .minimized(newState))

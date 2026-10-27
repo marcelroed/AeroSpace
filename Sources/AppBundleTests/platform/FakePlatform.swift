@@ -107,7 +107,11 @@ final class FakePlatform: Platform {
         await beforeTitle?(id)
         return read(.title(id), id)?.title
     }
-    func facts(_ id: WindowId) -> NativeFacts? { read(.facts(id), id)?.facts }
+    func facts(_ id: WindowId) -> NativeFactsRead {
+        defer { logRead(.facts(id)) }
+        guard let window = windows[id] else { return .closed }
+        return answers[window.app.pid] == false ? .noAnswer : .facts(window.facts)
+    }
     func kind(_ id: WindowId) -> AxUiElementWindowType? { read(.kind(id), id)?.kind }
 
     func windowCount(_ app: AppInfo) -> Int? {

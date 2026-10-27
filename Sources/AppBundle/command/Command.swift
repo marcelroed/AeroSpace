@@ -91,6 +91,15 @@ nonisolated let noWindowIsFocused = "No window is focused"
 /// A command's AX read found the window gone
 func windowClosed(_ window: Window) -> String { "Window \(window.windowId) closed" }
 
+/// The window's native states, read from macOS. Fails if the window closed, or if its app is busy (R2c L4)
+func nativeFacts(of window: Window) async throws(CmdFail) -> NativeFacts {
+    switch await world.platform.facts(window.windowId) {
+        case .facts(let facts): return facts
+        case .closed: throw CmdFail(windowClosed(window))
+        case .noAnswer: throw CmdFail("Window \(window.windowId) didn't answer (its app is busy)")
+    }
+}
+
 extension Command {
     /// Runs the command like a shell of one command: Shell resets the closed-windows cache and refreshes the model
     @discardableResult

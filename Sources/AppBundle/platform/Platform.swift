@@ -52,7 +52,7 @@ protocol Platform: AnyObject, Sendable {
 
     func rect(_ id: WindowId) async -> Rect?
     func title(_ id: WindowId) async -> String?
-    func facts(_ id: WindowId) async -> NativeFacts?
+    func facts(_ id: WindowId) async -> NativeFactsRead
     func kind(_ id: WindowId) async -> AxUiElementWindowType?
     func windowCount(_ app: AppInfo) async -> Int?
     func debugInfo(_ id: WindowId) async -> WindowDebugInfo?
@@ -124,6 +124,15 @@ nonisolated struct NativeFacts: Equatable, Sendable {
     let isFullscreen: Bool
     /// false if ``isFullscreen``
     let isMinimized: Bool
+}
+
+/// A command's read of a window's native states (``Platform/facts(_:)``)
+nonisolated enum NativeFactsRead: Equatable, Sendable {
+    case facts(NativeFacts)
+    /// The window closed, or its app terminated
+    case closed
+    /// The app didn't answer: the AX timeout of a busy app (R2c L4)
+    case noAnswer
 }
 
 nonisolated struct FocusedWindow: Equatable, Sendable {

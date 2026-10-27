@@ -172,30 +172,39 @@ actor AxApp {
     /// is a window whose read failed otherwise (e.g. it closed after the listing): a failed read tells nothing either
     func nativeFacts(_ windowIds: [UInt32], _ isAbandoned: () -> Bool) -> [(UInt32, NativeFacts)] {
         var result: [(UInt32, NativeFacts)] = []
-        for windowId in windowIds {
+        loop: for windowId in windowIds {
             if isAbandoned() { break }
-            guard let window = windows[windowId]?.ax else { continue }
-            // PF-3: one IPC instead of two. A failed attribute comes back as an AXValue error, which the getters map to nil
-            // like a failed get
-            let (error, values) = window.getMultiple([Ax.isFullscreenAttr.key, Ax.minimizedAttr.key])
-            if error == .cannotComplete { break }
-            let isFullscreen: Bool
-            let isMinimized: Bool
-            if error == .success, let values, values.count == 2 {
-                isFullscreen = Ax.isFullscreenAttr.getter(values[0]) == true
-                isMinimized = Ax.minimizedAttr.getter(values[1]) == true
-            } else { // One read per attribute (R2c L3)
-                let fullscreenRead = window.getWithError(Ax.isFullscreenAttr)
-                if fullscreenRead.error == .cannotComplete { break }
-                guard let fullscreen = fact(fullscreenRead) else { continue }
-                let minimizedRead = window.getWithError(Ax.minimizedAttr)
-                if minimizedRead.error == .cannotComplete { break }
-                guard let minimized = fact(minimizedRead) else { continue }
-                (isFullscreen, isMinimized) = (fullscreen, minimized)
+            switch nativeFacts(of: windowId) {
+                case .facts(let facts): result.append((windowId, facts))
+                case .closed: continue
+                case .noAnswer: break loop
             }
-            result.append((windowId, NativeFacts(isFullscreen: isFullscreen, isMinimized: !isFullscreen && isMinimized)))
         }
         return result
+    }
+
+    /// The native states of one window that is registered
+    func nativeFacts(of windowId: UInt32) -> NativeFactsRead {
+        guard let window = windows[windowId]?.ax else { return .closed }
+        // PF-3: one IPC instead of two. A failed attribute comes back as an AXValue error, which the getters map to nil
+        // like a failed get
+        let (error, values) = window.getMultiple([Ax.isFullscreenAttr.key, Ax.minimizedAttr.key])
+        if error == .cannotComplete { return .noAnswer }
+        let isFullscreen: Bool
+        let isMinimized: Bool
+        if error == .success, let values, values.count == 2 {
+            isFullscreen = Ax.isFullscreenAttr.getter(values[0]) == true
+            isMinimized = Ax.minimizedAttr.getter(values[1]) == true
+        } else { // One read per attribute (R2c L3)
+            let fullscreenRead = window.getWithError(Ax.isFullscreenAttr)
+            if fullscreenRead.error == .cannotComplete { return .noAnswer }
+            guard let fullscreen = fact(fullscreenRead) else { return .closed }
+            let minimizedRead = window.getWithError(Ax.minimizedAttr)
+            if minimizedRead.error == .cannotComplete { return .noAnswer }
+            guard let minimized = fact(minimizedRead) else { return .closed }
+            (isFullscreen, isMinimized) = (fullscreen, minimized)
+        }
+        return .facts(NativeFacts(isFullscreen: isFullscreen, isMinimized: !isFullscreen && isMinimized))
     }
 
     /// See ``postPlacements(_:isZoom:)``. The app's animations are off from the batch's first write to its end

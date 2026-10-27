@@ -26,6 +26,17 @@ struct MacosNativeFullscreenCommandTest {
         expectEqual(output, expected)
     }
 
+    @Test(arguments: ["macos-native-fullscreen", "macos-native-minimize"])
+    func aBusyAppIsNotAClosedWindow(command: String) async { // R2c L4
+        setUpTree("h_tiles(*1)")
+        fake.answers[testApp.pid] = false // The AX timeout of a busy app
+        expectEqual(await runCmd(command), .fail("Window 1 didn't answer (its app is busy)"))
+
+        fake.answers[testApp.pid] = nil
+        fake.windows[1] = nil // The window closed, and no heavy refresh has seen it yet
+        expectEqual(await runCmd(command), .fail("Window 1 closed"))
+    }
+
     @Test
     func noWindowIsFocused() async {
         let output = await runCmd("macos-native-fullscreen")

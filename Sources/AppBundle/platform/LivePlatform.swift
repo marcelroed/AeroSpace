@@ -175,8 +175,8 @@ final class LivePlatform: Platform {
         await read(id) { app, raw in app.window(raw)?.get(Ax.titleAttr) }
     }
 
-    func facts(_ id: WindowId) async -> NativeFacts? {
-        await read(id) { app, raw in app.nativeFacts([raw]) { false }.first?.1 }
+    func facts(_ id: WindowId) async -> NativeFactsRead {
+        await read(id) { app, raw in app.nativeFacts(of: raw) } ?? .closed
     }
 
     func kind(_ id: WindowId) async -> AxUiElementWindowType? {
