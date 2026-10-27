@@ -86,7 +86,7 @@ struct LayoutCommand: nonisolated Command {
                 case .tiling(let parent):
                     subject = .tilingContainer(parent)
                 case .macosFullscreen, .macosHiddenApp:
-                    let msg = "Can't change layout for macOS minimized, fullscreen windows or windows or hidden apps. " +
+                    let msg = "Can't change layout for macOS minimized, fullscreen windows or windows of hidden apps. " +
                         "This behavior is subject to change"
                     throw CmdFail(msg)
             }
@@ -193,7 +193,6 @@ struct SplitCommand: nonisolated Command {
         guard let (window, placement) = try cx.target(windowId: windowId).windowAndPlacement else { throw CmdFail(noWindowIsFocused) }
         switch placement {
             case .floating:
-                // Nothing to do for floating and macOS native fullscreen windows
                 throw CmdFail("Can't split floating windows")
             case .tiling(let parent):
                 let orientation: Orientation = switch arg {
@@ -206,7 +205,6 @@ struct SplitCommand: nonisolated Command {
                 } else {
                     window.wrap(orientation, .tiles)
                 }
-                return
             case .macosFullscreen, .macosHiddenApp:
                 throw CmdFail("Can't split macos fullscreen, minimized windows and windows of hidden apps. This behavior may change in the future")
         }
@@ -326,7 +324,7 @@ private func balance(_ parent: TilingContainer) {
     for child in parent.children {
         switch parent.layout {
             case .tiles: child.setWeight(parent.orientation, 1)
-            case .accordion: break // Do nothing
+            case .accordion: break
         }
         if let child = child as? TilingContainer {
             balance(child)

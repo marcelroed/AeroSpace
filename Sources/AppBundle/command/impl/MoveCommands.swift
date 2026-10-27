@@ -61,7 +61,7 @@ struct MoveCommand: nonisolated Command {
                 } else {
                     try await moveOut(window, workspace, cx)
                 }
-            case .floating: // floating window
+            case .floating:
                 throw "moving floating windows isn't yet supported" // todo
             case .macosFullscreen, .macosHiddenApp:
                 throw CmdFail(moveOutMacosUnconventionalWindow)

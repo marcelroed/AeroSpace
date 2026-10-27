@@ -43,8 +43,8 @@ struct WindowParentTest {
         ("floating", "move left", .fail("moving floating windows isn't yet supported"), "h_tiles(1)"),
         ("macos_fullscreen", "move left", .fail("moving macOS fullscreen, minimized windows and windows of hidden apps isn't yet supported. This behavior is subject to change"), "h_tiles(1)"),
         ("macos_hidden", "move left", .fail("moving macOS fullscreen, minimized windows and windows of hidden apps isn't yet supported. This behavior is subject to change"), "h_tiles(1)"),
-        ("macos_fullscreen", "layout tiles", .fail("Can't change layout for macOS minimized, fullscreen windows or windows or hidden apps. This behavior is subject to change"), "h_tiles(1)"),
-        ("macos_hidden", "layout tiles", .fail("Can't change layout for macOS minimized, fullscreen windows or windows or hidden apps. This behavior is subject to change"), "h_tiles(1)"),
+        ("macos_fullscreen", "layout tiles", .fail("Can't change layout for macOS minimized, fullscreen windows or windows of hidden apps. This behavior is subject to change"), "h_tiles(1)"),
+        ("macos_hidden", "layout tiles", .fail("Can't change layout for macOS minimized, fullscreen windows or windows of hidden apps. This behavior is subject to change"), "h_tiles(1)"),
         // --root changes the root container instead
         ("macos_fullscreen", "layout --root v_accordion", .ok, "v_accordion(1)"),
         ("macos_hidden", "layout --root v_accordion", .ok, "v_accordion(1)"),
