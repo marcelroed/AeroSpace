@@ -127,6 +127,24 @@ struct FormatTest {
             "Unknown interpolation variable 'window-id'. Possible values:\n" + monitorVars.map { "  " + $0.rawValue }.joined(separator: "\n"),
         )
     }
+
+    /// The docs pages include the variables of their objects by tag
+    @Test
+    func docsListEveryVariableUnderTheTagOfItsObject() throws {
+        let adoc = try String(contentsOf: projectRoot.appending(path: "docs/util/format-vars.adoc"), encoding: .utf8)
+        var tag = ""
+        var documented: [String: Set<String>] = [:]
+        for line in adoc.split(separator: "\n") {
+            if line.starts(with: "// tag::") {
+                tag = String(line.dropFirst("// tag::".count).prefix { $0 != "[" })
+            } else if line.starts(with: "%{") {
+                documented[tag, default: []].insert(String(line.dropFirst(2).prefix { $0 != "}" }))
+            }
+        }
+        let expected = Dictionary(grouping: FormatVar.allCases) { $0.subject.map { "\($0)" } ?? "formatting" }
+            .mapValues { Set($0.map(\.rawValue)) }
+        expectEqual(documented, expected)
+    }
 }
 
 /// The object of an `expand` row. The windows are those of the row's tree
