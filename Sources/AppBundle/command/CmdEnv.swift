@@ -1,5 +1,8 @@
 import Common
 
+/// The window or workspace that a command targets when its args name none. The CLI sends it from the AEROSPACE_WINDOW_ID
+/// and AEROSPACE_WORKSPACE variables, and a callback gets the focus that triggered it. At most one is set: a window
+/// implies its workspace
 struct CmdEnv {
     var windowId: WindowId? = nil
     var workspaceName: String? = nil
@@ -22,6 +25,7 @@ struct CmdEnv {
         return self
     }
 
+    /// The variables of the processes that `exec-and-forget` starts, so an `aerospace` call in them targets the same
     var asMap: [String: String] {
         var result = [String: String]()
         if let windowId {

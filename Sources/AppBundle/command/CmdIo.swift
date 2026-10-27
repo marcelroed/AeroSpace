@@ -1,5 +1,6 @@
 import Common
 
+/// The stdin of a request. Not copyable, so only one command reads it
 struct CmdStdin: ~Copyable {
     private var input: String = ""
     init(_ input: String) {
@@ -14,9 +15,12 @@ struct CmdStdin: ~Copyable {
     }
 }
 
+/// What a command reads and writes. The server sends `stdout` and `stderr` back to the CLI. A class: the commands of one
+/// shell line share it
 final class CmdIo {
     private var stdin: CmdStdin
-    private let stdinSource: CmdIo? // If set, readStdin() reads from it on demand, so unread stdin stays there
+    /// The left side of a pipe reads the stdin of the line on demand: what it doesn't read stays for the next command
+    private let stdinSource: CmdIo?
     var stdout: [String] = []
     var stderr: [String] = []
 
@@ -35,6 +39,7 @@ final class CmdIo {
     static var emptyStdinIgnoringOut: CmdIo { CmdIo(stdin: .emptyStdin) }
 }
 
+/// What a shell line answers: its output and its exit code
 struct CmdResult: Equatable {
     let stdout: [String]
     let stderr: [String]

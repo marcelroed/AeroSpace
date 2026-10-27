@@ -1,7 +1,10 @@
 import AppKit
 import Common
 
-/// A command with its parsed arguments. `parseArgs` (parseCommand.swift) builds it from words, `run` runs it
+/// A command with its parsed arguments. `parseCommand` and `parseRequest` (parseCommand.swift) build it from words.
+/// `run(_:)` is its body. To run a command, run it in a ``Shell`` (`Shell.cmd(command).run(env, stdin)` for a single
+/// one), which resets the closed-windows cache and refreshes the model after each command. A command runs another one
+/// with ``delegate(to:_:)``
 protocol Command: Equatable, Sendable {
     /// Whether running the command can change the tree, which makes the closed-windows cache stale.
     /// Deliberately without a default: every command decides
@@ -91,7 +94,8 @@ nonisolated let noWindowIsFocused = "No window is focused"
 /// A command's AX read found the window gone
 func windowClosed(_ window: Window) -> String { "Window \(window.windowId) closed" }
 
-/// The window's native states, read from macOS. Fails if the window closed, or if its app is busy (R2c L4)
+/// The window's native states, read from macOS. Fails if the window closed, and with another message if its app is busy:
+/// a window whose read timed out isn't closed
 func nativeFacts(of window: Window) async throws(CmdFail) -> NativeFacts {
     switch await world.platform.facts(window.windowId) {
         case .facts(let facts): return facts
@@ -101,7 +105,7 @@ func nativeFacts(of window: Window) async throws(CmdFail) -> NativeFacts {
 }
 
 extension Command {
-    /// Runs the command like a shell of one command: Shell resets the closed-windows cache and refreshes the model
+    /// `Shell.cmd(self).run(env, stdin)`. Only testUtil's runCliArgs calls it: it goes once that calls the shell
     @discardableResult
     func run(_ env: CmdEnv, _ stdin: consuming CmdStdin) async -> CmdResult {
         await Shell.cmd(self).run(env, stdin)
