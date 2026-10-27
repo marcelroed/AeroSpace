@@ -2,7 +2,7 @@ import AppKit
 import Common
 
 /// Use it instead of NSScreen because it can be mocked in tests
-struct MonitorInfo {
+nonisolated struct MonitorInfo: Equatable, Sendable {
     /// The index in NSScreen.screens array. 1-based index
     let monitorAppKitNsScreenScreensId: Int
     let name: String
@@ -60,9 +60,7 @@ struct Monitors {
     }
 
     /// The monitor that contains `point`, or the closest one
-    func approximation(_ point: CGPoint) -> MonitorInfo {
-        all[index { point.distance(toOuterFrame: $0.rect) }]
-    }
+    func approximation(_ point: CGPoint) -> MonitorInfo { nearestMonitor(to: point, in: all) }
 
     func hideCorner(of monitor: MonitorInfo) -> OptimalHideCorner { hideCorners[index(of: monitor)] }
 

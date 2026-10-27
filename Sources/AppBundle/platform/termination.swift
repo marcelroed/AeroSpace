@@ -40,15 +40,15 @@ nonisolated struct AppServerTerminationHandler: TerminationHandler {
 
 /// Makes every window visible before quitting: centered on the monitor it's on (or the main monitor), at its last
 /// floating size or the monitor's visible size
-func restoreWindowsOnMainThread(_ windows: [(app: AxApp, windowId: UInt32, lastFloatingSize: CGSize?)]) {
+func restoreWindowsOnMainThread(_ windows: [(app: AxApp, windowId: UInt32)]) {
     let monitors = TerminationMonitors(
         all: world.monitors.all.map { TerminationMonitor(rect: $0.rect, visibleRect: $0.visibleRect) },
         main: TerminationMonitor(rect: world.monitors.main.rect, visibleRect: world.monitors.main.visibleRect),
     )
     var timedOutApps: Set<pid_t> = []
-    for (app, windowId, lastFloatingSize) in windows where !timedOutApps.contains(app.pid) {
+    for (app, windowId) in windows where !timedOutApps.contains(app.pid) {
         let isDone = app.postAndWait(timeout: terminationAxTimeout) { app in
-            app.restore(windowId) { monitors.restoreFrame(windowRect: $0, lastFloatingSize) }
+            app.restore(windowId) { monitors.restoreFrame(windowRect: $0, $1) }
         }
         if !isDone {
             timedOutApps.insert(app.pid)
@@ -69,7 +69,7 @@ nonisolated func restoreWindowsOffMainThread(_ apps: [AxApp]) {
         restores.enter()
         app.post { app in
             for windowId in app.windowIds {
-                app.restore(windowId) { monitors.restoreFrame(windowRect: $0, nil) }
+                app.restore(windowId) { rect, _ in monitors.restoreFrame(windowRect: rect, nil) }
             }
             restores.leave()
         }

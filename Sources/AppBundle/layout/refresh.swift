@@ -38,16 +38,19 @@ func refresh() async throws(CancellationError) {
     Workspace.garbageCollectUnusedWorkspaces()
 }
 
-func layoutWorkspaces() async throws {
+/// Lays out the visible workspaces, then parks the windows of the others (to reduce flicker), in one batch
+func layoutWorkspaces() throws(CancellationError) {
+    try checkCancellation()
+    var placements: [Placement] = []
     if !world.isEnabled {
+        // No screens: wait for them. AeroSpace can't be disabled while there are no screens (EnableCommand), so the
+        // windows were unhidden when it was disabled, unless the screens vanished during that session. Then the next
+        // `enable off` with screens unhides them
+        if !world.platform.hasScreens { return }
         for workspace in Workspace.all {
-            // No screens: wait for them. AeroSpace can't be disabled while there are no screens (EnableCommand), so the
-            // windows were unhidden when it was disabled, unless the screens vanished during that session. Then the next
-            // `enable off` with screens unhides them. Checked per workspace, because the screens can vanish during an await
-            if !world.platform.hasScreens { return }
-            workspace.allLeafWindowsRecursive.forEach { $0.unhideFromCorner() }
-            try await workspace.layoutWorkspace() // Unhide tiling windows from corner
+            placements += workspace.layoutPlacements() // Unparks every window
         }
+        world.platform.apply(placements)
         return
     }
     let monitors = world.monitors
@@ -55,20 +58,16 @@ func layoutWorkspaces() async throws {
     // a monitor that doesn't exist
     if !world.platform.hasScreens { return }
 
-    // to reduce flicker, first unhide visible workspaces, then hide invisible ones
     for monitor in monitors.all {
-        // The screens may also disappear at the suspension points below
-        if !world.platform.hasScreens { return }
-        let workspace = monitor.activeWorkspace
-        workspace.allLeafWindowsRecursive.forEach { $0.unhideFromCorner() }
-        try await workspace.layoutWorkspace()
+        placements += monitor.activeWorkspace.layoutPlacements()
     }
     for workspace in Workspace.all where !workspace.isVisible {
-        let corner = world.monitors.hideCorner(of: workspace.workspaceMonitor)
+        let monitor = workspace.workspaceMonitor
+        let corner = monitors.hideCorner(of: monitor)
         for window in workspace.allLeafWindowsRecursive {
-            // Same
-            if !world.platform.hasScreens { return }
-            try await window.hideInCorner(corner)
+            let target = ParkTarget(corner: corner, monitor: monitor, monitors: monitors.all, isFloating: window.isFloating)
+            placements.append(.park(window.windowId, target))
         }
     }
+    world.platform.apply(placements)
 }

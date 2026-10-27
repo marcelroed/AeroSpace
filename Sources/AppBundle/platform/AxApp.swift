@@ -83,15 +83,23 @@ actor AxApp {
 
     nonisolated var isCurrentThread: Bool { executor.isCurrentThread }
 
-    /// Posts a write of one window: a placement, an attribute write or a close. It makes the window's earlier writes
-    /// stale (latest wins, 0f1b849d). `body` gets whether it's still the window's latest write. Placements check it and
-    /// stop; attribute writes and closes don't: they cancel a pending placement, never the reverse
-    nonisolated func postWindowWrite(_ windowId: UInt32, _ body: @escaping @Sendable (isolated AxApp, _ isLatest: () -> Bool) -> Void) {
+    /// Posts a write of one window that runs even if a newer write of the window is posted: an attribute write, a close or
+    /// ``restoreFloatingSize(_:)``. It makes the window's pending placements stale (latest wins, 0f1b849d): such a write
+    /// cancels a pending placement, never the reverse
+    nonisolated func postWindowWrite(_ windowId: UInt32, _ body: @escaping @Sendable (isolated AxApp) -> Void) {
         let generation = generations.withLock { $0.bump(windowId) }
         post { app in
-            body(app) { app.generations.withLock { $0.isLatest(windowId, generation) } }
+            body(app)
             app.generations.withLock { $0.finish(windowId, generation) }
         }
+    }
+
+    /// Posts one job for the app's placements of a batch, in the batch's order (design-m2 D4). Each placement is its
+    /// window's latest write until a newer write of the window is posted (as ``postWindowWrite(_:_:)``), and it stops,
+    /// also between its AX calls, once it's stale or termination starts
+    nonisolated func postPlacements(_ placements: [Placement], isZoom: Bool) {
+        let generations: [UInt64] = self.generations.withLock { generations in placements.map { generations.bump($0.windowId.raw) } }
+        post { app in app.place(placements, generations, isZoom: isZoom) }
     }
 
     // MARK: Isolated: AX calls
@@ -154,34 +162,50 @@ actor AxApp {
         return NativeFacts(isFullscreen: isFullscreen, isMinimized: !isFullscreen && window.get(Ax.minimizedAttr) == true)
     }
 
-    /// A placement. It stops, also between its AX writes, once `isLatest` turns false or termination starts
-    func place(_ windowId: UInt32, _ topLeft: CGPoint?, _ size: CGSize?, _ isLatest: () -> Bool) {
-        func isCurrent() -> Bool { isLatest() && !isTerminating.load(ordering: .sequentiallyConsistent) }
-        guard isCurrent(), let window = windows[windowId]?.ax else { return }
-        disableAnimations(element, while: isCurrent) {
-            setFrame(window, topLeft, size, while: isCurrent)
+    /// See ``postPlacements(_:isZoom:)``. The app's animations are off from a placement's first write to its end
+    private func place(_ placements: [Placement], _ generations: [UInt64], isZoom: Bool) {
+        for (placement, generation) in zip(placements, generations) {
+            let windowId = placement.windowId.raw
+            if let ax = windows[windowId]?.ax {
+                let animations = AnimationsOff(element)
+                defer { animations.restore() }
+                let window = AxPlacementWindow(ax: ax, animations: animations) { @Sendable [self] in
+                    self.generations.withLock { $0.isLatest(windowId, generation) } &&
+                        !isTerminating.load(ordering: .sequentiallyConsistent)
+                }
+                windows[windowId]?.placement.apply(placement, to: window, isZoom: isZoom)
+            }
+            self.generations.withLock { $0.finish(windowId, generation) }
         }
     }
 
-    /// Hides the window in a corner. The bottom left corner needs the window's width: without it, the window goes to the
-    /// bottom right corner
-    func park(_ windowId: UInt32, _ corner: ParkCorner, _ isLatest: () -> Bool) {
-        guard isLatest(), let window = windows[windowId]?.ax else { return }
-        let topLeft = if let bottomLeft = corner.bottomLeft, let size = window.get(Ax.sizeAttr) {
-            CGPoint(x: bottomLeft.x - size.width, y: bottomLeft.y)
-        } else {
-            corner.bottomRight
-        }
-        place(windowId, topLeft, nil, isLatest)
+    /// `layout tiling` and `enable on`, see ``PlacementState/rememberFloatingSize(of:)``
+    func rememberFloatingSize(_ windowId: UInt32) {
+        guard let ax = windows[windowId]?.ax else { return }
+        // It only reads: the animations stay on
+        windows[windowId]?.placement.rememberFloatingSize(of: AxPlacementWindow(ax: ax, animations: AnimationsOff(element)) { @Sendable in
+            !isTerminating.load(ordering: .sequentiallyConsistent)
+        })
     }
 
-    /// Termination: moves the window to the frame that `restoreFrame` computes from its current rect
-    func restore(_ windowId: UInt32, _ restoreFrame: (Rect?) -> (topLeft: CGPoint, size: CGSize)) {
-        guard let window = windows[windowId]?.ax else { return }
-        let frame = restoreFrame(axRect(window))
-        disableAnimations(element, while: { true }) {
-            setFrame(window, frame.topLeft, frame.size, while: { true })
-        }
+    /// `layout floating`, see ``PlacementState/restoreFloatingSize(to:)``
+    func restoreFloatingSize(_ windowId: UInt32) {
+        guard let window = windows[windowId] else { return }
+        let animations = AnimationsOff(element)
+        defer { animations.restore() }
+        window.placement.restoreFloatingSize(to: AxPlacementWindow(ax: window.ax, animations: animations) { @Sendable in
+            !isTerminating.load(ordering: .sequentiallyConsistent)
+        })
+    }
+
+    /// Termination: moves the window to the frame that `restoreFrame` computes from its current rect and last floating size
+    func restore(_ windowId: UInt32, _ restoreFrame: (Rect?, CGSize?) -> (topLeft: CGPoint, size: CGSize)) {
+        guard let window = windows[windowId] else { return }
+        let animations = AnimationsOff(element)
+        defer { animations.restore() }
+        let ax = AxPlacementWindow(ax: window.ax, animations: animations) { @Sendable in true }
+        let frame = restoreFrame(ax.rect(), window.placement.lastFloatingSize)
+        ax.setFrame(topLeft: frame.topLeft, size: frame.size)
     }
 
     /// The slow path of native focus (LivePlatform.focus has the fast path, #101)
@@ -217,7 +241,9 @@ actor AxApp {
             kAXResizedNotification,
         ]
         guard let subscription = AxSubscription.subscribe(ax, notifications, self) else { return false }
-        windows[windowId] = AxWindow(ax: ax, subscription: subscription)
+        // The size that `layout floating` and termination restore until the window is floating
+        let placement = PlacementState(lastFloatingSize: ax.get(Ax.sizeAttr))
+        windows[windowId] = AxWindow(ax: ax, subscription: subscription, placement: placement)
         return true
     }
 }
@@ -226,6 +252,7 @@ nonisolated private struct AxWindow {
     let ax: AXUIElement
     // periphery:ignore
     let subscription: AxSubscription // Keeps the window observed
+    var placement: PlacementState
 }
 
 /// The latest-wins slot of each window (0f1b849d). A write bumps its window's generation; it's still the latest while
@@ -345,28 +372,53 @@ nonisolated private func axRect(_ window: AXUIElement) -> Rect? {
     return Rect(topLeftX: topLeftCorner.x, topLeftY: topLeftCorner.y, width: size.width, height: size.height)
 }
 
-nonisolated private func setFrame(_ window: AXUIElement, _ topLeft: CGPoint?, _ size: CGSize?, while isCurrent: () -> Bool) {
-    // Set size and then the position. The order is important https://github.com/nikitabobko/AeroSpace/issues/143
-    //                                                        https://github.com/nikitabobko/AeroSpace/issues/335
-    if let size { window.set(Ax.sizeAttr, size) }
-    guard isCurrent(), let topLeft else { return }
-    window.set(Ax.topLeftCornerAttr, topLeft)
-    guard isCurrent(), let size else { return }
-    window.set(Ax.sizeAttr, size)
+/// A window of the app for ``PlacementState``, on the app's thread
+nonisolated private struct AxPlacementWindow: PlacementWindow {
+    let ax: AXUIElement
+    let animations: AnimationsOff
+    let isCurrentNow: @Sendable () -> Bool
+
+    func isCurrent() -> Bool { isCurrentNow() }
+    func topLeft() -> CGPoint? { ax.get(Ax.topLeftCornerAttr) }
+    func size() -> CGSize? { ax.get(Ax.sizeAttr) }
+
+    @discardableResult
+    func setFrame(topLeft: CGPoint?, size: CGSize?) -> Bool {
+        guard isCurrent() else { return false }
+        animations.turnOff()
+        // Set size and then the position. The order is important https://github.com/nikitabobko/AeroSpace/issues/143
+        //                                                        https://github.com/nikitabobko/AeroSpace/issues/335
+        if let size { ax.set(Ax.sizeAttr, size) }
+        guard isCurrent(), let topLeft else { return false }
+        ax.set(Ax.topLeftCornerAttr, topLeft)
+        if isCurrent(), let size { ax.set(Ax.sizeAttr, size) }
+        return true
+    }
 }
 
-// Some undocumented magic
-// References: https://github.com/koekeishiya/yabai/commit/3fe4c77b001e1a4f613c26f01ea68c0f09327f3a
-//             https://github.com/rxhanson/Rectangle/pull/285
-nonisolated private func disableAnimations(_ app: AXUIElement, while isCurrent: () -> Bool, _ body: () -> Void) {
-    let wasEnabled = app.get(Ax.enhancedUserInterfaceAttr) == true
-    if wasEnabled {
-        app.set(Ax.enhancedUserInterfaceAttr, false)
-    }
-    defer {
+/// Turns the app's animations off before the first window write, and back on in ``restore()``.
+/// Some undocumented magic
+/// References: https://github.com/koekeishiya/yabai/commit/3fe4c77b001e1a4f613c26f01ea68c0f09327f3a
+///             https://github.com/rxhanson/Rectangle/pull/285
+nonisolated private final class AnimationsOff {
+    private let app: AXUIElement
+    /// nil until the first write
+    private var wasEnabled: Bool? = nil
+
+    init(_ app: AXUIElement) { self.app = app }
+
+    func turnOff() {
+        if wasEnabled != nil { return }
+        let wasEnabled = app.get(Ax.enhancedUserInterfaceAttr) == true
         if wasEnabled {
+            app.set(Ax.enhancedUserInterfaceAttr, false)
+        }
+        self.wasEnabled = wasEnabled
+    }
+
+    func restore() {
+        if wasEnabled == true {
             app.set(Ax.enhancedUserInterfaceAttr, true)
         }
     }
-    if isCurrent() { body() }
 }

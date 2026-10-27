@@ -188,20 +188,28 @@ final class LivePlatform: Platform {
 
     // MARK: Effects
 
+    /// One job per app: its placements in the batch's order (design-m2 D4)
     func apply(_ batch: [Placement]) {
+        var jobs: [pid_t: (app: LiveApp, placements: [Placement])] = [:]
         for placement in batch {
-            switch placement {
-                case .frame(let id, let topLeft, let size):
-                    guard let ax = liveApp(of: id)?.ax else { continue }
-                    let raw = id.raw
-                    ax.postWindowWrite(raw) { app, isLatest in app.place(raw, topLeft, size, isLatest) }
-                case .park(let id, let target):
-                    guard let app = liveApp(of: id), let ax = app.ax else { continue }
-                    let raw = id.raw
-                    let corner = ParkCorner(target, isZoom: app.appId == .zoom)
-                    ax.postWindowWrite(raw) { app, isLatest in app.park(raw, corner, isLatest) }
-            }
+            guard let app = liveApp(of: placement.windowId) else { continue }
+            jobs[app.info.pid, default: (app, [])].placements.append(placement)
         }
+        for (app, placements) in jobs.values {
+            app.ax?.postPlacements(placements, isZoom: app.appId == .zoom)
+        }
+    }
+
+    /// A FIFO read: it sees the window before the session's placements
+    func rememberFloatingSize(_ id: WindowId) {
+        let raw = id.raw
+        liveApp(of: id)?.ax?.post { app in app.rememberFloatingSize(raw) }
+    }
+
+    /// Runs even if a placement of the window is posted after it (the layout of the same session)
+    func restoreFloatingSize(_ id: WindowId) {
+        let raw = id.raw
+        liveApp(of: id)?.ax?.postWindowWrite(raw) { app in app.restoreFloatingSize(raw) }
     }
 
     func focus(_ id: WindowId) {
@@ -229,13 +237,13 @@ final class LivePlatform: Platform {
     func close(_ id: WindowId) {
         if serverArgs.isReadOnly { return }
         let raw = id.raw
-        liveApp(of: id)?.ax?.postWindowWrite(raw) { app, _ in app.close(raw) }
+        liveApp(of: id)?.ax?.postWindowWrite(raw) { app in app.close(raw) }
     }
 
     /// Cancels a pending placement of the window, never the reverse
     func setNative(_ id: WindowId, _ change: NativeChange) {
         let raw = id.raw
-        liveApp(of: id)?.ax?.postWindowWrite(raw) { app, _ in
+        liveApp(of: id)?.ax?.postWindowWrite(raw) { app in
             switch change {
                 case .fullscreen(let value): app.window(raw)?.set(Ax.isFullscreenAttr, value)
                 case .minimized(let value): app.window(raw)?.set(Ax.minimizedAttr, value)
@@ -259,7 +267,7 @@ final class LivePlatform: Platform {
                 restoreWindowsOnMainThread(world.windows.values.compactMap { window in
                     // The restore may run when something went wrong (e.g. some windows are unbound). That's why it
                     // doesn't read `.parent`
-                    liveApp(of: window.windowId)?.ax.map { (app: $0, windowId: window.windowId.raw, window.lastFloatingSize) }
+                    liveApp(of: window.windowId)?.ax.map { (app: $0, windowId: window.windowId.raw) }
                 })
             }
         } else {
@@ -405,23 +413,6 @@ private final class LiveApp {
     /// What the window classifier needs from main, captured for the app's thread
     func classifier(_ windowLevel: MacOsWindowLevel?) -> WindowClassifier {
         WindowClassifier(appId: appId, nsApp: nsApp, windowLevel: windowLevel)
-    }
-}
-
-/// Where ``AxApp/park(_:_:_:)`` puts a window: computed on main, but for the window's width, which the app's thread reads
-nonisolated struct ParkCorner: Sendable {
-    /// The bottom left corner, offset. The window goes left of it. nil: the bottom right corner
-    let bottomLeft: CGPoint?
-    let bottomRight: CGPoint
-}
-
-extension ParkCorner {
-    init(_ target: ParkTarget, isZoom: Bool) {
-        // Zoom will jump off if you do one pixel offset https://github.com/nikitabobko/AeroSpace/issues/527
-        // todo this ad hoc won't be necessary once I implement optimization suggested by Zalim
-        let rect = target.visibleRect
-        bottomLeft = target.corner == .bottomLeftCorner ? rect.bottomLeftCorner + (isZoom ? .zero : CGPoint(x: 1, y: -1)) : nil
-        bottomRight = rect.bottomRightCorner - (isZoom ? .zero : CGPoint(x: 1, y: 1))
     }
 }
 

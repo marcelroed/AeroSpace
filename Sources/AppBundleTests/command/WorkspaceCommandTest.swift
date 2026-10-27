@@ -1,4 +1,5 @@
 @testable import AppBundle
+import AppKit
 import Common
 import Testing
 
@@ -89,7 +90,8 @@ struct WorkspaceCommandTest {
     }
 
     /// The AX work of a switch: each window of the shown workspace gets one frame write, each window of the hidden one is
-    /// parked once, and no window gets both
+    /// parked once (a read of its frame and a write of its position), and no window gets both. A layout without changes
+    /// writes the tiles again, and the parked windows
     @Test
     func switchingWorkspacesWritesTheShownWindowsAndParksTheHiddenOnes() async throws {
         setUpTree("h_tiles(1 2)", workspace: "a")
@@ -98,16 +100,25 @@ struct WorkspaceCommandTest {
             testWindow(id).rect = rect(0, 0, 100, 100)
         }
         #expect(Workspace.get(byName: "a").focusWorkspace())
-        try await layoutWorkspaces()
+        try layoutWorkspaces()
         fake.resetCalls()
 
         expectEqual(await runCmd("workspace b"), .ok)
-        try await layoutWorkspaces()
+        try layoutWorkspaces()
 
-        expectEqual(fake.calls(of: .frame).map(\.windowId), [3])
         expectEqual(fake.calls(of: .park).map(\.windowId), [1, 2])
-        expectEqual(([1, 2, 3] as [WindowId]).map { fake.parked[$0] != nil }, [true, true, false])
+        expectEqual(fake.calls(of: .frame).map(\.windowId), [3, 1, 2]) // 3's tile, then 1 and 2 in their corner
+        expectEqual(([1, 2, 3] as [WindowId]).map { fake.isParked($0) }, [true, true, false])
         // The parks read where the windows were, to put them back there. Nothing else reads
-        expectEqual(fake.calls.filter { ![.frame, .park].contains($0.kind) }, [.observedRect(1), .observedRect(2)])
+        expectEqual(fake.calls(of: .axRead).map(\.windowId), [1, 1, 2, 2])
+        expectEqual(fake.calls.count, 3 + 2 + 4)
+
+        fake.resetCalls()
+        try layoutWorkspaces()
+        expectEqual(fake.calls.filter { $0.kind != .park }, [
+            .frame(3, topLeft: CGPoint(x: 0, y: 0), size: CGSize(width: 1920, height: 1079)),
+            .frame(1, topLeft: CGPoint(x: 1919, y: 1079), size: nil),
+            .frame(2, topLeft: CGPoint(x: 1919, y: 1079), size: nil),
+        ])
     }
 }

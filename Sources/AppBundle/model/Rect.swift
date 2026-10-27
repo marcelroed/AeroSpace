@@ -31,7 +31,7 @@ extension CGRect {
     }
 }
 
-extension Rect {
+nonisolated extension Rect {
     func contains(_ point: CGPoint) -> Bool {
         minX <= point.x && point.x < maxX && minY <= point.y && point.y < maxY
     }

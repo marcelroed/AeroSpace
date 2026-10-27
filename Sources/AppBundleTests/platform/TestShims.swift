@@ -15,7 +15,7 @@ enum TestWindow {
     @discardableResult
     static func new(id: WindowId, parent: Container, weight: CGFloat = 1, rect: Rect? = nil) -> Window {
         fake.windows[id] = FakeWindow(app: testApp, rect: rect, title: "TestWindow(\(id))")
-        return Window(id: id, testApp, lastFloatingSize: nil, parent: parent, weight: weight, index: nil)
+        return Window(id: id, testApp, parent: parent, weight: weight, index: nil)
     }
 }
 
@@ -28,6 +28,9 @@ extension Window {
 
     /// The frame writes, in order
     var setAxFrameHistory: [AxFrame] { fake.frames(of: windowId) }
+
+    /// AxApp's, see ``PlacementState/lastFloatingSize``
+    var lastFloatingSize: CGSize? { fake.windows[windowId]?.placement.lastFloatingSize }
 
     var isMacosFullscreenForTest: Bool {
         get { fake.windows[windowId]?.isFullscreen ?? false }

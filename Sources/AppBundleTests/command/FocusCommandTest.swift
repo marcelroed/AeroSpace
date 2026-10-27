@@ -164,14 +164,14 @@ struct FocusCommandTest {
     /// Before RS-NAV, focus focused while the floating windows were bound as tiling windows. Focusing window 4 made v_tiles
     /// the most recent child of the root, and layout let window 2 go fullscreen instead of window 3
     @Test
-    func focusingAFloatingWindowKeepsTheFullscreenTilingWindow() async throws {
+    func focusingAFloatingWindowKeepsTheFullscreenTilingWindow() async {
         let workspace = setUpFloatingWindowAboveTiles("h_tiles(v_tiles(1 2) 3) floating(4)")
         #expect(testWindow(2).focusWindow() && testWindow(3).focusWindow())
         testWindow(3).isFullscreen = true
         let output = await runCmd("focus --window-id 4")
         expectEqual(output, .ok)
         expectEqual(workspace.existingRootTilingContainer?.mostRecentWindowRecursive?.windowId, 3)
-        try await workspace.layoutWorkspace()
+        workspace.layoutWorkspace()
         let fullscreen: AxFrame = AxFrame(topLeft: CGPoint(x: 0, y: 0), size: CGSize(width: 1920, height: 1080))
         expectEqual(testWindow(3).setAxFrameHistory.last, fullscreen)
     }

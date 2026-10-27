@@ -70,7 +70,7 @@ struct WindowParentTest {
     func layoutFloatingAndTilingWindows() async {
         setUpTree("h_tiles(1) floating(*2)")
         let floating = testWindow(2)
-        floating.lastFloatingSize = CGSize(width: 100, height: 50)
+        floating.rect = Rect(topLeftX: 10, topLeftY: 20, width: 100, height: 50)
 
         for command in ["layout h_tiles", "layout accordion", "layout vertical"] {
             let output = await runCmd(command)

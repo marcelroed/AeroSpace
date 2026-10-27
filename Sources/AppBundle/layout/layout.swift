@@ -10,11 +10,35 @@ struct WindowFrame: Equatable {
 }
 
 extension Workspace {
-    /// Applies the frames of ``layoutTiling()`` in their order, then repositions the floating windows
-    func layoutWorkspace() async throws(CancellationError) {
-        if isEffectivelyEmpty { return }
-        world.platform.apply(layoutTiling().map { .frame($0.window.windowId, topLeft: $0.topLeft, size: $0.size) })
-        try await layoutFloatingWindows()
+    /// Applies the workspace's ``layoutPlacements()``
+    func layoutWorkspace() {
+        world.platform.apply(layoutPlacements())
+    }
+
+    /// The placements of the workspace's windows: the frames of ``layoutTiling()`` in their order, then the floating
+    /// windows, which keep their frame unless they are off the workspace's monitor, then the windows that the layout
+    /// leaves where they are
+    func layoutPlacements() -> [Placement] {
+        if isEffectivelyEmpty { return [] }
+        var placements: [Placement] = layoutTiling().map { .frame($0.window.windowId, topLeft: $0.topLeft, size: $0.size) }
+        let floatingTarget = FloatingTarget(monitor: workspaceMonitor, monitors: world.monitors.all, isShown: isVisible)
+        for window in floatingWindows {
+            window.lastAppliedLayoutPhysicalRect = nil
+            window.lastAppliedLayoutVirtualRect = nil
+            if window.isFullscreen {
+                let frame = window.fullscreenFrame(on: workspaceMonitor)
+                placements.append(.frame(window.windowId, topLeft: frame.topLeft, size: frame.size))
+                window.isFullscreen = false
+            } else {
+                placements.append(.floating(window.windowId, floatingTarget))
+            }
+        }
+        for kind: ContainerKind in [.macosHiddenApp, .macosFullscreen] {
+            for case let window as Window in existingContainer(kind)?.children ?? [] {
+                placements.append(.leave(window.windowId))
+            }
+        }
+        return placements
     }
 
     /// Lays out the tiling tree without AX calls: writes the layout rects and the tiles weights into the tree and returns
@@ -42,45 +66,6 @@ extension Workspace {
         var frames: [WindowFrame] = []
         root.layoutTiling(rect.topLeftCorner, width: rect.width, height: height, virtual: rect, params, &frames)
         return frames
-    }
-
-    /// Floating windows keep their frame. One that is on a monitor that shows another workspace moves to the same relative
-    /// position on its workspace's monitor. Each window's frame is read and then set before the next window's is read
-    private func layoutFloatingWindows() async throws(CancellationError) {
-        for window in floatingWindows {
-            window.lastAppliedLayoutPhysicalRect = nil
-            window.lastAppliedLayoutVirtualRect = nil
-            let windowRect = try await world.platform.observedRect(window.windowId) // Probably not idempotent
-            // The window may have closed or moved at the suspension point above. A dead workspace can't be compared by name
-            if !isAlive || window.placement != .floating(self) { continue }
-            // The screens may disappear at the suspension point above. The layout waits for them
-            if !world.platform.hasScreens { continue }
-            if let windowRect, let topLeft = floatingTopLeft(windowRect) {
-                world.platform.apply([.frame(window.windowId, topLeft: topLeft, size: nil)])
-            }
-            if window.isFullscreen {
-                let frame = window.fullscreenFrame(on: workspaceMonitor)
-                world.platform.apply([.frame(window.windowId, topLeft: frame.topLeft, size: frame.size)])
-                window.isFullscreen = false
-            }
-        }
-    }
-
-    /// Where a floating window at `windowRect` moves, nil if it stays: when the monitor it's on shows another workspace, to
-    /// the same relative position on this workspace's monitor, clamped to fit
-    private func floatingTopLeft(_ windowRect: Rect) -> CGPoint? {
-        let currentMonitor = world.monitors.approximation(windowRect.center)
-        if self == currentMonitor.activeWorkspace { return nil }
-        let xProportion = (windowRect.topLeftX - currentMonitor.visibleRect.topLeftX) / currentMonitor.visibleRect.width
-        let yProportion = (windowRect.topLeftY - currentMonitor.visibleRect.topLeftY) / currentMonitor.visibleRect.height
-
-        let workspaceRect = workspaceMonitor.visibleRect
-        let x = workspaceRect.topLeftX + xProportion * workspaceRect.width
-        let y = workspaceRect.topLeftY + yProportion * workspaceRect.height
-        return CGPoint(
-            x: x.coerce(in: workspaceRect.minX ... max(workspaceRect.minX, workspaceRect.maxX - windowRect.width)),
-            y: y.coerce(in: workspaceRect.minY ... max(workspaceRect.minY, workspaceRect.maxY - windowRect.height)),
-        )
     }
 }
 

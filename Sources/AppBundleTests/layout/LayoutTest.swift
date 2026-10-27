@@ -8,12 +8,12 @@ import Testing
 @Suite(.aeroSpaceGlobalState)
 struct LayoutTest {
     @Test
-    func tilesHorizontal() async throws {
+    func tilesHorizontal() {
         let workspace = setUpTree("h_tiles(0 1 2)", workspace: "a")
         let root = workspace.existingRootTilingContainer.orDie()
         let windows = ([0, 1, 2] as [WindowId]).map(testWindow)
 
-        try await workspace.layoutWorkspace()
+        workspace.layoutWorkspace()
 
         expectRects(workspace, physical: rect(0, 0, 1920, 1079), virtual: rect(0, 0, 1920, 1080))
         expectRects(root, physical: rect(0, 0, 1920, 1079), virtual: rect(0, 0, 1920, 1080))
@@ -26,14 +26,14 @@ struct LayoutTest {
     }
 
     @Test
-    func tilesNestedWithGaps() async throws {
+    func tilesNestedWithGaps() {
         world.config.gaps = Gaps(inner: .init(vertical: 10, horizontal: 20), outer: .init(left: 10, bottom: 19, top: 20, right: 10))
         let workspace = setUpTree("h_tiles(1:450 v_tiles:1050(2:1 3:3))", workspace: "a")
         let root = workspace.existingRootTilingContainer.orDie()
         let (w1, w2, w3) = (testWindow(1), testWindow(2), testWindow(3))
         let container = w2.parent.orDie()
 
-        try await workspace.layoutWorkspace()
+        workspace.layoutWorkspace()
 
         expectRects(workspace, physical: rect(10, 20, 1900, 1040), virtual: rect(10, 20, 1900, 1041))
         expectRects(root, physical: rect(10, 20, 1900, 1040), virtual: rect(10, 20, 1900, 1041))
@@ -55,7 +55,7 @@ struct LayoutTest {
     }
 
     @Test
-    func tilesPerMonitorGaps() async throws {
+    func tilesPerMonitorGaps() {
         let main = [PerMonitorValue(description: .main, value: 100)]
         let secondary = [PerMonitorValue(description: .secondary, value: 100)]
         world.config.gaps = Gaps(
@@ -65,7 +65,7 @@ struct LayoutTest {
         let workspace = setUpTree("h_tiles(1 2)", workspace: "a")
         let (w1, w2) = (testWindow(1), testWindow(2))
 
-        try await workspace.layoutWorkspace()
+        workspace.layoutWorkspace()
 
         expectRects(workspace, physical: rect(100, 0, 1800, 1079), virtual: rect(100, 0, 1800, 1080))
         expectEqual(w1.setAxFrameHistory, [frame(100, 0, 880, 1079)])
@@ -74,7 +74,7 @@ struct LayoutTest {
     }
 
     @Test
-    func accordionHorizontal() async throws {
+    func accordionHorizontal() {
         world.config.accordionPadding = 30
         let workspace = setUpTree("h_accordion(0 1 2)", workspace: "a")
         let root = workspace.existingRootTilingContainer.orDie()
@@ -82,7 +82,7 @@ struct LayoutTest {
 
         // MRU is the first child
         windows[0].markAsMostRecentChild()
-        try await workspace.layoutWorkspace()
+        workspace.layoutWorkspace()
         expectEqual(windows.map(\.setAxFrameHistory.last), [
             frame(0, 0, 1890, 1079),
             frame(60, 0, 1860, 1079),
@@ -91,7 +91,7 @@ struct LayoutTest {
 
         // MRU is the middle child
         windows[1].markAsMostRecentChild()
-        try await workspace.layoutWorkspace()
+        workspace.layoutWorkspace()
         expectEqual(windows.map(\.setAxFrameHistory.last), [
             frame(0, 0, 1890, 1079),
             frame(30, 0, 1860, 1079),
@@ -100,7 +100,7 @@ struct LayoutTest {
 
         // MRU is the last child
         windows[2].markAsMostRecentChild()
-        try await workspace.layoutWorkspace()
+        workspace.layoutWorkspace()
         expectEqual(windows.map(\.setAxFrameHistory.last), [
             frame(0, 0, 1890, 1079),
             frame(0, 0, 1860, 1079),
@@ -116,13 +116,13 @@ struct LayoutTest {
     }
 
     @Test
-    func accordionVertical() async throws {
+    func accordionVertical() {
         world.config.accordionPadding = 30
         let workspace = setUpTree("v_accordion(0 1 2 3)", workspace: "a")
         let windows = ([0, 1, 2, 3] as [WindowId]).map(testWindow)
         windows[1].markAsMostRecentChild()
 
-        try await workspace.layoutWorkspace()
+        workspace.layoutWorkspace()
 
         expectEqual(windows.map(\.setAxFrameHistory), [
             [frame(0, 0, 1920, 1049)],
@@ -133,24 +133,24 @@ struct LayoutTest {
     }
 
     @Test
-    func accordionSingleChild() async throws {
+    func accordionSingleChild() {
         world.config.accordionPadding = 30
         let workspace = setUpTree("h_accordion(1)", workspace: "a")
         let window = testWindow(1)
 
-        try await workspace.layoutWorkspace()
+        workspace.layoutWorkspace()
 
         expectEqual(window.setAxFrameHistory, [frame(0, 0, 1920, 1079)])
     }
 
     @Test
-    func accordionInsideTiles() async throws {
+    func accordionInsideTiles() {
         world.config.accordionPadding = 10
         let workspace = setUpTree("h_tiles(1 v_accordion(2 3))", workspace: "a")
         let (w1, w2, w3) = (testWindow(1), testWindow(2), testWindow(3))
         let accordion = w2.parent.orDie()
 
-        try await workspace.layoutWorkspace()
+        workspace.layoutWorkspace()
 
         expectEqual(w1.setAxFrameHistory, [frame(0, 0, 960, 1079)])
         expectRects(accordion, physical: rect(960, 0, 960, 1079), virtual: rect(960, 0, 960, 1080))
@@ -160,13 +160,13 @@ struct LayoutTest {
     }
 
     @Test
-    func fullscreenTilingWindow() async throws {
+    func fullscreenTilingWindow() {
         world.config.gaps = Gaps(inner: .zero, outer: .init(left: 5, bottom: 5, top: 5, right: 5))
         let workspace = setUpTree("h_tiles(1 2)", workspace: "a") // 2 is the most recent window
         let (w1, w2) = (testWindow(1), testWindow(2))
         w2.isFullscreen = true
 
-        try await workspace.layoutWorkspace()
+        workspace.layoutWorkspace()
         expectEqual(w1.setAxFrameHistory, [frame(5, 5, 955, 1069)])
         expectEqual(w2.setAxFrameHistory, [frame(5, 5, 1910, 1070)])
         expectEqual(w2.lastAppliedLayoutPhysicalRect.map(cg), nil)
@@ -174,19 +174,19 @@ struct LayoutTest {
         #expect(w2.isFullscreen)
 
         w2.noOuterGapsInFullscreen = true
-        try await workspace.layoutWorkspace()
+        workspace.layoutWorkspace()
         expectEqual(w2.setAxFrameHistory.last, frame(0, 0, 1920, 1080))
 
         // Only the MRU window can be fullscreen
         w1.isFullscreen = true
-        try await workspace.layoutWorkspace()
+        workspace.layoutWorkspace()
         #expect(!w1.isFullscreen)
         expectEqual(w1.setAxFrameHistory.last, frame(5, 5, 955, 1069))
         expectRects(w1, physical: rect(5, 5, 955, 1069), virtual: rect(5, 5, 955, 1070))
     }
 
     @Test
-    func floatingWindows() async throws {
+    func floatingWindows() {
         let workspace = setUpTree("h_tiles() floating(1 2 3 4)", workspace: "a")
         let (centered, outside, noRect, fullscreen) = (testWindow(1), testWindow(2), testWindow(3), testWindow(4))
         centered.rect = rect(960, 540, 300, 200)
@@ -195,7 +195,7 @@ struct LayoutTest {
         centered.lastAppliedLayoutPhysicalRect = rect(1, 2, 3, 4)
         centered.lastAppliedLayoutVirtualRect = rect(1, 2, 3, 4)
 
-        try await workspace.layoutWorkspace()
+        workspace.layoutWorkspace()
 
         expectEqual(centered.setAxFrameHistory, [AxFrame(topLeft: CGPoint(x: 960, y: 540), size: nil)])
         expectEqual(outside.setAxFrameHistory, [AxFrame(topLeft: CGPoint(x: 1620, y: 880), size: nil)])
@@ -207,20 +207,20 @@ struct LayoutTest {
 
         // Floating windows of the active workspace are not moved
         #expect(workspace.focusWorkspace())
-        try await workspace.layoutWorkspace()
+        workspace.layoutWorkspace()
         expectEqual(centered.setAxFrameHistory.count, 1)
         expectEqual(outside.setAxFrameHistory.count, 1)
         expectEqual(fullscreen.setAxFrameHistory.count, 1)
     }
 
     @Test
-    func windowManipulatedWithMouseIsSkipped() async throws {
+    func windowManipulatedWithMouseIsSkipped() {
         let workspace = setUpTree("h_tiles(1 2)", workspace: "a")
         let (w1, w2) = (testWindow(1), testWindow(2))
         world.mouseManipulatedWindowId = w1.windowId
         defer { world.mouseManipulatedWindowId = nil }
 
-        try await workspace.layoutWorkspace()
+        workspace.layoutWorkspace()
 
         expectEqual(w1.setAxFrameHistory, [])
         expectEqual(w1.lastAppliedLayoutPhysicalRect.map(cg), nil)
@@ -244,10 +244,10 @@ struct LayoutTest {
     }
 
     @Test
-    func emptyWorkspaceIsNotLaidOut() async throws {
+    func emptyWorkspaceIsNotLaidOut() {
         let workspace = setUpTree("h_tiles(v_tiles())", workspace: "a")
 
-        try await workspace.layoutWorkspace()
+        workspace.layoutWorkspace()
 
         expectEqual(workspace.lastAppliedLayoutPhysicalRect.map(cg), nil)
         expectEqual(workspace.existingRootTilingContainer?.lastAppliedLayoutPhysicalRect.map(cg), nil)

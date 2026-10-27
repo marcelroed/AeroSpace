@@ -19,12 +19,12 @@ import Common
 /// | ffm, mouse move, mouse resize | One ``LatestTaskSlot`` per kind around a light session | A newer event of the same kind       |
 /// | AX read of a heavy refresh    | An observe read of ``Platform`` (`AxApp.call`): abandonable | Cancellation of the heavy refresh: it returns at once |
 /// | AX read of a command          | A single read of ``Platform`` (`AxApp.run`): awaited  | —                                     |
-/// | Frame write                   | `AxApp.postWindowWrite`: a generation per window      | A newer frame write, attribute write or close of it |
+/// | Placement                     | `AxApp.postPlacements`: a generation per window       | A newer placement, attribute write or close of it |
 /// | Native focus (slow path)      | A post with a global generation (`LivePlatform.focus`) | A newer native focus                 |
 /// | App registration              | One pending task per pid (`LivePlatform.pendingRegistrations`); a failed one backs off 1–60 s | — |
-/// | Order within an app           | FIFO on its actor's thread (posts and awaited calls share one queue): the visible workspaces' frames, then hiding in corners, then focus | — |
+/// | Order within an app           | FIFO on its actor's thread (posts and awaited calls share one queue): one job per layout: the visible workspaces' placements, then the parks; then focus | — |
 ///
-/// A cancelled heavy refresh stops at its next cancellation check: an observe read or a layout step. Nothing is
+/// A cancelled heavy refresh stops at its next cancellation check: an observe read or the layout. Nothing is
 /// queued for retry: the tree is the desired state, and every heavy refresh lays out every window again.
 final class Sessions {
     private let heavy = LatestTaskSlot()
@@ -56,13 +56,13 @@ final class Sessions {
 
             let focusAfter = focus.windowOrNil
 
-            // Runs at the next suspension point, so the layout dispatches the frames of the visible windows first
-            // (updateTrayText does launchservicesd IPC), and the tray doesn't wait for the AX calls that the layout awaits
+            // Runs at the next suspension point, so the layout dispatches its placements first (updateTrayText does
+            // launchservicesd IPC)
             Task.startUnstructured {
                 updateTrayText()
                 world.ui.secureInputPanel.refresh()
             }
-            if !event.isFocusFollowsMouse { try await layoutWorkspaces() }
+            if !event.isFocusFollowsMouse { try layoutWorkspaces() }
             if focusBefore != focusAfter {
                 focusAfter?.nativeFocus() // syncFocusToMacOs
             }
@@ -107,7 +107,7 @@ final class Sessions {
             try await $refreshSessionEvent.withValue(event) {
                 try await syncFocusFromMacOs()
 
-                if shouldLayoutWorkspaces && preLayout { try await layoutWorkspaces() }
+                if shouldLayoutWorkspaces && preLayout { try layoutWorkspaces() }
 
                 await refreshModel_nonCancellable()
                 try await refresh()
@@ -115,7 +115,7 @@ final class Sessions {
                 updateTrayText()
                 world.ui.secureInputPanel.refresh()
                 try await normalizeLayoutReason()
-                if shouldLayoutWorkspaces { try await layoutWorkspaces() }
+                if shouldLayoutWorkspaces { try layoutWorkspaces() }
             }
         } catch let err as CancellationError {
             check(isCancellable, "Non cancellable refresh session was canceled: \(err) (\(type(of: err)))")

@@ -53,6 +53,10 @@ protocol Platform: AnyObject, Sendable {
 
     /// Applies the placements in order. A newer placement of a window makes its pending older one stale
     func apply(_ batch: [Placement])
+    /// The window's size now is its floating size (``PlacementState/lastFloatingSize``)
+    func rememberFloatingSize(_ id: WindowId)
+    /// Gives the window its floating size back
+    func restoreFloatingSize(_ id: WindowId)
     /// Gives the window the native focus: raises it and activates its app
     func focus(_ id: WindowId)
     /// Presses the window's close button

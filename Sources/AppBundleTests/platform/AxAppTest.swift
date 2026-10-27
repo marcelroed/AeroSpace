@@ -19,7 +19,7 @@ struct AxAppTest {
                 app.post { _ in log.append("other \(i) \(Thread.current.name ?? "")") }
             }
         }
-        // Like a layout: a write, then a read that must see it (hideInCorner), then a write again
+        // Like a command: a write, then a read that must see it, then a write again
         var expected: [String] = []
         for i in 0 ..< 300 {
             app.post { _ in log.append("post \(i) \(Thread.current.name ?? "")") }
@@ -138,20 +138,20 @@ struct AxAppTest {
     }
 
     @Test
-    func aWindowWriteMakesTheEarlierWritesOfTheSameWindowStale() async {
-        let app = AxApp(pid: 0, threadName: "AxAppTest")
-        let gate = DispatchSemaphore(value: 0)
-        let log = Log<String>()
-        app.post { _ in gate.wait() }
-        app.postWindowWrite(1) { _, isLatest in log.append("placement of 1: \(isLatest())") }
-        app.postWindowWrite(2) { _, isLatest in log.append("placement of 2: \(isLatest())") }
-        app.postWindowWrite(1) { _, isLatest in log.append("attribute of 1: \(isLatest())") }
-        gate.signal()
-        await app.run { _ in }
-        expectEqual(log.items, ["placement of 1: false", "placement of 2: true", "attribute of 1: true"])
-        app.postWindowWrite(1) { _, isLatest in log.append("placement of 1: \(isLatest())") }
-        await app.run { _ in }
-        expectEqual(log.items.last, "placement of 1: true")
+    func aWindowWriteMakesTheEarlierWritesOfTheSameWindowStale() {
+        var generations = WindowGenerations()
+        let placementOf1 = generations.bump(1)
+        let placementOf2 = generations.bump(2)
+        let attributeOf1 = generations.bump(1)
+        expectEqual(
+            [generations.isLatest(1, placementOf1), generations.isLatest(2, placementOf2), generations.isLatest(1, attributeOf1)],
+            [false, true, true],
+        )
+        generations.finish(1, placementOf1) // A stale write's end keeps the newer write
+        #expect(generations.isLatest(1, attributeOf1))
+        generations.finish(1, attributeOf1) // The last write's end forgets the window
+        let newer = generations.bump(1)
+        expectEqual([generations.isLatest(1, attributeOf1), generations.isLatest(1, newer)], [false, true])
     }
 
     @Test

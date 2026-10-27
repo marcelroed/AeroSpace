@@ -3,7 +3,8 @@ import AppKit
 import Common
 
 /// The ``Platform`` of the tests: macOS as plain state. Reads return without suspending, effects apply at once, and
-/// every call goes into ``calls`` for the tests that count AX work per scenario
+/// every call goes into ``calls`` for the tests that count AX work per scenario. The placements run AxApp's code
+/// (``PlacementState``) against ``FakeWindow/rect``
 final class FakePlatform: Platform {
     /// What ``monitors()`` returns. A stored `monitors` would clash with the protocol's method
     var monitorInfos: [MonitorInfo] = [testMonitor]
@@ -16,10 +17,8 @@ final class FakePlatform: Platform {
     var hiddenApps: Set<pid_t> = []
     var isLeftMouseDown: Bool = false
     var mouseLocation: CGPoint = .zero
-    /// The windows that a park hid, see ``Placement/park(_:_:)``. A frame write puts the window back
-    private(set) var parked: [WindowId: ParkTarget] = [:]
-    /// Every call in order. The frame writes are only here: a per-window copy cost as much as the layout itself in the
-    /// perf benchmarks (perf/cand-m2-plat)
+    /// Every call in order, and the AX reads and frame writes of the placements. The frame writes are only here: a
+    /// per-window copy cost as much as the layout itself in the perf benchmarks (perf/cand-m2-plat)
     private(set) var calls: [PlatformCall] = []
 
     func calls(of kind: PlatformCall.Kind, _ id: WindowId? = nil) -> [PlatformCall] {
@@ -32,6 +31,8 @@ final class FakePlatform: Platform {
     }
 
     func resetCalls() { calls = [] }
+
+    func isParked(_ id: WindowId) -> Bool { windows[id]?.placement.isParked == true }
 
     // MARK: Snapshot reads
 
@@ -86,14 +87,26 @@ final class FakePlatform: Platform {
     func apply(_ batch: [Placement]) {
         for placement in batch {
             switch placement {
-                case .frame(let id, let topLeft, let size):
-                    calls.append(.frame(id, topLeft: topLeft, size: size))
-                    if !parked.isEmpty { parked[id] = nil }
-                case .park(let id, let target):
-                    calls.append(.park(id, target))
-                    if windows[id] != nil { parked[id] = target }
+                case .frame: break // Its write is the log entry
+                case .floating(let id, let target): calls.append(.floating(id, target))
+                case .park(let id, let target): calls.append(.park(id, target))
+                case .leave(let id): calls.append(.leave(id))
             }
+            let id = placement.windowId
+            guard let window = windows[id] else { continue }
+            let isZoom = window.app.bundleId == KnownBundleId.zoom.rawValue
+            window.placement.apply(placement, to: FakeAxWindow(id: id, window: window, platform: self), isZoom: isZoom)
         }
+    }
+
+    func rememberFloatingSize(_ id: WindowId) {
+        calls.append(.rememberFloatingSize(id))
+        windows[id]?.placement.rememberFloatingSize(of: FakeAxWindow(id: id, window: windows[id], platform: self))
+    }
+
+    func restoreFloatingSize(_ id: WindowId) {
+        calls.append(.restoreFloatingSize(id))
+        windows[id]?.placement.restoreFloatingSize(to: FakeAxWindow(id: id, window: windows[id], platform: self))
     }
 
     func focus(_ id: WindowId) {
@@ -104,7 +117,6 @@ final class FakePlatform: Platform {
     func close(_ id: WindowId) {
         calls.append(.close(id))
         windows[id] = nil
-        parked[id] = nil
         if focused == id { focused = nil }
     }
 
@@ -124,7 +136,6 @@ final class FakePlatform: Platform {
     func quit(_ app: AppInfo) -> Bool {
         calls.append(.quit(app.pid))
         windows = windows.filter { $0.value.app != app }
-        parked = parked.filter { windows[$0.key] != nil }
         return true
     }
 
@@ -138,19 +149,65 @@ final class FakePlatform: Platform {
         calls.append(call)
         return answering(id)
     }
+
+    fileprivate func log(_ call: PlatformCall) { calls.append(call) }
+}
+
+/// A window of ``FakePlatform`` for ``PlacementState``: each AX read and frame write goes into the call log, and the
+/// writes move the window
+private struct FakeAxWindow: @MainActor PlacementWindow {
+    let id: WindowId
+    let window: FakeWindow?
+    let platform: FakePlatform
+
+    func isCurrent() -> Bool { true }
+
+    func topLeft() -> CGPoint? {
+        platform.log(.axRead(id))
+        return window?.rect?.topLeftCorner
+    }
+
+    func size() -> CGSize? {
+        platform.log(.axRead(id))
+        return window?.rect?.size
+    }
+
+    @discardableResult
+    func setFrame(topLeft: CGPoint?, size: CGSize?) -> Bool {
+        platform.log(.frame(id, topLeft: topLeft, size: size))
+        if let rect = window?.rect {
+            window?.rect = Rect(
+                topLeftX: topLeft?.x ?? rect.topLeftX,
+                topLeftY: topLeft?.y ?? rect.topLeftY,
+                width: size?.width ?? rect.width,
+                height: size?.height ?? rect.height,
+            )
+        }
+        return topLeft != nil
+    }
 }
 
 /// The app of the test windows, unless a test makes others
 let testApp = AppInfo(pid: 0, bundleId: "bobko.AeroSpace.test-app", name: "bobko.AeroSpace.test-app", execPath: nil, bundlePath: nil)
 
-struct FakeWindow {
-    var app: AppInfo
-    /// What AX reports as the window's frame
+/// A class: the placements change it in place
+final class FakeWindow {
+    let app: AppInfo
+    /// What AX reports as the window's frame. The frame writes change it
     var rect: Rect?
     var kind: AxUiElementWindowType = .window
     var isFullscreen = false
     var isMinimized = false
-    var title: String
+    let title: String
+    /// AxApp's state of the window. It's registered with its size now
+    var placement: PlacementState
+
+    init(app: AppInfo, rect: Rect?, title: String) {
+        self.app = app
+        self.rect = rect
+        self.title = title
+        placement = PlacementState(lastFloatingSize: rect?.size)
+    }
 
     var facts: NativeFacts { NativeFacts(isFullscreen: isFullscreen, isMinimized: !isFullscreen && isMinimized) }
 }
@@ -166,13 +223,18 @@ enum PlatformCall: Equatable {
     case listWindows, focusedWindow
     case classify(WindowId), nativeFacts(WindowId), observedRect(WindowId)
     case rect(WindowId), title(WindowId), facts(WindowId), kind(WindowId), windowCount(pid_t), debugInfo(WindowId)
-    case frame(WindowId, topLeft: CGPoint?, size: CGSize?), park(WindowId, ParkTarget)
+    /// The placements but `.frame`, whose frame write is its entry
+    case floating(WindowId, FloatingTarget), park(WindowId, ParkTarget), leave(WindowId)
+    /// What the placements do: one AX attribute read, a frame write (size, position, size: up to 3 AX writes)
+    case axRead(WindowId), frame(WindowId, topLeft: CGPoint?, size: CGSize?)
+    case rememberFloatingSize(WindowId), restoreFloatingSize(WindowId)
     case focus(WindowId), close(WindowId), setNative(WindowId, NativeChange), unhideApp(pid_t), quit(pid_t)
 
     enum Kind: Equatable {
         case listWindows, focusedWindow, classify, nativeFacts, observedRect
         case rect, title, facts, kind, windowCount, debugInfo
-        case frame, park, focus, close, setNative, unhideApp, quit
+        case floating, park, leave, axRead, frame, rememberFloatingSize, restoreFloatingSize
+        case focus, close, setNative, unhideApp, quit
     }
 
     var kind: Kind {
@@ -188,8 +250,13 @@ enum PlatformCall: Equatable {
             case .kind: .kind
             case .windowCount: .windowCount
             case .debugInfo: .debugInfo
-            case .frame: .frame
+            case .floating: .floating
             case .park: .park
+            case .leave: .leave
+            case .axRead: .axRead
+            case .frame: .frame
+            case .rememberFloatingSize: .rememberFloatingSize
+            case .restoreFloatingSize: .restoreFloatingSize
             case .focus: .focus
             case .close: .close
             case .setNative: .setNative
@@ -201,7 +268,8 @@ enum PlatformCall: Equatable {
     var windowId: WindowId? {
         switch self {
             case .classify(let id), .nativeFacts(let id), .observedRect(let id), .rect(let id), .title(let id), .facts(let id),
-                 .kind(let id), .debugInfo(let id), .frame(let id, _, _), .park(let id, _), .focus(let id), .close(let id),
+                 .kind(let id), .debugInfo(let id), .floating(let id, _), .park(let id, _), .leave(let id), .axRead(let id),
+                 .frame(let id, _, _), .rememberFloatingSize(let id), .restoreFloatingSize(let id), .focus(let id), .close(let id),
                  .setNative(let id, _):
                 id
             case .listWindows, .focusedWindow, .windowCount, .unhideApp, .quit: nil

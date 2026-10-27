@@ -14,7 +14,7 @@ func registerWindow(_ windowId: WindowId, _ app: AppInfo) async throws(Cancellat
 
     // atomic synchronous section
     if let existing = Window.get(byId: windowId) { return existing }
-    let window = Window(id: windowId, app, lastFloatingSize: rect?.size, parent: slot.parent, weight: nil, index: slot.index)
+    let window = Window(id: windowId, app, parent: slot.parent, weight: nil, index: slot.index)
 
     await debugWindowsIfRecording(window)
     if !restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: window) {

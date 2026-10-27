@@ -305,7 +305,7 @@ struct EnableCommand: nonisolated Command {
         if newState {
             for workspace in Workspace.all {
                 for window in workspace.allLeafWindowsRecursive where window.isFloating {
-                    window.lastFloatingSize = await world.platform.rect(window.windowId)?.size ?? window.lastFloatingSize
+                    world.platform.rememberFloatingSize(window.windowId)
                 }
             }
             await activateMode_nonCancellable(mainModeId)

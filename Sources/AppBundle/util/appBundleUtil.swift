@@ -28,16 +28,16 @@ func terminateApp() -> Never {
     die("Unreachable code")
 }
 
-func - (a: CGPoint, b: CGPoint) -> CGPoint {
+nonisolated func - (a: CGPoint, b: CGPoint) -> CGPoint {
     CGPoint(x: a.x - b.x, y: a.y - b.y)
 }
 
-func + (a: CGPoint, b: CGPoint) -> CGPoint {
+nonisolated func + (a: CGPoint, b: CGPoint) -> CGPoint {
     CGPoint(x: a.x + b.x, y: a.y + b.y)
 }
 
 extension CGPoint {
-    func distance(toOuterFrame rect: Rect) -> CGFloat {
+    nonisolated func distance(toOuterFrame rect: Rect) -> CGFloat {
         // Subtract 1 from maxX/maxY because the right/bottom bounds are
         // exclusive.
         let dx = max(rect.minX - x, 0, x - (rect.maxX - 1))
@@ -57,7 +57,7 @@ extension CGPoint {
 
     func getProjection(_ orientation: Orientation) -> Double { orientation == .h ? x : y }
 
-    var vectorLength: CGFloat { sqrt(x * x + y * y) }
+    nonisolated var vectorLength: CGFloat { sqrt(x * x + y * y) }
 
     var withYAxisFlipped: CGPoint {
         consuming get {
@@ -72,7 +72,7 @@ extension CGFloat {
         denominator == 0 ? nil : self / CGFloat(denominator)
     }
 
-    func coerce(in range: ClosedRange<CGFloat>) -> CGFloat {
+    nonisolated func coerce(in range: ClosedRange<CGFloat>) -> CGFloat {
         switch true {
             case self > range.upperBound: range.upperBound
             case self < range.lowerBound: range.lowerBound
