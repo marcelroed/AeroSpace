@@ -146,9 +146,11 @@ nonisolated private final class NeverReadyFramer: NWProtocolFramerImplementation
 /// $TMPDIR can be too long for a unix socket path (sun_path is capped at 104 bytes). Like the real socketPath, use /tmp
 nonisolated private func testSocketPath() -> String { "/tmp/aerospace-test-\(UUID().uuidString.prefix(8)).sock" }
 
-/// Mirrors the real server (server.swift): read one request, answer it
+/// A server on a socket of its own: AeroSpace's, or one that mirrors it (read one request, answer it) or misbehaves
 nonisolated final class TestSocketServer: Sendable {
     enum Behavior: Sendable {
+        /// AeroSpace's server: ``serve(_:)``
+        case aeroSpace
         case answer
         /// Announce an answer, then close the connection without sending it
         case closeMidAnswer
@@ -180,6 +182,7 @@ nonisolated final class TestSocketServer: Sendable {
                 defer { connection.cancel() }
                 connection.start(queue: .global())
                 switch behavior {
+                    case .aeroSpace: return await serve(connection)
                     case .answer, .closeMidAnswer, .closeWithoutAnswer, .neverAnswer: break
                     case .legacyServer:
                         _ = await connection.receiveUInt32()
@@ -203,7 +206,7 @@ nonisolated final class TestSocketServer: Sendable {
                         return
                     case .closeWithoutAnswer: return
                     case .neverAnswer: return await connection.readTillError() // Until the client closes the connection
-                    case .answer, .legacyServer, .recordMaxSizeFailure: break
+                    case .answer, .aeroSpace, .legacyServer, .recordMaxSizeFailure: break
                 }
                 let request: ClientRequest
                 do {
@@ -254,6 +257,21 @@ nonisolated final class TestSocketServer: Sendable {
     func stop() {
         listener.cancel()
         try? FileManager.default.removeItem(atPath: path)
+    }
+
+    /// Sends `request` on a new connection and reads the answer. The connection stays open for what follows the answer:
+    /// the caller cancels it
+    func send(_ request: ClientRequest) async throws -> (ServerAnswer, NWConnection) {
+        let connection = NWConnection(to: .unix(path: path), using: .tcp)
+        do {
+            if let error = await connection.initConnection().error { throw error }
+            if let error = await connection.writeAtomic(request).error { throw error }
+            let answer = try JSONDecoder().decode(ServerAnswer.self, from: await connection.readFrame().get())
+            return (answer, connection)
+        } catch {
+            connection.cancel()
+            throw error
+        }
     }
 }
 

@@ -11,7 +11,7 @@ func startUnixSocketServer() {
         Task.startUnstructured {
             defer { connection.cancel() }
             connection.start(queue: .global())
-            await newConnection(connection)
+            await serve(connection)
         }
     }
     listener.start(queue: .global())
@@ -44,9 +44,9 @@ nonisolated func toggleReleaseServerIfDebug(_ state: ToggleEnum) async {
 
 nonisolated private let serverVersionAndHash: String = "\(aeroSpaceAppVersion) \(gitHash)"
 
-/// Answers the one request of the connection. Runs off the main actor: the connection I/O doesn't wait for the main
-/// thread
-nonisolated private func newConnection(_ connection: NWConnection) async {
+/// Answers the one request of the connection, and after a `subscribe` answer sends the events until the client
+/// disconnects. Runs off the main actor: the connection I/O doesn't wait for the main thread
+nonisolated func serve(_ connection: NWConnection) async {
     func answer(exitCode: Int32, stdout: String = "", stderr: String = "") async {
         let answer = ServerAnswer(exitCode: exitCode, stdout: stdout, stderr: stderr, serverVersionAndHash: serverVersionAndHash)
         _ = await connection.writeAtomic(answer)
@@ -79,9 +79,9 @@ nonisolated private func newConnection(_ connection: NWConnection) async {
     switch await handle(request) {
         case .answer(let exitCode, let stdout, let stderr):
             await answer(exitCode: exitCode, stdout: stdout, stderr: stderr)
-        case .subscribe(let args):
+        case .subscribe(let subscription):
             await answer(exitCode: EXIT_CODE_ZERO)
-            await handleSubscribeAndWaitTillError(connection, args)
+            await sendEvents(of: subscription, to: connection)
     }
 }
 
@@ -99,7 +99,8 @@ nonisolated func protocolMismatchMessage(_ rawRequest: Data) -> String? {
 
 private enum RequestOutcome {
     case answer(exitCode: Int32, stdout: String = "", stderr: String = "")
-    case subscribe(SubscribeArgs)
+    /// Its events are queued from the moment of the request, and sent after the answer
+    case subscribe(Subscription)
 }
 
 /// Parses the request, then runs the command. Help and parse errors are answered even if the server is disabled
@@ -108,7 +109,7 @@ private func handle(_ request: ClientRequest) async -> RequestOutcome {
     do throws(CmdParseError) {
         switch try parseRequest(request.args) {
             case .command(let it): command = it
-            case .subscribe(let args): return .subscribe(args)
+            case .subscribe(let args): return .subscribe(subscribe(args))
         }
     } catch {
         return switch error {
