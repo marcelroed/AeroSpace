@@ -19,6 +19,7 @@ private func moveFloatingWindow(_ window: Window) async throws {
     let targetWorkspace = world.monitors.approximation(center).activeWorkspace
     if targetWorkspace != workspace {
         window.move(to: targetWorkspace.containerCreatingIfNeeded(.floating))
+        _ = window.focusWindow() // The user holds it. Else the focus would stay on the workspace that it left
     }
 }
 
@@ -36,6 +37,7 @@ private func moveTilingWindow(_ window: Window) {
             0
         }
         window.move(to: swapTarget?.parent ?? targetWorkspace.rootTilingContainerCreatingIfNeeded(), at: index)
+        _ = window.focusWindow() // The user holds it. Else the focus would stay on the workspace that it left
     } else if let swapTarget {
         window.swap(with: swapTarget)
     }

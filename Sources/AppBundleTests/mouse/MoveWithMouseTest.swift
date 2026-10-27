@@ -19,21 +19,20 @@ struct MoveWithMouseTest {
     }
 
     @Test
-    func draggingFloatingWindowOntoAnotherWorkspaceMovesItThere() async throws {
-        // There is only one test monitor. A window of an invisible workspace stands in for a window that was dragged
-        // onto a monitor that shows another workspace
-        let visible = Workspace.get(byName: "a")
-        #expect(visible.focusWorkspace())
-        let window = TestWindow.new(
-            id: 1,
-            parent: Workspace.get(byName: "invisible").containerCreatingIfNeeded(.floating),
-            rect: Rect(topLeftX: 100, topLeftY: 100, width: 300, height: 200),
-        )
+    func draggingFloatingWindowOntoAnotherMonitorMovesItThereWithTheFocus() async throws {
+        fake.monitorInfos = [testMonitor, rightTestMonitor]
+        updateMonitors()
+        let right = Workspace.get(byName: "right")
+        #expect(rightTestMonitor.setActiveWorkspace(right))
+        setUpTree("h_tiles(2) floating(*1)")
+        let window = testWindow(1)
+        window.rect = Rect(topLeftX: 2000, topLeftY: 100, width: 300, height: 200) // Its center is on the right monitor
 
         try await moveWithMouse(window)
 
-        expectEqual(window.nodeWorkspace, visible)
+        expectEqual(window.nodeWorkspace, right)
         #expect(window.isFloating)
+        expectEqual(focus.windowOrNil?.windowId, 1) // Not the tile 2 that it left
     }
 
     @Test
