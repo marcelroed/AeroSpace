@@ -58,7 +58,7 @@ final class MacWindow: Window {
         let deadWindowWorkspace = parent.nodeWorkspace
         let focus = focus
         if let deadWindowWorkspace, deadWindowWorkspace == focus.workspace ||
-            deadWindowWorkspace == prevFocusedWorkspace && prevFocusedWorkspaceDate.distance(to: .now) < 1
+            deadWindowWorkspace == prevFocusedWorkspace && world.focusStore.prevWorkspaceDate.distance(to: .now) < 1
         {
             switch (parent as? Container)?.kind {
                 case .tiling, .floating, .macosHiddenApp, .macosFullscreen:

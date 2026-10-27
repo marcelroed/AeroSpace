@@ -25,8 +25,8 @@ class Container: TreeNode {
         super.init(parent: parent)
     }
 
-    /// The global containers of minimized and popup windows
-    fileprivate init(root kind: ContainerKind) {
+    /// The global containers of minimized and popup windows: see ``World``
+    init(root kind: ContainerKind) {
         self.kind = kind
         super.init()
     }
@@ -36,9 +36,6 @@ class Container: TreeNode {
         super.init(parent: parent, weight: weight, index: index)
     }
 }
-
-let macosMinimizedWindowsContainer = Container(root: .macosMinimized)
-let macosPopupWindowsContainer = Container(root: .macosPopup)
 
 final class TilingContainer: Container {
     fileprivate(set) var orientation: Orientation

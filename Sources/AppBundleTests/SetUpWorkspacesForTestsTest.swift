@@ -24,10 +24,21 @@ struct SetUpWorkspacesForTestsTest {
     }
 
     @Test
-    func forgetsTheLastKnownNativeFocusedWindow() {
-        lastKnownNativeFocusedWindowId = 1
+    func startsFromAnEmptyWorld() {
+        setUpTree("h_tiles(1) floating(2) macos_minimized(3) macos_popup(4)", workspace: "a")
 
         setUpWorkspacesForTests() // What the next test starts with
-        #expect(lastKnownNativeFocusedWindowId == nil)
+        #expect(Workspace.all.map(\.name) == ["setUpWorkspacesForTests"])
+        #expect(macosMinimizedWindowsContainer.children.isEmpty)
+        #expect(macosPopupWindowsContainer.children.isEmpty)
+        #expect(Window.get(byId: 1) == nil)
+    }
+
+    @Test
+    func forgetsTheLastKnownNativeFocusedWindow() {
+        world.focusStore.lastKnownNativeFocusedWindowId = 1
+
+        setUpWorkspacesForTests() // What the next test starts with
+        #expect(world.focusStore.lastKnownNativeFocusedWindowId == nil)
     }
 }

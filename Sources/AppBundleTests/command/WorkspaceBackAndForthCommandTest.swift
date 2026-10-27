@@ -9,7 +9,7 @@ struct WorkspaceBackAndForthCommandTest {
     func focusesThePreviousWorkspace() async {
         _ = Workspace.get(byName: "b") // Alive
         #expect(Workspace.get(byName: "a").focusWorkspace())
-        _prevFocusedWorkspaceName = "b"
+        world.focusStore.prevWorkspaceName = "b"
 
         let output = await runCmd("workspace-back-and-forth")
         #expect(output == .ok)
@@ -21,7 +21,7 @@ struct WorkspaceBackAndForthCommandTest {
         // RB-31: the command used to exit 0 whenever there was a previous workspace, even if focusing it failed
         _ = Workspace.get(byName: "b") // Alive
         #expect(Workspace.get(byName: "a").focusWorkspace())
-        _prevFocusedWorkspaceName = "b"
+        world.focusStore.prevWorkspaceName = "b"
 
         // Without screens, only visible workspaces can be focused, and "b" is hidden
         let output = await $noScreensForTests.withValue(true) { await runCmd("workspace-back-and-forth") }

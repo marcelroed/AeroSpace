@@ -39,10 +39,32 @@ private struct FrozenFocus: AeroAny, Equatable, Sendable {
     }
 }
 
-private var _focus: FrozenFocus = {
+/// The focus and its history. Part of ``World``
+struct FocusStore {
+    /// nil until the first read, see `_focus`
+    fileprivate var current: FrozenFocus? = nil
+    /// What the last on-focus-changed check saw. nil until the first check reads it: then it's the current focus
+    fileprivate var lastKnown: FrozenFocus? = nil
+    /// Used by focus-back-and-forth
+    fileprivate var prev: FrozenFocus? = nil
+    /// Used by workspace-back-and-forth
+    var prevWorkspaceName: String? = nil {
+        didSet { prevWorkspaceDate = .now }
+    }
+    private(set) var prevWorkspaceDate: Date = .distantPast
+    fileprivate var isRunningOnFocusChangedCallbacks = false
+    /// See ``syncFocusFromMacOs()``
+    var lastKnownNativeFocusedWindowId: UInt32? = nil
+}
+
+/// The focus, initialized on the first read from the workspace of the main monitor
+private var _focus: FrozenFocus {
+    if let current = world.focusStore.current { return current }
     let monitor = mainMonitorInfo
-    return FrozenFocus(windowId: nil, workspaceName: monitor.activeWorkspace.name, monitorId_oneBased: monitor.monitorId_oneBased ?? 0)
-}()
+    let initial = FrozenFocus(windowId: nil, workspaceName: monitor.activeWorkspace.name, monitorId_oneBased: monitor.monitorId_oneBased ?? 0)
+    world.focusStore.current = initial
+    return initial
+}
 
 /// Global focus.
 /// Commands must be cautious about accessing this property directly. There are legitimate cases.
@@ -63,7 +85,7 @@ func setFocus(to newFocus: LiveFocus) -> Bool {
         oldFocus.windowOrNil?.markAsMostRecentChild()
     }
 
-    _focus = newFrozenFocus
+    world.focusStore.current = newFrozenFocus
     let status = !hasScreens || newFocus.workspace.workspaceMonitor.setActiveWorkspace(newFocus.workspace)
 
     newFocus.windowOrNil?.markAsMostRecentChild()
@@ -89,28 +111,15 @@ extension Workspace {
     }
 }
 
-private var _lastKnownFocus: FrozenFocus = _focus
+var prevFocusedWorkspace: Workspace? { world.focusStore.prevWorkspaceName.map { Workspace.get(byName: $0) } }
+var prevFocus: LiveFocus? { world.focusStore.prev?.live.takeIf { $0 != focus } }
 
-// Used by workspace-back-and-forth
-var _prevFocusedWorkspaceName: String? = nil {
-    didSet {
-        prevFocusedWorkspaceDate = .now
-    }
-}
-var prevFocusedWorkspaceDate: Date = .distantPast
-var prevFocusedWorkspace: Workspace? { _prevFocusedWorkspaceName.map { Workspace.get(byName: $0) } }
-
-// Used by focus-back-and-forth
-private var _prevFocus: FrozenFocus? = nil
-var prevFocus: LiveFocus? { _prevFocus?.live.takeIf { $0 != focus } }
-
-/// Tests only: forget the focus history of the previous test
-func resetFocusHistoryForTests() {
-    _prevFocus = nil
-    _lastKnownFocus = _focus // Otherwise, the next checkOnFocusChangedCallbacks restores _prevFocus from it
+/// Tests only: the focus that the test set up is the last known one. Otherwise, the first on-focus-changed check of the
+/// test sees no change
+func markFocusAsKnownForTests() {
+    world.focusStore.lastKnown = _focus
 }
 
-private var onFocusChangedRecursionGuard = false
 // Should be called in refreshSession
 func checkOnFocusChangedCallbacks_nonCancellable() async {
     if refreshSessionEvent?.isStartup == true {
@@ -121,22 +130,22 @@ func checkOnFocusChangedCallbacks_nonCancellable() async {
     if !hasScreens { return }
     let focus = focus
     let frozenFocus = focus.frozen
-    let lastKnownFocus = _lastKnownFocus
+    let lastKnownFocus = world.focusStore.lastKnown ?? _focus
     let hasFocusChanged = frozenFocus != lastKnownFocus
     let hasFocusedWorkspaceChanged = frozenFocus.workspaceName != lastKnownFocus.workspaceName
     let hasFocusedMonitorChanged = frozenFocus.monitorId_oneBased != lastKnownFocus.monitorId_oneBased
-    if hasFocusChanged { _prevFocus = lastKnownFocus }
-    if hasFocusedWorkspaceChanged { _prevFocusedWorkspaceName = lastKnownFocus.workspaceName }
-    _lastKnownFocus = frozenFocus
+    if hasFocusChanged { world.focusStore.prev = lastKnownFocus }
+    if hasFocusedWorkspaceChanged { world.focusStore.prevWorkspaceName = lastKnownFocus.workspaceName }
+    world.focusStore.lastKnown = frozenFocus
 
-    if onFocusChangedRecursionGuard { return }
-    onFocusChangedRecursionGuard = true
-    defer { onFocusChangedRecursionGuard = false }
+    if world.focusStore.isRunningOnFocusChangedCallbacks { return }
+    world.focusStore.isRunningOnFocusChangedCallbacks = true
+    defer { world.focusStore.isRunningOnFocusChangedCallbacks = false }
     if hasFocusChanged {
         _ = await onFocusChanged(.defaultEnv, CmdIo.emptyStdinIgnoringOut, focus)
     }
-    if let _prevFocusedWorkspaceName, hasFocusedWorkspaceChanged {
-        onWorkspaceChanged(_prevFocusedWorkspaceName, frozenFocus.workspaceName, focus)
+    if let prevWorkspaceName = world.focusStore.prevWorkspaceName, hasFocusedWorkspaceChanged {
+        onWorkspaceChanged(prevWorkspaceName, frozenFocus.workspaceName, focus)
     }
     if hasFocusedMonitorChanged {
         _ = await onFocusedMonitorChanged(.defaultEnv, CmdIo.emptyStdinIgnoringOut, focus)

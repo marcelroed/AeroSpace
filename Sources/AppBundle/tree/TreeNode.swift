@@ -91,10 +91,11 @@ open class TreeNode: Equatable, AeroAny {
     /// Every bind does it, so every child has a stamp, and siblings never share one: one call gives one node per level
     /// the same new stamp
     func markAsMostRecentChild() {
-        mruClock += 1
+        world.mruClock += 1
+        let stamp = world.mruClock
         var node: TreeNode? = self
         while let current = node {
-            current.mruStamp = mruClock
+            current.mruStamp = stamp
             node = current.parent
         }
     }
@@ -108,8 +109,6 @@ open class TreeNode: Equatable, AeroAny {
         lhs === rhs
     }
 }
-
-private var mruClock: UInt64 = 0
 
 /// The weight of a node whose parent isn't a tiling container. It's observable: commands that keep a node's weight
 /// (e.g. swap, focus --floating-as-tiling) carry it into tiling containers

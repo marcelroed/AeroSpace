@@ -64,7 +64,7 @@ struct WorkspaceCommandTest {
     func autoBackAndForth_focusedTarget_focusesThePreviousWorkspace() async {
         _ = Workspace.get(byName: "b") // Alive
         #expect(Workspace.get(byName: "a").focusWorkspace())
-        _prevFocusedWorkspaceName = "b"
+        world.focusStore.prevWorkspaceName = "b"
         let output = await runCmd("workspace --auto-back-and-forth a")
         #expect(output == .ok)
         #expect(focus.workspace.name == "b")
@@ -73,7 +73,7 @@ struct WorkspaceCommandTest {
     @Test
     func autoBackAndForth_otherTarget_ignoresThePreviousWorkspace() async {
         #expect(Workspace.get(byName: "a").focusWorkspace())
-        _prevFocusedWorkspaceName = "c"
+        world.focusStore.prevWorkspaceName = "c"
         let output = await runCmd("workspace --auto-back-and-forth b")
         #expect(output == .ok)
         #expect(focus.workspace.name == "b")

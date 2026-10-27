@@ -25,17 +25,9 @@ func setUpWorkspacesForTests() {
     config.modes = [mainModeId: Mode(bindings: [:])]
     config.persistentWorkspaces = []
 
-    for workspace in Workspace.all {
-        for child in workspace.children {
-            child.unbindFromParent()
-        }
-    }
-    for container: TreeNode in [macosMinimizedWindowsContainer, macosPopupWindowsContainer] { // Global containers, not part of any workspace
-        for child in container.children {
-            child.unbindFromParent()
-        }
-    }
+    world = World()
     check(Workspace.get(byName: "setUpWorkspacesForTests").focusWorkspace())
+    markFocusAsKnownForTests()
     Workspace.garbageCollectUnusedWorkspaces()
     check(focus.workspace.isEffectivelyEmpty)
     check(focus.workspace === Workspace.all.singleOrNil(), Workspace.all.map(\.description).joined(separator: ", "))
@@ -46,9 +38,6 @@ func setUpWorkspacesForTests() {
     appForTests = nil
 
     global_layoutForNextDetectedWindow = nil
-    _prevFocusedWorkspaceName = nil
-    resetFocusHistoryForTests()
-    lastKnownNativeFocusedWindowId = nil
     activeMode = mainModeId
     TrayMenuModel.shared.isEnabled = true
     currentlyManipulatedWithMouseWindowId = nil
