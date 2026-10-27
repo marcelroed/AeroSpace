@@ -14,11 +14,12 @@ struct OnWindowDetectedTest {
 
     @Test
     func runCommandReceivesTheDetectedWindowIdInEnv() async {
-        setUpTree("h_tiles(*1 2)", workspace: "a")
+        setUpTree("h_tiles(*1)", workspace: "a")
         world.config.onWindowDetected = [
             WindowDetectedCallback(matcher: .command(.empty), run: parseCommand("move-node-to-workspace b").cmdOrDie), // matches every window
         ]
-        await runOnWindowDetected(ifConventional: testWindow(2), isStartup: false) // todo: tryOnWindowDetected must not be called manually in tests
+        fake.windows[2] = FakeWindow(app: testApp, rect: nil, title: "Window 2") // A new window
+        await Reconcile.heavy(.ax("test"))
         expectEqual(describeTree("a"), "h_tiles(*1)")
         expectEqual(describeTree("b"), "h_tiles(2)")
     }
