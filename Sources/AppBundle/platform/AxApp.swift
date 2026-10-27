@@ -191,6 +191,7 @@ actor AxApp {
         // like a failed get
         let (error, values) = window.getMultiple([Ax.isFullscreenAttr.key, Ax.minimizedAttr.key])
         if error == .cannotComplete { return .noAnswer }
+        if error == .invalidUIElement { return .closed }
         let isFullscreen: Bool
         let isMinimized: Bool
         if error == .success, let values, values.count == 2 {
@@ -419,8 +420,8 @@ nonisolated private func axRect(_ window: AXUIElement) -> Rect? {
     if error == .success, let values, values.count == 2 {
         // A failed attribute comes back as an AXValue error, which the getters map to nil
         (topLeft, size) = (Ax.topLeftCornerAttr.getter(values[0]), Ax.sizeAttr.getter(values[1]))
-    } else if error == .cannotComplete {
-        return nil // The AX timeout of a busy app: each further read would wait as long
+    } else if error == .cannotComplete || error == .invalidUIElement {
+        return nil // The AX timeout of a busy app (each further read would wait as long), or a closed window
     } else {
         (topLeft, size) = (window.get(Ax.topLeftCornerAttr), window.get(Ax.sizeAttr))
     }
