@@ -825,21 +825,7 @@ AeroSpace listens on a Unix-domain stream socket:
 [#socket-wire-format]
 === Wire format
 
-All numbers on the wire are 4-byte unsigned integers in host byte order.
-AeroSpace only runs on Apple Silicon and Intel macOS, both little-endian, so in practice the framing is always 4 bytes, little-endian.
-
-Immediately after connecting, both sides perform a *one-shot handshake*:
-
-. *The Client* writes its `SOCKET_PROTOCOL_VERSION` as a single 4-byte unsigned integer.
-. *The Server* reads the client's `SOCKET_PROTOCOL_VERSION` and decides in what kind of compatibility mode it needs to communicate with this particular client.
-. *The Server* writes its `SOCKET_PROTOCOL_VERSION` as a single 4-byte unsigned integer.
-. *The Client* compares the two versions and decides if it wants to process.
-. *The Server* compares the two versions and decides if it wants to process.
-
-The current and the only valid value for `SOCKET_PROTOCOL_VERSION` is `1`.
-Currently, right after sending its own version, the server disconnects if it doesn't recognise `SOCKET_PROTOCOL_VERSION`.
-
-*After the handshake*, every message (in either direction) is a length-prefixed JSON frame:
+Every message, in either direction, is a length-prefixed JSON frame:
 
 [source]
 ----
@@ -848,17 +834,25 @@ Currently, right after sending its own version, the server disconnects if it doe
 +-----------------------+----------------------------+
 ----
 
-`length` is the byte length of the JSON payload, *not* counting the 4 length-prefix bytes themselves. The payload is a UTF-8-encoded JSON object.
+`length` is the byte length of the JSON payload, *not* counting the 4 length-prefix bytes themselves.
+It is a 4-byte unsigned integer in host byte order, which is little-endian on every Mac that AeroSpace runs on.
+The payload is a UTF-8-encoded JSON object.
+The server reads requests of at most 16 MiB.
 
-The flow then depends on the command:
+A connection carries exactly one request:
 
-* *One-shot commands:* (basically, almost all commands) The client sends one `ClientRequest` frame.
-  The server sends one `ServerAnswer` frame.
-  This loop repeats indefinitely until the client disconnects.
-
-* xref:./commands.adoc#subscribe[*subscribe command:*] (treated separately) The client sends one `ClientRequest` frame,
-  then the server sends an unbounded stream of `ServerEvent` frames until the client disconnects.
+* *Commands:* the client sends one `ClientRequest` frame, the server sends one `ServerAnswer` frame and closes the connection.
+* xref:./commands.adoc#subscribe[*subscribe:*] the client sends one `ClientRequest` frame, the server sends one `ServerAnswer` frame.
+  If its `exitCode` is `0`, the server then sends a `ServerEvent` frame per event, until the client closes the connection.
   The client must not send anything else on the connection.
+
+Both `ClientRequest` and `ServerAnswer` carry `protocolVersion`. The current version is `2`.
+The server answers a request of another version with a non-zero `exitCode` and an explanation in `stderr`, without running anything.
+A client should check the `protocolVersion` of the answer in the same way.
+
+NOTE: Version `1` of the protocol started every connection with a handshake: each side sent its version as a bare 4-byte integer, and a connection could carry several requests.
+A server of version `2` answers a version `1` handshake with its version, `2`, and closes the connection.
+A client of version `2` recognizes a version `1` server by its handshake answer: a frame length of `1`.
 
 [#socket-client-request]
 === ClientRequest
@@ -868,6 +862,7 @@ The request payload is a JSON object with the following fields:
 [source,json]
 ----
 {
+    "protocolVersion": 2,
     "args": ["workspace", "1"],
     "stdin": "",
     "windowId": null,
@@ -878,6 +873,10 @@ The request payload is a JSON object with the following fields:
 [cols="1,1,3"]
 |===
 | Field | Type | Description
+
+| `protocolVersion`
+| integer
+| `2`.
 
 | `args`
 | array of strings
@@ -893,12 +892,12 @@ Some commands (e.g. xref:./commands.adoc#workspace[`workspace --stdin`]) consume
 
 | `windowId`
 | unsigned 32-bit integer or `null`
-| The value of the `AEROSPACE_WINDOW_ID` environment variable as the client saw it, or `null` if there is no such variable in scope.
+| The value of the `AEROSPACE_WINDOW_ID` environment variable as the client saw it, or `null` (or no field) if there is no such variable in scope.
 AeroSpace sets this variable when invoking callbacks so that the called commands know the window they was triggered from (see <<environment-variables>>).
 
 | `workspace`
 | string or `null`
-| The value of the `AEROSPACE_WORKSPACE` environment variable as the client saw it, or `null` if unset. Same rationale as `windowId`.
+| The value of the `AEROSPACE_WORKSPACE` environment variable as the client saw it, or `null` (or no field) if unset. Same rationale as `windowId`.
 |===
 
 [#socket-server-answer]
@@ -909,6 +908,7 @@ The reply to a one-shot command is a JSON object:
 [source,json]
 ----
 {
+    "protocolVersion": 2,
     "exitCode": 0,
     "stdout": "1\n2\n3",
     "stderr": "",
@@ -919,6 +919,10 @@ The reply to a one-shot command is a JSON object:
 [cols="1,1,3"]
 |===
 | Field | Type | Description
+
+| `protocolVersion`
+| integer
+| The version of the server's protocol.
 
 | `exitCode`
 | signed 32-bit integer
@@ -942,7 +946,8 @@ The reply to a one-shot command is a JSON object:
 
 When the client sends a request with `args` starting with `"subscribe"`, the server enters event-streaming mode. The remaining `args` follow the same syntax as the xref:./commands.adoc#subscribe[`aerospace subscribe`] CLI command (`--all`, `--no-send-initial`, or an explicit list of event types).
 
-After accepting the subscription, the server writes framed JSON objects in the same length-prefixed format as `ServerAnswer`. The server keeps writing until the connection is closed.
+The server first answers with a `ServerAnswer`. If its `exitCode` is `0`, the server then writes a frame per event, until the connection is closed.
+Each event is a JSON object with an `_event` field, the event type, e.g. `{"_event":"mode-changed","mode":"main"}`.
 
 [#socket-example]
 === End-to-end example
@@ -953,7 +958,7 @@ A minimal Python client that runs `aerospace list-workspaces --focused`:
 ----
 import getpass, json, socket, struct
 
-SOCKET_PROTOCOL_VERSION = 1
+SOCKET_PROTOCOL_VERSION = 2
 sock_path = f"/tmp/bobko.aerospace-{getpass.getuser()}.sock"
 
 def send_frame(s, payload):
@@ -964,33 +969,28 @@ def recv_exact(s, n):
     while len(buf) < n:
         chunk = s.recv(n - len(buf))
         if not chunk:
-            raise ConnectionError("server closed connection")
+            raise ConnectionError("AeroSpace closed the connection without answering")
         buf += chunk
     return buf
 
 def recv_frame(s):
     (length,) = struct.unpack("<I", recv_exact(s, 4))
+    if length == 1:
+        raise RuntimeError("AeroSpace speaks protocol version 1. Restart it after the update")
     return recv_exact(s, length)
 
 with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
     s.connect(sock_path)
-
-    # Version handshake
-    s.sendall(struct.pack("<I", SOCKET_PROTOCOL_VERSION))
-    (server_version,) = struct.unpack("<I", recv_exact(s, 4))
-    if server_version != SOCKET_PROTOCOL_VERSION:
-        raise RuntimeError(f"unsupported server version {server_version}")
-
-    # One-shot command
     request = {
+        "protocolVersion": SOCKET_PROTOCOL_VERSION,
         "args": ["list-workspaces", "--focused"],
         "stdin": "",
-        "windowId": None,
-        "workspace": None,
     }
     send_frame(s, json.dumps(request).encode("utf-8"))
 
     answer = json.loads(recv_frame(s))
+    if answer.get("protocolVersion") != SOCKET_PROTOCOL_VERSION:
+        raise RuntimeError(f"AeroSpace speaks another protocol version: {answer.get('protocolVersion')}")
     if answer["exitCode"] != 0:
         raise RuntimeError(answer["stderr"])
     print(answer["stdout"])
