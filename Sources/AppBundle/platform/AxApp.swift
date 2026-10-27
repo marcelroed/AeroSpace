@@ -168,7 +168,8 @@ actor AxApp {
     }
 
     /// The native states of the windows that are registered. It stops after an AX timeout: the app is busy, each further
-    /// read would wait as long, and a timed-out read tells nothing (R2a L1). The windows from there are missing
+    /// read would wait as long, and a timed-out read tells nothing (R2a L1). The windows from there are missing, and so
+    /// is a window whose read failed otherwise (e.g. it closed after the listing): a failed read tells nothing either
     func nativeFacts(_ windowIds: [UInt32], _ isAbandoned: () -> Bool) -> [(UInt32, NativeFacts)] {
         var result: [(UInt32, NativeFacts)] = []
         for windowId in windowIds {
@@ -178,10 +179,19 @@ actor AxApp {
             // like a failed get
             let (error, values) = window.getMultiple([Ax.isFullscreenAttr.key, Ax.minimizedAttr.key])
             if error == .cannotComplete { break }
-            let (isFullscreen, isMinimized): (Bool, Bool) = if error == .success, let values, values.count == 2 {
-                (Ax.isFullscreenAttr.getter(values[0]) == true, Ax.minimizedAttr.getter(values[1]) == true)
-            } else {
-                (window.get(Ax.isFullscreenAttr) == true, window.get(Ax.minimizedAttr) == true)
+            let isFullscreen: Bool
+            let isMinimized: Bool
+            if error == .success, let values, values.count == 2 {
+                isFullscreen = Ax.isFullscreenAttr.getter(values[0]) == true
+                isMinimized = Ax.minimizedAttr.getter(values[1]) == true
+            } else { // One read per attribute (R2c L3)
+                let fullscreenRead = window.getWithError(Ax.isFullscreenAttr)
+                if fullscreenRead.error == .cannotComplete { break }
+                guard let fullscreen = fact(fullscreenRead) else { continue }
+                let minimizedRead = window.getWithError(Ax.minimizedAttr)
+                if minimizedRead.error == .cannotComplete { break }
+                guard let minimized = fact(minimizedRead) else { continue }
+                (isFullscreen, isMinimized) = (fullscreen, minimized)
             }
             result.append((windowId, NativeFacts(isFullscreen: isFullscreen, isMinimized: !isFullscreen && isMinimized)))
         }
@@ -446,5 +456,15 @@ nonisolated private final class AnimationsOff {
         if wasEnabled == true {
             app.set(Ax.enhancedUserInterfaceAttr, true)
         }
+    }
+}
+
+/// A Bool attribute as a fact about the window: a window without the attribute doesn't have the state. nil if the read
+/// failed otherwise (e.g. the window closed): it tells nothing
+nonisolated private func fact(_ read: (error: AXError, value: Bool?)) -> Bool? {
+    switch read.error {
+        case .success: read.value == true
+        case .attributeUnsupported, .noValue: false
+        default: nil
     }
 }
