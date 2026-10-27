@@ -623,6 +623,21 @@ struct ReconcileTest {
     }
 
     @Test
+    func minimizingAWindowThatMacosMinimizedBeforeTheRefreshKeepsItMinimized() async throws {
+        openWindow(1)
+        openWindow(2)
+        fake.focused = 1
+        await heavyRefresh()
+        fake.windows[1]?.isMinimized = true // cmd-m, and no heavy refresh has seen it yet
+
+        fake.resetCalls()
+        expectEqual(await runCmd("macos-native-minimize --window-id 1"), .ok)
+        expectEqual(fake.calls(of: .setNative), []) // Before: it unminimized the window, then failed
+        #expect(Window.get(byId: 1)?.parent === macosMinimizedWindowsContainer)
+        expectEqual(describeTree(), "h_tiles(*2)")
+    }
+
+    @Test
     func focusFollowsMouseKeepsTheScheduledHeavyRefresh() async throws {
         setUpTree("h_tiles(*1)")
         openWindow(2)

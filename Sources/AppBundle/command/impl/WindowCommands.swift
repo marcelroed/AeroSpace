@@ -182,19 +182,13 @@ struct MacosNativeMinimizeCommand: nonisolated Command {
         return result
     }
 
+    /// Only minimizes: a window that AeroSpace knows is minimized isn't on a workspace, so it can't be the target. macOS
+    /// may have minimized it before a heavy refresh saw it (cmd-m, then this command), and then it stays minimized
     func run(_ cx: CmdContext) async throws(CmdFail) {
-        // resolveTargetOrReportError on already minimized windows will always fail
-        // It would be easier if minimized windows were part of the workspace in tree hierarchy
         let window = try cx.window(windowId: windowId)
         let isMinimized = try await nativeFacts(of: window).isMinimized
         guard window.isAlive else { return } // The window closed at the suspension point above
-        let newState = !isMinimized
-        world.platform.setNative(window.windowId, .minimized(newState))
-        if newState { // minimize
-            window.move(to: macosMinimizedWindowsContainer, weight: .value(1))
-            return
-        } else { // unminimize
-            throw CmdFail("The command is uncapable of unminimizing windows yet. Sorry") // dead code. should never be possible, see the comment above
-        }
+        if !isMinimized { world.platform.setNative(window.windowId, .minimized(true)) }
+        window.move(to: macosMinimizedWindowsContainer, weight: .value(1))
     }
 }
