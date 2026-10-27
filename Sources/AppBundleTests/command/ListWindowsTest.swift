@@ -101,15 +101,30 @@ final class ListWindowsTest: XCTestCase {
         assertEquals(result.stdout.sorted(), ["1", "2"])
     }
 
-    func testRunAll_windowsOfTheSameAppAndTitleAreOrderedById() async {
+    func testRunAll_windowsOfTheSameAppAndTitleAreOrderedByWorkspace() async {
         // The title isn't fetched for this format, so all the windows tie on the app name and the title. The windows
-        // are collected from a Set of workspaces, whose order is random, and ten of them make it fail reliably (RB-13)
-        for id: UInt32 in (1 ... 10).reversed() {
-            TestWindow.new(id: id, parent: Workspace.get(byName: "w\(id)").rootTilingContainer)
+        // are collected from a Set of workspaces, whose order is random, and ten of them make it fail reliably (RB-13).
+        // The IDs go down while the workspaces go up (in logical order: w2 < w10), so ordering by ID fails too
+        for index: UInt32 in (1 ... 10).reversed() {
+            TestWindow.new(id: 11 - index, parent: Workspace.get(byName: "w\(index)").rootTilingContainer)
         }
         let result = await parseCommand("list-windows --all --format '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stdout, (1 ... 10).map(String.init))
+        assertEquals(result.stdout, (1 ... 10).reversed().map(String.init))
+    }
+
+    func testRunWorkspace_windowsOfTheSameAppAndTitleAreInTreeOrder() async {
+        // Tree order differs from ID order. Within one workspace, tied windows are listed in tree order (RB-13)
+        Workspace.get(byName: "a").rootTilingContainer.apply {
+            TestWindow.new(id: 3, parent: $0)
+            TilingContainer.newVTiles(parent: $0, adaptiveWeight: 1).apply {
+                TestWindow.new(id: 1, parent: $0)
+            }
+            TestWindow.new(id: 2, parent: $0)
+        }
+        let result = await parseCommand("list-windows --workspace a --format '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result.exitCode.rawValue, 0)
+        assertEquals(result.stdout, ["3", "1", "2"])
     }
 
     func testRunCount() async {
