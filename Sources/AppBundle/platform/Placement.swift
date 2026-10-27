@@ -69,7 +69,8 @@ nonisolated struct PlacementState {
     /// The size that termination and `layout floating` restore: the window's size when it was registered, then whenever
     /// a floating window parks or the size is remembered (`layout tiling`, `enable on`)
     private(set) var lastFloatingSize: CGSize?
-    /// The frame that the last `.frame` placement found the window at or wrote
+    /// Where the window was last seen: what the platform's last read of its rect found (``recordRead(_:)``), or the
+    /// frame that the last `.frame` placement found it at or wrote
     private var lastFrame: Rect? = nil
 
     init(lastFloatingSize: CGSize?) {
@@ -78,14 +79,16 @@ nonisolated struct PlacementState {
 
     var isParked: Bool { parkedAt != nil }
 
+    /// A read of the window's rect outside the placements (e.g., the drag of a tile) found it at `rect`. nil: unknown
+    mutating func recordRead(_ rect: Rect?) { lastFrame = rect }
+
     mutating func apply(_ placement: Placement, to window: some PlacementWindow) {
         guard window.isCurrent() else { return } // Before any AX call: termination waits for this job
         switch placement {
             case .frame(_, let topLeft, let size):
-                // Every present reads where the window is, so a window that the app or the user moved goes back. It writes
-                // only a window that isn't there: each write makes the app lay out the window again. It doesn't read a window
-                // that is elsewhere, the read would only cost time: a parked window is in its corner, and a window that the
-                // layout gave another frame is where the last placement left it
+                // It writes only a window that isn't there: each write makes the app lay out the window again. It reads
+                // first, unless the window is known to be elsewhere: parked, or last seen at another frame. A skipped read
+                // always becomes a write, because `lastFrame` may be stale: the app or the user may have moved the window
                 let frame = Rect(topLeftX: topLeft.x, topLeftY: topLeft.y, width: size.width, height: size.height)
                 let isElsewhere = parkedAt != nil || lastFrame.map { !$0.isAt(frame) } == true
                 let isThere = !isElsewhere && window.rect().map { $0.isAt(frame) } == true

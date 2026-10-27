@@ -100,6 +100,7 @@ final class FakePlatform: Platform {
         defer { logRead(.classify(ids)) }
         return ids.reduce(into: [:]) { result, id in
             if let window = answering(id), let kind = window.kind {
+                window.placement.recordRead(window.rect)
                 result[id] = DetectedWindow(kind: kind, rect: window.rect, level: window.level)
             }
         }
@@ -115,11 +116,11 @@ final class FakePlatform: Platform {
         windows.values.flatMap(\.self).reduce(into: [:]) { result, id in result[id] = debugInfo(id) }
     }
 
-    func observedRect(_ id: WindowId) -> Rect? { read(.observedRect(id), id)?.rect }
+    func observedRect(_ id: WindowId) -> Rect? { readRect(.observedRect(id), id) }
 
     // MARK: Single reads
 
-    func rect(_ id: WindowId) -> Rect? { read(.rect(id), id)?.rect }
+    func rect(_ id: WindowId) -> Rect? { readRect(.rect(id), id) }
     func title(_ id: WindowId) async -> String? {
         await beforeTitle?(id)
         return read(.title(id), id)?.title
@@ -220,6 +221,13 @@ final class FakePlatform: Platform {
     private func read(_ call: PlatformCall, _ id: WindowId) -> FakeWindow? {
         defer { logRead(call) }
         return answering(id)
+    }
+
+    /// As AxApp's rect read: the window's next `.frame` placement trusts what it found
+    private func readRect(_ call: PlatformCall, _ id: WindowId) -> Rect? {
+        let rect = read(call, id)?.rect
+        windows[id]?.placement.recordRead(rect)
+        return rect
     }
 
     fileprivate func log(_ call: PlatformCall) { calls.append(call) }

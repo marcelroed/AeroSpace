@@ -15,8 +15,12 @@ struct ResizeWithMouseTest {
         expectEqual(describeTree(weights: true), "h_tiles(*1:1060 2:860)")
         expectEqual(testWindow(2).rect, rect(1060, 0, 860, 1079))
 
+        fake.resetCalls()
         try await releaseTheMouse()
         expectEqual(world.mouseManipulatedWindowId, nil)
+        // The drag's last read found 1 where the mouse up's layout puts it: each tile is read and neither is written
+        let placementCalls: [PlatformCall] = fake.calls.filter { $0.kind == .axRead || $0.kind == .frame }
+        expectEqual(placementCalls, [.axRead(1), .axRead(2)])
         // The next resize starts from the new tiles: the weights before the first resize are forgotten (1010 and 910)
         await drag(1, to: rect(0, 0, 1110, 1079), .resized(windowId: 1))
         expectEqual(describeTree(weights: true), "h_tiles(*1:1110 2:810)")

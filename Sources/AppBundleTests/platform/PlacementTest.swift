@@ -113,8 +113,9 @@ struct PlacementTest {
         expectEqual(testWindow(1).rect, rect(100, 100, 400, 300))
     }
 
-    /// A tile is read before its write, so that a tile at its frame isn't written again. A tile that the layout gave another
-    /// frame than the last placement left it at can't be there: it's written without the read
+    /// A tile is read before its write, so that a tile at its frame isn't written again. A tile last seen at another frame
+    /// than the layout's (by the last placement here, or by a read like the drag's in ResizeWithMouseTest) is written
+    /// without the read
     @Test
     func aTileThatTheLayoutMovedIsWrittenWithoutARead() {
         let window = FakeWindow(app: testApp, rect: rect(0, 0, 400, 300), title: "1")

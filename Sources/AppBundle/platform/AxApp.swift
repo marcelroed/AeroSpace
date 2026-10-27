@@ -174,8 +174,12 @@ actor AxApp {
         windows.first { $0.value.ax == ax }?.key ?? ax.containingWindowId()
     }
 
+    /// The window's next `.frame` placement trusts what it found, see ``PlacementState/recordRead(_:)``
     func rect(_ windowId: UInt32) -> Rect? {
-        windows[windowId].flatMap { axRect($0.ax) }
+        guard let ax = windows[windowId]?.ax else { return nil }
+        let rect = axRect(ax)
+        windows[windowId]?.placement.recordRead(rect)
+        return rect
     }
 
     /// The native states of the windows that are registered. It stops after an AX timeout: the app is busy, each further
