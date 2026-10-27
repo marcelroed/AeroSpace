@@ -1,16 +1,18 @@
 import AppKit
 import Common
 
-open class Window: TreeNode, Hashable {
+final class Window: TreeNode, Hashable {
     nonisolated let windowId: WindowId
-    let app: any AbstractApp
+    let app: AppInfo
     var lastFloatingSize: CGSize?
     var isFullscreen: Bool = false
     var noOuterGapsInFullscreen: Bool = false
     var layoutReason: LayoutReason = .standard
+    /// Set while the window is parked in a corner of its monitor: where it was, relative to its monitor's rect
+    private var prevUnhiddenProportionalPositionInsideWorkspaceRect: CGPoint?
 
     /// Registers the window in ``World/windows``
-    init(id: WindowId, _ app: any AbstractApp, lastFloatingSize: CGSize?, parent: Container, weight: CGFloat?, index: Int?) {
+    init(id: WindowId, _ app: AppInfo, lastFloatingSize: CGSize?, parent: Container, weight: CGFloat?, index: Int?) {
         self.windowId = id
         self.app = app
         self.lastFloatingSize = lastFloatingSize
@@ -20,27 +22,101 @@ open class Window: TreeNode, Hashable {
 
     static func get(byId windowId: WindowId) -> Window? { world.windows[windowId] } // todo make non optional
 
-    func closeAxWindow() { die("Not implemented") }
-
     nonisolated public func hash(into hasher: inout Hasher) {
         hasher.combine(windowId)
     }
 
-    func getAxSize(_ cm: CancellationMode) async throws -> CGSize? { die("Not implemented") }
-    func getTitle(_ cm: CancellationMode) async throws -> String { die("Not implemented") }
-    func isMacosFullscreen(_ cm: CancellationMode) async throws -> Bool { false }
-    func isMacosMinimized(_ cm: CancellationMode) async throws -> Bool { false } // todo replace with enum MacOsWindowNativeState { normal, fullscreen, invisible }
-    /// isMinimized is false if isFullscreen
-    func getMacosFullscreenAndMinimized(_ cm: CancellationMode) async throws -> (isFullscreen: Bool, isMinimized: Bool) {
-        if try await isMacosFullscreen(cm) { return (true, false) }
-        return (false, try await isMacosMinimized(cm))
+    // skipClosedWindowsCache is an optimization when it's definitely not necessary to cache closed window.
+    //                        If you are unsure, it's better to pass `false`
+    func garbageCollect(skipClosedWindowsCache: Bool) {
+        if world.windows.removeValue(forKey: windowId) == nil {
+            return
+        }
+        if !skipClosedWindowsCache { cacheClosedWindowIfNeeded() }
+        guard let parent = destroy()?.parent else { return }
+        let deadWindowWorkspace = parent.nodeWorkspace
+        let focus = focus
+        if let deadWindowWorkspace, deadWindowWorkspace == focus.workspace ||
+            deadWindowWorkspace == prevFocusedWorkspace && world.focusStore.prevWorkspaceDate.distance(to: .now) < 1
+        {
+            switch (parent as? Container)?.kind {
+                case .tiling, .floating, .macosHiddenApp, .macosFullscreen:
+                    let deadWindowFocus = deadWindowWorkspace.toLiveFocus()
+                    _ = setFocus(to: deadWindowFocus)
+                    // Guard against "Apple Reminders popup" bug: https://github.com/nikitabobko/AeroSpace/issues/201
+                    if focus.windowOrNil?.app.pid != app.pid {
+                        // Force focus to fix macOS annoyance with focused apps without windows.
+                        //   https://github.com/nikitabobko/AeroSpace/issues/65
+                        deadWindowFocus.windowOrNil?.nativeFocus()
+                    }
+                case .macosPopup, // Don't switch back on popup destruction
+                     .macosMinimized, // Don't switch back on minimized windows destruction
+                     nil: // A window's parent is always a container
+                    break
+            }
+        }
     }
-    var isHiddenInCorner: Bool { die("Not implemented") }
-    func nativeFocus() { die("Not implemented") }
-    func getAxRect(_ cm: CancellationMode) async throws -> Rect? { die("Not implemented") }
-    func getCenter(_ cm: CancellationMode) async throws -> CGPoint? { try await getAxRect(cm)?.center }
 
-    func setAxFrame(_ topLeft: CGPoint?, _ size: CGSize?) { die("Not implemented") }
+    func nativeFocus() {
+        world.platform.focus(windowId)
+    }
+
+    func closeAxWindow() {
+        garbageCollect(skipClosedWindowsCache: true)
+        world.platform.close(windowId)
+    }
+
+    // todo it's part of the window layout and should be moved to layout.swift
+    func hideInCorner(_ corner: OptimalHideCorner) async throws(CancellationError) {
+        guard let nodeMonitor else { return }
+        // Don't accidentally override prevUnhiddenProportionalPositionInsideWorkspaceRect in case of subsequent `hideInCorner` calls
+        if !isHiddenInCorner {
+            guard let windowRect = try await world.platform.observedRect(windowId) else { return }
+            // The window may have closed at the suspension point above
+            if !isAlive { return }
+            // The screens may disappear at the suspension point above. Leave the window to a session that runs with screens
+            if !world.platform.hasScreens { return }
+            // Check for isHiddenInCorner for the second time because of the suspension point above
+            if !isHiddenInCorner {
+                let topLeftCorner = windowRect.topLeftCorner
+                let monitorRect = world.monitors.approximation(windowRect.center).rect // Similar to layoutFloatingWindows. Non idempotent
+                let absolutePoint = topLeftCorner - monitorRect.topLeftCorner
+                prevUnhiddenProportionalPositionInsideWorkspaceRect =
+                    CGPoint(x: absolutePoint.x / monitorRect.width, y: absolutePoint.y / monitorRect.height)
+                if isFloating {
+                    lastFloatingSize = windowRect.size
+                }
+            }
+        }
+        world.platform.apply([.park(windowId, ParkTarget(corner: corner, visibleRect: nodeMonitor.visibleRect))])
+    }
+
+    func unhideFromCorner() {
+        guard let prevUnhiddenProportionalPositionInsideWorkspaceRect else { return }
+        guard let nodeWorkspace else { return } // hiding only makes sense for workspace windows
+
+        // Just a small optimization to avoid unnecessary AX calls for non floating windows
+        // Tiling windows should be unhidden with layoutWorkspace anyway
+        if isFloating {
+            let workspaceRect = nodeWorkspace.workspaceMonitor.rect
+            var newX = workspaceRect.topLeftX + workspaceRect.width * prevUnhiddenProportionalPositionInsideWorkspaceRect.x
+            var newY = workspaceRect.topLeftY + workspaceRect.height * prevUnhiddenProportionalPositionInsideWorkspaceRect.y
+            // todo we probably should replace lastFloatingSize with proper floating window sizing
+            // https://github.com/nikitabobko/AeroSpace/issues/1519
+            let windowWidth = lastFloatingSize?.width ?? 0
+            let windowHeight = lastFloatingSize?.height ?? 0
+            newX = newX.coerce(in: workspaceRect.minX ... max(workspaceRect.minX, workspaceRect.maxX - windowWidth))
+            newY = newY.coerce(in: workspaceRect.minY ... max(workspaceRect.minY, workspaceRect.maxY - windowHeight))
+
+            world.platform.apply([.frame(windowId, topLeft: CGPoint(x: newX, y: newY), size: nil)])
+        }
+
+        self.prevUnhiddenProportionalPositionInsideWorkspaceRect = nil
+    }
+
+    var isHiddenInCorner: Bool {
+        prevUnhiddenProportionalPositionInsideWorkspaceRect != nil
+    }
 }
 
 enum LayoutReason: Equatable {
@@ -93,6 +169,4 @@ extension Window {
     }
 
     var isFloating: Bool { (parent as? Container)?.kind == .floating } // todo drop. It will be a source of bugs when sticky is introduced
-
-    func asMacWindow() -> MacWindow { self as! MacWindow }
 }

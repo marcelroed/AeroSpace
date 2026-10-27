@@ -1,7 +1,7 @@
 import AppKit
 import Common
 
-nonisolated struct Rect {
+nonisolated struct Rect: Equatable {
     var topLeftX: CGFloat
     var topLeftY: CGFloat
 

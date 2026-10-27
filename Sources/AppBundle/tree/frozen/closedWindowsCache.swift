@@ -41,7 +41,7 @@ func cacheClosedWindowIfNeeded() {
     )
 }
 
-func restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: Window) async throws -> Bool {
+func restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: Window) -> Bool {
     if !world.closedWindowsCache.windowIds.contains(newlyDetectedWindow.windowId) {
         return false
     }
@@ -53,7 +53,7 @@ func restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: Window) async throws
             .singleOrNil()?
             .setActiveWorkspace(workspace)
         for frozenWindow in frozenWorkspace.floatingWindows {
-            MacWindow.get(byId: frozenWindow.id)?.move(to: workspace.containerCreatingIfNeeded(.floating))
+            Window.get(byId: frozenWindow.id)?.move(to: workspace.containerCreatingIfNeeded(.floating))
         }
         let prevRoot = workspace.existingRootTilingContainer // Save prevRoot into a variable to avoid it being garbage collected earlier than needed
         let potentialOrphans = prevRoot?.allLeafWindowsRecursive ?? []
@@ -63,7 +63,7 @@ func restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: Window) async throws
         }
         let restoredWindows = workspace.tilingWindows.toSet()
         for window in potentialOrphans where !restoredWindows.contains(window) {
-            try await window.relayoutWindow(on: workspace, .cancellable, forceTile: true)
+            window.relayoutWindow(on: workspace, as: .window)
         }
     }
 
@@ -89,7 +89,7 @@ private func restoreTreeRecursive(frozenContainer: FrozenContainer, parent: Tree
         switch child {
             case .window(let w):
                 // Stop the loop if can't find the window, because otherwise all the subsequent windows will have incorrect index
-                guard let window = MacWindow.get(byId: w.id) else { return false }
+                guard let window = Window.get(byId: w.id) else { return false }
                 window.move(to: container, at: index, weight: .value(w.weight))
             case .container(let c):
                 // There is no reason to continue

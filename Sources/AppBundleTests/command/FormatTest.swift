@@ -30,18 +30,18 @@ struct FormatTest {
         let window = TestWindow.new(id: 1, parent: Workspace.get(byName: workspaceName).rootTilingContainerCreatingIfNeeded())
         expectEqual(AeroObj.window(.forTest(window: window, title: nil)).subject, .window)
         expectEqual(AeroObj.workspace(Workspace.get(byName: workspaceName)).subject, .workspace)
-        expectEqual(AeroObj.app(TestApp.shared).subject, .app)
+        expectEqual(AeroObj.app(testApp).subject, .app)
         expectEqual(AeroObj.monitor(testMonitor).subject, .monitor)
     }
 
     @Test
-    func resolveWindowPrefetchesTitleOnlyWhenNeeded() async throws {
+    func resolveWindowPrefetchesTitleOnlyWhenNeeded() async {
         let window = TestWindow.new(id: 3, parent: Workspace.get(byName: workspaceName).rootTilingContainerCreatingIfNeeded())
 
-        let withTitle = try await WindowWithPrefetchedTitle.resolveWindow(window, for: [.literal("foo"), .interVar(.windowTitle)], .nonCancellable)
+        let withTitle = await WindowWithPrefetchedTitle.resolveWindow(window, for: [.literal("foo"), .interVar(.windowTitle)])
         expectEqual(withTitle.title, "TestWindow(3)")
 
-        let withoutTitle = try await WindowWithPrefetchedTitle.resolveWindow(window, for: [.interVar(.windowId), .interVar(.newline)], .nonCancellable)
+        let withoutTitle = await WindowWithPrefetchedTitle.resolveWindow(window, for: [.interVar(.windowId), .interVar(.newline)])
         expectEqual(withoutTitle.title, nil)
     }
 
@@ -225,7 +225,7 @@ struct FormatTest {
 
     @Test
     func expandAppVars() {
-        let obj = AeroObj.app(TestApp.shared)
+        let obj = AeroObj.app(testApp)
         expectEqual(expanded(.appBundleId, obj), "String(bobko.AeroSpace.test-app)")
         expectEqual(expanded(.appName, obj), "String(bobko.AeroSpace.test-app)")
         expectEqual(expanded(.appPid, obj), "Int(0)")

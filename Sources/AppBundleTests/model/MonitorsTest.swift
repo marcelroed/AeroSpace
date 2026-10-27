@@ -50,7 +50,7 @@ struct MonitorsTest {
         StartupCase(persistentWorkspaces: ["1", "2", "9", "A", "B"], onSecondary: nil, monitorCount: 2, visible: ["1", "3"], focus: "1"),
     ] as [StartupCase])
     func theStartupShowsTheWorkspacesThatBelongToEachMonitor(_ row: StartupCase) {
-        world.reset() // Before the startup: no workspaces, no monitors
+        world.reset(platform: FakePlatform()) // Before the startup: no workspaces, no monitors
         world.config.persistentWorkspaces = .init(row.persistentWorkspaces)
         let forceAssignment: [String: [MonitorDescription]] = row.onSecondary.map { [$0: [.secondary]] } ?? [:]
         world.config.workspaceToMonitorForceAssignment = forceAssignment

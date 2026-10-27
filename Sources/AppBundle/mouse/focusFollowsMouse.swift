@@ -37,7 +37,7 @@ func focusWindow(underMouse location: CGPoint) async throws {
     for child in workspace.existingContainer(.floating)?.mruChildren ?? [] {
         try checkCancellation()
         guard let child = child as? Window else { continue }
-        guard let rect = try await child.getAxRect(.cancellable) else { continue }
+        guard let rect = try await world.platform.observedRect(child.windowId) else { continue }
         if rect.contains(location) {
             window = child
             break

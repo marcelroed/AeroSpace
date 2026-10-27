@@ -2,9 +2,9 @@
 /// The data should flow (from nativeFocused to focused) and
 ///                      (from nativeFocused to lastKnownNativeFocusedWindowId)
 /// Alternative names: takeFocusFromMacOs, updateFocusCache
-func syncFocusFromMacOs() async throws {
-    let nativeFocused = try await getNativeFocusedWindow(.cancellable)
-    if let nativeFocused { try await debugWindowsIfRecording(nativeFocused, .cancellable) }
+func syncFocusFromMacOs() async throws(CancellationError) {
+    let nativeFocused = try await getNativeFocusedWindow()
+    if let nativeFocused { await debugWindowsIfRecording(nativeFocused) }
     if case .macosPopup = nativeFocused?.placement {
         return
     }
@@ -14,5 +14,4 @@ func syncFocusFromMacOs() async throws {
         _ = nativeFocused?.focusWindow()
         world.focusStore.lastKnownNativeFocusedWindowId = nativeFocused?.windowId
     }
-    nativeFocused?.asMacWindow().macApp.lastNativeFocusedWindowId = nativeFocused?.windowId.raw
 }

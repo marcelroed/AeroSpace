@@ -13,10 +13,9 @@ nonisolated private let terminationAxTimeout: DispatchTimeInterval = .seconds(2)
 /// again (a die off the main thread leaves the main actor running)
 nonisolated let isTerminating: Atomic<Bool> = Atomic(false)
 
-/// The registered apps, for a die off the main thread: it can't read `MacApp.allAppsMap`
-nonisolated let axAppsForTermination: Mutex<[pid_t: AxApp]> = Mutex([:])
-
 nonisolated struct AppServerTerminationHandler: TerminationHandler {
+    let platform: any Platform
+
     /// On the dying thread, which can be any thread, or on main when quitting (the menu, SIGINT, SIGTERM). It never waits
     /// for the main thread
     func beforeTermination() {
@@ -25,11 +24,7 @@ nonisolated struct AppServerTerminationHandler: TerminationHandler {
             parkForever() // Another thread restores the windows and ends the process
         }
         isTerminating.store(true, ordering: .sequentiallyConsistent)
-        if Thread.isMainThread {
-            MainActor.assumeIsolated { restoreWindowsOnMainThread() }
-        } else {
-            restoreWindowsOffMainThread()
-        }
+        platform.restoreForTermination()
         if isDebug {
             let semaphore = DispatchSemaphore(value: 0)
             // Use Task.detached to avoid inheriting @MainActor, and a nonisolated function.
@@ -45,18 +40,13 @@ nonisolated struct AppServerTerminationHandler: TerminationHandler {
 
 /// Makes every window visible before quitting: centered on the monitor it's on (or the main monitor), at its last
 /// floating size or the monitor's visible size
-private func restoreWindowsOnMainThread() {
+func restoreWindowsOnMainThread(_ windows: [(app: AxApp, windowId: UInt32, lastFloatingSize: CGSize?)]) {
     let monitors = TerminationMonitors(
         all: world.monitors.all.map { TerminationMonitor(rect: $0.rect, visibleRect: $0.visibleRect) },
         main: TerminationMonitor(rect: world.monitors.main.rect, visibleRect: world.monitors.main.visibleRect),
     )
     var timedOutApps: Set<pid_t> = []
-    for window in MacWindow.allWindows {
-        // makeAllWindowsVisibleAndRestoreSize may be invoked when something went wrong (e.g. some windows are unbound)
-        // that's why it's not allowed to use `.parent` call in here
-        guard let app = window.macApp.axForTermination, !timedOutApps.contains(app.pid) else { continue }
-        let windowId = window.windowId.raw
-        let lastFloatingSize = window.lastFloatingSize
+    for (app, windowId, lastFloatingSize) in windows where !timedOutApps.contains(app.pid) {
         let isDone = app.postAndWait(timeout: terminationAxTimeout) { app in
             app.restore(windowId) { monitors.restoreFrame(windowRect: $0, lastFloatingSize) }
         }
@@ -69,13 +59,13 @@ private func restoreWindowsOnMainThread() {
 /// A die off the main thread (e.g. on an AX thread) can't read the tree or NSScreen. It restores every window that the
 /// apps know at the size of its CoreGraphics display (no last floating size, no visible frame): one job per app, all in
 /// parallel, against one deadline. It skips the app whose thread is dying: that thread would never run the job
-nonisolated private func restoreWindowsOffMainThread() {
+nonisolated func restoreWindowsOffMainThread(_ apps: [AxApp]) {
     // todo M2-AXP: restore with main's geometry (the monitors' visible rects, lastFloatingSize) instead of the full
     //              display bounds
     guard let monitors = TerminationMonitors.fromCoreGraphics() else { return } // No display: 0x0 frames would be worse
     let deadline: DispatchTime = .now() + terminationAxTimeout
     let restores = DispatchGroup()
-    for app in axAppsForTermination.withLock({ Array($0.values) }) where !app.isCurrentThread {
+    for app in apps where !app.isCurrentThread {
         restores.enter()
         app.post { app in
             for windowId in app.windowIds {

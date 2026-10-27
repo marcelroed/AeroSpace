@@ -232,7 +232,7 @@ private func floatingWindowCenters(_ workspace: Workspace) async -> [FloatingWin
     var result: [FloatingWindowCenter] = []
     for window in workspace.floatingWindows {
         // todo bug: we shouldn't access ax api here. What if the window was moved but it wasn't committed to ax yet?
-        guard let center = try? await window.getCenter(.nonCancellable) else { continue }
+        guard let center = await world.platform.rect(window.windowId)?.center else { continue }
         let root = workspace.existingRootTilingContainer
         guard let tilingWindow = center.coerce(in: workspace.workspaceMonitor.visibleRectPaddedByOuterGaps)
             .flatMap({ root?.window(at: $0, virtual: true) })
@@ -240,7 +240,7 @@ private func floatingWindowCenters(_ workspace: Workspace) async -> [FloatingWin
             result.append(FloatingWindowCenter(window: window, center: center, tilingWindowUnderCenter: nil))
             continue
         }
-        guard let tilingCenter = try? await tilingWindow.getCenter(.nonCancellable) else { continue }
+        guard let tilingCenter = await world.platform.rect(tilingWindow.windowId)?.center else { continue }
         result.append(FloatingWindowCenter(window: window, center: center, tilingWindowUnderCenter: (tilingWindow, tilingCenter)))
     }
     return result

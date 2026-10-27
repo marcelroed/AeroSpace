@@ -22,14 +22,13 @@ struct CloseCommand: nonisolated Command {
 
     func run(_ cx: CmdContext) async throws(CmdFail) {
         let window = try cx.window(windowId: windowId, noWindowMsg: "Empty workspace")
-        // Access ax directly. Not cool :(
-        if quitIfLastWindow, (try? await window.asMacWindow().macApp.getAxWindowsCount(.nonCancellable)) == 1 {
+        if quitIfLastWindow, await world.platform.windowCount(window.app) == 1 {
             guard window.isAlive else { return } // The window closed at the suspension point above
-            let app = window.asMacWindow().macApp
-            guard app.nsApp.terminate() else { throw "Failed to quit '\(window.app.name ?? "Unknown app")'" }
+            let app = window.app
+            guard world.platform.quit(app) else { throw "Failed to quit '\(app.name ?? "Unknown app")'" }
             for workspace in Workspace.all {
                 for window in workspace.allLeafWindowsRecursive where window.app.pid == app.pid {
-                    window.asMacWindow().garbageCollect(skipClosedWindowsCache: true)
+                    window.garbageCollect(skipClosedWindowsCache: true)
                 }
             }
         } else {
@@ -142,33 +141,24 @@ struct MacosNativeFullscreenCommand: nonisolated Command {
 
     func run(_ cx: CmdContext) async throws(CmdFail) {
         let window = try cx.window(windowId: windowId)
-        guard let prevState = try? await window.isMacosFullscreen(.nonCancellable) else { throw CmdFail(bugPrompt()) }
+        guard let prevState = await world.platform.facts(window.windowId)?.isFullscreen else { throw CmdFail(windowClosed(window)) }
         guard window.isAlive else { return } // The window closed at the suspension point above
         let newState = toggle.resolve(current: prevState)
         if newState == prevState {
             return try noop(cx, failIfNoop: failIfNoop, (newState ? "Already fullscreen. " : "Already not fullscreen. ") +
                 "Tip: use --fail-if-noop to exit with non-zero code")
         }
-        window.asMacWindow().setNativeFullscreen(newState)
+        world.platform.setNative(window.windowId, .fullscreen(newState))
         guard let workspace = window.nodeWorkspace else {
             throw CmdFail(windowIsntPartOfTree(window))
         }
         if newState { // Enter fullscreen
             window.move(to: workspace.containerCreatingIfNeeded(.macosFullscreen), weight: .value(1))
         } else { // Exit fullscreen
-            do {
-                if case .macos(let prevParentKind) = window.layoutReason {
-                    try await exitMacOsNativeUnconventionalState(
-                        window: window,
-                        prevParentKind: prevParentKind,
-                        workspace: workspace,
-                        .nonCancellable,
-                    )
-                } else {
-                    try await window.relayoutWindow(on: workspace, .nonCancellable)
-                }
-            } catch {
-                throw CmdFail(bugPrompt())
+            if case .macos(let prevParentKind) = window.layoutReason {
+                await exitMacOsNativeUnconventionalState(window: window, prevParentKind: prevParentKind, workspace: workspace)
+            } else {
+                await window.relayoutWindow(on: workspace)
             }
         }
     }
@@ -196,9 +186,10 @@ struct MacosNativeMinimizeCommand: nonisolated Command {
         // resolveTargetOrReportError on already minimized windows will always fail
         // It would be easier if minimized windows were part of the workspace in tree hierarchy
         let window = try cx.window(windowId: windowId)
-        guard let newState: Bool = try? await !window.isMacosMinimized(.nonCancellable) else { throw CmdFail(bugPrompt()) }
+        guard let isMinimized = await world.platform.facts(window.windowId)?.isMinimized else { throw CmdFail(windowClosed(window)) }
         guard window.isAlive else { return } // The window closed at the suspension point above
-        window.asMacWindow().setNativeMinimized(newState)
+        let newState = !isMinimized
+        world.platform.setNative(window.windowId, .minimized(newState))
         if newState { // minimize
             window.move(to: macosMinimizedWindowsContainer, weight: .value(1))
             return

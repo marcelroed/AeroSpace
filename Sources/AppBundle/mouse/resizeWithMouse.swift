@@ -14,7 +14,7 @@ func resetManipulatedWithMouseIfPossible() async throws {
 func resizeWithMouse(_ window: Window) async throws { // todo cover with tests
     resetClosedWindowsCache()
     guard case .tiling(let parent) = window.placement else { return } // Nothing to do for floating, or unconventional windows
-    guard let rect = try await window.getAxRect(.cancellable) else { return }
+    guard let rect = try await world.platform.observedRect(window.windowId) else { return }
     if window.parent !== parent { return } // The window closed or moved at the suspension point above
     guard let lastAppliedLayoutRect = window.lastAppliedLayoutPhysicalRect else { return }
     let (lParent, lOwnIndex) = window.closestParent(hasChildrenIn: .left, layout: .tiles) ?? (nil, nil)

@@ -45,7 +45,6 @@ struct RunCallbackCommandTest {
         // RB-05: when no callback ran, the exit code used to be 2
         setUpTree("h_tiles(*1)")
         #expect(config.onWindowDetected.isEmpty)
-        #expect(MacWindow.allWindows.isEmpty)
         let output = await runCmd(command)
         expectEqual(output, .ok)
     }

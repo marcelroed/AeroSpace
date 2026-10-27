@@ -17,14 +17,14 @@ import Common
 /// | Heavy refresh                 | `heavy`, a ``LatestTaskSlot``                         | A newer heavy refresh, a light session |
 /// | Light session                 | Runs at once in its caller's task, cancels `heavy`    | — (but see the next row)              |
 /// | ffm, mouse move, mouse resize | One ``LatestTaskSlot`` per kind around a light session | A newer event of the same kind       |
-/// | AX read of a heavy refresh    | `AxApp.call` (`.cancellable`): abandonable            | Cancellation of the heavy refresh: it returns at once |
-/// | AX read of a command          | `AxApp.run` (`.nonCancellable`): awaited              | —                                     |
+/// | AX read of a heavy refresh    | An observe read of ``Platform`` (`AxApp.call`): abandonable | Cancellation of the heavy refresh: it returns at once |
+/// | AX read of a command          | A single read of ``Platform`` (`AxApp.run`): awaited  | —                                     |
 /// | Frame write                   | `AxApp.postWindowWrite`: a generation per window      | A newer frame write, attribute write or close of it |
-/// | Native focus (slow path)      | A post with a global generation (`MacApp.nativeFocusGeneration`) | A newer native focus       |
-/// | App registration              | One pending task per pid (`MacApp.pendingRegistrations`); a failed one backs off 1–60 s | — |
+/// | Native focus (slow path)      | A post with a global generation (`LivePlatform.focus`) | A newer native focus                 |
+/// | App registration              | One pending task per pid (`LivePlatform.pendingRegistrations`); a failed one backs off 1–60 s | — |
 /// | Order within an app           | FIFO on its actor's thread (posts and awaited calls share one queue): the visible workspaces' frames, then hiding in corners, then focus | — |
 ///
-/// A cancelled heavy refresh stops at its next cancellation check: a `.cancellable` AX read or a layout step. Nothing is
+/// A cancelled heavy refresh stops at its next cancellation check: an observe read or a layout step. Nothing is
 /// queued for retry: the tree is the desired state, and every heavy refresh lays out every window again.
 final class Sessions {
     private let heavy = LatestTaskSlot()
@@ -188,7 +188,7 @@ final class Sessions {
         //  The end of the callback calls refreshSession
         guard let token: RunSessionGuard = .isServerEnabled else { return }
         try await resetManipulatedWithMouseIfPossible()
-        let mouseLocation = mouseLocation
+        let mouseLocation = world.platform.mouseLocation
         let clickedMonitor = world.monitors.approximation(mouseLocation)
         switch true {
             // Detect clicks on desktop of different monitors

@@ -18,7 +18,7 @@ struct TreeNodeTest {
         let workspace = focus.workspace
 
         #expect(workspace.isEffectivelyEmpty)
-        weak let window: TestWindow? = .new(id: 1, parent: workspace.rootTilingContainerCreatingIfNeeded())
+        weak let window: Window? = TestWindow.new(id: 1, parent: workspace.rootTilingContainerCreatingIfNeeded())
         #expect(window != nil)
         #expect(!workspace.isEffectivelyEmpty)
         window?.unbindFromParent()
@@ -113,7 +113,7 @@ struct TreeNodeTest {
     }
 
     @Test
-    func relayoutSkipsAClosedWindowAndAGarbageCollectedWorkspace() async throws { // Stale-object policy
+    func relayoutSkipsAClosedWindowAndAGarbageCollectedWorkspace() { // Stale-object policy
         let workspace = setUpTree("h_tiles(1 v_tiles(2))", workspace: "a")
         let nested = testWindow(2).parent.orDie()
         setUpTree("h_tiles(3)")
@@ -124,10 +124,10 @@ struct TreeNodeTest {
         #expect(!closed.isAlive)
         #expect(!nested.isAlive)
 
-        try await closed.relayoutWindow(on: focus.workspace, .cancellable, forceTile: true) // Used to crash: it's unbound
+        closed.relayoutWindow(on: focus.workspace, as: .window) // Used to crash: it's unbound
         Workspace.garbageCollectUnusedWorkspaces()
         #expect(!workspace.isAlive)
-        try await testWindow(2).relayoutWindow(on: workspace, .cancellable, forceTile: true) // The window would be lost
+        testWindow(2).relayoutWindow(on: workspace, as: .window) // The window would be lost
         expectEqual(describeTree(), "h_tiles(3 *2)")
     }
 
@@ -182,7 +182,7 @@ struct TreeNodeTest {
         // The most recent window is floating
         ("h_tiles(1 v_tiles(2 3) 4) floating(6 7)", 6, "h_tiles(1 v_tiles(2 3) 4 5) floating(7)"),
     ] as [(String, WindowId?, String)])
-    func newTilingWindowSlot(tree: String, closedWindowId: WindowId?, after: String) async throws {
+    func newTilingWindowSlot(tree: String, closedWindowId: WindowId?, after: String) {
         let workspace = setUpTree(tree, workspace: "a")
         testWindow(2).markAsMostRecentChild()
         if let closedWindowId {
@@ -190,7 +190,7 @@ struct TreeNodeTest {
             testWindow(closedWindowId).unbindFromParent()
         }
         let window = TestWindow.new(id: 5, parent: macosPopupWindowsContainer)
-        try await window.relayoutWindow(on: workspace, .cancellable, forceTile: true)
+        window.relayoutWindow(on: workspace, as: .window)
         expectEqual(describeTree("a"), after)
     }
 

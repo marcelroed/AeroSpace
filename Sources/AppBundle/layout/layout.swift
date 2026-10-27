@@ -1,7 +1,7 @@
 import AppKit
 import Common
 
-/// A frame for the platform to apply with ``Window/setAxFrame(_:_:)``. Raw: the size may be negative, exactly as the
+/// A frame for the platform to apply with ``Placement/frame(_:topLeft:size:)``. Raw: the size may be negative, exactly as the
 /// layout arithmetic produces it
 struct WindowFrame: Equatable {
     let window: Window
@@ -11,11 +11,9 @@ struct WindowFrame: Equatable {
 
 extension Workspace {
     /// Applies the frames of ``layoutTiling()`` in their order, then repositions the floating windows
-    func layoutWorkspace() async throws {
+    func layoutWorkspace() async throws(CancellationError) {
         if isEffectivelyEmpty { return }
-        for frame in layoutTiling() {
-            frame.window.setAxFrame(frame.topLeft, frame.size)
-        }
+        world.platform.apply(layoutTiling().map { .frame($0.window.windowId, topLeft: $0.topLeft, size: $0.size) })
         try await layoutFloatingWindows()
     }
 
@@ -48,21 +46,21 @@ extension Workspace {
 
     /// Floating windows keep their frame. One that is on a monitor that shows another workspace moves to the same relative
     /// position on its workspace's monitor. Each window's frame is read and then set before the next window's is read
-    private func layoutFloatingWindows() async throws {
+    private func layoutFloatingWindows() async throws(CancellationError) {
         for window in floatingWindows {
             window.lastAppliedLayoutPhysicalRect = nil
             window.lastAppliedLayoutVirtualRect = nil
-            let windowRect = try await window.getAxRect(.cancellable) // Probably not idempotent
+            let windowRect = try await world.platform.observedRect(window.windowId) // Probably not idempotent
             // The window may have closed or moved at the suspension point above. A dead workspace can't be compared by name
             if !isAlive || window.placement != .floating(self) { continue }
             // The screens may disappear at the suspension point above. The layout waits for them
-            if !liveHasScreens() { continue }
+            if !world.platform.hasScreens { continue }
             if let windowRect, let topLeft = floatingTopLeft(windowRect) {
-                window.setAxFrame(topLeft, nil)
+                world.platform.apply([.frame(window.windowId, topLeft: topLeft, size: nil)])
             }
             if window.isFullscreen {
                 let frame = window.fullscreenFrame(on: workspaceMonitor)
-                window.setAxFrame(frame.topLeft, frame.size)
+                world.platform.apply([.frame(window.windowId, topLeft: frame.topLeft, size: frame.size)])
                 window.isFullscreen = false
             }
         }
@@ -110,7 +108,7 @@ extension TreeNode {
                     lastAppliedLayoutPhysicalRect = nil
                     frames.append(window.fullscreenFrame(on: params.monitor))
                 } else {
-                    let rect = window.app.rawAppBundleId == KnownBundleId.cmux.rawValue
+                    let rect = window.app.bundleId == KnownBundleId.cmux.rawValue
                         ? physicalRect.notLookingZoomed(in: params.monitor.visibleRect)
                         : physicalRect
                     lastAppliedLayoutPhysicalRect = rect

@@ -76,7 +76,7 @@ struct Monitors {
     }
 }
 
-enum OptimalHideCorner {
+nonisolated enum OptimalHideCorner: Equatable, Sendable {
     case bottomLeftCorner, bottomRightCorner
 }
 
@@ -100,49 +100,4 @@ private func optimalHideCorner(of monitor: MonitorInfo, among monitors: NonEmpty
     let leftScore = monitors.sum { contains($0, blc1) + contains($0, blc2) + important * contains($0, blc3) }
     let rightScore = monitors.sum { contains($0, brc1) + contains($0, brc2) + important * contains($0, brc3) }
     return leftScore < rightScore ? .bottomLeftCorner : .bottomRightCorner
-}
-
-/// The monitors as macOS reports them now. Empty while there are no screens (e.g., during display reconfiguration).
-/// Tests set the snapshot with ``updateMonitors(_:)``, and this returns it
-func liveMonitorInfos() -> [MonitorInfo] {
-    if isUnitTest { return world.monitors.hasScreens ? Array(world.monitors.all) : [] }
-    let screens = NSScreen.screens
-    guard let mainScreen = screens.singleOrNil(where: \.isMainScreen) ?? screens.first else { return [] }
-    let mainMonitorHeight = mainScreen.frame.height
-    return screens.enumerated().map {
-        $0.element.toMonitorInfo(
-            monitorAppKitNsScreenScreensId: $0.offset + 1,
-            mainMonitorHeight: mainMonitorHeight,
-            isMain: $0.element.isMainScreen,
-        )
-    }
-}
-
-/// Same as `!liveMonitorInfos().isEmpty`, but cheap (`liveMonitorInfos` reads `NSScreen.visibleFrame`, which is slow). For
-/// the re-checks after the awaits of a session: the screens can disappear while it runs, its snapshot doesn't show that
-func liveHasScreens() -> Bool {
-    isUnitTest ? world.monitors.hasScreens : !NSScreen.screens.isEmpty
-}
-
-// Note to myself: Don't use NSScreen.main, it's garbage
-// 1. The name is misleading, it's supposed to be called "focusedScreen"
-// 2. It's inaccurate because NSScreen.main doesn't work correctly from NSWorkspace.didActivateApplicationNotification &
-//    kAXFocusedWindowChangedNotification callbacks.
-extension NSScreen {
-    /// ``frame`` and ``visibleFrame`` are crazy: (0, 0) is the main screen's bottom left corner, and the positive
-    /// y-axis goes up. ``MonitorInfo`` normalizes them to the coordinates of ``MacWindow.topLeftCorner``: (0, 0) is the
-    /// main screen's top left corner, and the positive y-axis goes down
-    fileprivate func toMonitorInfo(monitorAppKitNsScreenScreensId: Int, mainMonitorHeight: CGFloat, isMain: Bool) -> MonitorInfo {
-        MonitorInfo(
-            monitorAppKitNsScreenScreensId: monitorAppKitNsScreenScreensId,
-            name: localizedName,
-            rect: frame.monitorFrameNormalized(mainMonitorHeight: mainMonitorHeight),
-            visibleRect: visibleFrame.monitorFrameNormalized(mainMonitorHeight: mainMonitorHeight),
-            isMain: isMain,
-        )
-    }
-
-    fileprivate var isMainScreen: Bool {
-        frame.minX == 0 && frame.minY == 0
-    }
 }

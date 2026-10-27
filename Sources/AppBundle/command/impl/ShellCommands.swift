@@ -29,14 +29,10 @@ struct TestCommand: nonisolated Command {
 
     func run(_ cx: CmdContext) async throws(CmdFail) {
         let target = try cx.target()
-        let obj: AeroObj
-        if let window = target.windowOrNil {
-            guard let window = try? await WindowWithPrefetchedTitle.resolveWindow(window, for: [.interVar(lhs)], .nonCancellable) else {
-                throw CmdFail(bugPrompt())
-            }
-            obj = .window(window)
+        let obj: AeroObj = if let window = target.windowOrNil {
+            .window(await WindowWithPrefetchedTitle.resolveWindow(window, for: [.interVar(lhs)]))
         } else {
-            obj = .workspace(target.workspace)
+            .workspace(target.workspace)
         }
         let lhsValue: Primitive
         do {
@@ -131,7 +127,7 @@ struct RunCallbackCommand: nonisolated Command {
         let exitCode: Int32
         switch callback {
             case .onWindowDetected where forEveryWindow:
-                exitCode = await onWindowDetected(cx.env, cx.io, forEvery: MacWindow.allWindows)
+                exitCode = await onWindowDetected(cx.env, cx.io, forEvery: Array(world.windows.values))
             case .onWindowDetected:
                 guard let window = target.windowOrNil else { throw CmdFail(noWindowIsFocused) }
                 exitCode = await onWindowDetected(cx.env, cx.io, window)
@@ -144,7 +140,6 @@ struct RunCallbackCommand: nonisolated Command {
     }
 }
 
-/// `windows` is a parameter because tests can't create a `MacWindow`
 func onWindowDetected(_ env: CmdEnv, _ io: CmdIo, forEvery windows: [Window]) async -> Int32 {
     var exitCode = EXIT_CODE_ZERO
     for window in windows.sortedBy({ $0.windowId }) where window.shouldRunOnWindowDetected {
@@ -178,14 +173,10 @@ struct EchoCommand: nonisolated Command {
 
     func run(_ cx: CmdContext) async throws(CmdFail) {
         let target = try cx.target(windowId: windowId)
-        let obj: AeroObj
-        if let window = target.windowOrNil {
-            guard let window = try? await WindowWithPrefetchedTitle.resolveWindow(window, for: args.flatMap { $0 }, .nonCancellable) else {
-                throw CmdFail(bugPrompt())
-            }
-            obj = .window(window)
+        let obj: AeroObj = if let window = target.windowOrNil {
+            .window(await WindowWithPrefetchedTitle.resolveWindow(window, for: args.flatMap { $0 }))
         } else {
-            obj = .workspace(target.workspace)
+            .workspace(target.workspace)
         }
         for arg in args {
             let line: String

@@ -88,6 +88,9 @@ struct CmdContext {
 
 nonisolated let noWindowIsFocused = "No window is focused"
 
+/// A command's AX read found the window gone
+func windowClosed(_ window: Window) -> String { "Window \(window.windowId) closed" }
+
 extension Command {
     /// Runs the command like a shell of one command: Shell resets the closed-windows cache and refreshes the model
     @discardableResult

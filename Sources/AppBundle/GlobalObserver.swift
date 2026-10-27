@@ -47,16 +47,16 @@ enum GlobalObserver {
 func unhideMacosHiddenAppsIfConfigured() {
     if !config.automaticallyUnhideMacosHiddenApps { return }
     if let w = prevFocus?.windowOrNil,
-       w.asMacWindow().macApp.nsApp.isHidden,
+       world.platform.isHidden(w.app),
        // "Hide others" (cmd-alt-h) -> don't force focus
        // "Hide app" (cmd-h) -> force focus
-       MacApp.allAppsMap.values.count(where: { $0.nsApp.isHidden }) == 1
+       world.platform.runningApps().count(where: world.platform.isHidden) == 1
     {
         // Force focus
         _ = w.focusWindow()
         w.nativeFocus()
     }
-    for app in MacApp.allAppsMap.values {
-        app.nsApp.unhide()
+    for app in world.platform.runningApps() {
+        world.platform.unhideApp(app)
     }
 }

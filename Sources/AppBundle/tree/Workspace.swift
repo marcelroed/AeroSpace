@@ -133,7 +133,7 @@ extension MonitorInfo {
 /// the closest old monitor, and the other monitors get stub workspaces. While there are no screens, the last monitors and
 /// their workspaces stay. Called at the start of every session. Returns whether there are screens
 @discardableResult
-func updateMonitors(_ monitors: [MonitorInfo] = liveMonitorInfos()) -> Bool {
+func updateMonitors(_ monitors: [MonitorInfo] = world.platform.monitors()) -> Bool {
     let old = world.monitors
     let new = Monitors(monitors) ?? old.withoutScreens
     world.monitors = new

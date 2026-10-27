@@ -51,21 +51,26 @@ final class World {
     let ui: Ui
     /// The funnel for every session, see Sessions.swift
     let sessions: Sessions
+    /// macOS: the only way to the windows, the apps, the screens and the mouse
+    private(set) var platform: any Platform
 
     init() {
         ui = Ui()
         sessions = Sessions()
+        platform = LivePlatform()
     }
 
-    /// The fresh world of ``reset()``. It shares `ui` and `sessions`, so it doesn't build a menu bar model
-    private init(sharingUiAndSessionsOf other: World) {
+    /// The fresh world of ``reset(platform:)``. It shares `ui` and `sessions`, so it doesn't build a menu bar model
+    private init(sharingUiAndSessionsOf other: World, platform: any Platform) {
         ui = other.ui
         sessions = other.sessions
+        self.platform = platform
     }
 
     /// Tests only: puts every property back to its initial value. A property that it misses leaks from test to test
-    func reset() {
-        let fresh = World(sharingUiAndSessionsOf: self)
+    func reset(platform: any Platform) {
+        let fresh = World(sharingUiAndSessionsOf: self, platform: platform)
+        self.platform = fresh.platform
         workspacesByName = fresh.workspacesByName
         sortedWorkspaces = fresh.sortedWorkspaces
         macosMinimizedWindowsContainer = fresh.macosMinimizedWindowsContainer

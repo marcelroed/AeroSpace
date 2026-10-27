@@ -12,7 +12,7 @@ func moveWithMouse(_ window: Window) async throws { // todo cover with tests
 }
 
 private func moveFloatingWindow(_ window: Window) async throws {
-    guard let center = try await window.getCenter(.cancellable) else { return }
+    guard let center = try await world.platform.observedRect(window.windowId)?.center else { return }
     let targetWorkspace = world.monitors.approximation(center).activeWorkspace
     guard let workspace = window.nodeWorkspace else { return }
     if targetWorkspace != workspace {
@@ -23,7 +23,7 @@ private func moveFloatingWindow(_ window: Window) async throws {
 private func moveTilingWindow(_ window: Window) {
     world.mouseManipulatedWindowId = window.windowId
     window.lastAppliedLayoutPhysicalRect = nil
-    let mouseLocation = mouseLocation
+    let mouseLocation = world.platform.mouseLocation
     let targetWorkspace = world.monitors.approximation(mouseLocation).activeWorkspace
     let windowUnderMouse = targetWorkspace.existingRootTilingContainer?.window(at: mouseLocation, virtual: false)
     let swapTarget = windowUnderMouse == window ? nil : windowUnderMouse

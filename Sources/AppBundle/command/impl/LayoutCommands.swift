@@ -118,20 +118,16 @@ struct LayoutCommand: nonisolated Command {
                 parent.changeOrientation(targetDescription.tilingOrientation ?? parent.orientation)
             case .tiling:
                 guard case .floatingWindow(let window, let workspace) = subject else { return } // Already tiling
-                let size = try? await window.getAxSize(.nonCancellable)
+                let size = await world.platform.rect(window.windowId)?.size
                 // The window may have closed or moved at the suspension point above
                 guard workspace.isAlive, window.placement == .floating(workspace) else { return }
                 window.lastFloatingSize = size ?? window.lastFloatingSize
-                do {
-                    try await window.relayoutWindow(on: workspace, .nonCancellable, forceTile: true)
-                } catch {
-                    throw CmdFail(bugPrompt())
-                }
+                window.relayoutWindow(on: workspace, as: .window)
             case .floating:
                 guard let window = target.windowOrNil else { throw CmdFail(noWindowIsFocused) }
                 let workspace = target.workspace
                 window.move(to: workspace.containerCreatingIfNeeded(.floating))
-                if let size = window.lastFloatingSize { window.setAxFrame(nil, size) }
+                if let size = window.lastFloatingSize { world.platform.apply([.frame(window.windowId, topLeft: nil, size: size)]) }
         }
     }
 }

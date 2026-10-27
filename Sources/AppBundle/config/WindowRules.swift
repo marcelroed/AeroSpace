@@ -22,10 +22,10 @@ struct WindowDetectedCallback: Equatable {
                 if let startupMatcher = matcher.duringAeroSpaceStartup, startupMatcher != isStartup {
                     return false
                 }
-                if let regex = matcher.windowTitleRegexSubstring, (try? await window.getTitle(.nonCancellable))?.contains(caseInsensitiveRegex: regex) != true {
+                if let regex = matcher.windowTitleRegexSubstring, await world.platform.title(window.windowId)?.contains(caseInsensitiveRegex: regex) != true {
                     return false
                 }
-                if let appId = matcher.appId, appId != window.app.rawAppBundleId {
+                if let appId = matcher.appId, appId != window.app.bundleId {
                     return false
                 }
                 if let regex = matcher.appNameRegexSubstring, !(window.app.name ?? "").contains(caseInsensitiveRegex: regex) {
@@ -81,7 +81,7 @@ func onWindowDetected(_ env: CmdEnv, _ io: CmdIo, _ window: Window) async -> Int
     broadcastEvent(.windowDetected(
         windowId: window.windowId.raw,
         workspace: window.nodeWorkspace?.name,
-        appBundleId: window.app.rawAppBundleId,
+        appBundleId: window.app.bundleId,
         appName: window.app.name,
     ))
     var lastExitCode = EXIT_CODE_ZERO

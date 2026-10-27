@@ -4,7 +4,7 @@ import Foundation
 
 /// Called from `AeroSpaceApp.init`, before SwiftUI builds the scenes. Returns the models that the scenes show
 public func initAppBundle() -> Ui {
-    installTerminationHandler(AppServerTerminationHandler())
+    installTerminationHandler(AppServerTerminationHandler(platform: world.platform))
     _ = serverArgs // `--help`, `--version` and bad args exit here. The menu bar model reads `--config-path`
     Task.startUnstructured {
         await waitForAccessibilityPermission_nonCancellable()
@@ -15,7 +15,7 @@ public func initAppBundle() -> Ui {
         // No screens (e.g. AeroSpace was started during display reconfiguration). The startup sessions below would
         // return early, and nothing would replay them: a regular session would register the existing windows later.
         // Wait for the screens here, before the hotkeys (config), the server and the observers can start a session
-        while liveMonitorInfos().isEmpty { try? await Task.sleep(for: .milliseconds(100)) }
+        while !world.platform.hasScreens { try? await Task.sleep(for: .milliseconds(100)) }
 
         await bootstrapConfig_nonCancellable()
         _ = await reloadConfig_nonCancellable()
@@ -44,7 +44,7 @@ private func bootstrapConfig_nonCancellable() async {
 
 /// The persistent workspaces, then the first snapshot of the monitors: it shows on each monitor a workspace that belongs to
 /// it. The focus goes to the first workspace. `monitors`: tests only
-func initWorkspaces(_ monitors: [MonitorInfo] = liveMonitorInfos()) {
+func initWorkspaces(_ monitors: [MonitorInfo] = world.platform.monitors()) {
     Workspace.ensurePersistentWorkspaces()
     updateMonitors(monitors)
     _ = Workspace.all.first?.focusWorkspace()

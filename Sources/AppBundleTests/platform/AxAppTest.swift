@@ -157,13 +157,13 @@ struct AxAppTest {
     @Test
     func anActivationForgetsTheFailedRegistrationsOfItsApp() { // RB-113
         let pid = NSRunningApplication.current.processIdentifier
-        MacApp.failedRegistrations[pid] = RegistrationBackoff(after: nil, now: .now)
-        defer { MacApp.failedRegistrations[pid] = nil }
-        MacApp.forgetFailedRegistration(Notification(
+        let platform = LivePlatform()
+        platform.failedRegistrations[pid] = RegistrationBackoff(after: nil, now: .now)
+        platform.forgetFailedRegistration(Notification(
             name: NSWorkspace.didActivateApplicationNotification,
             userInfo: [NSWorkspace.applicationUserInfoKey: NSRunningApplication.current],
         ))
-        expectEqual(MacApp.failedRegistrations[pid], nil)
+        expectEqual(platform.failedRegistrations[pid], nil)
     }
 
     @Test

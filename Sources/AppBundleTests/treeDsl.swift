@@ -98,8 +98,8 @@ func describeNode(_ node: TreeNode, weights: Bool = false, mru: Bool = false) ->
 }
 
 /// The test window with id `id`, bound or not
-func testWindow(_ id: WindowId) -> TestWindow {
-    TestApp.shared.windows.singleOrNil(where: { $0.windowId == id }).orDie("No test window with id \(id)") as? TestWindow ?? dieT()
+func testWindow(_ id: WindowId) -> Window {
+    Window.get(byId: id).orDie("No test window with id \(id)")
 }
 
 func rect(_ x: CGFloat, _ y: CGFloat, _ width: CGFloat, _ height: CGFloat) -> Rect {

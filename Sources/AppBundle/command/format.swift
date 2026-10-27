@@ -151,8 +151,9 @@ struct WindowWithPrefetchedTitle {
         self.title = title
     }
 
-    static func resolveWindow(_ window: Window, for format: [FormatToken], _ cm: CancellationMode) async throws -> Self {
-        let title = format.contains(.interVar(.windowTitle)) ? try await window.getTitle(cm) : nil
+    /// A window that closed meanwhile has the empty title
+    static func resolveWindow(_ window: Window, for format: [FormatToken]) async -> Self {
+        let title = format.contains(.interVar(.windowTitle)) ? await world.platform.title(window.windowId) ?? "" : nil
         return .init(window: window, title: title)
     }
 
@@ -164,7 +165,7 @@ struct WindowWithPrefetchedTitle {
 enum AeroObj {
     case window(WindowWithPrefetchedTitle)
     case workspace(Workspace)
-    case app(any AbstractApp)
+    case app(AppInfo)
     case monitor(MonitorInfo)
 
     var subject: FormatSubject {
@@ -349,7 +350,7 @@ extension FormatVar {
                 }
             case (.app(let a), .app):
                 switch self {
-                    case .appBundleId: return .string(a.rawAppBundleId ?? "NULL-APP-BUNDLE-ID")
+                    case .appBundleId: return .string(a.bundleId ?? "NULL-APP-BUNDLE-ID")
                     case .appName: return .string(a.name ?? "NULL-APP-NAME")
                     case .appPid: return .int(a.pid)
                     case .appExecPath: return .string(a.execPath ?? "NULL-APP-EXEC-PATH")

@@ -48,7 +48,7 @@ struct DebugWindowsCommand: nonisolated Command {
             guard let window = Window.get(byId: windowId) else {
                 throw "Can't find window with the specified window-id: \(windowId)"
             }
-            guard let a = try? await dumpWindowDebugInfo(window, .nonCancellable) else { throw CmdFail(bugPrompt()) }
+            guard let a = await dumpWindowDebugInfo(window) else { throw CmdFail(windowClosed(window)) }
             cx.out(a + "\n")
             cx.out(disclaimer)
             return
@@ -71,11 +71,7 @@ struct DebugWindowsCommand: nonisolated Command {
                 )
                 // Make sure that the Terminal window that started the recording is recorded first
                 if let window = target.windowOrNil {
-                    do {
-                        try await debugWindowsIfRecording(window, .nonCancellable)
-                    } catch {
-                        throw CmdFail(bugPrompt(String(describing: error)))
-                    }
+                    await debugWindowsIfRecording(window)
                 }
             case .aborted:
                 cx.out(
@@ -90,32 +86,27 @@ struct DebugWindowsCommand: nonisolated Command {
     }
 }
 
-private func dumpWindowDebugInfo(_ window: Window, _ cm: CancellationMode) async throws -> String {
-    let window = window.asMacWindow()
-    let appInfoDic: [String: Any] = window.macApp.nsApp.bundleURL.flatMap { Bundle(url: $0) }?.infoDictionary ?? [:]
-
-    var result: OrderedJson.JsonDict = try await window.macApp.dumpWindowAxInfo(windowId: window.windowId.raw, cm)
-
-    let windowLevel = getWindowLevel(for: window.windowId)
-    let windowLevelJson = windowLevel?.toJson() ?? .null
-    result["Aero.windowLevel"] = windowLevelJson
+/// nil if the window closed
+private func dumpWindowDebugInfo(_ window: Window) async -> String? {
+    guard let info = await world.platform.debugInfo(window.windowId) else { return nil }
+    var result: OrderedJson.JsonDict = info.axWindow
+    result["Aero.windowLevel"] = info.windowLevel?.toJson() ?? .null
     result["Aero.axWindowId"] = .int(window.windowId.raw)
     result["Aero.workspace"] = .stringOrNull(window.nodeWorkspace?.name)
     result["Aero.treeNodeParent"] = .string(String(describing: window.parent))
     result["Aero.macOS.version"] = .string(ProcessInfo().operatingSystemVersionString) // because built-in apps might behave differently depending on the OS version
-    result["Aero.App.appBundleId"] = .stringOrNull(window.app.rawAppBundleId)
+    result["Aero.App.appBundleId"] = .stringOrNull(window.app.bundleId)
     result["Aero.App.pid"] = .int(Int(window.app.pid))
-    result["Aero.App.versionShort"] = .stringOrNull(appInfoDic["CFBundleShortVersionString"] as? String)
-    result["Aero.App.version"] = .stringOrNull(appInfoDic["CFBundleVersion"] as? String)
-    result["Aero.App.nsApp.activationPolicy"] = .string(window.macApp.nsApp.activationPolicy.prettyDescription)
-    result["Aero.App.nsApp.execPath"] = .stringOrNull(window.macApp.nsApp.executableURL?.description)
-    result["Aero.App.nsApp.appBundlePath"] = .stringOrNull(window.macApp.nsApp.bundleURL?.description)
-    result["Aero.AXApp"] = .dict(try await window.macApp.dumpAppAxInfo(cm))
+    result["Aero.App.versionShort"] = .stringOrNull(info.appVersionShort)
+    result["Aero.App.version"] = .stringOrNull(info.appVersion)
+    result["Aero.App.nsApp.activationPolicy"] = .string(info.activationPolicy)
+    result["Aero.App.nsApp.execPath"] = .stringOrNull(info.execUrl)
+    result["Aero.App.nsApp.appBundlePath"] = .stringOrNull(info.bundleUrl)
+    result["Aero.AXApp"] = .dict(info.axApp)
 
-    let isDialog = try await window.macApp.isDialogHeuristic(window.windowId.raw, windowLevel, cm)
-    let isWindow = try await window.macApp.isWindowHeuristic(window.windowId.raw, windowLevel, cm)
-    result["Aero.AxUiElementWindowType"] = .string(AxUiElementWindowType.new(isWindow: isWindow, isDialog: { isDialog }).rawValue)
-    result["Aero.AxUiElementWindowType_isDialogHeuristic"] = .bool(isDialog)
+    result["Aero.AxUiElementWindowType"] = .string(AxUiElementWindowType.new(isWindow: info.isWindow, isDialog: { info.isDialog }).rawValue)
+    result["Aero.AxUiElementWindowType_isDialogHeuristic"] = .bool(info.isDialog)
+    result["Aero.axCallCounts"] = .dict(OrderedJson.JsonDict(uniqueKeysWithValues: world.platform.counters.sorted { $0.key < $1.key }.map { ($0.key, .int($0.value)) }))
 
     var matchingCallbacks: [OrderedJson] = []
     for callback in config.onWindowDetected where await callback.matches(window) {
@@ -124,22 +115,23 @@ private func dumpWindowDebugInfo(_ window: Window, _ cm: CancellationMode) async
     result["Aero.on-window-detected"] = .array(matchingCallbacks)
 
     return JSONEncoder.aeroSpaceDefault.encodeToString(OrderedJson.dict(result)).prettyDescription
-        .prefixLines(with: "\(window.app.rawAppBundleId ?? "nil-bundle-id").\(window.windowId) ||| ")
+        .prefixLines(with: "\(window.app.bundleId ?? "nil-bundle-id").\(window.windowId) ||| ")
 }
 
-func debugWindowsIfRecording(_ window: Window, _ cm: CancellationMode) async throws {
-    try await recordDebugWindow(window.windowId) { try await dumpWindowDebugInfo(window, cm) }
+func debugWindowsIfRecording(_ window: Window) async {
+    await recordDebugWindow(window.windowId) { await dumpWindowDebugInfo(window) }
 }
 
-/// Adds the window's dump to the running recording, unless the recording has it already
-func recordDebugWindow(_ windowId: WindowId, dump: () async throws -> String) async rethrows {
+/// Adds the window's dump to the running recording, unless the recording has it already. A window that closed meanwhile
+/// isn't recorded
+func recordDebugWindow(_ windowId: WindowId, dump: () async -> String?) async {
     guard case .recording(let log) = world.debugWindows, !log.dumps.keys.contains(windowId) else { return }
     if log.dumps.count >= debugWindowsLimit {
         world.debugWindows = .aborted
         return
     }
     // If the recording finishes during the await, the dump goes into its log, which nobody reads anymore
-    log.dumps[windowId] = try await dump()
+    log.dumps[windowId] = await dump()
 }
 
 struct MoveMouseCommand: nonisolated Command {
@@ -172,7 +164,7 @@ struct MoveMouseCommand: nonisolated Command {
     }
 
     func run(_ cx: CmdContext) async throws(CmdFail) {
-        let mouse = mouseLocation
+        let mouse = world.platform.mouseLocation
         let target = try cx.target()
         switch mouseTarget {
             case .windowLazyCenter:
@@ -212,7 +204,7 @@ private func windowSubjectRect(_ target: LiveFocus) async throws(CmdFail) -> Rec
     //      focus <direction> command has the similar problem
     guard let window = target.windowOrNil else { throw CmdFail(noWindowIsFocused) }
     if let rect = window.lastAppliedLayoutPhysicalRect { return rect }
-    if let rect = try? await window.getAxRect(.nonCancellable) { return rect }
+    if let rect = await world.platform.rect(window.windowId) { return rect }
     throw "Failed to get rect of window '\(window.windowId)'"
 }
 
@@ -272,7 +264,7 @@ struct VolumeCommand: nonisolated Command {
                 let volume: Float = Sound.output.isMuted ? 0 : try Sound.output.readVolume()
                 world.ui.volumePanel.update(with: volume)
             } catch {
-                throw CmdFail(bugPrompt(String(describing: error)))
+                throw CmdFail("Can't read the volume: \(error)")
             }
         }
     }
@@ -313,7 +305,7 @@ struct EnableCommand: nonisolated Command {
         if newState {
             for workspace in Workspace.all {
                 for window in workspace.allLeafWindowsRecursive where window.isFloating {
-                    window.lastFloatingSize = (try? await window.getAxSize(.nonCancellable)) ?? window.lastFloatingSize
+                    window.lastFloatingSize = await world.platform.rect(window.windowId)?.size ?? window.lastFloatingSize
                 }
             }
             await activateMode_nonCancellable(mainModeId)

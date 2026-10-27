@@ -1,11 +1,7 @@
 import AppKit
-import Common
 
-var appForTests: (any AbstractApp)? = nil
-
-func getNativeFocusedWindow(_ cm: CancellationMode) async throws -> Window? {
-    if isUnitTest { return try await appForTests?.getFocusedWindow(cm) }
-    check(appForTests == nil)
-    guard let frontmostApplication = NSWorkspace.shared.frontmostApplication else { return nil }
-    return try await MacApp.getOrRegister(frontmostApplication)?.getFocusedWindow(cm)
+/// The window that has the native focus, registered. Abandonable, see ``Platform/focusedWindow()``
+func getNativeFocusedWindow() async throws(CancellationError) -> Window? {
+    guard let focused = try await world.platform.focusedWindow() else { return nil }
+    return try await registerWindow(focused.windowId, focused.app)
 }

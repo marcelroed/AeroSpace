@@ -15,7 +15,7 @@ nonisolated let projectRoot: URL = {
 }()
 
 func setUpWorkspacesForTests() {
-    world.reset()
+    world.reset(platform: FakePlatform())
     world.config.enableNormalizationFlattenContainers = false // Make layout tests more predictable
     world.config.enableNormalizationOppositeOrientationForNestedContainers = false // Make layout tests more predictable
     world.config.defaultRootContainerOrientation = .horizontal // Make default layout predictable
@@ -30,10 +30,6 @@ func setUpWorkspacesForTests() {
     Workspace.garbageCollectUnusedWorkspaces()
     check(focus.workspace.isEffectivelyEmpty)
     check(focus.workspace === Workspace.all.singleOrNil(), Workspace.all.map(\.description).joined(separator: ", "))
-
-    TestApp.shared.focusedWindow = nil
-    TestApp.shared.windows = []
-    appForTests = nil
 }
 
 /// The only monitor of a test, unless it sets others with ``updateMonitors(_:)``

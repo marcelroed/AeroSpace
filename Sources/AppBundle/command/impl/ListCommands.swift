@@ -87,7 +87,7 @@ struct ListWindowsCommand: nonisolated Command {
                 windows = windows.filter { $0.app.pid == pid }
             }
             if let appId = filteringOptions.appIdFilter {
-                windows = windows.filter { $0.app.rawAppBundleId == appId }
+                windows = windows.filter { $0.app.bundleId == appId }
             }
         }
         if case .count = output {
@@ -96,10 +96,7 @@ struct ListWindowsCommand: nonisolated Command {
         }
         var resolved: [WindowWithPrefetchedTitle] = []
         for window in windows {
-            guard let window = try? await WindowWithPrefetchedTitle.resolveWindow(window, for: output.format, .nonCancellable) else {
-                throw CmdFail(bugPrompt())
-            }
-            resolved.append(window)
+            resolved.append(await WindowWithPrefetchedTitle.resolveWindow(window, for: output.format))
         }
         let list = resolved
             .filter { $0.window.isBound }
@@ -222,7 +219,7 @@ extension MonitorId {
     func resolve() throws(CmdFail) -> [MonitorInfo] {
         switch self {
             case .focused: return [focus.workspace.workspaceMonitor]
-            case .mouse: return [world.monitors.approximation(mouseLocation)]
+            case .mouse: return [world.monitors.approximation(world.platform.mouseLocation)]
             case .all: return Array(world.monitors.all)
             case .index(let index):
                 guard (0 ..< world.monitors.all.count).contains(index) else { throw "Invalid monitor ID: \(index + 1)" }
@@ -265,7 +262,7 @@ struct ListMonitorsCommand: nonisolated Command {
             result = result.filter { (monitor) in (monitor.activeWorkspace == focus.workspace) == focused }
         }
         if let mouse {
-            let mouseWorkspace = world.monitors.approximation(mouseLocation).activeWorkspace
+            let mouseWorkspace = world.monitors.approximation(world.platform.mouseLocation).activeWorkspace
             result = result.filter { (monitor) in (monitor.activeWorkspace == mouseWorkspace) == mouse }
         }
         try output.print(result.map(AeroObj.monitor), cx)
@@ -299,9 +296,9 @@ struct ListAppsCommand: nonisolated Command {
     }
 
     func run(_ cx: CmdContext) async throws(CmdFail) {
-        var result = MacApp.allAppsMap.values.sorted { ($0.name ?? "", $0.pid) < ($1.name ?? "", $1.pid) }
+        var result = world.platform.runningApps().sorted { ($0.name ?? "", $0.pid) < ($1.name ?? "", $1.pid) }
         if let hidden = macosHidden {
-            result = result.filter { $0.nsApp.isHidden == hidden }
+            result = result.filter { world.platform.isHidden($0) == hidden }
         }
         try output.print(result.map(AeroObj.app), cx)
     }

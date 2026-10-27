@@ -87,13 +87,8 @@ extension CGFloat {
     nonisolated let isDebug = false
 #endif
 
-nonisolated func checkCancellation(_ cm: CancellationMode = .cancellable) throws(CancellationError) {
-    if cm == .cancellable && Task.isCancelled {
+nonisolated func checkCancellation() throws(CancellationError) {
+    if Task.isCancelled {
         throw CancellationError()
     }
-}
-
-nonisolated enum CancellationMode: Equatable, Sendable {
-    case cancellable
-    case nonCancellable
 }

@@ -3,8 +3,8 @@ import Common
 import Synchronization
 
 /// One app's AX state, isolated to the app's own thread (``AxThreadExecutor``). Every AX call of the app and every
-/// notification of its observers runs there, so a hung app blocks only its own thread. ``MacApp`` is the facade on main.
-/// - Reads are isolated synchronous methods. MacApp awaits them (`run`), or makes them abandonable (`call`).
+/// notification of its observers runs there, so a hung app blocks only its own thread. ``LivePlatform`` keeps one per app.
+/// - Reads are isolated synchronous methods. LivePlatform awaits them (`run`), or makes them abandonable (`call`).
 /// - Writes are `post`s: FIFO and never awaited. Each closure that runs here is `@Sendable` with an `isolated AxApp`
 ///   parameter, never inferred `@MainActor` (P3).
 /// - No `await` and no `Task` inside its methods (P4, P5), and nothing spins the run loop (P2).
@@ -141,17 +141,17 @@ actor AxApp {
         windows[windowId].flatMap { axRect($0.ax) }
     }
 
-    func fullscreenAndMinimized(_ windowId: UInt32) -> (isFullscreen: Bool, isMinimized: Bool)? {
+    func nativeFacts(_ windowId: UInt32) -> NativeFacts? {
         guard let window = windows[windowId]?.ax else { return nil }
         // PF-3: one IPC instead of two. A failed attribute comes back as an AXValue error, which the getters map to nil like a failed get
         let (error, values) = window.getMultiple([Ax.isFullscreenAttr.key, Ax.minimizedAttr.key])
         if error == .success, let values, values.count == 2 {
             let isFullscreen = Ax.isFullscreenAttr.getter(values[0]) == true
-            return (isFullscreen, !isFullscreen && Ax.minimizedAttr.getter(values[1]) == true)
+            return NativeFacts(isFullscreen: isFullscreen, isMinimized: !isFullscreen && Ax.minimizedAttr.getter(values[1]) == true)
         }
         // After an AX timeout, treat fullscreen like a timed-out get (false) instead of waiting for it again
         let isFullscreen = error != .cannotComplete && window.get(Ax.isFullscreenAttr) == true
-        return (isFullscreen, !isFullscreen && window.get(Ax.minimizedAttr) == true)
+        return NativeFacts(isFullscreen: isFullscreen, isMinimized: !isFullscreen && window.get(Ax.minimizedAttr) == true)
     }
 
     /// A placement. It stops, also between its AX writes, once `isLatest` turns false or termination starts
@@ -163,6 +163,18 @@ actor AxApp {
         }
     }
 
+    /// Hides the window in a corner. The bottom left corner needs the window's width: without it, the window goes to the
+    /// bottom right corner
+    func park(_ windowId: UInt32, _ corner: ParkCorner, _ isLatest: () -> Bool) {
+        guard isLatest(), let window = windows[windowId]?.ax else { return }
+        let topLeft = if let bottomLeft = corner.bottomLeft, let size = window.get(Ax.sizeAttr) {
+            CGPoint(x: bottomLeft.x - size.width, y: bottomLeft.y)
+        } else {
+            corner.bottomRight
+        }
+        place(windowId, topLeft, nil, isLatest)
+    }
+
     /// Termination: moves the window to the frame that `restoreFrame` computes from its current rect
     func restore(_ windowId: UInt32, _ restoreFrame: (Rect?) -> (topLeft: CGPoint, size: CGSize)) {
         guard let window = windows[windowId]?.ax else { return }
@@ -172,7 +184,7 @@ actor AxApp {
         }
     }
 
-    /// The slow path of native focus (MacApp.nativeFocus has the fast path, #101)
+    /// The slow path of native focus (LivePlatform.focus has the fast path, #101)
     func focus(_ windowId: UInt32, _ nsApp: NSRunningApplication) {
         guard let window = windows[windowId]?.ax else { return }
         // Raise firstly to make sure that by the time we activate the app, the window would be already on top

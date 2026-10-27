@@ -87,4 +87,27 @@ struct WorkspaceCommandTest {
         expectEqual(output, .ok)
         expectEqual(focus.workspace.name, "b")
     }
+
+    /// The AX work of a switch: each window of the shown workspace gets one frame write, each window of the hidden one is
+    /// parked once, and no window gets both
+    @Test
+    func switchingWorkspacesWritesTheShownWindowsAndParksTheHiddenOnes() async throws {
+        setUpTree("h_tiles(1 2)", workspace: "a")
+        setUpTree("h_tiles(3)", workspace: "b")
+        for id: WindowId in [1, 2, 3] {
+            testWindow(id).rect = rect(0, 0, 100, 100)
+        }
+        #expect(Workspace.get(byName: "a").focusWorkspace())
+        try await layoutWorkspaces()
+        fake.resetCalls()
+
+        expectEqual(await runCmd("workspace b"), .ok)
+        try await layoutWorkspaces()
+
+        expectEqual(fake.calls(of: .frame).map(\.windowId), [3])
+        expectEqual(fake.calls(of: .park).map(\.windowId), [1, 2])
+        expectEqual(([1, 2, 3] as [WindowId]).map { fake.windows[$0]?.parked != nil }, [true, true, false])
+        // The parks read where the windows were, to put them back there. Nothing else reads
+        expectEqual(fake.calls.filter { ![.frame, .park].contains($0.kind) }, [.observedRect(1), .observedRect(2)])
+    }
 }
