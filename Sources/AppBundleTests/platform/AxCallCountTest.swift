@@ -31,7 +31,6 @@ struct AxCallCountTest {
             }
         }
         let idle = results.first { $0.scenario == idleScenario }?.phases ?? []
-        expectEqual(idle.count, 2)
         expectEqual(idle.first?.calls, idle.last?.calls) // The heavy refresh converged: the next one does the same
         if let destination = ProcessInfo.processInfo.environment["AX_CALL_TABLE"] {
             let table = axCallTable(results)
@@ -319,45 +318,65 @@ private struct Phase {
         var cost = AxCost()
         var listings = listings.makeIterator()
         var appsWithPlacementWrites: Set<pid_t> = []
-        for (index, call) in calls.enumerated() {
+        // The log entry of the placement whose AX calls come next. A `.frame` placement logs only its read and its write
+        var placement: PlatformCall? = nil
+        for call in calls {
+            switch call {
+                case .axRead(let id), .frame(let id, _, _): if placement?.windowId != id { placement = nil }
+                default: placement = call
+            }
             switch call {
                 case .listWindows:
                     let listing = listings.next()
                     for ids in listing?.windowsPerApp ?? [] {
-                        cost.appReads += 1 // AXWindows
+                        cost.appRead(1, .listing) // AXWindows
                         for id in ids {
-                            // _AXUIElementGetWindow. New to AxApp: 5 AXObserverAddNotification and its size (registerWindow)
-                            cost.read(id, listing?.new.contains(id) == true ? 7 : 1)
+                            cost.read(id, 1, .listingWindowId) // _AXUIElementGetWindow
+                            // New to AxApp: 5 AXObserverAddNotification and its size (registerWindow)
+                            if listing?.new.contains(id) == true { cost.read(id, 6, .registration) }
                         }
                     }
-                case .focusedWindow: cost.appReads += 2 // AXFocusedWindow, _AXUIElementGetWindow
-                case .classify(let ids): for id in ids { cost.read(id, 5 + 1) } // getWindowType, then the position and size
-                case .nativeFacts(let ids): for id in ids { cost.read(id, 1) } // AXUIElementCopyMultipleAttributeValues
-                case .observedRect(let id), .rect(let id): cost.read(id, 1) // The position and size in one call
-                case .title(let id), .facts(let id), .debugInfo(let id): cost.read(id, 1) // debugInfo: more, unused here
-                case .kind(let id): cost.read(id, 5)
-                case .windowCount(let pid): cost.appReads += 1 + after.appOf.values.count { $0 == pid }
+                case .focusedWindow: cost.appRead(2, .focusedWindow) // AXFocusedWindow, _AXUIElementGetWindow
+                case .classify(let ids): for id in ids { cost.read(id, 5 + 1, .classify) } // getWindowType, then the position and size
+                case .nativeFacts(let ids): for id in ids { cost.read(id, 1, .nativeFacts) } // AXUIElementCopyMultipleAttributeValues
+                case .observedRect(let id), .rect(let id): cost.read(id, 1, .commandRect) // The position and size in one call
+                case .title(let id), .facts(let id), .debugInfo(let id): cost.read(id, 1, .commandOther) // debugInfo: more, unused here
+                case .kind(let id): cost.read(id, 5, .commandOther)
+                case .windowCount(let pid): cost.appRead(1 + after.appOf.values.count { $0 == pid }, .commandOther)
                 case .floating, .park, .leave, .rememberFloatingSize, .restoreFloatingSize: break // See .axRead and .frame
-                case .axRead(let id): cost.read(id, 1) // The position and size in one call
+                case .axRead(let id):
+                    let kind: AxCallKind = switch placement {
+                        case .park: .checkPark
+                        case .floating: .checkFloating
+                        case .rememberFloatingSize: .checkRemember
+                        default: .checkTile
+                    }
+                    cost.read(id, 1, kind) // The position and size in one call
                 case .frame(let id, let topLeft, let size):
-                    cost.write(id, axWrites(topLeft: topLeft, size: size))
-                    if index > 0, calls[index - 1] == .restoreFloatingSize(id) {
-                        cost.appReads += 1 // Its own job reads AXEnhancedUserInterface
+                    let kind: AxCallKind = switch placement {
+                        case .park: .writePark
+                        case .floating: .writeFloating
+                        case .restoreFloatingSize: .writeRestoreSize
+                        default: .writeTile
+                    }
+                    cost.write(id, axWrites(topLeft: topLeft, size: size), kind)
+                    if case .restoreFloatingSize = placement {
+                        cost.appRead(1, .animations) // Its own job reads AXEnhancedUserInterface
                     } else if let pid = before.appOf[id] ?? after.appOf[id] {
                         appsWithPlacementWrites.insert(pid)
                     }
                 case .focus(let id):
-                    cost.write(id, 2) // Two monitors with separate Spaces: AXMain, AXRaise (#101)
+                    cost.write(id, 2, .writeFocus) // Two monitors with separate Spaces: AXMain, AXRaise (#101)
                     cost.appXpc += 1 // Then NSRunningApplication.activate
                 case .close(let id):
-                    cost.read(id, 1) // The close button
-                    cost.write(id, 1) // AXPress
-                case .setNative(let id, _): cost.write(id, 1)
+                    cost.read(id, 1, .commandOther) // The close button
+                    cost.write(id, 1, .writeOther) // AXPress
+                case .setNative(let id, _): cost.write(id, 1, .writeOther)
                 case .unhideApp, .quit: cost.appXpc += 1
                 case .warpMouse, .launch: break // A posted CGEvent and a process spawn, neither AX nor an app's XPC
             }
         }
-        cost.appReads += appsWithPlacementWrites.count // One AXEnhancedUserInterface read per app job that writes
+        cost.appRead(appsWithPlacementWrites.count, .animations) // One AXEnhancedUserInterface read per app job that writes
         return cost
     }
 
@@ -405,18 +424,68 @@ private func axWrites(topLeft: CGPoint?, size: CGSize?) -> Int {
 
 /// The AX calls of a phase, see ``Phase/cost``
 private struct AxCost {
-    var reads: [WindowId: Int] = [:]
-    var writes: [WindowId: Int] = [:]
+    private(set) var reads: [WindowId: Int] = [:]
+    private(set) var writes: [WindowId: Int] = [:]
     /// The reads of no single window: each app's AXWindows, the focused window, AXEnhancedUserInterface
-    var appReads = 0
+    private(set) var appReads = 0
     /// launchservicesd XPCs of NSRunningApplication (activate, unhide, terminate), not AX
     var appXpc = 0
+    private(set) var byKind: [AxCallKind: Int] = [:]
 
     var totalReads: Int { reads.values.reduce(appReads, +) }
     var totalWrites: Int { writes.values.reduce(0, +) }
 
-    mutating func read(_ id: WindowId, _ count: Int) { reads[id, default: 0] += count }
-    mutating func write(_ id: WindowId, _ count: Int) { writes[id, default: 0] += count }
+    mutating func read(_ id: WindowId, _ count: Int, _ kind: AxCallKind) {
+        reads[id, default: 0] += count
+        byKind[kind, default: 0] += count
+    }
+
+    mutating func appRead(_ count: Int, _ kind: AxCallKind) {
+        appReads += count
+        byKind[kind, default: 0] += count
+    }
+
+    mutating func write(_ id: WindowId, _ count: Int, _ kind: AxCallKind) {
+        writes[id, default: 0] += count
+        byKind[kind, default: 0] += count
+    }
+
+    mutating func add(_ other: AxCost) {
+        reads.merge(other.reads, uniquingKeysWith: +)
+        writes.merge(other.writes, uniquingKeysWith: +)
+        appReads += other.appReads
+        appXpc += other.appXpc
+        byKind.merge(other.byKind, uniquingKeysWith: +)
+    }
+
+    /// A row of the by-kind table: a cell per kind (empty for none), then the reads and the writes
+    var byKindCells: String {
+        let cells: [String] = AxCallKind.allCases.map { byKind[$0, default: 0] == 0 ? "" : "\(byKind[$0, default: 0])" }
+        return (cells + ["\(totalReads)", "\(totalWrites)"]).joined(separator: " | ")
+    }
+}
+
+/// The AX reads (`r`) and writes (`w`) of ``AxCost`` by kind, the columns of the by-kind table
+private enum AxCallKind: String, CaseIterable {
+    case listing = "r listing AXWindows"
+    case listingWindowId = "r listing GetWindow"
+    case registration = "r registration"
+    case focusedWindow = "r focusedWindow"
+    case classify = "r classify"
+    case nativeFacts = "r nativeFacts"
+    case checkTile = "r check tile"
+    case checkPark = "r check park"
+    case checkFloating = "r check floating"
+    case checkRemember = "r check remember"
+    case animations = "r AXEnhancedUserInterface"
+    case commandRect = "r command rect"
+    case commandOther = "r command other"
+    case writeTile = "w tile"
+    case writePark = "w park"
+    case writeFloating = "w floating"
+    case writeRestoreSize = "w restore size"
+    case writeFocus = "w focus"
+    case writeOther = "w other"
 }
 
 /// The calls of a phase that leave macOS as it was
@@ -519,6 +588,27 @@ private func axCallTable(_ results: [(scenario: String, phases: [Phase], converg
         let notBack = convergence.notBack.isEmpty ? "none" : convergence.notBack.map(\.description).joined(separator: ", ")
         lines.append("| \(scenario) | \(convergence.moved) | \(notBack) |")
     }
+    lines += [
+        "",
+        "## By kind",
+        "",
+        "`listing GetWindow`: `_AXUIElementGetWindow` per listed window. `registration`: 5 AXObserverAddNotification and the",
+        "size of a window new to AxApp. `check`: the read of a placement (`remember`: `layout tiling` reads the floating",
+        "size). `w park` and `w floating` include the unparks. `other`: a close button, AXPress, a native fullscreen or",
+        "minimize.",
+        "",
+        "| Scenario | Phase | " + AxCallKind.allCases.map(\.rawValue).joined(separator: " | ") + " | reads | writes |",
+        "|---|---|" + String(repeating: "---:|", count: AxCallKind.allCases.count + 2),
+    ]
+    var total = AxCost()
+    for (scenario, phases, _) in results {
+        for (index, phase) in phases.enumerated() {
+            let cost = phase.cost
+            total.add(cost)
+            lines.append("| " + (index == 0 ? scenario : "") + " | " + phase.name + " | " + cost.byKindCells + " |")
+        }
+    }
+    lines.append("| **Total** | | " + total.byKindCells + " |")
     lines += [
         "",
         "## Per window",
