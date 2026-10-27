@@ -17,7 +17,7 @@ private let workspaceName = "a"
 
 /// A new window with `id` in `parent` (the root container of workspace `a` by default), as an AeroObj
 private func newWindowObj(id: UInt32, parent: Container? = nil, title: String? = nil) -> AeroObj {
-    .window(.forTest(window: TestWindow.new(id: id, parent: parent ?? Workspace.get(byName: workspaceName).rootTilingContainer), title: title))
+    .window(.forTest(window: TestWindow.new(id: id, parent: parent ?? Workspace.get(byName: workspaceName).rootTilingContainerCreatingIfNeeded()), title: title))
 }
 
 /// The JSON encoding of `expected`
@@ -27,7 +27,7 @@ private func json(_ expected: [[String: Primitive]]) -> String { JSONEncoder.aer
 struct FormatTest {
     @Test
     func aeroObjSubject() {
-        let window = TestWindow.new(id: 1, parent: Workspace.get(byName: workspaceName).rootTilingContainer)
+        let window = TestWindow.new(id: 1, parent: Workspace.get(byName: workspaceName).rootTilingContainerCreatingIfNeeded())
         expectEqual(AeroObj.window(.forTest(window: window, title: nil)).subject, .window)
         expectEqual(AeroObj.workspace(Workspace.get(byName: workspaceName)).subject, .workspace)
         expectEqual(AeroObj.app(TestApp.shared).subject, .app)
@@ -36,7 +36,7 @@ struct FormatTest {
 
     @Test
     func resolveWindowPrefetchesTitleOnlyWhenNeeded() async throws {
-        let window = TestWindow.new(id: 3, parent: Workspace.get(byName: workspaceName).rootTilingContainer)
+        let window = TestWindow.new(id: 3, parent: Workspace.get(byName: workspaceName).rootTilingContainerCreatingIfNeeded())
 
         let withTitle = try await WindowWithPrefetchedTitle.resolveWindow(window, for: [.literal("foo"), .interVar(.windowTitle)], .nonCancellable)
         expectEqual(withTitle.title, "TestWindow(3)")
@@ -117,7 +117,7 @@ struct FormatTest {
 
     @Test
     func expandWindowIdAndIsFullscreen() {
-        let window = TestWindow.new(id: 9, parent: Workspace.get(byName: workspaceName).rootTilingContainer)
+        let window = TestWindow.new(id: 9, parent: Workspace.get(byName: workspaceName).rootTilingContainerCreatingIfNeeded())
         window.isFullscreen = true
         let obj = AeroObj.window(.forTest(window: window, title: "title-x"))
         expectEqual(expanded(.windowId, obj), "Int(9)")
@@ -127,7 +127,7 @@ struct FormatTest {
 
     @Test
     func expandWindowLayoutTiling() {
-        let root = Workspace.get(byName: workspaceName).rootTilingContainer
+        let root = Workspace.get(byName: workspaceName).rootTilingContainerCreatingIfNeeded()
         let obj = newWindowObj(id: 1, parent: root)
 
         root.layout = .tiles
@@ -148,9 +148,9 @@ struct FormatTest {
     @Test
     func expandWindowLayoutOfTheOtherPlacements() {
         let workspace = Workspace.get(byName: workspaceName)
-        expectEqual(expanded(.windowLayout, newWindowObj(id: 1, parent: workspace.floatingWindowsContainer)), "String(floating)")
-        expectEqual(expanded(.windowLayout, newWindowObj(id: 2, parent: workspace.macOsNativeFullscreenWindowsContainer)), "String(macos_native_fullscreen)")
-        expectEqual(expanded(.windowLayout, newWindowObj(id: 3, parent: workspace.macOsNativeHiddenAppsWindowsContainer)), "String(macos_native_window_of_hidden_app)")
+        expectEqual(expanded(.windowLayout, newWindowObj(id: 1, parent: workspace.containerCreatingIfNeeded(.floating))), "String(floating)")
+        expectEqual(expanded(.windowLayout, newWindowObj(id: 2, parent: workspace.containerCreatingIfNeeded(.macosFullscreen))), "String(macos_native_fullscreen)")
+        expectEqual(expanded(.windowLayout, newWindowObj(id: 3, parent: workspace.containerCreatingIfNeeded(.macosHiddenApp))), "String(macos_native_window_of_hidden_app)")
         expectEqual(expanded(.windowLayout, newWindowObj(id: 4, parent: macosMinimizedWindowsContainer)), "String(macos_native_minimized)")
         expectEqual(expanded(.windowLayout, newWindowObj(id: 5, parent: macosPopupWindowsContainer)), "String(NULL-WINDOW-LAYOUT)")
     }
@@ -164,7 +164,7 @@ struct FormatTest {
 
     @Test
     func expandDetachedWindowToWorkspaceAndMonitor() {
-        let window = TestWindow.new(id: 1, parent: Workspace.get(byName: workspaceName).rootTilingContainer)
+        let window = TestWindow.new(id: 1, parent: Workspace.get(byName: workspaceName).rootTilingContainerCreatingIfNeeded())
         window.unbindFromParent()
         let obj = AeroObj.window(.forTest(window: window, title: nil))
         expectEqual(expanded(.workspace, obj), "String(NULL-WORKSPACE)")
@@ -195,7 +195,7 @@ struct FormatTest {
         let workspace = setUpTree("floating(1)", workspace: workspaceName)
         expectEqual(expanded(.workspaceRootContainerLayout, .workspace(workspace)), "String(h_tiles)") // The config's default
         expectEqual(workspace.existingRootTilingContainer, nil)
-        workspace.rootTilingContainer.layout = .accordion
+        workspace.rootTilingContainerCreatingIfNeeded().layout = .accordion
         expectEqual(expanded(.workspaceRootContainerLayout, .workspace(workspace)), "String(h_accordion)")
     }
 
@@ -267,7 +267,7 @@ struct FormatTest {
         let objs: [AeroObj] = []
         try expectEqual(objs.formatToJson([.interVar(.windowId)]), json([]))
 
-        let window = TestWindow.new(id: 42, parent: Workspace.get(byName: workspaceName).rootTilingContainer)
+        let window = TestWindow.new(id: 42, parent: Workspace.get(byName: workspaceName).rootTilingContainerCreatingIfNeeded())
         window.isFullscreen = true
         try expectEqual(
             [AeroObj.window(.forTest(window: window, title: "hello"))]

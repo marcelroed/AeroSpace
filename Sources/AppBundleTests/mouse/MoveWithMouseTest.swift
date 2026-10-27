@@ -8,7 +8,7 @@ struct MoveWithMouseTest {
     func draggingFloatingWindowWithinItsWorkspaceKeepsItsPlace() async throws {
         let workspace = Workspace.get(byName: "a")
         #expect(workspace.focusWorkspace())
-        let floating = workspace.floatingWindowsContainer
+        let floating = workspace.containerCreatingIfNeeded(.floating)
         let dragged = TestWindow.new(id: 1, parent: floating, rect: Rect(topLeftX: 100, topLeftY: 100, width: 300, height: 200))
         let other = TestWindow.new(id: 2, parent: floating, rect: Rect(topLeftX: 500, topLeftY: 500, width: 300, height: 200))
 
@@ -26,7 +26,7 @@ struct MoveWithMouseTest {
         #expect(visible.focusWorkspace())
         let window = TestWindow.new(
             id: 1,
-            parent: Workspace.get(byName: "invisible").floatingWindowsContainer,
+            parent: Workspace.get(byName: "invisible").containerCreatingIfNeeded(.floating),
             rect: Rect(topLeftX: 100, topLeftY: 100, width: 300, height: 200),
         )
 

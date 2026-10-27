@@ -42,7 +42,7 @@ struct ListWindowsTest {
 
     @Test
     func format() throws {
-        let root = focus.workspace.rootTilingContainer
+        let root = focus.workspace.rootTilingContainerCreatingIfNeeded()
         var windows = [
             AeroObj.window(.forTest(window: TestWindow.new(id: 2, parent: root), title: "non-empty")),
             AeroObj.window(.forTest(window: TestWindow.new(id: 1, parent: root), title: "")),

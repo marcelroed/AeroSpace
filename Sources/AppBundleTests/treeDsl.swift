@@ -34,9 +34,9 @@ func setUpTree(_ spec: String, workspace workspaceName: String? = nil) -> Worksp
     for part in parseTreeSpec(spec) {
         let children = part.children.orDie("'\(part.name)': windows must be inside a container")
         let container: Container = switch part.name {
-            case ContainerKind.floating.dslName: workspace.floatingWindowsContainer
-            case ContainerKind.macosFullscreen.dslName: workspace.macOsNativeFullscreenWindowsContainer
-            case ContainerKind.macosHiddenApp.dslName: workspace.macOsNativeHiddenAppsWindowsContainer
+            case ContainerKind.floating.dslName: workspace.containerCreatingIfNeeded(.floating)
+            case ContainerKind.macosFullscreen.dslName: workspace.containerCreatingIfNeeded(.macosFullscreen)
+            case ContainerKind.macosHiddenApp.dslName: workspace.containerCreatingIfNeeded(.macosHiddenApp)
             case ContainerKind.macosMinimized.dslName: macosMinimizedWindowsContainer
             case ContainerKind.macosPopup.dslName: macosPopupWindowsContainer
             default: setUpRoot(of: workspace, part)
@@ -56,7 +56,7 @@ func setUpTree(_ spec: String, workspace workspaceName: String? = nil) -> Worksp
 private func setUpRoot(of workspace: Workspace, _ spec: SpecNode) -> TilingContainer {
     check(spec.weight == nil, "The root container has no weight")
     let (layout, orientation) = tilingKind(spec.name)
-    let root = workspace.rootTilingContainer
+    let root = workspace.rootTilingContainerCreatingIfNeeded()
     root.layout = layout
     root.changeOrientation(orientation)
     return root
@@ -69,8 +69,7 @@ func describeTree(_ workspaceName: String? = nil, weights: Bool = false) -> Stri
     let (layout, orientation) = workspace.rootLayout
     var parts = [workspace.existingRootTilingContainer.map { describeNode($0, weights: weights) } ?? "\(orientation)_\(layout.rawValue)()"]
     for kind: ContainerKind in [.floating, .macosFullscreen, .macosHiddenApp] {
-        let container = workspace.children.first { ($0 as? Container)?.kind == kind }
-        if let container, !container.children.isEmpty {
+        if let container = workspace.existingContainer(kind), !container.children.isEmpty {
             parts.append(describeNode(container))
         }
     }

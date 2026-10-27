@@ -250,9 +250,9 @@ private func bindAsTiling(_ floatingWindows: [FloatingWindowCenter], _ workspace
     typealias Slot = (window: Window, center: CGPoint, parent: TilingContainer, index: Int)
     let slots: [Slot] = floatingWindows.compactMap { (floating: FloatingWindowCenter) -> Slot? in
         // The tree may have changed during the AX reads
-        guard floating.window.parent == workspace.floatingWindowsContainer else { return nil }
+        guard floating.window.placement == .floating(workspace) else { return nil }
         guard let (tilingWindow, tilingCenter) = floating.tilingWindowUnderCenter else {
-            return (floating.window, floating.center, workspace.rootTilingContainer, 0)
+            return (floating.window, floating.center, workspace.rootTilingContainerCreatingIfNeeded(), 0)
         }
         guard let (parent, index) = tilingWindow.tilingSlot, tilingWindow.nodeWorkspace == workspace else { return nil }
         let isAfter = floating.center.getProjection(parent.orientation) >= tilingCenter.getProjection(parent.orientation)

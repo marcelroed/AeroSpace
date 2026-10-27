@@ -14,18 +14,17 @@ struct FrozenMonitor: Sendable {
 struct FrozenWorkspace: Sendable {
     let name: String
     let monitor: FrozenMonitor // todo drop this property, once monitor to workspace assignment migrates to TreeNode
-    let rootTilingNode: FrozenContainer
+    /// nil: the workspace had no root container
+    let rootTilingNode: FrozenContainer?
     /// Followed by the macOS unconventional windows. They are restored as floating and will get fixed by normalizations
     let floatingWindows: [FrozenWindow]
 
     init(_ workspace: Workspace) {
         name = workspace.name
         monitor = FrozenMonitor(workspace.workspaceMonitor)
-        rootTilingNode = FrozenContainer(workspace.rootTilingContainer)
-        let floatingNodes: [TreeNode] = workspace.floatingWindowsContainer.children +
-            workspace.macOsNativeHiddenAppsWindowsContainer.children +
-            workspace.macOsNativeFullscreenWindowsContainer.children
-        floatingWindows = floatingNodes.map { FrozenWindow($0 as! Window) }
+        rootTilingNode = workspace.existingRootTilingContainer.map(FrozenContainer.init)
+        let kinds: [ContainerKind] = [.floating, .macosHiddenApp, .macosFullscreen]
+        floatingWindows = kinds.flatMap { workspace.existingContainer($0)?.children ?? [] }.map { FrozenWindow($0 as! Window) }
     }
 }
 
@@ -55,13 +54,15 @@ func restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: Window) async throws
             .singleOrNil()?
             .setActiveWorkspace(workspace)
         for frozenWindow in frozenWorkspace.floatingWindows {
-            MacWindow.get(byId: frozenWindow.id)?.move(to: workspace.floatingWindowsContainer)
+            MacWindow.get(byId: frozenWindow.id)?.move(to: workspace.containerCreatingIfNeeded(.floating))
         }
-        let prevRoot = workspace.rootTilingContainer // Save prevRoot into a variable to avoid it being garbage collected earlier than needed
-        let potentialOrphans = prevRoot.allLeafWindowsRecursive
-        prevRoot.unbindFromParent()
-        restoreTreeRecursive(frozenContainer: frozenWorkspace.rootTilingNode, parent: workspace, index: nil)
-        let restoredWindows = workspace.rootTilingContainer.allLeafWindowsRecursive.toSet()
+        let prevRoot = workspace.existingRootTilingContainer // Save prevRoot into a variable to avoid it being garbage collected earlier than needed
+        let potentialOrphans = prevRoot?.allLeafWindowsRecursive ?? []
+        prevRoot?.unbindFromParent()
+        if let frozenRoot = frozenWorkspace.rootTilingNode {
+            restoreTreeRecursive(frozenContainer: frozenRoot, parent: workspace, index: nil)
+        }
+        let restoredWindows = workspace.tilingWindows.toSet()
         for window in potentialOrphans where !restoredWindows.contains(window) {
             try await window.relayoutWindow(on: workspace, .cancellable, forceTile: true)
         }

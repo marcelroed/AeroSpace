@@ -151,7 +151,7 @@ struct MacosNativeFullscreenCommand: nonisolated Command {
             throw CmdFail(windowIsntPartOfTree(window))
         }
         if newState { // Enter fullscreen
-            window.move(to: workspace.macOsNativeFullscreenWindowsContainer, weight: .value(1))
+            window.move(to: workspace.containerCreatingIfNeeded(.macosFullscreen), weight: .value(1))
         } else { // Exit fullscreen
             do {
                 if case .macos(let prevParentKind) = window.layoutReason {

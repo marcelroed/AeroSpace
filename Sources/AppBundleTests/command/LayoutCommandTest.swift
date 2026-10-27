@@ -142,10 +142,10 @@ struct LayoutCommandTest {
         let output = await runCmd("layout floating --for-next-detected-window")
         expectEqual(output, .ok)
 
-        await runOnWindowDetected(ifConventional: TestWindow.new(id: 2, parent: workspace.rootTilingContainer))
+        await runOnWindowDetected(ifConventional: TestWindow.new(id: 2, parent: workspace.rootTilingContainerCreatingIfNeeded()))
         expectEqual(describeTree(), "h_tiles(*1) floating(2)")
 
-        await runOnWindowDetected(ifConventional: TestWindow.new(id: 3, parent: workspace.rootTilingContainer))
+        await runOnWindowDetected(ifConventional: TestWindow.new(id: 3, parent: workspace.rootTilingContainerCreatingIfNeeded()))
         expectEqual(describeTree(), "h_tiles(*1 3) floating(2)")
     }
 
@@ -157,7 +157,7 @@ struct LayoutCommandTest {
         output = await runCmd("layout tiling --for-next-detected-window")
         expectEqual(output, .ok)
         // The window is detected as floating. The replaced 'floating' would have been a noop, 'tiling' tiles it
-        await runOnWindowDetected(ifConventional: TestWindow.new(id: 2, parent: workspace.floatingWindowsContainer))
+        await runOnWindowDetected(ifConventional: TestWindow.new(id: 2, parent: workspace.containerCreatingIfNeeded(.floating)))
         expectEqual(describeTree(), "h_tiles(*1 2)")
     }
 
@@ -169,7 +169,7 @@ struct LayoutCommandTest {
         ]
         let output = await runCmd("layout floating --for-next-detected-window")
         expectEqual(output, .ok)
-        await runOnWindowDetected(ifConventional: TestWindow.new(id: 2, parent: workspace.rootTilingContainer))
+        await runOnWindowDetected(ifConventional: TestWindow.new(id: 2, parent: workspace.rootTilingContainerCreatingIfNeeded()))
         expectEqual(describeTree(), "h_tiles(*1) floating(2)")
     }
 

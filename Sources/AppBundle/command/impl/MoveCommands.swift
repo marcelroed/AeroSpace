@@ -105,7 +105,7 @@ struct MoveCommand: nonisolated Command {
             case .stop: return
             case .fail: throw .silent
             case .createImplicitContainer:
-                let root = workspace.rootTilingContainer.wrap(direction.orientation, .tiles) // Force tiles layout
+                let root = workspace.rootTilingContainerCreatingIfNeeded().wrap(direction.orientation, .tiles) // Force tiles layout
                 window.move(to: root, at: direction.insertionOffset)
         }
     }
@@ -273,8 +273,8 @@ func moveWindowToWorkspace(
         return try noop(cx, failIfNoop: failIfNoop, "Window '\(window.windowId)' already belongs to workspace '\(targetWorkspace.name)'. Tip: use --fail-if-noop to exit with non-zero code")
     }
     let targetContainer: Container = window.isFloating
-        ? targetWorkspace.floatingWindowsContainer
-        : targetWorkspace.rootTilingContainer
+        ? targetWorkspace.containerCreatingIfNeeded(.floating)
+        : targetWorkspace.rootTilingContainerCreatingIfNeeded()
     window.move(to: targetContainer, at: index)
     if focusFollowsWindow && !window.focusWindow() { throw .silent }
 }

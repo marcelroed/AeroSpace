@@ -20,7 +20,7 @@ extension Workspace {
     }
 
     /// Lays out the tiling tree without AX calls: writes the layout rects and the tiles weights into the tree and returns
-    /// the frames of the tiling windows, depth first. Creates the root container if there is none
+    /// the frames of the tiling windows, depth first. Without a root container there are no tiling windows
     func layoutTiling() -> [WindowFrame] {
         let monitor = workspaceMonitor
         let gaps = ResolvedGaps(gaps: config.gaps, monitor: monitor)
@@ -33,7 +33,7 @@ extension Workspace {
         physicalRect.height = height
         lastAppliedLayoutPhysicalRect = physicalRect
         lastAppliedLayoutVirtualRect = rect
-        let root = rootTilingContainer
+        guard let root = existingRootTilingContainer else { return [] }
         let params = LayoutParams(
             monitor: monitor,
             gaps: gaps,

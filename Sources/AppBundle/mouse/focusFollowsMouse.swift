@@ -35,7 +35,7 @@ private func focusWindow(under location: CGPoint) async throws {
     try checkCancellation()
     let workspace = location.monitorApproximation.activeWorkspace
     var window: Window? = nil
-    for child in workspace.floatingWindowsContainer.mruChildren {
+    for child in workspace.existingContainer(.floating)?.mruChildren ?? [] {
         try checkCancellation()
         guard let child = child as? Window else { continue }
         guard let rect = try await child.getAxRect(.cancellable) else { continue }
@@ -46,8 +46,8 @@ private func focusWindow(under location: CGPoint) async throws {
     }
     if window == nil {
         // A fullscreen window covers the whole workspace
-        let root = workspace.rootTilingContainer
-        window = root.mostRecentWindowRecursive.flatMap { $0.isFullscreen ? $0 : nil } ?? root.window(at: location, virtual: false)
+        let root = workspace.existingRootTilingContainer
+        window = root?.mostRecentWindowRecursive.flatMap { $0.isFullscreen ? $0 : nil } ?? root?.window(at: location, virtual: false)
     }
     if let window {
         try await runLightSession(.focusFollowsMouse, token) {

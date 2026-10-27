@@ -16,7 +16,7 @@ struct WindowParentTest {
     func placement() {
         let windows = windowOfEveryParentKind()
         let workspace = Workspace.get(byName: "a")
-        let root = workspace.rootTilingContainer
+        let root = workspace.existingRootTilingContainer.orDie()
         let expected: [WindowPlacement?] = [
             .tiling(root), .floating(workspace), .macosFullscreen(workspace), .macosHiddenApp(workspace), .macosMinimized, .macosPopup, nil,
         ]
@@ -34,7 +34,7 @@ struct WindowParentTest {
         expectEqual(windows.map { $0.nodeMonitor?.name }, [monitorName, monitorName, monitorName, monitorName, nil, nil, nil])
         expectEqual(macosMinimizedWindowsContainer.nodeMonitor?.name, nil)
         expectEqual(macosPopupWindowsContainer.nodeMonitor?.name, nil)
-        expectEqual(workspace.floatingWindowsContainer.nodeMonitor?.name, monitorName)
+        expectEqual(workspace.existingContainer(.floating)?.nodeMonitor?.name, monitorName)
     }
 
     @Test
@@ -106,7 +106,7 @@ struct WindowParentTest {
 
         let popup = TestWindow.new(id: 1, parent: macosPopupWindowsContainer)
         await runOnWindowDetected(ifConventional: popup)
-        let unbound = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
+        let unbound = TestWindow.new(id: 2, parent: workspace.rootTilingContainerCreatingIfNeeded())
         unbound.unbindFromParent()
         await runOnWindowDetected(ifConventional: unbound)
         expectEqual(world.layoutForNextDetectedWindow, .floating)
@@ -119,7 +119,7 @@ struct WindowParentTest {
         expectEqual(world.layoutForNextDetectedWindow, nil)
 
         world.layoutForNextDetectedWindow = .floating
-        let tiling = TestWindow.new(id: 4, parent: workspace.rootTilingContainer)
+        let tiling = TestWindow.new(id: 4, parent: workspace.rootTilingContainerCreatingIfNeeded())
         await runOnWindowDetected(ifConventional: tiling)
         expectEqual(world.layoutForNextDetectedWindow, nil)
         #expect(tiling.isFloating)

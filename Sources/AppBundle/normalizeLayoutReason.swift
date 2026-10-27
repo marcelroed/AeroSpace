@@ -29,13 +29,13 @@ private func _normalizeLayoutReason(workspace: Workspace, windows: [Window]) asy
                 switch true {
                     case isMacosFullscreen:
                         window.layoutReason = .macos(prevParentKind: parent.kind)
-                        window.move(to: workspace.macOsNativeFullscreenWindowsContainer)
+                        window.move(to: workspace.containerCreatingIfNeeded(.macosFullscreen))
                     case isMacosMinimized:
                         window.layoutReason = .macos(prevParentKind: parent.kind)
                         window.move(to: macosMinimizedWindowsContainer, weight: .value(1))
                     case isMacosWindowOfHiddenApp:
                         window.layoutReason = .macos(prevParentKind: parent.kind)
-                        window.move(to: workspace.macOsNativeHiddenAppsWindowsContainer)
+                        window.move(to: workspace.containerCreatingIfNeeded(.macosHiddenApp))
                     default: break
                 }
             case .macos(let prevParentKind):
@@ -55,7 +55,7 @@ func exitMacOsNativeUnconventionalState(
     window.layoutReason = .standard
     switch prevParentKind {
         case .floating:
-            window.move(to: workspace.floatingWindowsContainer)
+            window.move(to: workspace.containerCreatingIfNeeded(.floating))
         case .tiling:
             try await window.relayoutWindow(on: workspace, cm, forceTile: true)
         case .macosPopup: // Since the window was minimized/fullscreened it was mistakenly detected as popup. Relayout the window

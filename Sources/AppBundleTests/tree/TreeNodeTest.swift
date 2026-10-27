@@ -6,10 +6,10 @@ struct TreeNodeTest {
     @Test
     func childParentCyclicReferenceMemoryLeak() {
         let workspace = focus.workspace // Don't cache root node
-        let window = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        let window = TestWindow.new(id: 1, parent: workspace.rootTilingContainerCreatingIfNeeded())
 
         #expect(window.parent != nil)
-        workspace.rootTilingContainer.unbindFromParent()
+        workspace.existingRootTilingContainer?.unbindFromParent()
         expectEqual(window.parent, nil) // TreeNode.parent is weak: nil means that the unbound root was deallocated
     }
 
@@ -18,14 +18,14 @@ struct TreeNodeTest {
         let workspace = focus.workspace
 
         #expect(workspace.isEffectivelyEmpty)
-        weak let window: TestWindow? = .new(id: 1, parent: workspace.rootTilingContainer)
+        weak let window: TestWindow? = .new(id: 1, parent: workspace.rootTilingContainerCreatingIfNeeded())
         #expect(window != nil)
         #expect(!workspace.isEffectivelyEmpty)
         window?.unbindFromParent()
         #expect(workspace.isEffectivelyEmpty)
 
         // Don't save to local variable
-        TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
+        TestWindow.new(id: 2, parent: workspace.rootTilingContainerCreatingIfNeeded())
         #expect(!workspace.isEffectivelyEmpty)
     }
 
@@ -33,7 +33,7 @@ struct TreeNodeTest {
     func normalizeContainers_dontRemoveRoot(flattenContainers: Bool) {
         world.config.enableNormalizationFlattenContainers = flattenContainers
         let workspace = focus.workspace
-        weak let root = workspace.rootTilingContainer
+        weak let root = workspace.rootTilingContainerCreatingIfNeeded()
         expectEqual(root?.isEffectivelyEmpty, true)
         workspace.normalizeContainers()
         #expect(root != nil)
@@ -55,36 +55,67 @@ struct TreeNodeTest {
     }
 
     @Test
-    func creatingSpecialContainersOnReadKeepsMostRecentWindow() {
-        // RB-03: reading a missing container created it as the most recent child, so toLiveFocus() fell back to the first window
+    func creatingSpecialContainersKeepsMostRecentWindow() {
+        // RB-03: creating a container bound it as the most recent child, so toLiveFocus() fell back to the first window
         let workspace = Workspace.get(byName: "a")
-        TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
-        TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
+        TestWindow.new(id: 1, parent: workspace.rootTilingContainerCreatingIfNeeded())
+        TestWindow.new(id: 2, parent: workspace.rootTilingContainerCreatingIfNeeded())
         expectEqual(workspace.toLiveFocus().windowOrNil?.windowId, 2)
 
-        _ = workspace.floatingWindowsContainer
+        _ = workspace.containerCreatingIfNeeded(.floating)
         expectEqual(workspace.toLiveFocus().windowOrNil?.windowId, 2)
-        _ = workspace.macOsNativeFullscreenWindowsContainer
+        _ = workspace.containerCreatingIfNeeded(.macosFullscreen)
         expectEqual(workspace.toLiveFocus().windowOrNil?.windowId, 2)
-        _ = workspace.macOsNativeHiddenAppsWindowsContainer
+        _ = workspace.containerCreatingIfNeeded(.macosHiddenApp)
         expectEqual(workspace.toLiveFocus().windowOrNil?.windowId, 2)
     }
 
     @Test
-    func creatingRootTilingContainerOnReadKeepsMostRecentWindow() {
+    func creatingRootTilingContainerKeepsMostRecentWindow() {
         let workspace = Workspace.get(byName: "a")
-        TestWindow.new(id: 1, parent: workspace.floatingWindowsContainer)
-        TestWindow.new(id: 2, parent: workspace.floatingWindowsContainer)
+        TestWindow.new(id: 1, parent: workspace.containerCreatingIfNeeded(.floating))
+        TestWindow.new(id: 2, parent: workspace.containerCreatingIfNeeded(.floating))
         expectEqual(workspace.toLiveFocus().windowOrNil?.windowId, 2)
 
-        _ = workspace.rootTilingContainer
+        _ = workspace.rootTilingContainerCreatingIfNeeded()
         expectEqual(workspace.toLiveFocus().windowOrNil?.windowId, 2)
+    }
+
+    @Test
+    func focusAfterAWindowClosesGoesToTheMostRecentWindow() { // RB-03
+        let workspace = setUpTree("h_tiles(1 2)", workspace: "a") // 2 is the most recent window: it was bound last
+        setUpTree("h_tiles(*3)")
+        // What garbage collection does when a window closes: the closed-windows cache reads every workspace
+        cacheClosedWindowIfNeeded()
+        testWindow(3).closeAxWindow()
+        expectEqual(workspace.children.count, 1) // The reads created no containers
+
+        #expect(workspace.focusWorkspace())
+        expectEqual(focus.windowOrNil?.windowId, 2)
+    }
+
+    @Test
+    func onlyBindingCreatesContainers() { // RB-03, RB-129
+        setUpTree("h_tiles(1)") // A window, so that the closed-windows cache captures the workspaces
+        let workspace = Workspace.get(byName: "a")
+        workspace.normalizeContainers()
+        expectEqual(workspace.layoutTiling(), [])
+        expectEqual(workspace.tilingWindows, [])
+        expectEqual(workspace.floatingWindows, [])
+        expectEqual(workspace.toLiveFocus().windowOrNil, nil)
+        cacheClosedWindowIfNeeded()
+        expectEqual(workspace.children.count, 0)
+
+        // The root is created when the first window is bound, with the layout and orientation of that moment
+        world.config.defaultRootContainerOrientation = .vertical
+        TestWindow.new(id: 2, parent: workspace.newTilingWindowSlot().parent)
+        expectEqual(describeTree("a"), "v_tiles(2)")
     }
 
     @Test
     func mostRecentChildIsTheLastMarkedOne() {
         let workspace = setUpTree("h_tiles(1 v_tiles(2 3) 4)", workspace: "a")
-        let root = workspace.rootTilingContainer
+        let root = workspace.existingRootTilingContainer.orDie()
         let container = testWindow(2).parent.orDie()
         #expect(root.mostRecentChild === testWindow(4)) // Binding marks the node: the last bound child is the most recent
         expectEqual(container.mruChildren.map { ($0 as? Window)?.windowId }, [3, 2])
@@ -105,7 +136,7 @@ struct TreeNodeTest {
         let workspace = setUpTree("h_tiles(1) floating(2 3)", workspace: "a")
         testWindow(1).markAsMostRecentChild()
         testWindow(1).unbindFromParent() // The last tiling window closes. The empty root stays the most recent child
-        #expect(workspace.mostRecentChild === workspace.rootTilingContainer)
+        #expect(workspace.mostRecentChild === workspace.existingRootTilingContainer)
         expectEqual(workspace.mostRecentWindowRecursive, nil)
         expectEqual(workspace.toLiveFocus().windowOrNil?.windowId, 3) // The most recent floating window, not the first one
     }
@@ -147,12 +178,12 @@ struct TreeNodeTest {
     @Test
     func canBeChild() {
         let workspace = setUpTree("h_tiles(1 v_tiles(2)) floating(3)", workspace: "a")
-        let root = workspace.rootTilingContainer
+        let root = workspace.existingRootTilingContainer.orDie()
         let nested = testWindow(2).parent.orDie()
-        let floating = workspace.floatingWindowsContainer
+        let floating = workspace.containerCreatingIfNeeded(.floating)
         let window = testWindow(1)
         // Windows go into containers of any kind, and only there
-        for parent in [root, nested, floating, workspace.macOsNativeFullscreenWindowsContainer, macosMinimizedWindowsContainer, macosPopupWindowsContainer] {
+        for parent in [root, nested, floating, workspace.containerCreatingIfNeeded(.macosFullscreen), macosMinimizedWindowsContainer, macosPopupWindowsContainer] {
             #expect(window.canBeChild(of: parent))
         }
         #expect(!window.canBeChild(of: workspace))

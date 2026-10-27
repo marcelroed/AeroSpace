@@ -10,7 +10,7 @@ struct TreePrimitivesTest {
     @Test
     func tilingSlotAndPath() {
         let workspace = setUpTree("h_tiles(1 v_tiles(2 h_accordion(3))) floating(4)", workspace: "a")
-        let root = workspace.rootTilingContainer
+        let root = workspace.existingRootTilingContainer.orDie()
         expectEqual(testWindow(1).tilingSlot.map { "\(describeNode($0.parent)) \($0.index)" }, "h_tiles(1 v_tiles(2 h_accordion(3))) 0")
         expectEqual(testWindow(3).tilingPath.map { "\(describeNode($0.node)) in \($0.parent.orientation)_\($0.parent.layout) at \($0.index)" }, [
             "3 in h_accordion at 0",
@@ -65,7 +65,7 @@ struct TreePrimitivesTest {
     @Test
     func edgeWindow() {
         let workspace = setUpTree("h_tiles(1 v_tiles(2 3) 4)", workspace: "a")
-        let root = workspace.rootTilingContainer
+        let root = workspace.existingRootTilingContainer.orDie()
         let nested = testWindow(2).parent.orDie()
         // Along the orientation, the child at that end
         expectEqual(root.edgeWindow(snappedTo: .left)?.windowId, 1)
@@ -95,7 +95,7 @@ struct TreePrimitivesTest {
         world.config.gaps = Gaps(inner: .init(vertical: 20, horizontal: 20), outer: .init(left: 0, bottom: 0, top: 0, right: 0))
         let workspace = setUpTree("h_tiles(1 v_accordion(2 3))", workspace: "a")
         _ = workspace.layoutTiling() // Writes the rects: 1 is (0, 0, 950, 1079), its virtual rect is (0, 0, 960, 1080)
-        let root = workspace.rootTilingContainer
+        let root = workspace.existingRootTilingContainer.orDie()
         expectEqual(root.window(at: CGPoint(x: 100, y: 100), virtual: false)?.windowId, 1)
         // In the gap between the windows: only the virtual rects cover it
         expectEqual(root.window(at: CGPoint(x: 955, y: 100), virtual: false), nil)
@@ -110,7 +110,7 @@ struct TreePrimitivesTest {
     @Test
     func moveWeightPolicies() {
         let workspace = setUpTree("h_tiles(1:2 2:4 v_tiles(3:5 4))", workspace: "a")
-        let root = workspace.rootTilingContainer
+        let root = workspace.existingRootTilingContainer.orDie()
         testWindow(1).move(to: root, at: 1, weight: .keep) // Within the parent: the index counts the children without the node
         expectEqual(describeTree("a", weights: true), "h_tiles(2:4 1:2 v_tiles:1(3:5 4:1))")
         testWindow(4).move(to: root, at: 0) // .auto: the average weight of the new siblings
@@ -118,7 +118,7 @@ struct TreePrimitivesTest {
         testWindow(3).move(to: root, weight: .value(7)) // At the end
         expectEqual(describeTree("a", weights: true), "h_tiles(4:2.3333333333333335 2:4 1:2 v_tiles:1() 3:7)")
         expectEqual(workspace.mostRecentWindowRecursive?.windowId, 3) // A moved node becomes the most recent one
-        let binding = testWindow(2).move(to: workspace.floatingWindowsContainer)
+        let binding = testWindow(2).move(to: workspace.containerCreatingIfNeeded(.floating))
         expectEqual(binding.map { "\($0.parent === root) \($0.index) \($0.weight)" }, "true 1 4.0")
         testWindow(4).move(to: binding.orDie()) // To where another node was: its parent, index and weight
         expectEqual(describeTree("a", weights: true), "h_tiles(1:2 4:4 v_tiles:1() 3:7) floating(2)")
@@ -137,9 +137,9 @@ struct TreePrimitivesTest {
     @Test
     func wrapTheRoot() {
         let workspace = setUpTree("floating(3) h_tiles(1 2)", workspace: "a")
-        let root = workspace.rootTilingContainer
+        let root = workspace.existingRootTilingContainer.orDie()
         let newRoot = root.wrap(.v, .tiles)
-        #expect(workspace.rootTilingContainer === newRoot)
+        #expect(workspace.existingRootTilingContainer === newRoot)
         expectEqual(describeTree("a", weights: true), "v_tiles(h_tiles:1(1:1 2:1)) floating(3)")
         expectEqual(describeNode(workspace), "floating(3) v_tiles(h_tiles(1 2))") // The new root takes the old one's place
     }
@@ -164,7 +164,7 @@ struct TreePrimitivesTest {
         testWindow(2).markAsMostRecentChild()
         let before = [describeNode(workspace), describeTree("a", weights: true), describeNode(workspace, mru: true)]
         expectEqual(before[2], "h_tiles(v_tiles(2 3) 4 1) floating(6 5)")
-        let root = workspace.rootTilingContainer
+        let root = workspace.existingRootTilingContainer.orDie()
         let result = world.withTemporaryTreeEdits {
             testWindow(6).move(to: root, at: 0, weight: .value(1))
             testWindow(5).move(to: testWindow(3).parent.orDie(), at: 2, weight: .value(1))
@@ -175,7 +175,7 @@ struct TreePrimitivesTest {
         }
         expectEqual(result, "h_tiles(6 3 v_tiles(2 1 5) v_accordion(4))")
         expectEqual([describeNode(workspace), describeTree("a", weights: true), describeNode(workspace, mru: true)], before)
-        #expect(testWindow(5).parent === workspace.floatingWindowsContainer)
+        #expect(testWindow(5).parent === workspace.existingContainer(.floating))
         expectEqual(workspace.mostRecentWindowRecursive?.windowId, 2)
     }
 
@@ -183,7 +183,7 @@ struct TreePrimitivesTest {
     func temporaryEditsCanCreateTheRoot() {
         let workspace = setUpTree("floating(1)", workspace: "a")
         world.withTemporaryTreeEdits {
-            testWindow(1).move(to: workspace.rootTilingContainer)
+            testWindow(1).move(to: workspace.rootTilingContainerCreatingIfNeeded())
             #expect(workspace.existingRootTilingContainer != nil)
         }
         expectEqual(workspace.existingRootTilingContainer, nil)
@@ -200,8 +200,8 @@ struct TreePrimitivesTest {
         let workspaceBefore = describeNode(workspace, mru: true)
         world.withTemporaryTreeEdits {
             workspace.normalizeContainers() // Flattens v_tiles(h_tiles(4 5)), and changes the orientation of the nested containers
-            workspace.rootTilingContainer.changeOrientation(.v)
-            workspace.rootTilingContainer.layout = .accordion
+            workspace.rootTilingContainerCreatingIfNeeded().changeOrientation(.v)
+            workspace.rootTilingContainerCreatingIfNeeded().layout = .accordion
             expectEqual(describeTree("a"), "v_accordion(1 v_tiles(2 3) v_tiles(4 5))")
         }
         expectEqual(describeTree("a", weights: true), treeBefore)
@@ -212,18 +212,18 @@ struct TreePrimitivesTest {
     func temporaryEditsRestoreTheOtherTrees() {
         let a = setUpTree("h_tiles(1)", workspace: "a")
         let b = setUpTree("h_tiles(2 3) floating(4)", workspace: "b")
-        let empty = TilingContainer(parent: a.rootTilingContainer, .v, .tiles)
+        let empty = TilingContainer(parent: a.rootTilingContainerCreatingIfNeeded(), .v, .tiles)
         let aBefore = describeNode(a, weights: true, mru: true)
         let bBefore = describeNode(b, weights: true, mru: true)
         world.withTemporaryTreeEdits {
-            empty.move(to: b.rootTilingContainer) // A container moves out of 'a'
-            testWindow(3).move(to: a.rootTilingContainer) // A window moves in
+            empty.move(to: b.rootTilingContainerCreatingIfNeeded()) // A container moves out of 'a'
+            testWindow(3).move(to: a.rootTilingContainerCreatingIfNeeded()) // A window moves in
             testWindow(4).move(to: macosMinimizedWindowsContainer)
-            testWindow(2).move(to: Workspace.get(byName: "c").rootTilingContainer) // Into a workspace that body creates
+            testWindow(2).move(to: Workspace.get(byName: "c").rootTilingContainerCreatingIfNeeded()) // Into a workspace that body creates
         }
         expectEqual(describeNode(a, weights: true, mru: true), aBefore)
         expectEqual(describeNode(b, weights: true, mru: true), bBefore)
-        #expect(empty.parent === a.rootTilingContainer)
+        #expect(empty.parent === a.existingRootTilingContainer)
         #expect(macosMinimizedWindowsContainer.children.isEmpty)
         #expect(Workspace.get(byName: "c").children.isEmpty)
     }
@@ -235,7 +235,7 @@ struct TreePrimitivesTest {
         expectEqual(workspace.rootLayout.layout, .tiles) // The config's default
         expectEqual(workspace.rootLayout.orientation, .h)
         expectEqual(workspace.existingRootTilingContainer, nil)
-        workspace.rootTilingContainer.layout = .accordion
+        workspace.rootTilingContainerCreatingIfNeeded().layout = .accordion
         expectEqual(workspace.rootLayout.layout, .accordion)
         expectEqual(setUpTree("h_tiles(1 v_tiles(2 3))", workspace: "b").tilingWindows.map(\.windowId), [1, 2, 3])
     }

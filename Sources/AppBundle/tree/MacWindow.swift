@@ -189,7 +189,7 @@ private func unbindAndGetSlotForNewWindow(_ windowId: UInt32, _ macApp: MacApp, 
     let windowLevel = getWindowLevel(for: windowId)
     return switch try await macApp.getAxUiElementWindowType(windowId, windowLevel, cm) {
         case .popup: (macosPopupWindowsContainer, nil)
-        case .dialog: (workspace.floatingWindowsContainer, nil)
+        case .dialog: (workspace.containerCreatingIfNeeded(.floating), nil)
         case .window: unbindAndGetSlotForNewTilingWindow(workspace, window: window)
     }
 }
@@ -197,7 +197,7 @@ private func unbindAndGetSlotForNewWindow(_ windowId: UInt32, _ macApp: MacApp, 
 // The function is private because it's unsafe. It leaves the window in unbound state
 private func unbindAndGetSlotForNewTilingWindow(_ workspace: Workspace, window: Window?) -> NewWindowSlot {
     window?.unbindFromParent() // See newTilingWindowSlot
-    let slot = workspace.newTilingWindowSlot
+    let slot = workspace.newTilingWindowSlot()
     return (slot.parent, slot.index)
 }
 

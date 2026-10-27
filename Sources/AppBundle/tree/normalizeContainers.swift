@@ -1,8 +1,8 @@
 extension Workspace {
     func normalizeContainers() {
-        rootTilingContainer.unbindEmptyAndAutoFlatten() // Beware! rootTilingContainer may change after this line of code
+        existingRootTilingContainer?.unbindEmptyAndAutoFlatten() // Beware! The root may change: flattening replaces it
         if config.enableNormalizationOppositeOrientationForNestedContainers {
-            rootTilingContainer.normalizeOppositeOrientationForNestedContainers()
+            existingRootTilingContainer?.normalizeOppositeOrientationForNestedContainers()
         }
     }
 }

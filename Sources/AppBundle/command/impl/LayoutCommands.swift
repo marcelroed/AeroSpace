@@ -98,7 +98,7 @@ struct LayoutCommand: nonisolated Command {
                     throw CmdFail(msg)
             }
         } else {
-            subject = .tilingContainer(target.workspace.rootTilingContainer)
+            subject = .root(target.workspace)
         }
 
         let targetDescription = toggleBetween.first(where: { !subject.matches($0) }) ?? toggleBetween.first
@@ -108,7 +108,12 @@ struct LayoutCommand: nonisolated Command {
         }
         switch targetDescription {
             case .h_accordion, .v_accordion, .h_tiles, .v_tiles, .accordion, .tiles, .horizontal, .vertical:
-                guard case .tilingContainer(let parent) = subject else { throw CmdFail("The window is non-tiling") }
+                let parent: TilingContainer
+                switch subject {
+                    case .tilingContainer(let container): parent = container
+                    case .root(let workspace): parent = workspace.rootTilingContainerCreatingIfNeeded()
+                    case .floatingWindow: throw CmdFail("The window is non-tiling")
+                }
                 parent.layout = targetDescription.tilingLayout ?? parent.layout
                 parent.changeOrientation(targetDescription.tilingOrientation ?? parent.orientation)
             case .tiling:
@@ -125,7 +130,7 @@ struct LayoutCommand: nonisolated Command {
             case .floating:
                 guard let window = target.windowOrNil else { throw CmdFail(noWindowIsFocused) }
                 let workspace = target.workspace
-                window.move(to: workspace.floatingWindowsContainer)
+                window.move(to: workspace.containerCreatingIfNeeded(.floating))
                 if let size = window.lastFloatingSize { window.setAxFrame(nil, size) }
         }
     }
@@ -133,17 +138,22 @@ struct LayoutCommand: nonisolated Command {
 
 /// What the layout command changes
 private enum LayoutSubject {
-    case tilingContainer(TilingContainer) // The window's tiling parent, or the workspace's root container
+    case tilingContainer(TilingContainer) // The window's tiling parent
+    case root(Workspace) // The workspace's root container. Created when the command changes it
     case floatingWindow(Window, Workspace)
 
     func matches(_ description: LayoutCommand.LayoutDescription) -> Bool {
-        guard case .tilingContainer(let container) = self else { return description == .floating }
+        let (layout, orientation): (Layout, Orientation)
+        switch self {
+            case .tilingContainer(let container): (layout, orientation) = (container.layout, container.orientation)
+            case .root(let workspace): (layout, orientation) = workspace.rootLayout
+            case .floatingWindow: return description == .floating
+        }
         return switch description {
             case .tiling: true
             case .floating: false
             case .h_accordion, .v_accordion, .h_tiles, .v_tiles, .accordion, .tiles, .horizontal, .vertical:
-                container.layout == (description.tilingLayout ?? container.layout) &&
-                    container.orientation == (description.tilingOrientation ?? container.orientation)
+                layout == (description.tilingLayout ?? layout) && orientation == (description.tilingOrientation ?? orientation)
         }
     }
 }
@@ -357,9 +367,9 @@ struct FlattenWorkspaceTreeCommand: nonisolated Command {
     }
 
     func run(_ cx: CmdContext) throws(CmdFail) {
-        let workspace = try cx.target(workspace: workspace).workspace
-        for window in workspace.tilingWindows {
-            window.move(to: workspace.rootTilingContainer, weight: .value(1))
+        guard let root = try cx.target(workspace: workspace).workspace.existingRootTilingContainer else { return }
+        for window in root.allLeafWindowsRecursive {
+            window.move(to: root, weight: .value(1))
         }
     }
 }

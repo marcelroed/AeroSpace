@@ -10,7 +10,7 @@ struct LayoutTest {
     @Test
     func tilesHorizontal() async throws {
         let workspace = setUpTree("h_tiles(0 1 2)", workspace: "a")
-        let root = workspace.rootTilingContainer
+        let root = workspace.existingRootTilingContainer.orDie()
         let windows = (0 ..< 3).map(testWindow)
 
         try await workspace.layoutWorkspace()
@@ -29,7 +29,7 @@ struct LayoutTest {
     func tilesNestedWithGaps() async throws {
         world.config.gaps = Gaps(inner: .init(vertical: 10, horizontal: 20), outer: .init(left: 10, bottom: 19, top: 20, right: 10))
         let workspace = setUpTree("h_tiles(1:450 v_tiles:1050(2:1 3:3))", workspace: "a")
-        let root = workspace.rootTilingContainer
+        let root = workspace.existingRootTilingContainer.orDie()
         let (w1, w2, w3) = (testWindow(1), testWindow(2), testWindow(3))
         let container = w2.parent.orDie()
 
@@ -77,7 +77,7 @@ struct LayoutTest {
     func accordionHorizontal() async throws {
         world.config.accordionPadding = 30
         let workspace = setUpTree("h_accordion(0 1 2)", workspace: "a")
-        let root = workspace.rootTilingContainer
+        let root = workspace.existingRootTilingContainer.orDie()
         let windows = (0 ..< 3).map(testWindow)
 
         // MRU is the first child
@@ -250,7 +250,7 @@ struct LayoutTest {
         try await workspace.layoutWorkspace()
 
         expectEqual(workspace.lastAppliedLayoutPhysicalRect.map(cg), nil)
-        expectEqual(workspace.rootTilingContainer.lastAppliedLayoutPhysicalRect.map(cg), nil)
+        expectEqual(workspace.existingRootTilingContainer?.lastAppliedLayoutPhysicalRect.map(cg), nil)
     }
 
     @Test

@@ -50,7 +50,7 @@ private func bootstrapConfig_nonCancellable() async {
 }
 
 private func smartLayoutAtStartup() {
-    let root = focus.workspace.rootTilingContainer
+    let root = focus.workspace.rootTilingContainerCreatingIfNeeded()
     root.layout = root.children.count <= 3 ? .tiles : .accordion
 }
 

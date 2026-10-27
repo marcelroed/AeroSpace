@@ -169,7 +169,7 @@ struct FocusCommandTest {
         testWindow(3).isFullscreen = true
         let output = await runCmd("focus --window-id 4")
         expectEqual(output, .ok)
-        expectEqual(workspace.rootTilingContainer.mostRecentWindowRecursive?.windowId, 3)
+        expectEqual(workspace.existingRootTilingContainer?.mostRecentWindowRecursive?.windowId, 3)
         try await workspace.layoutWorkspace()
         let fullscreen: AxFrame = AxFrame(topLeft: CGPoint(x: 0, y: 0), size: CGSize(width: 1920, height: 1080))
         expectEqual(testWindow(3).setAxFrameHistory.last, fullscreen)
