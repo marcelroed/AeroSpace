@@ -40,6 +40,7 @@ enum Reconcile {
             // P3's callbacks may have changed the tree after the session that cancelled this refresh presented.
             // A heavy refresh that is scheduled or running presents anyway
             if Task.isCancelled && committed.hasCallbacks && world.sessions.isHeavyIdle { world.sessions.scheduleHeavy(event) }
+            // No await after this: until the heavy slot is idle, Sessions leaves the moves of known windows to P4
             try present(nativeFocusBaseline: nativeFocusBaseline) // P4
         } catch {
             // Cancelled by a newer heavy refresh or by a light session. Only P1 and P4 stop: the tree is as P2 left it

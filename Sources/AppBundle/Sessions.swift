@@ -107,7 +107,9 @@ final class Sessions {
 
     func cancelHeavy() { heavy.cancel() }
 
-    /// No heavy refresh is scheduled or running (a cancelled one may still run its P3)
+    /// No heavy refresh is scheduled or running (a cancelled one may still run its P3). While one is, its placements
+    /// see every later move of a known window: a heavy refresh posts its final placements (P4) in the main-actor turn
+    /// where its slot goes idle, and each placement reads the window when it's applied (or writes it without a read)
     var isHeavyIdle: Bool { heavy.isIdle }
 
     /// The first sessions after the launch. The heavy refresh registers the windows that are already open, each on the
@@ -154,9 +156,7 @@ final class Sessions {
         // A window that AeroSpace doesn't know may be one that the running heavy refresh's listing missed
         guard let windowId, let window = Window.get(byId: windowId) else { return scheduleHeavy(event) }
         guard await isManipulatedWithMouse(window) else {
-            // A heavy refresh that is scheduled or running posts P4's placements in the main actor turn in which its slot
-            // goes idle, so they read the window's frame after this event: a restart would only repeat P1's reads (and the
-            // layout's own writes come back as these events)
+            // No restart: the placements of a scheduled or running heavy refresh see this move (``isHeavyIdle``)
             if isHeavyIdle { scheduleHeavy(event) }
             return
         }
