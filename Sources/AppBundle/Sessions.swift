@@ -2,13 +2,23 @@ import AppKit
 import Common
 
 /// The funnel for every session: each input that reads or changes the model enters through one of these methods.
-/// - Hotkeys, the CLI server, the menu and config auto-reload call ``light(_:_:body:)``.
+/// - Hotkeys, the CLI server, the menu and config auto-reload call ``light(_:_:isStartup:body:)``.
 /// - GlobalObserver calls ``onWorkspaceNotification(_:)``, ``onAppHidden()`` and ``onLeftMouseUp()``.
 /// - The AX observer callbacks call ``onAxEvent(_:)``, the focus-follows-mouse monitor calls ``onMouseMoved(to:)``.
 ///
-/// A light session runs a command-like body between two model refreshes, presents and schedules a heavy refresh. A heavy
-/// refresh re-reads the windows of all apps from macOS (it registers new windows and garbage collects closed ones), then
-/// presents. Reconcile.swift has their phases.
+/// A light session runs a command-like body between two model refreshes, presents and schedules a heavy refresh
+/// (phases L1–L6, see ``light(_:_:isStartup:body:)``). A heavy refresh re-reads the windows of all apps from macOS (it
+/// registers new windows and garbage collects closed ones), then presents (phases P0–P4, see ``Reconcile``). Focus
+/// follows mouse only moves the focus (``focusFollowsMouse(_:_:)``). When each step runs:
+///
+/// | Step                              | Light session              | Heavy refresh                                     | Focus follows mouse                 |
+/// |-----------------------------------|----------------------------|---------------------------------------------------|-------------------------------------|
+/// | The focus comes from macOS        | L1                         | preLayout, P2; P3 for a new focused window        | First, as in L1                     |
+/// | on-window-detected                | L1, of a new focused window | P3                                               | As in L1                            |
+/// | Tidy: workspace GC, normalization | L2, after each command, L4 | P2, the end of P3                                 | After each command of its callbacks |
+/// | Focus callbacks                   | L2, after each command, L4 | P3: P2's focus change first, then at its end      | Before and after its focus change   |
+/// | Layout                            | L5                         | preLayout, P4; not in the startup's own refresh   | —                                   |
+/// | The native focus goes to macOS    | L5, if the focus changed since L1 | preLayout and P4, if the focus changed; P2's window GC (#65) | Unless macOS focuses the window |
 ///
 /// How concurrent work coalesces. The code follows this table:
 ///
@@ -36,10 +46,17 @@ final class Sessions {
 
     // MARK: Light sessions and heavy refreshes
 
-    /// Runs `body` as a light session: it cancels the scheduled heavy refresh, takes the native focus
-    /// (``Reconcile/syncFocus(isStartup:)``), refreshes the model, runs `body`, refreshes the model again, presents
-    /// (``Reconcile/present(nativeFocusBaseline:isLayout:)``) and schedules a heavy refresh. `isStartup`: the light session
-    /// of ``startup(_:)``, which registers a new focused window the startup's way
+    /// Runs `body` as a light session, in six phases:
+    /// - L1 begin: cancel the scheduled heavy refresh, take the snapshot of the monitors, take the focus from
+    ///   macOS (``Reconcile/syncFocus(isStartup:)``).
+    /// - L2 refresh the model (``refreshModel_nonCancellable()``): the callbacks of L1's focus change run before
+    ///   the body.
+    /// - L3 the body. Shell refreshes the model after each command.
+    /// - L4 refresh the model: the only refresh after a body that runs no command.
+    /// - L5 present (``Reconcile/present(nativeFocusBaseline:isLayout:)``).
+    /// - L6 schedule a heavy refresh.
+    ///
+    /// `isStartup`: the light session of ``startup(_:)``, which registers a new focused window the startup's way
     func light<T>(
         _ event: RefreshSessionEvent,
         _: RunSessionGuard,
@@ -48,17 +65,17 @@ final class Sessions {
     ) async throws -> T {
         let state = signposter.beginInterval(#function, "event: \(String(describing: event))")
         defer { signposter.endInterval(#function, state) }
-        cancelHeavy() // Give priority to the light session
+        cancelHeavy() // L1. Give priority to the light session
         updateMonitors() // While there are no screens, the commands fail with a message or work on the last monitors
         try await Reconcile.syncFocus(isStartup: isStartup)
         let focusBefore = focus.windowOrNil
 
-        await refreshModel_nonCancellable()
-        let result = try await body()
-        await refreshModel_nonCancellable()
+        await refreshModel_nonCancellable() // L2
+        let result = try await body() // L3
+        await refreshModel_nonCancellable() // L4
 
-        try Reconcile.present(nativeFocusBaseline: focusBefore)
-        scheduleHeavy(event)
+        try Reconcile.present(nativeFocusBaseline: focusBefore) // L5
+        scheduleHeavy(event) // L6
         return result
     }
 

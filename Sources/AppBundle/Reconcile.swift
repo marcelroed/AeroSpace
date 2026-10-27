@@ -5,7 +5,8 @@ import Common
 /// phases:
 /// - P0 begin (sync): skip while disabled or without screens; take the snapshot of the monitors.
 /// - P1 observe (async, abandonable): read macOS. No tree writes: a cancelled refresh leaves the model as it was.
-/// - P2 commit (sync): write what P1 read into the tree. No await: no other session runs in the middle of it.
+/// - P2 commit (sync): write what P1 read into the tree, then tidy it. No await: no other session runs in the middle
+///   of it.
 /// - P3 callbacks (async, shielded): the focus callbacks of P2's focus change, then on-window-detected for the new
 ///   windows. Cancelling the refresh doesn't cancel them, so no new window misses its callbacks.
 /// - P4 present (sync): one placement batch for every window, then the native focus, then the tray. A cancelled refresh
