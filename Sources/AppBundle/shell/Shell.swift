@@ -1,31 +1,43 @@
 import Common
 
+/// Raw value is the precedence: `a || b && c` is `a || (b && c)`
+enum ShellOp: Int, Sendable {
+    case seq = 1, or, and, pipe
+
+    var separator: String {
+        switch self {
+            case .seq: "; "
+            case .or: " || "
+            case .and: " && "
+            case .pipe: " | "
+        }
+    }
+}
+
 indirect enum Shell<T> {
     case empty
     case cmd(T)
+    case op(ShellOp, [Shell<T>])
 
-    // Listed in precedence order
-    case pipe([Shell<T>])
-    case and([Shell<T>])
-    case or([Shell<T>])
-    case seq([Shell<T>])
+    static func seq(_ elems: [Self]) -> Self { .op(.seq, elems) }
+    static func or(_ elems: [Self]) -> Self { .op(.or, elems) }
+    static func and(_ elems: [Self]) -> Self { .op(.and, elems) }
+    static func pipe(_ elems: [Self]) -> Self { .op(.pipe, elems) }
 
-    static func newCompound(_ elems: [Self], _ constructor: ([Self]) -> Self) -> Self {
+    /// No elements is `.empty`, a single element stands for itself
+    static func compound(_ op: ShellOp, _ elems: [Self]) -> Self {
         switch elems.count {
             case 0: .empty
             case 1: elems[0]
-            default: constructor(elems)
+            default: .op(op, elems)
         }
     }
 
     func flatMap<R>(_ mapper: (T) -> ParsedCmd<R>) -> ParsedCmd<Shell<R>> {
         switch self {
-            case .empty: return .cmd(.empty)
-            case .cmd(let it): return mapper(it).map(Shell<R>.cmd)
-            case .and(let it): return it.mapAllOrFailure { $0.flatMap(mapper) }.map(Shell<R>.and)
-            case .or(let it): return it.mapAllOrFailure { $0.flatMap(mapper) }.map(Shell<R>.or)
-            case .pipe(let it): return it.mapAllOrFailure { $0.flatMap(mapper) }.map(Shell<R>.pipe)
-            case .seq(let it): return it.mapAllOrFailure { $0.flatMap(mapper) }.map(Shell<R>.seq)
+            case .empty: .cmd(.empty)
+            case .cmd(let it): mapper(it).map(Shell<R>.cmd)
+            case .op(let op, let it): it.mapAllOrFailure { $0.flatMap(mapper) }.map { .op(op, $0) }
         }
     }
 
@@ -33,33 +45,20 @@ indirect enum Shell<T> {
         switch self {
             case .empty: []
             case .cmd(let it): [it]
-            case .pipe(let it), .and(let it), .or(let it), .seq(let it): it.flatMap { $0.flatten() }
+            case .op(_, let it): it.flatMap { $0.flatten() }
         }
     }
 
     func buildDescription(_ stringifier: (T) -> String) -> String {
-        let parentPrecedence = precedence
-        func render(_ child: Shell<T>) -> String {
-            let desc = child.buildDescription(stringifier)
-            return child.precedence < parentPrecedence ? "(\(desc))" : desc
-        }
-        return switch self {
-            case .empty: ""
-            case .cmd(let cmd): stringifier(cmd)
-            case .pipe(let it): it.map(render).joined(separator: " | ")
-            case .and(let it): it.map(render).joined(separator: " && ")
-            case .or(let it): it.map(render).joined(separator: " || ")
-            case .seq(let it): it.map(render).joined(separator: "; ")
-        }
-    }
-
-    private var precedence: Int {
         switch self {
-            case .empty, .cmd: Int.max
-            case .pipe: 4
-            case .and: 3
-            case .or: 2
-            case .seq: 1
+            case .empty: return ""
+            case .cmd(let cmd): return stringifier(cmd)
+            case .op(let op, let children):
+                return children.map { child in
+                    let desc = child.buildDescription(stringifier)
+                    guard case .op(let childOp, _) = child, childOp.rawValue < op.rawValue else { return desc }
+                    return "(\(desc))"
+                }.joined(separator: op.separator)
         }
     }
 }
@@ -72,10 +71,10 @@ extension Shell where T == any Command {
         return switch (self, other) {
             case (.empty, .empty): true
             case (.cmd(let a), .cmd(let b)): a.equals(b)
-            case (.pipe(let a), .pipe(let b)), (.and(let a), .and(let b)), (.or(let a), .or(let b)), (.seq(let a), .seq(let b)):
-                a.count == b.count && zip(a, b).allSatisfy { a, b in a.strictEquals(b) }
+            case (.op(let opA, let a), .op(let opB, let b)):
+                opA == opB && a.count == b.count && zip(a, b).allSatisfy { a, b in a.strictEquals(b) }
             // Exhaustive without 'default' on purpose: a new case must be handled explicitly
-            case (.empty, _), (.cmd, _), (.pipe, _), (.and, _), (.or, _), (.seq, _): false
+            case (.empty, _), (.cmd, _), (.op, _): false
         }
     }
 }
@@ -94,10 +93,10 @@ extension Shell where T == any Command {
                 if command.shouldResetClosedWindowsCache { resetClosedWindowsCache() }
                 await refreshModel_nonCancellable()
                 return exitCode
-            case .pipe(let commands): return await runShellPipe(commands, env, io)
-            case .and(let commands): return await runSequentially(commands, env, io, initial: EXIT_CODE_ZERO) { $0 != 0 }
-            case .or(let commands): return await runSequentially(commands, env, io, initial: EXIT_CODE_TWO) { $0 == 0 }
-            case .seq(let commands): return await runSequentially(commands, env, io, initial: EXIT_CODE_ZERO) { _ in false }
+            case .op(.pipe, let commands): return await runShellPipe(commands, env, io)
+            case .op(.and, let commands): return await runSequentially(commands, env, io, initial: EXIT_CODE_ZERO) { $0 != 0 }
+            case .op(.or, let commands): return await runSequentially(commands, env, io, initial: EXIT_CODE_TWO) { $0 == 0 }
+            case .op(.seq, let commands): return await runSequentially(commands, env, io, initial: EXIT_CODE_ZERO) { _ in false }
         }
     }
 

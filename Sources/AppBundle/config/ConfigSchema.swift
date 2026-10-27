@@ -161,7 +161,7 @@ let decodeShellOfCommands: Decode<Shell<any Command>> = { raw, path, d in
         let commands = array.enumerated().compactMap { index, elem in
             decodeString(elem, path + .index(index), &d).map { parseCommandForConfig($0, allowExecAndForget: true, path + .index(index), &d) }
         }
-        return .newCompound(commands, Shell.seq)
+        return .compound(.seq, commands)
     } else {
         d.typeMismatch(path, expected: [.string, .array], actual: raw)
         return .empty
