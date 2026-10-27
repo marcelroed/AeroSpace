@@ -9,24 +9,17 @@ open class TreeNode: Equatable {
     fileprivate var weight: CGFloat
     /// The most recent child of a node is the child with the highest stamp. See ``markAsMostRecentChild()``
     fileprivate var mruStamp: UInt64 = 0
-    // Usages:
-    // - resize with mouse
-    // - makeFloatingWindowsSeenAsTiling in focus command
-    var lastAppliedLayoutVirtualRect: Rect? = nil  // as if inner gaps were always zero
-    // Usages:
-    // - resize with mouse
-    // - drag window with mouse
-    // - move-mouse command
-    // - focus-follows-mouse
-    var lastAppliedLayoutPhysicalRect: Rect? = nil // with real inner gaps
-    // Usages:
-    // - resize with mouse
+    /// The node's rect in the last layout as if the inner gaps were zero: the children's rects cover their container
+    var lastAppliedLayoutVirtualRect: Rect? = nil
+    /// The node's rect in the last layout, with the inner gaps: a window's frame
+    var lastAppliedLayoutPhysicalRect: Rect? = nil
     var weightBeforeResizeWithMouse: CGFloat? = nil
     var isBound: Bool { parent != nil } // todo drop, once https://github.com/nikitabobko/AeroSpace/issues/1215 is fixed
     /// false once the node is gone for good: a garbage-collected window or workspace, a container that normalization or the
-    /// closed-windows cache dropped. Never set again. Code that holds a node across an `await` checks it, or the node's
-    /// expected placement, after the await and skips its work silently if the node is gone (stale-object policy)
-    private(set) final var isAlive = true
+    /// closed-windows cache dropped (unless ``World/withTemporaryTreeEdits(_:)`` puts it back). Code that holds a node across
+    /// an `await` checks it, or the node's expected placement, after the await and skips its work silently if the node is
+    /// gone (stale-object policy)
+    fileprivate(set) final var isAlive = true
 
     /// See ``move(to:at:weight:)`` for `index`. `weight` nil: ``WeightPolicy/auto``
     init(parent: TreeNode, weight: CGFloat? = nil, index: Int? = nil) {
@@ -39,7 +32,6 @@ open class TreeNode: Equatable {
         weight = weightDoesntMatter
     }
 
-    /// See: ``getWeight(_:)``
     func setWeight(_ targetOrientation: Orientation, _ newValue: CGFloat) {
         guard let parent = parent as? TilingContainer else { die("Only the children of tiling containers have weights") }
         if parent.orientation != targetOrientation {
@@ -51,7 +43,8 @@ open class TreeNode: Equatable {
         weight = newValue
     }
 
-    /// Weight itself doesn't make sense. The parent container controls semantics of weight
+    /// A weight is a share of the parent along the parent's orientation. Along the other orientation, a node is as big as
+    /// its parent, so it has the parent's weight
     func getWeight(_ targetOrientation: Orientation) -> CGFloat {
         switch parent {
             case let parent as TilingContainer:
@@ -92,7 +85,6 @@ open class TreeNode: Equatable {
         move(to: binding.parent, at: binding.index, weight: .value(binding.weight))
     }
 
-    /// Returns where the node was bound
     @discardableResult
     func unbindFromParent() -> NodeBinding {
         guard let parent else { die("\(prettyDescription) is already unbound") }
@@ -124,7 +116,6 @@ open class TreeNode: Equatable {
 
     var mostRecentChild: TreeNode? { children.max { $0.mruStamp < $1.mruStamp } }
 
-    /// The children, the most recent first
     var mruChildren: [TreeNode] { children.sorted { $0.mruStamp > $1.mruStamp } }
 
     nonisolated public static func == (lhs: TreeNode, rhs: TreeNode) -> Bool {
@@ -197,10 +188,10 @@ extension TreeNode {
 }
 
 extension World {
-    /// Runs `body`, then puts every tree back exactly as it was: the workspaces' and the global containers'. That's the
-    /// children of every node, their order, their weights, the MRU order, and the orientation and layout of the tiling
-    /// containers. For edits that only last for a computation, e.g. focus sees floating windows as tiling windows.
-    /// Containers that `body` creates are dropped, and a workspace it creates is left empty. `body` must not create windows
+    /// Runs `body`, then puts every tree back exactly as it was: the workspaces' and the global containers'. For edits that
+    /// only last for a computation, e.g. focus sees floating windows as tiling windows. Containers that `body` creates are
+    /// dropped, and a workspace it creates is left empty. `body` must not create windows or garbage collect anything.
+    /// TemporaryTreeEditsTest fails for a field of the nodes that an edit changes and this function doesn't restore
     func withTemporaryTreeEdits<T, E: Error>(_ body: () throws(E) -> T) throws(E) -> T {
         typealias Saved = (node: TreeNode, children: [TreeNode], weight: CGFloat, mruStamp: UInt64, shape: (Orientation, Layout)?)
         var saved: [Saved] = []
@@ -220,6 +211,7 @@ extension World {
                 children.forEach { $0.parent = node }
                 node.weight = weight
                 node.mruStamp = mruStamp
+                node.isAlive = true // Normalization in `body` destroys the containers that it removes
                 if let shape, let container = node as? TilingContainer { container.orientationAndLayout = shape }
             }
         }

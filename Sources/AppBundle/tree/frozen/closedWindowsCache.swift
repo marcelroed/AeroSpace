@@ -93,7 +93,6 @@ private func restoreTreeRecursive(frozenContainer: FrozenContainer, parent: Tree
                 guard let window = Window.get(byId: w.id) else { return false }
                 window.move(to: container, at: index, weight: .value(w.weight))
             case .container(let c):
-                // There is no reason to continue
                 if !restoreTreeRecursive(frozenContainer: c, parent: container, index: index) { return false }
         }
     }

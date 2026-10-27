@@ -40,7 +40,7 @@ extension TreeNode {
         return nil
     }
 
-    // Doesn't contain at least one window
+    /// No windows, though there may be containers
     var isEffectivelyEmpty: Bool {
         anyLeafWindowRecursive == nil
     }

@@ -22,8 +22,8 @@ final class Window: TreeNode, Hashable {
         hasher.combine(windowId)
     }
 
-    // skipClosedWindowsCache is an optimization when it's definitely not necessary to cache closed window.
-    //                        If you are unsure, it's better to pass `false`
+    /// `skipClosedWindowsCache` is an optimization for when the closed window definitely doesn't need caching. If you are
+    /// unsure, pass `false`
     func garbageCollect(skipClosedWindowsCache: Bool) {
         if world.windows.removeValue(forKey: windowId) == nil {
             return
@@ -63,9 +63,11 @@ final class Window: TreeNode, Hashable {
     }
 }
 
+/// Why a window is in its container
 enum LayoutReason: Equatable {
     case standard
-    /// Reason for the cur temp layout is macOS native fullscreen, minimize, or hide
+    /// macOS made the window fullscreen or minimized, or hid its app. When that state ends, the window goes back to a
+    /// container of the kind it left, see normalizeLayoutReason
     case macos(prevParentKind: ContainerKind)
 }
 

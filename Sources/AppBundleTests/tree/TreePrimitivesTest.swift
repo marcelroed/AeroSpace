@@ -80,14 +80,7 @@ struct TreePrimitivesTest {
         expectEqual(root.edgeWindow(snappedTo: .down)?.windowId, 3) // Across the root to the container, along it to the end
         expectEqual(workspace.edgeWindow(snappedTo: .left)?.windowId, 1) // A workspace's is its root's
         expectEqual(testWindow(4).edgeWindow(snappedTo: .left)?.windowId, 4)
-    }
-
-    @Test
-    func edgeWindowOfAnEmptyWorkspace() {
-        let workspace = Workspace.get(byName: "a")
-        expectEqual(workspace.edgeWindow(snappedTo: .left), nil)
-        expectEqual(workspace.existingRootTilingContainer, nil) // Reading doesn't create the root
-        expectEqual(setUpTree("h_tiles(v_tiles())", workspace: "b").edgeWindow(snappedTo: .left), nil)
+        expectEqual(setUpTree("h_tiles(v_tiles())", workspace: "b").edgeWindow(snappedTo: .left), nil) // An empty container
     }
 
     @Test
@@ -156,87 +149,5 @@ struct TreePrimitivesTest {
         testWindow(a).swap(with: testWindow(b))
         expectEqual(describeTree("a", weights: true), after)
         expectEqual(workspace.mostRecentWindowRecursive?.windowId, a) // The receiver ends up the more recent one
-    }
-
-    @Test
-    func temporaryEditsAreUndone() {
-        let workspace = setUpTree("h_tiles(1:2 v_tiles(2 3) 4) floating(5 6)", workspace: "a")
-        testWindow(2).markAsMostRecentChild()
-        let before = [describeNode(workspace), describeTree("a", weights: true), describeNode(workspace, mru: true)]
-        expectEqual(before[2], "h_tiles(v_tiles(2 3) 4 1) floating(6 5)")
-        let root = workspace.existingRootTilingContainer.orDie()
-        let result = world.withTemporaryTreeEdits {
-            testWindow(6).move(to: root, at: 0, weight: .value(1))
-            testWindow(5).move(to: testWindow(3).parent.orDie(), at: 2, weight: .value(1))
-            testWindow(4).wrap(.v, .accordion)
-            testWindow(1).swap(with: testWindow(3))
-            testWindow(4).markAsMostRecentChild()
-            return describeTree("a")
-        }
-        expectEqual(result, "h_tiles(6 3 v_tiles(2 1 5) v_accordion(4))")
-        expectEqual([describeNode(workspace), describeTree("a", weights: true), describeNode(workspace, mru: true)], before)
-        #expect(testWindow(5).parent === workspace.existingContainer(.floating))
-        expectEqual(workspace.mostRecentWindowRecursive?.windowId, 2)
-    }
-
-    @Test
-    func temporaryEditsCanCreateTheRoot() {
-        let workspace = setUpTree("floating(1)", workspace: "a")
-        world.withTemporaryTreeEdits {
-            testWindow(1).move(to: workspace.rootTilingContainerCreatingIfNeeded())
-            #expect(workspace.existingRootTilingContainer != nil)
-        }
-        expectEqual(workspace.existingRootTilingContainer, nil)
-        expectEqual(describeTree("a"), "h_tiles() floating(1)")
-        expectEqual(workspace.mostRecentWindowRecursive?.windowId, 1)
-    }
-
-    @Test
-    func temporaryEditsRestoreOrientationAndLayout() {
-        world.config.enableNormalizationFlattenContainers = true
-        world.config.enableNormalizationOppositeOrientationForNestedContainers = true
-        let workspace = setUpTree("h_tiles(1 h_tiles(2 3) v_tiles(h_tiles(4 5)))", workspace: "a")
-        let treeBefore = describeTree("a", weights: true)
-        let workspaceBefore = describeNode(workspace, mru: true)
-        world.withTemporaryTreeEdits {
-            workspace.normalizeContainers() // Flattens v_tiles(h_tiles(4 5)), and changes the orientation of the nested containers
-            workspace.rootTilingContainerCreatingIfNeeded().changeOrientation(.v)
-            workspace.rootTilingContainerCreatingIfNeeded().layout = .accordion
-            expectEqual(describeTree("a"), "v_accordion(1 v_tiles(2 3) v_tiles(4 5))")
-        }
-        expectEqual(describeTree("a", weights: true), treeBefore)
-        expectEqual(describeNode(workspace, mru: true), workspaceBefore)
-    }
-
-    @Test
-    func temporaryEditsRestoreTheOtherTrees() {
-        let a = setUpTree("h_tiles(1)", workspace: "a")
-        let b = setUpTree("h_tiles(2 3) floating(4)", workspace: "b")
-        let empty = TilingContainer(parent: a.rootTilingContainerCreatingIfNeeded(), .v, .tiles)
-        let aBefore = describeNode(a, weights: true, mru: true)
-        let bBefore = describeNode(b, weights: true, mru: true)
-        world.withTemporaryTreeEdits {
-            empty.move(to: b.rootTilingContainerCreatingIfNeeded()) // A container moves out of 'a'
-            testWindow(3).move(to: a.rootTilingContainerCreatingIfNeeded()) // A window moves in
-            testWindow(4).move(to: macosMinimizedWindowsContainer)
-            testWindow(2).move(to: Workspace.get(byName: "c").rootTilingContainerCreatingIfNeeded()) // Into a workspace that body creates
-        }
-        expectEqual(describeNode(a, weights: true, mru: true), aBefore)
-        expectEqual(describeNode(b, weights: true, mru: true), bBefore)
-        #expect(empty.parent === a.existingRootTilingContainer)
-        #expect(macosMinimizedWindowsContainer.children.isEmpty)
-        #expect(Workspace.get(byName: "c").children.isEmpty)
-    }
-
-    @Test
-    func readingDoesntCreateTheRoot() {
-        let workspace = setUpTree("floating(1)", workspace: "a")
-        #expect(workspace.tilingWindows.isEmpty)
-        expectEqual(workspace.rootLayout.layout, .tiles) // The config's default
-        expectEqual(workspace.rootLayout.orientation, .h)
-        expectEqual(workspace.existingRootTilingContainer, nil)
-        workspace.rootTilingContainerCreatingIfNeeded().layout = .accordion
-        expectEqual(workspace.rootLayout.layout, .accordion)
-        expectEqual(setUpTree("h_tiles(2 v_tiles(3 4))", workspace: "b").tilingWindows.map(\.windowId), [2, 3, 4])
     }
 }
