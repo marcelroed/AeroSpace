@@ -5,12 +5,14 @@ import SwiftUI
 
 @main
 struct AeroSpaceApp: App {
+    private let ui: Ui
+
     init() {
-        initAppBundle()
+        ui = initAppBundle()
     }
 
     var body: some Scene {
-        menuBar(viewModel: .shared, messageModel: .shared)
-        getMessageWindow(messageModel: .shared)
+        menuBar(ui)
+        messageWindow(ui)
     }
 }

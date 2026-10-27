@@ -270,7 +270,7 @@ struct VolumeCommand: nonisolated Command {
         if gui {
             do {
                 let volume: Float = Sound.output.isMuted ? 0 : try Sound.output.readVolume()
-                VolumePanel.shared.update(with: volume)
+                world.ui.volumePanel.update(with: volume)
             } catch {
                 throw CmdFail(bugPrompt(String(describing: error)))
             }
@@ -299,7 +299,7 @@ struct EnableCommand: nonisolated Command {
     }
 
     func run(_ cx: CmdContext) async throws(CmdFail) {
-        let prevState = TrayMenuModel.shared.isEnabled
+        let prevState = world.isEnabled
         let newState = targetState.resolve(current: prevState)
         if newState == prevState {
             return try noop(cx, failIfNoop: failIfNoop, newState
@@ -309,7 +309,7 @@ struct EnableCommand: nonisolated Command {
         // No screens (e.g., during display reconfiguration). Disabling unhides the windows of all workspaces and lays
         // them out on the fake mainMonitorInfo, and nothing lays them out again while AeroSpace is disabled
         if !newState && !hasScreens { throw "Can't disable \(aeroSpaceAppName) while there are no screens" }
-        TrayMenuModel.shared.isEnabled = newState
+        world.isEnabled = newState
         if newState {
             for workspace in Workspace.all {
                 for window in workspace.allLeafWindowsRecursive where window.isFloating {

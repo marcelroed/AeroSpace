@@ -2,10 +2,11 @@ import Common
 import Observation
 import SwiftUI
 
-public func getMessageWindow(messageModel: MessageModel) -> some Scene {
+/// The config diagnostics window
+public func messageWindow(_ ui: Ui) -> some Scene {
     // Using SwiftUI.Window because another class in AeroSpace is already called Window
     SwiftUI.Window(aeroSpaceAppName, id: messageWindowId) {
-        MessageView(model: messageModel)
+        MessageView(model: ui.messageModel, trayMenuModel: ui.trayMenuModel)
             .onAppear {
                 // Set activation policy; otherwise, AeroSpace windows won't be able to receive focus and accept keyboard input
                 NSApp.setActivationPolicy(.accessory)
@@ -16,16 +17,13 @@ public func getMessageWindow(messageModel: MessageModel) -> some Scene {
     .windowLevel(.floating)
 }
 
-public let messageWindowId: String = "\(aeroSpaceAppName).messageView"
+let messageWindowId: String = "\(aeroSpaceAppName).messageView"
 
 struct MessageView: View {
-    private let model: MessageModel
+    let model: MessageModel
+    let trayMenuModel: TrayMenuModel
     @Environment(\.dismiss) private var dismiss: DismissAction
     @FocusState private var focus: Bool
-
-    init(model: MessageModel) {
-        self.model = model
-    }
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -64,7 +62,7 @@ struct MessageView: View {
             HStack {
                 Spacer()
                 if model.message != nil {
-                    reloadConfigButton(showShortcutGroup: true)
+                    reloadConfigButton(trayMenuModel, showShortcutGroup: true)
                     openConfigButton(showShortcutGroup: true)
                 }
                 let closeButton = Button("Close") { model.message = nil }.keyboardShortcut(.defaultAction)
@@ -90,14 +88,11 @@ struct MessageView: View {
 }
 
 @Observable
-public final class MessageModel {
-    public static let shared: MessageModel = MessageModel()
-    public var message: Message? = nil
-
-    private init() {}
+final class MessageModel {
+    var message: Message? = nil
 }
 
 /// A config diagnostics message
-public struct Message: Hashable {
+struct Message: Hashable {
     let body: String
 }

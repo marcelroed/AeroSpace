@@ -14,7 +14,7 @@ struct TrayMenuModelTest {
 
         updateTrayText()
 
-        let model = TrayMenuModel.shared
+        let model = world.ui.trayMenuModel
         expectEqual(model.trayText, "a")
         expectEqual(model.trayItems, [
             TrayItem(type: .workspace, name: "a", isActive: true, hasFullscreenWindows: false),
@@ -37,7 +37,7 @@ struct TrayMenuModelTest {
 
         updateTrayText()
 
-        let model = TrayMenuModel.shared
+        let model = world.ui.trayMenuModel
         expectEqual(model.trayText, "(S) [a]")
         expectEqual(model.trayItems, [
             TrayItem(type: .mode, name: "S", isActive: true, hasFullscreenWindows: false),
@@ -54,7 +54,7 @@ struct TrayMenuModelTest {
     func testUpdateTrayText_emptyFocusedWorkspace() {
         updateTrayText()
 
-        let model = TrayMenuModel.shared
+        let model = world.ui.trayMenuModel
         expectEqual(model.trayText, "setUpWorkspacesForTests")
         expectEqual(model.trayItems, [
             TrayItem(type: .workspace, name: "setUpWorkspacesForTests", isActive: true, hasFullscreenWindows: false),
@@ -83,21 +83,21 @@ struct TrayMenuModelTest {
         }
         app.appearance = NSAppearance(named: .aqua)
         updateTrayText()
-        expectEqual(TrayMenuModel.shared.appearanceTheme, .light)
+        expectEqual(world.ui.trayMenuModel.appearanceTheme, .light)
 
         // The tray text stays the same, but the menu must still be rebuilt with the new appearance
         let notified = notifiedProperties {
             app.appearance = NSAppearance(named: .darkAqua)
             updateTrayText()
         }
-        expectEqual(TrayMenuModel.shared.appearanceTheme, .dark)
+        expectEqual(world.ui.trayMenuModel.appearanceTheme, .dark)
         expectEqual(notified, ["appearanceTheme"])
     }
 
     /// The views re-render only on the changes they observe
     @Test
     func testEveryDisplayedPropertyNotifies() {
-        let model = TrayMenuModel.shared
+        let model = world.ui.trayMenuModel
         func expectNotifies<T>(_ keyPath: ReferenceWritableKeyPath<TrayMenuModel, T>, _ newValue: T, _ name: String) {
             let prev = model[keyPath: keyPath]
             defer { model[keyPath: keyPath] = prev }
@@ -120,12 +120,12 @@ struct TrayMenuModelTest {
     /// SwiftUI runs it only if the icon's body reads the message
     @Test
     func testMenuBarIconBodyObservesTheMessage() {
-        let messageModel = MessageModel.shared
+        let messageModel = world.ui.messageModel
         let prevMessage = messageModel.message
         defer { messageModel.message = prevMessage }
         let notified = NotifiedProperties()
         withObservationTracking {
-            _ = MenuBarIcon(viewModel: .shared, messageModel: messageModel).body
+            _ = MenuBarIcon(viewModel: world.ui.trayMenuModel, messageModel: messageModel).body
         } onChange: {
             notified.insert("body")
         }
@@ -133,11 +133,34 @@ struct TrayMenuModelTest {
         expectEqual(notified.names, ["body"])
     }
 
+    /// World isn't observable. The menu bar shows `world.isEnabled` through the model's copy
+    @Test
+    func testIsEnabledNotifiesTheMenuBar() {
+        let model = world.ui.trayMenuModel
+        let prevStatus = model.axPermissionStatus
+        defer {
+            model.axPermissionStatus = prevStatus
+            world.isEnabled = true
+        }
+        model.axPermissionStatus = .granted // Otherwise the icon doesn't read isEnabled
+        let notified = NotifiedProperties()
+        withObservationTracking {
+            _ = MenuBarIcon(viewModel: model, messageModel: world.ui.messageModel).body
+        } onChange: {
+            notified.insert("body")
+        }
+        world.isEnabled = false
+        expectEqual(notified.names, ["body"])
+        #expect(!model.isEnabled)
+        world.isEnabled = true
+        #expect(model.isEnabled)
+    }
+
     /// The users' choice survives the update: the key is the same as before
     @Test
     func testMenuBarStyleIsStoredInUserDefaults() {
         withPreservedMenuBarStyle {
-            let model = TrayMenuModel.shared
+            let model = world.ui.trayMenuModel
             model.menuBarStyle = .i3Ordered
             expectEqual(UserDefaults.standard.string(forKey: "displayStyle"), "i3Ordered")
             UserDefaults.standard.set("squares", forKey: "displayStyle")
@@ -188,7 +211,7 @@ struct TrayMenuModelTest {
 
 /// The names of the displayed TrayMenuModel properties whose observers `change` notifies
 private func notifiedProperties(_ change: () -> Void) -> Set<String> {
-    let model = TrayMenuModel.shared
+    let model = world.ui.trayMenuModel
     let reads: [String: () -> Void] = [
         "trayText": { _ = model.trayText },
         "trayItems": { _ = model.trayItems },

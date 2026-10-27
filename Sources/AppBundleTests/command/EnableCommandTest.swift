@@ -29,22 +29,22 @@ struct EnableCommandTest {
         (false, "enable off --fail-if-noop", .fail()),
     ] as [(Bool, String, CmdOutput)])
     func noop(isEnabled: Bool, command: String, expected: CmdOutput) async {
-        TrayMenuModel.shared.isEnabled = isEnabled
+        world.isEnabled = isEnabled
         let output = await runCmd(command)
         expectEqual(output, expected)
-        expectEqual(TrayMenuModel.shared.isEnabled, isEnabled)
+        expectEqual(world.isEnabled, isEnabled)
     }
 
     @Test
     func toggle() async {
         var output = await runCmd("enable toggle")
         expectEqual(output, .ok)
-        #expect(!TrayMenuModel.shared.isEnabled)
+        #expect(!world.isEnabled)
         expectEqual(world.activeMode, nil)
 
         output = await runCmd("enable toggle")
         expectEqual(output, .ok)
-        #expect(TrayMenuModel.shared.isEnabled)
+        #expect(world.isEnabled)
         expectEqual(world.activeMode, mainModeId)
     }
 }

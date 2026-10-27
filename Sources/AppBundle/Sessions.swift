@@ -59,7 +59,7 @@ final class Sessions {
             // (updateTrayText does launchservicesd IPC), and the tray doesn't wait for the AX calls that the layout awaits
             Task.startUnstructured {
                 updateTrayText()
-                SecureInputPanel.shared.refresh()
+                world.ui.secureInputPanel.refresh()
             }
             if !event.isFocusFollowsMouse { try await layoutWorkspaces() }
             if focusBefore != focusAfter {
@@ -97,7 +97,7 @@ final class Sessions {
     ) async {
         let state = signposter.beginInterval(#function, "event: \(event)")
         defer { signposter.endInterval(#function, state) }
-        if !TrayMenuModel.shared.isEnabled { return }
+        if !world.isEnabled { return }
         // No screens (e.g., during display reconfiguration). Skip the session: the model and the layout would be refreshed
         // against the fake mainMonitorInfo. The next session catches up when the screens come back
         if !hasScreens { return }
@@ -113,7 +113,7 @@ final class Sessions {
                 gcMonitors()
 
                 updateTrayText()
-                SecureInputPanel.shared.refresh()
+                world.ui.secureInputPanel.refresh()
                 try await normalizeLayoutReason()
                 if shouldLayoutWorkspaces { try await layoutWorkspaces() }
             }
@@ -169,7 +169,7 @@ final class Sessions {
 
     /// An app launched, activated, unhid or terminated, or the active space changed
     func onWorkspaceNotification(_ name: Notification.Name) {
-        if !TrayMenuModel.shared.isEnabled { return }
+        if !world.isEnabled { return }
         scheduleHeavy(.globalObserver(name.rawValue), preLayout: name == NSWorkspace.didActivateApplicationNotification)
     }
 
@@ -214,7 +214,7 @@ final class Sessions {
 /// Proof that AeroSpace is enabled, or that the session may run anyway (`enable`, the startup, the menu's Enable button).
 /// A light session takes one, so that no entry point forgets the check
 struct RunSessionGuard: Sendable {
-    static var isServerEnabled: RunSessionGuard? { TrayMenuModel.shared.isEnabled ? forceRun : nil }
+    static var isServerEnabled: RunSessionGuard? { world.isEnabled ? forceRun : nil }
     static func isServerEnabled(orIsEnableCommand command: (any Command)?) -> RunSessionGuard? {
         command is EnableCommand ? .forceRun : .isServerEnabled
     }

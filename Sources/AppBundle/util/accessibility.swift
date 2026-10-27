@@ -5,17 +5,18 @@ import PrivateApi
 func waitForAccessibilityPermission_nonCancellable() async {
     let options = [axTrustedCheckOptionPrompt: true]
     while true {
-        let status = TrayMenuModel.shared.axPermissionStatus == .waitingWithPrompt
+        let model = world.ui.trayMenuModel
+        let status = model.axPermissionStatus == .waitingWithPrompt
             ? AXIsProcessTrustedWithOptions(options as CFDictionary)
             : AXIsProcessTrusted()
         if status {
-            TrayMenuModel.shared.axPermissionStatus = .granted
+            model.axPermissionStatus = .granted
             break
         }
-        if TrayMenuModel.shared.axPermissionStatus == .waitingWithPrompt {
+        if model.axPermissionStatus == .waitingWithPrompt {
             resetAccessibility() // Because macOS doesn't reset it for us when the app signature changes...
         }
-        TrayMenuModel.shared.axPermissionStatus = .waiting
+        model.axPermissionStatus = .waiting
         try? await Task.sleep(for: .seconds(1))
     }
 }

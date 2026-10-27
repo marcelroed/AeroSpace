@@ -42,9 +42,9 @@ private func dryRunReloadConfig(_ toml: String, noGui: Bool = false) async throw
     let url = FileManager.default.temporaryDirectory.appending(component: "aerospace-reload-config-test-\(UUID().uuidString).toml")
     try toml.write(to: url, atomically: true, encoding: .utf8)
     defer { try? FileManager.default.removeItem(at: url) }
-    MessageModel.shared.message = Message(body: "untouched")
-    defer { MessageModel.shared.message = nil }
+    world.ui.messageModel.message = Message(body: "untouched")
+    defer { world.ui.messageModel.message = nil }
     let args = ReloadConfigCommand(noGui: noGui, dryRun: true)
     let result = await reloadConfig_nonCancellable(args: args, forceConfigUrl: url)
-    return (url, result, MessageModel.shared.message)
+    return (url, result, world.ui.messageModel.message)
 }

@@ -6,21 +6,16 @@ private let iconSize = CGSize(width: 50, height: 50)
 private let textSize = CGSize(width: 440, height: 110)
 
 final class SecureInputPanel: NSPanelHud {
-    static let shared: SecureInputPanel = SecureInputPanel()
     private var hostingView: NSHostingView<SecureInputView>?
 
-    override private init() {
-        super.init()
-    }
-
     func refresh() {
-        if let activeMode = world.activeMode, TrayMenuModel.shared.isEnabled &&
+        if let activeMode = world.activeMode, world.isEnabled &&
             config.modes[activeMode]?.bindings.isEmpty == false && IsSecureEventInputEnabled()
         {
             if isVisible { return }
             self.contentView?.subviews.removeAll()
             // A new view on every open, so that it starts minimized
-            let hostingView = NSHostingView(rootView: SecureInputView())
+            let hostingView = NSHostingView(rootView: SecureInputView(panel: self))
             self.hostingView = hostingView
             self.contentView?.addSubview(hostingView)
             updateFrame(isMinimized: true)
@@ -38,6 +33,7 @@ final class SecureInputPanel: NSPanelHud {
 }
 
 struct SecureInputView: View {
+    let panel: SecureInputPanel
     @State var isMinimized: Bool = true
 
     @Environment(\.colorScheme) var colorScheme: ColorScheme
@@ -64,10 +60,10 @@ struct SecureInputView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .onTapGesture {
             if !isMinimized {
-                SecureInputPanel.shared.refresh()
+                panel.refresh()
             }
             isMinimized.toggle()
-            SecureInputPanel.shared.updateFrame(isMinimized: isMinimized)
+            panel.updateFrame(isMinimized: isMinimized)
         }
         .frame(
             width: isMinimized ? iconSize.width : textSize.width,

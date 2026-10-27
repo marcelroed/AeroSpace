@@ -39,6 +39,11 @@ final class World {
     /// The window that the user moves or resizes with the mouse. Layout leaves it where the mouse puts it
     var mouseManipulatedWindowId: UInt32? = nil
     var debugWindows: DebugWindowsRecording = .off
+    /// Is window management on (`enable on|off`). While it's off, the sessions skip everything but `enable`
+    var isEnabled: Bool = true {
+        didSet { ui.trayMenuModel.isEnabled = isEnabled } // The menu bar observes the model, not the world
+    }
+    let ui: Ui = Ui()
     /// The funnel for every session, see Sessions.swift
     let sessions: Sessions = Sessions()
 

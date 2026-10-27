@@ -150,7 +150,7 @@ func reloadConfig_nonCancellable(
     let (url, parsed) = loadConfig(forceUrl: forceConfigUrl)
     let errors = parsed.errors.map(\.description)
     if !args.noGui {
-        MessageModel.shared.message = errors.isEmpty
+        world.ui.messageModel.message = errors.isEmpty
             ? nil
             : Message(body: "Failed to parse \(url.absoluteURL.path.singleQuoted). \(errors.count) error(s)\n\n\(errors.joined(separator: "\n\n"))")
     }

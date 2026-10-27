@@ -34,8 +34,6 @@ func setUpWorkspacesForTests() {
     TestApp.shared.focusedWindow = nil
     TestApp.shared.windows = []
     appForTests = nil
-
-    TrayMenuModel.shared.isEnabled = true
 }
 
 /// Parses `raw` like the config and `eval` do

@@ -2,8 +2,8 @@ import AppKit
 import Common
 import Foundation
 
-/// Called from `AeroSpaceApp.init`, before SwiftUI builds the scenes
-public func initAppBundle() {
+/// Called from `AeroSpaceApp.init`, before SwiftUI builds the scenes. Returns the models that the scenes show
+public func initAppBundle() -> Ui {
     installTerminationHandler(AppServerTerminationHandler())
     _ = serverArgs // `--help`, `--version` and bad args exit here. The menu bar model reads `--config-path`
     Task.startUnstructured {
@@ -29,6 +29,7 @@ public func initAppBundle() {
             _ = await config.afterStartupCommand.run(.defaultEnv, .emptyStdin)
         }
     }
+    return world.ui
 }
 
 private func bootstrapConfig_nonCancellable() async {

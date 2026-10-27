@@ -44,7 +44,7 @@ enum OptimalHideCorner {
 }
 
 func layoutWorkspaces() async throws {
-    if !TrayMenuModel.shared.isEnabled {
+    if !world.isEnabled {
         for workspace in Workspace.all {
             // No screens: don't lay the windows out against the fake mainMonitorInfo. AeroSpace can't be disabled while there
             // are no screens (EnableCommand), so the windows were unhidden when it was disabled, unless the screens vanished

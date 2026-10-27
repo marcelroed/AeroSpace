@@ -58,15 +58,15 @@ struct NoScreensTest {
             for command in ["enable off", "enable toggle"] {
                 let output = await runCmd(command)
                 expectEqual(output, .fail("Can't disable \(aeroSpaceAppName) while there are no screens"), "\(command)")
-                #expect(TrayMenuModel.shared.isEnabled, "\(command)")
+                #expect(world.isEnabled, "\(command)")
             }
             expectEqual(world.activeMode, mainModeId)
 
             // Enabling still works: the layout does nothing until the screens come back
-            TrayMenuModel.shared.isEnabled = false
+            world.isEnabled = false
             let output = await runCmd("enable on")
             expectEqual(output, .ok)
-            #expect(TrayMenuModel.shared.isEnabled)
+            #expect(world.isEnabled)
         }
     }
 

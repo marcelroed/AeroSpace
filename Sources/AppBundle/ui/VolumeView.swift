@@ -3,12 +3,11 @@ import Common
 import SwiftUI
 
 final class VolumePanel: NSPanelHud {
-    static let shared: VolumePanel = VolumePanel()
     private static let size = CGSize(width: 50, height: 206)
     private var timer: Timer?
     private let hostingView = NSHostingView(rootView: VolumeView(volume: 0))
 
-    override private init() {
+    override init() {
         super.init()
         hostingView.frame = NSRect(origin: .zero, size: Self.size)
         self.contentView?.addSubview(hostingView)

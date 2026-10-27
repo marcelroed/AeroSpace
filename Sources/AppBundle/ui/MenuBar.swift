@@ -2,16 +2,17 @@ import Common
 import Foundation
 import SwiftUI
 
-public func menuBar(viewModel: TrayMenuModel, messageModel: MessageModel) -> some Scene {
+public func menuBar(_ ui: Ui) -> some Scene {
     MenuBarExtra {
-        MenuBarMenu(viewModel: viewModel)
+        MenuBarMenu(viewModel: ui.trayMenuModel)
     } label: {
-        MenuBarIcon(viewModel: viewModel, messageModel: messageModel)
+        MenuBarIcon(viewModel: ui.trayMenuModel, messageModel: ui.messageModel)
     }
 }
 
 // The views that show the model's state are View structs whose body reads it. Then a change re-renders them.
-// Re-evaluating the scene doesn't update the menu (see MenuBarStyleButton)
+// Re-evaluating the scene doesn't update the menu (see MenuBarStyleButton). The buttons check that AeroSpace is enabled
+// when they are pressed: `world` isn't observable, only its copy in the model is
 private struct MenuBarMenu: View {
     let viewModel: TrayMenuModel
 
@@ -27,8 +28,8 @@ private struct MenuBarMenu: View {
         Divider()
 
         if viewModel.axPermissionStatus == .granted {
-            if let token: RunSessionGuard = .isServerEnabled {
-                workspacesSection(viewModel, token)
+            if viewModel.isEnabled {
+                workspacesSection(viewModel)
                 Divider()
             }
             sponsorButton(viewModel)
@@ -36,7 +37,7 @@ private struct MenuBarMenu: View {
             enableToggleButton(viewModel)
             getExperimentalUISettingsMenu(viewModel: viewModel)
             openConfigButton(editor: viewModel.textEditorToOpenConfig)
-            reloadConfigButton()
+            reloadConfigButton(viewModel)
         } else {
             Button("AeroSpace requires accessibility permission to move windows") {
                 viewModel.axPermissionStatus = .waitingWithPrompt
@@ -47,11 +48,12 @@ private struct MenuBarMenu: View {
 }
 
 @ViewBuilder
-private func workspacesSection(_ viewModel: TrayMenuModel, _ token: RunSessionGuard) -> some View {
+private func workspacesSection(_ viewModel: TrayMenuModel) -> some View {
     Text("Workspaces:")
     ForEach(viewModel.workspaces, id: \.name) { workspace in
         Button {
             Task.startUnstructured {
+                guard let token: RunSessionGuard = .isServerEnabled else { return }
                 try await world.sessions.light(.menuBarButton, token) { _ = Workspace.get(byName: workspace.name).focusWorkspace() }
             }
         } label: {
@@ -145,11 +147,12 @@ func openConfigButton(editor: URL = getTextEditorToOpenConfig(), showShortcutGro
     }
 }
 
+/// Only while AeroSpace is enabled. `viewModel` is the observed copy of that state
 @ViewBuilder
-func reloadConfigButton(showShortcutGroup: Bool = false) -> some View {
-    if let token: RunSessionGuard = .isServerEnabled {
+func reloadConfigButton(_ viewModel: TrayMenuModel, showShortcutGroup: Bool = false) -> some View {
+    if viewModel.isEnabled {
         let button = Button("Reload config") {
-            reloadConfigFromMenu(token)
+            reloadConfigFromMenu()
         }.keyboardShortcut("R", modifiers: .command)
         switch showShortcutGroup {
             case true: shortcutGroup(label: Text("⌘ R"), content: button)
@@ -158,8 +161,9 @@ func reloadConfigButton(showShortcutGroup: Bool = false) -> some View {
     }
 }
 
-private func reloadConfigFromMenu(_ token: RunSessionGuard) {
+private func reloadConfigFromMenu() {
     Task.startUnstructured {
+        guard let token: RunSessionGuard = .isServerEnabled else { return }
         try await world.sessions.light(.menuBarButton, token) {
             _ = await reloadConfig_nonCancellable()
         }

@@ -5,14 +5,10 @@ import Observation
 /// The views re-render when a property that their body reads changes.
 /// Assigning an equal value doesn't notify them
 @Observable
-public final class TrayMenuModel {
-    public static let shared: TrayMenuModel = TrayMenuModel()
-
-    private init() {}
-
+final class TrayMenuModel {
     var trayText: String = ""
     var trayItems: [TrayItem] = []
-    /// Is "layouting" enabled
+    /// A copy of `world.isEnabled`, which the views can observe
     var isEnabled: Bool = true
     var workspaces: [WorkspaceViewModel] = []
     var sponsorshipMessage: String = sponsorshipPrompts.randomElement().orDie()
@@ -88,7 +84,7 @@ func updateTrayText() {
 
     // updateTrayText runs on every refresh session. Only the changed values re-render the views
     // (and the menu bar image): assigning an equal value doesn't notify them
-    let model = TrayMenuModel.shared
+    let model = world.ui.trayMenuModel
     model.trayText = trayText
     model.workspaces = workspaces
     model.trayItems = trayItems
