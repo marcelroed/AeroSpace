@@ -33,7 +33,7 @@ func runHeavyCompleteRefreshSession(
     // No screens (e.g., during display reconfiguration). Skip the session: the model and the layout would be refreshed
     // against the fake mainMonitorInfo. The next session catches up when the screens come back
     if !hasScreens { return }
-    resetWindowLevelCache()
+    startWindowLevelCacheSession()
     let res = await Result {
         try await $refreshSessionEvent.withValue(event) {
             let nativeFocused = try await getNativeFocusedWindow(.cancellable)
@@ -69,7 +69,7 @@ func runLightSession<T>(
     defer { signposter.endInterval(#function, state) }
     activeRefreshTask?.cancel() // Give priority to runSession
     activeRefreshTask = nil
-    resetWindowLevelCache()
+    startWindowLevelCacheSession()
     return try await $refreshSessionEvent.withValue(event) {
         let nativeFocused = try await getNativeFocusedWindow(.cancellable)
         if let nativeFocused { try await debugWindowsIfRecording(nativeFocused, .cancellable) }
