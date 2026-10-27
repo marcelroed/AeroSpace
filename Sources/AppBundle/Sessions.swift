@@ -9,16 +9,13 @@ import Common
 /// A light session runs a command-like body between two model refreshes, presents and schedules a heavy refresh
 /// (phases L1–L6, see ``light(_:_:isStartup:body:)``). A heavy refresh re-reads the windows of all apps from macOS (it
 /// registers new windows and garbage collects closed ones), then presents (phases P0–P4, see ``Reconcile``). Focus
-/// follows mouse only moves the focus (``focusFollowsMouse(_:_:)``). When each step runs:
-///
-/// | Step                              | Light session              | Heavy refresh                                     | Focus follows mouse                 |
-/// |-----------------------------------|----------------------------|---------------------------------------------------|-------------------------------------|
-/// | The focus comes from macOS        | L1                         | preLayout, P2; P3 for a new focused window        | First, as in L1                     |
-/// | on-window-detected                | L1, of a new focused window | P3                                               | As in L1                            |
-/// | Tidy: workspace GC, normalization | L2, after each command, L4 | P2, the end of P3                                 | After each command of its callbacks |
-/// | Focus callbacks                   | L2, after each command, L4 | P3: P2's focus change first, then at its end      | Before and after its focus change   |
-/// | Layout                            | L5                         | preLayout, P4; not in the startup's own refresh   | —                                   |
-/// | The native focus goes to macOS    | L5, if the focus changed since L1 | preLayout and P4, if the focus changed; P2's window GC (#65) | Unless macOS focuses the window |
+/// follows mouse only moves the focus (``focusFollowsMouse(_:_:)``). What the phases don't show at a glance:
+/// - Tidying and the focus callbacks run as a pair, tidying first (``refreshModel_nonCancellable()``): in L2, after
+///   each command, in L4 and at the end of P3. P2 tidies alone: the callbacks of its focus change run first in P3.
+/// - on-window-detected runs in P3, and for a new window with the native focus when L1 or focus follows mouse takes the
+///   focus from macOS.
+/// - Focus follows mouse neither tidies (its callbacks' commands do) nor lays out.
+/// - The startup's own heavy refresh doesn't present: the startup's light session does.
 ///
 /// How concurrent work coalesces. The code follows this table:
 ///
