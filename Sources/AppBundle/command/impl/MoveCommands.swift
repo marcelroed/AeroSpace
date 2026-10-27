@@ -117,7 +117,13 @@ extension Window {
     /// `--fail-if-fullscreen` and `--fail-if-macos-native-fullscreen`: fail silently if the window is fullscreen
     func failIfFullscreen(_ fullscreen: Bool, macosNativeFullscreen: Bool) async throws(CmdFail) {
         if fullscreen && isFullscreen { throw .silent }
-        if macosNativeFullscreen, case .facts(let facts) = await world.platform.facts(windowId), facts.isFullscreen { throw .silent }
+        if !macosNativeFullscreen { return }
+        let isMacosFullscreen = switch await world.platform.facts(windowId) {
+            case .facts(let facts): facts.isFullscreen
+            case .noAnswer: if case .macosFullscreen = placement { true } else { false } // A busy app: the last refresh's state (R2d L2)
+            case .closed: false
+        }
+        if isMacosFullscreen { throw .silent }
     }
 }
 
