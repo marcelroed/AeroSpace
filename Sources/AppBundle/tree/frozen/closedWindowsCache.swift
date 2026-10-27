@@ -54,7 +54,7 @@ func restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: Window) async throws
             .singleOrNil()?
             .setActiveWorkspace(workspace)
         for frozenWindow in frozenWorkspace.floatingWindows {
-            MacWindow.get(byId: frozenWindow.id)?.bindAsFloatingWindow(to: workspace)
+            MacWindow.get(byId: frozenWindow.id)?.move(to: workspace.floatingWindowsContainer)
         }
         let prevRoot = workspace.rootTilingContainer // Save prevRoot into a variable to avoid it being garbage collected earlier than needed
         let potentialOrphans = prevRoot.allLeafWindowsRecursive
@@ -89,7 +89,7 @@ private func restoreTreeRecursive(frozenContainer: FrozenContainer, parent: Tree
             case .window(let w):
                 // Stop the loop if can't find the window, because otherwise all the subsequent windows will have incorrect index
                 guard let window = MacWindow.get(byId: w.id) else { return false }
-                window.bind(to: container, weight: w.weight, index: index)
+                window.move(to: container, at: index, weight: .value(w.weight))
             case .container(let c):
                 // There is no reason to continue
                 if !restoreTreeRecursive(frozenContainer: c, parent: container, index: index) { return false }

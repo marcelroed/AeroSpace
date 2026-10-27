@@ -59,12 +59,10 @@ extension TilingContainer {
         }
         if config.enableNormalizationOppositeOrientationForNestedContainers {
             var orientation = targetOrientation
-            parentsWithSelf
-                .filterIsInstance(of: TilingContainer.self)
-                .forEach {
-                    $0.orientation = orientation
-                    orientation = orientation.opposite
-                }
+            for container in [self] + tilingPath.map(\.parent) {
+                container.orientation = orientation
+                orientation = orientation.opposite
+            }
         } else {
             self.orientation = targetOrientation
         }

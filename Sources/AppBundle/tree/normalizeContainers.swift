@@ -10,10 +10,8 @@ extension Workspace {
 extension TilingContainer {
     fileprivate func unbindEmptyAndAutoFlatten() {
         if let child = children.singleOrNil(), config.enableNormalizationFlattenContainers && (child is TilingContainer || !isRootContainer) {
-            child.unbindFromParent()
             let mru = parent?.mostRecentChild
-            let previousBinding = unbindFromParent()
-            child.bind(to: previousBinding.parent, weight: previousBinding.weight, index: previousBinding.index)
+            child.move(to: unbindFromParent()) // The child takes the container's place
             (child as? TilingContainer)?.unbindEmptyAndAutoFlatten()
             if mru != self {
                 mru?.markAsMostRecentChild()

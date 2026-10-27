@@ -34,11 +34,11 @@ func setUpTree(_ spec: String, workspace workspaceName: String? = nil) -> Worksp
     for part in parseTreeSpec(spec) {
         let children = part.children.orDie("'\(part.name)': windows must be inside a container")
         let container: Container = switch part.name {
-            case "floating": workspace.floatingWindowsContainer
-            case "macos_fullscreen": workspace.macOsNativeFullscreenWindowsContainer
-            case "macos_hidden": workspace.macOsNativeHiddenAppsWindowsContainer
-            case "macos_minimized": macosMinimizedWindowsContainer
-            case "macos_popup": macosPopupWindowsContainer
+            case ContainerKind.floating.dslName: workspace.floatingWindowsContainer
+            case ContainerKind.macosFullscreen.dslName: workspace.macOsNativeFullscreenWindowsContainer
+            case ContainerKind.macosHiddenApp.dslName: workspace.macOsNativeHiddenAppsWindowsContainer
+            case ContainerKind.macosMinimized.dslName: macosMinimizedWindowsContainer
+            case ContainerKind.macosPopup.dslName: macosPopupWindowsContainer
             default: setUpRoot(of: workspace, part)
         }
         for child in children {
@@ -62,32 +62,40 @@ private func setUpRoot(of workspace: Workspace, _ spec: SpecNode) -> TilingConta
     return root
 }
 
-/// Renders the workspace `workspaceName` (default: the focused workspace) in the tree DSL, see ``setUpTree``
+/// Renders the workspace `workspaceName` (default: the focused workspace) in the tree DSL, see ``setUpTree``. A workspace
+/// without a root container is rendered with the root that it would get, and doesn't get one
 func describeTree(_ workspaceName: String? = nil, weights: Bool = false) -> String {
     let workspace = workspaceName.map { Workspace.get(byName: $0) } ?? focus.workspace
+    let (layout, orientation) = workspace.rootLayout
+    var parts = [workspace.existingRootTilingContainer.map { describeNode($0, weights: weights) } ?? "\(orientation)_\(layout.rawValue)()"]
+    for kind: ContainerKind in [.floating, .macosFullscreen, .macosHiddenApp] {
+        let container = workspace.children.first { ($0 as? Container)?.kind == kind }
+        if let container, !container.children.isEmpty {
+            parts.append(describeNode(container))
+        }
+    }
+    return parts.joined(separator: " ")
+}
+
+/// Renders a node in the tree DSL, see ``setUpTree``. A workspace is rendered as its children. `mru`: the children of every
+/// node in MRU order, the most recent first, instead of their order. That shows the whole MRU state of the subtree
+func describeNode(_ node: TreeNode, weights: Bool = false, mru: Bool = false) -> String {
     let focusedWindowId = focus.windowOrNil?.windowId
     func describe(_ node: TreeNode) -> String {
         let weight = switch node.parent {
             case let parent as TilingContainer where weights: ":" + node.getWeight(parent.orientation).dslDescription
             default: ""
         }
+        let children = (mru ? node.mruChildren : node.children).map(describe).joined(separator: " ")
         return switch node {
             case let window as Window: (window.windowId == focusedWindowId ? "*" : "") + String(window.windowId) + weight
-            case let container as TilingContainer: "\(container.orientation)_\(container.layout.rawValue)" + weight + describeChildren(container)
-            default: dieT("\(node.prettyDescription) can't be a child of a tiling container")
+            case let container as TilingContainer: "\(container.orientation)_\(container.layout.rawValue)" + weight + "(\(children))"
+            case let container as Container: container.kind.dslName + "(\(children))"
+            case is Workspace: children
+            default: dieT("Unknown node \(node.prettyDescription)")
         }
     }
-    func describeChildren(_ node: TreeNode) -> String {
-        "(" + node.children.map(describe).joined(separator: " ") + ")"
-    }
-    var parts = [describe(workspace.rootTilingContainer)]
-    for (name, kind): (String, ContainerKind) in [("floating", .floating), ("macos_fullscreen", .macosFullscreen), ("macos_hidden", .macosHiddenApp)] {
-        let container = workspace.children.first { ($0 as? Container)?.kind == kind }
-        if let container, !container.children.isEmpty {
-            parts.append(name + describeChildren(container))
-        }
-    }
-    return parts.joined(separator: " ")
+    return describe(node)
 }
 
 /// The test window with id `id`, bound or not
@@ -167,5 +175,19 @@ extension CGFloat {
     /// `2` instead of `2.0`
     fileprivate var dslDescription: String {
         self == rounded() ? String(Int(self)) : description
+    }
+}
+
+extension ContainerKind {
+    /// The name of a container that isn't tiling in the tree DSL
+    fileprivate var dslName: String {
+        switch self {
+            case .tiling: "tiling"
+            case .floating: "floating"
+            case .macosFullscreen: "macos_fullscreen"
+            case .macosHiddenApp: "macos_hidden"
+            case .macosMinimized: "macos_minimized"
+            case .macosPopup: "macos_popup"
+        }
     }
 }

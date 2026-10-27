@@ -190,7 +190,7 @@ extension TilingContainer {
     fileprivate func layoutAccordion(
         _ point: CGPoint, width: CGFloat, height: CGFloat, virtual: Rect, _ params: LayoutParams, _ frames: inout [WindowFrame],
     ) {
-        guard let mruIndex: Int = mostRecentChild?.ownIndex else { return }
+        guard let mruIndex = mostRecentChild?.tilingSlot?.index else { return }
         let padding = params.accordionPadding
         for (index, child) in children.enumerated() {
             let (lPadding, rPadding): (CGFloat, CGFloat) = switch index {

@@ -4,11 +4,11 @@ import Common
 /// The tree is main actor state. Subclasses and extensions inherit the isolation (async members too),
 /// so a member that must not be isolated has to be marked `nonisolated`
 open class TreeNode: Equatable {
-    private(set) final var children: [TreeNode] = []
+    fileprivate(set) final var children: [TreeNode] = []
     fileprivate(set) final weak var parent: TreeNode? = nil
-    private var weight: CGFloat
+    fileprivate var weight: CGFloat
     /// The most recent child of a node is the child with the highest stamp. See ``markAsMostRecentChild()``
-    private var mruStamp: UInt64 = 0
+    fileprivate var mruStamp: UInt64 = 0
     // Usages:
     // - resize with mouse
     // - makeFloatingWindowsSeenAsTiling in focus command
@@ -24,10 +24,10 @@ open class TreeNode: Equatable {
     var weightBeforeResizeWithMouse: CGFloat? = nil
     var isBound: Bool { parent != nil } // todo drop, once https://github.com/nikitabobko/AeroSpace/issues/1215 is fixed
 
-    /// See ``bind(to:weight:index:)`` for `weight` and `index`
+    /// See ``move(to:at:weight:)`` for `index`. `weight` nil: ``WeightPolicy/auto``
     init(parent: TreeNode, weight: CGFloat? = nil, index: Int? = nil) {
-        self.weight = 0 // bind() sets it
-        bind(to: parent, weight: weight, index: index)
+        self.weight = 0 // move() sets it
+        move(to: parent, at: index, weight: weight.map { .value($0) } ?? .auto)
     }
 
     /// Creates a node that is never bound to a parent (Workspace and the global macOS unconventional windows containers)
@@ -57,16 +57,21 @@ open class TreeNode: Equatable {
         }
     }
 
-    /// Inserts the node at `index` of `newParent`'s children (nil: last), and makes it the most recent child.
-    /// `weight` nil: the average weight of the new siblings in a tiling container (1 without siblings), and
-    /// ``weightDoesntMatter`` in any other container. Returns where the node was bound before
+    /// Moves the node to `index` of `newParent`'s children (nil: last), and makes it the most recent child. The index counts
+    /// the children without the node, so a node can move within its parent. Returns where the node was before, nil if it was
+    /// unbound
     @discardableResult
-    func bind(to newParent: TreeNode, weight: CGFloat? = nil, index: Int? = nil) -> NodeBinding? {
+    func move(to newParent: TreeNode, at index: Int? = nil, weight: WeightPolicy = .auto) -> NodeBinding? {
         let result = parent != nil ? unbindFromParent() : nil
         check(canBeChild(of: newParent), "\(prettyDescription) can't be a child of \(newParent.prettyDescription)")
-        self.weight = weight ?? (newParent as? TilingContainer).map { newParent in
-            newParent.children.sum { $0.getWeight(newParent.orientation) }.div(newParent.children.count) ?? 1
-        } ?? weightDoesntMatter
+        switch weight {
+            case .keep: break
+            case .auto:
+                self.weight = (newParent as? TilingContainer).map { newParent in
+                    newParent.children.sum { $0.getWeight(newParent.orientation) }.div(newParent.children.count) ?? 1
+                } ?? weightDoesntMatter
+            case .value(let value): self.weight = value
+        }
         newParent.children.insert(self, at: index ?? newParent.children.count)
         parent = newParent
         // todo consider disabling automatic mru propogation
@@ -75,6 +80,18 @@ open class TreeNode: Equatable {
         //    last appeared window, is not necessarily the one that has the focus)
         markAsMostRecentChild()
         return result
+    }
+
+    /// Moves the node to where another node was bound, with that node's weight: `node.move(to: other.unbindFromParent())`
+    /// puts `node` in `other`'s place
+    func move(to binding: NodeBinding) {
+        move(to: binding.parent, at: binding.index, weight: .value(binding.weight))
+    }
+
+    /// The previous name of ``move(to:at:weight:)``. `weight` nil: ``WeightPolicy/auto``
+    @discardableResult
+    func bind(to newParent: TreeNode, weight: CGFloat? = nil, index: Int? = nil) -> NodeBinding? { // todo(RS-NAV phase B): delete
+        move(to: newParent, at: index, weight: weight.map { .value($0) } ?? .auto)
     }
 
     /// Returns where the node was bound
@@ -114,7 +131,17 @@ open class TreeNode: Equatable {
 /// (e.g. swap, focus --floating-as-tiling) carry it into tiling containers
 private let weightDoesntMatter = CGFloat(-2)
 
-/// Where a node is bound: ``TreeNode/bind(to:weight:index:)`` with these values puts it back
+/// How ``TreeNode/move(to:at:weight:)`` sets the weight of the moved node
+enum WeightPolicy {
+    /// The node keeps its weight, e.g. when it moves within its parent
+    case keep
+    /// In a tiling container, the average weight of the new siblings (1 without siblings). ``weightDoesntMatter`` in any
+    /// other container
+    case auto
+    case value(CGFloat)
+}
+
+/// Where a node is bound: ``TreeNode/move(to:)`` puts a node there
 struct NodeBinding {
     let parent: TreeNode
     let weight: CGFloat
@@ -140,5 +167,52 @@ extension TreeNode {
             case let container as Container: "Container(kind: \(container.kind), workspace: \(nodeWorkspace?.name.singleQuoted ?? "nil"))"
             default: "\(type(of: self))(workspace: \(nodeWorkspace?.name.singleQuoted ?? "nil"))"
         }
+    }
+}
+
+extension TreeNode {
+    /// Puts a new tiling container in the node's place (its parent, index and weight) and moves the node into it. Works for
+    /// the root container too: the new container becomes the root. Returns the new container
+    @discardableResult
+    func wrap(_ orientation: Orientation, _ layout: Layout) -> TilingContainer {
+        let binding = unbindFromParent()
+        let container = TilingContainer(parent: binding.parent, weight: binding.weight, orientation, layout, index: binding.index)
+        move(to: container)
+        return container
+    }
+
+    /// The nodes trade places: parent, index and weight. `self` ends up the more recent one
+    func swap(with other: TreeNode) {
+        if self == other { return }
+        let otherBinding = other.unbindFromParent()
+        let binding = unbindFromParent()
+        other.move(to: binding)
+        move(to: otherBinding)
+    }
+}
+
+extension Workspace {
+    /// Runs `body`, then puts the workspace back exactly as it was: the children of every node, their order, their weights
+    /// and the MRU order. For edits that only last for a computation, e.g. focus sees floating windows as tiling windows.
+    /// `body` may move nodes within the workspace and create containers in it (they are dropped), but must not move windows
+    /// in or out. A workspace has no parent, so the edits can't mark anything outside it as most recent
+    func withTemporaryEdits<T, E: Error>(_ body: () throws(E) -> T) throws(E) -> T {
+        var saved: [(node: TreeNode, children: [TreeNode], weight: CGFloat, mruStamp: UInt64)] = []
+        func save(_ node: TreeNode) {
+            saved.append((node, node.children, node.weight, node.mruStamp))
+            node.children.forEach(save)
+        }
+        save(self)
+        let windows = allLeafWindowsRecursive.toSet()
+        defer {
+            check(allLeafWindowsRecursive.toSet() == windows, "Temporary edits moved windows in or out of \(prettyDescription)")
+            for (node, children, weight, mruStamp) in saved {
+                node.children = children
+                children.forEach { $0.parent = node }
+                node.weight = weight
+                node.mruStamp = mruStamp
+            }
+        }
+        return try body()
     }
 }

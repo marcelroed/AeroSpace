@@ -177,7 +177,7 @@ extension Window {
         let slot = forceTile
             ? unbindAndGetSlotForNewTilingWindow(workspace, window: self)
             : try await unbindAndGetSlotForNewWindow(windowId, self.asMacWindow().macApp, workspace, window: self, cm)
-        bind(to: slot.parent, index: slot.index)
+        move(to: slot.parent, at: slot.index)
     }
 }
 
@@ -196,13 +196,9 @@ private func unbindAndGetSlotForNewWindow(_ windowId: UInt32, _ macApp: MacApp, 
 
 // The function is private because it's unsafe. It leaves the window in unbound state
 private func unbindAndGetSlotForNewTilingWindow(_ workspace: Workspace, window: Window?) -> NewWindowSlot {
-    window?.unbindFromParent() // It's important to unbind to get correct data from below
-    let mruWindow = workspace.mostRecentWindowRecursive
-    if let mruWindow, let tilingParent = mruWindow.parent as? TilingContainer {
-        return (tilingParent, mruWindow.ownIndex.orDie() + 1)
-    } else {
-        return (workspace.rootTilingContainer, nil)
-    }
+    window?.unbindFromParent() // See newTilingWindowSlot
+    let slot = workspace.newTilingWindowSlot
+    return (slot.parent, slot.index)
 }
 
 func runOnWindowDetected(ifConventional window: Window) async {
