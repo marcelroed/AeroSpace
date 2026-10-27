@@ -44,7 +44,8 @@ private func unbindAndGetSlotForNewWindow(_ type: AxUiElementWindowType, _ works
     }
 }
 
-/// The on-window-detected callbacks of a new window, with `layout`'s layout for the next detected window around them
+/// The detection of a new window: tells window-detected to the `subscribe` clients and runs the on-window-detected
+/// callbacks, with `layout`'s layout for the next detected window around them. `run-callback` runs only the callbacks
 func runOnWindowDetected(ifConventional window: Window, isStartup: Bool) async {
     guard window.shouldRunOnWindowDetected else { return }
     let layout = world.layoutForNextDetectedWindow
@@ -57,6 +58,12 @@ func runOnWindowDetected(ifConventional window: Window, isStartup: Bool) async {
     }
     // The layout is applied both before and after the on-window-detected callbacks on purpose
     await applyLayoutForNextDetectedWindow()
+    broadcastEvent(.windowDetected(
+        windowId: window.windowId.raw,
+        workspace: window.nodeWorkspace?.name,
+        appBundleId: window.app.bundleId,
+        appName: window.app.name,
+    ))
     _ = await onWindowDetected(.defaultEnv, CmdIo.emptyStdinIgnoringOut, window, isStartup: isStartup)
     await applyLayoutForNextDetectedWindow()
 }

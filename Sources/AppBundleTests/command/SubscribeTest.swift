@@ -122,6 +122,33 @@ struct SubscribeTest {
         await expectEvents(client, [])
     }
 
+    nonisolated enum Callbacks { case ofADetection, runByHand }
+
+    /// window-detected tells each detection once. The callbacks run by hand detect nothing, so they tell nothing
+    @Test(arguments: [
+        (.ofADetection, [#"{"_event":"window-detected","appBundleId":"bobko.AeroSpace.test-app","appName":"bobko.AeroSpace.test-app","windowId":3,"workspace":"a"}"#]),
+        (.runByHand, []),
+    ] as [(Callbacks, [String])])
+    func windowDetectedTellsTheDetections(callbacks: Callbacks, expected: [String]) async throws {
+        setUpTree("h_tiles(*1 2)", workspace: "a")
+        armFocusChangedCallbacks() // The setup isn't a change
+        world.config.onWindowDetected = [WindowDetectedCallback(run: parseCommand("echo '%{window-id}'").cmdOrDie)]
+        let server = try await TestSocketServer.start(.aeroSpace)
+        defer { server.stop() }
+        let client = try await subscribe(server, ["--no-send-initial", "--all"])
+        defer { client.cancel() }
+
+        switch callbacks {
+            case .ofADetection:
+                fake.windows[3] = FakeWindow(app: testApp, rect: nil, title: "Window 3")
+                await Reconcile.heavy(.ax("test"))
+            case .runByHand: // They run, and the CLI gets their output
+                expectEqual(await runCmd("run-callback on-window-detected"), CmdOutput(stdout: ["1"]))
+                expectEqual(await runCmd("run-callback --for-every-window on-window-detected"), CmdOutput(stdout: ["1", "2"]))
+        }
+        await expectEvents(client, expected)
+    }
+
     /// The client is registered before its answer: nothing between the two is lost
     @Test
     func clientWithoutTheInitialStateGetsTheEventsRightAfterItsAnswer() async throws {

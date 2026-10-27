@@ -78,13 +78,8 @@ enum WindowDetectedCallbackMatcher: Equatable {
     }
 }
 
+/// Runs the on-window-detected callbacks that match `window`, for its detection or for `run-callback`
 func onWindowDetected(_ env: CmdEnv, _ io: CmdIo, _ window: Window, isStartup: Bool) async -> Int32 {
-    broadcastEvent(.windowDetected(
-        windowId: window.windowId.raw,
-        workspace: window.nodeWorkspace?.name,
-        appBundleId: window.app.bundleId,
-        appName: window.app.name,
-    ))
     var lastExitCode = EXIT_CODE_ZERO
     for callback in config.onWindowDetected where await callback.matches(window, isStartup: isStartup) {
         if !window.isAlive { break } // The window closed at a suspension point

@@ -47,7 +47,7 @@ focused-workspace-changed:: Fired when the focused workspace changes. Includes `
 
 mode-changed:: Fired when the binding mode changes. Includes `mode`.
 
-window-detected:: Fired when a new window is detected. Includes `windowId`, `workspace`, `appBundleId`, `appName`.
+window-detected:: Fired once when a new window is detected, before its `on-window-detected` callbacks run (`run-callback` runs them without the event). Includes `windowId`, `workspace`, `appBundleId`, `appName`.
 
 binding-triggered:: Fired when a keyboard binding is triggered. Includes `binding`, `mode`.
 

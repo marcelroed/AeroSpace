@@ -33,6 +33,9 @@ The command lets you manually re-run callbacks that AeroSpace normally invokes i
 The command forwards stdout and stderr of all commands run in the callback.
 That opens up one more usecase - you can use this command to see the output of your callbacks.
 
+The command only runs the callbacks: it sends no `subscribe` event of its own, such as `window-detected` or `focus-changed`.
+The callbacks' commands still send the events of what they change.
+
 // =========================================================== Options
 include::./util/conditional-options-header.adoc[]
 
