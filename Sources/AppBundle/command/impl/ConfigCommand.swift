@@ -80,28 +80,22 @@ extension String {
 
 extension ConfigMapValue {
     func find(keyPath: StrArrSlice) -> Result<ConfigMapValue, String> {
-        if let key = keyPath.first {
-            switch self {
-                case .scalar(let scalar):
-                    return .failure("Can't dereference scalar value '\(scalar.describe)'")
-                case .map(let map):
-                    return switch map[key] {
-                        case let child?: child.find(keyPath: keyPath.slice(1...).orDie())
-                        case nil: .failure("No value at key token '\(key)'")
-                    }
-                case .array(let array):
-                    if let key = Int(key) {
-                        return switch array.getOrNil(atIndex: key) {
-                            case let child?: child.find(keyPath: keyPath.slice(1...).orDie())
-                            case nil: .failure("Index out of bounds. Index: \(key), Size: \(array.count)")
-                        }
-                    } else {
-                        return .failure("Can't convert key token '\(key)' to Int")
-                    }
-            }
-        } else {
-            return .success(self)
+        guard let key = keyPath.first else { return .success(self) }
+        let child: ConfigMapValue
+        switch self {
+            case .scalar(let scalar):
+                return .failure("Can't dereference scalar value '\(scalar.describe)'")
+            case .map(let map):
+                guard let value = map[key] else { return .failure("No value at key token '\(key)'") }
+                child = value
+            case .array(let array):
+                guard let index = Int(key) else { return .failure("Can't convert key token '\(key)' to Int") }
+                guard let value = array.getOrNil(atIndex: index) else {
+                    return .failure("Index out of bounds. Index: \(index), Size: \(array.count)")
+                }
+                child = value
         }
+        return child.find(keyPath: keyPath.slice(1...).orDie())
     }
 
     func dumpAllKeysRecursive(path: String, result: inout [String]) {
