@@ -23,6 +23,12 @@ struct SubcommandHelpTest {
         #expect(help.joined(separator: "\n") == kind.help)
     }
 
+    /// The CLI reads its stdin and sends it only for these subcommands
+    @Test(arguments: CmdKind.allCases)
+    func testSubcommandTakesStdinWhenItsHelpSaysSo(kind: CmdKind) {
+        #expect(kind.takesStdin == kind.help.contains("--stdin"))
+    }
+
     @Test
     func testEveryDocsPageIsASubcommand() throws {
         let pages = try FileManager.default.contentsOfDirectory(atPath: projectRoot.appending(path: "docs").path)
@@ -83,7 +89,7 @@ nonisolated private let expectedHelp: [(subcommand: String, help: String)] = [
         """,
     ),
     ("debug-windows", "USAGE: debug-windows [-h|--help] [--window-id <window-id>]"),
-    ("echo", "USAGE: echo [-h|--help] [--stderr] [--window-id <window-id>] -- <string>..."),
+    ("echo", "USAGE: echo [-h|--help] [--stderr] [--window-id <window-id>] [--] <string>..."),
     (
         "enable",
         """

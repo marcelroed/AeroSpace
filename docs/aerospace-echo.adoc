@@ -9,7 +9,7 @@ include::util/man-attributes.adoc[]
 == Synopsis
 [verse]
 // tag::synopsis[]
-aerospace echo [-h|--help] [--stderr] [--window-id <window-id>] -- <string>...
+aerospace echo [-h|--help] [--stderr] [--window-id <window-id>] [--] <string>...
 
 // end::synopsis[]
 

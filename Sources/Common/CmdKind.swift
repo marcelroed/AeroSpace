@@ -74,7 +74,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
                 """
             case .echo:
                 """
-                USAGE: echo [-h|--help] [--stderr] [--window-id <window-id>] -- <string>...
+                USAGE: echo [-h|--help] [--stderr] [--window-id <window-id>] [--] <string>...
                 """
             case .enable:
                 """
