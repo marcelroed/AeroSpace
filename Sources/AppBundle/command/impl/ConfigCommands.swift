@@ -68,7 +68,8 @@ struct ConfigCommand: nonisolated Command {
     }
 
     private func getKey(_ cx: CmdContext, key: String, json: Bool, keys: Bool) throws(CmdFail) {
-        let configMap = try buildConfigMap().find(keyPath: try key.toKeyPath()[...])
+        let keyPath = try key.toKeyPath()
+        let configMap = try buildConfigMap().find(keyPath: keyPath[...])
         switch configMap {
             case .string(let string) where keys:
                 throw "--keys flag cannot be applied to scalar object '\(string)'"

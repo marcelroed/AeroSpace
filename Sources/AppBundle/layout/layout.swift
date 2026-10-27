@@ -29,7 +29,9 @@ extension Workspace {
         // window on the upper monitor to take full width. rect.height - 1 resolves this problem
         // But I also faced this problem in monitors horizontal configuration. ¯\_(ツ)_/¯
         let height = rect.height - 1
-        lastAppliedLayoutPhysicalRect = Rect(topLeftX: rect.topLeftX, topLeftY: rect.topLeftY, width: rect.width, height: height)
+        var physicalRect = rect
+        physicalRect.height = height
+        lastAppliedLayoutPhysicalRect = physicalRect
         lastAppliedLayoutVirtualRect = rect
         let root = rootTilingContainer
         let params = LayoutParams(
