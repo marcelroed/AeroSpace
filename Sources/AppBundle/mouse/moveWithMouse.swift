@@ -1,7 +1,7 @@
 import AppKit
 import Common
 
-func moveWithMouse(_ window: Window) async throws { // todo cover with tests
+func moveWithMouse(_ window: Window) async throws {
     resetClosedWindowsCache()
     switch window.placement {
         case .floating: try await moveFloatingWindow(window)
@@ -29,7 +29,7 @@ private func moveTilingWindow(_ window: Window) {
     let targetWorkspace = world.monitors.approximation(mouseLocation).activeWorkspace
     let windowUnderMouse = targetWorkspace.existingRootTilingContainer?.window(at: mouseLocation, virtual: false)
     let swapTarget = windowUnderMouse == window ? nil : windowUnderMouse
-    if targetWorkspace != window.nodeWorkspace { // Move window to a different monitor
+    if targetWorkspace != window.nodeWorkspace { // Move window to a different monitor. todo cover with tests
         let index: Int = if let swapTarget, let (parent, index) = swapTarget.tilingSlot, let targetRect = swapTarget.lastAppliedLayoutPhysicalRect {
             mouseLocation.getProjection(parent.orientation) >= targetRect.center.getProjection(parent.orientation) ? index + 1 : index
         } else {
