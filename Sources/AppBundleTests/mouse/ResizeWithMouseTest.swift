@@ -57,15 +57,11 @@ private func drag(_ id: WindowId, to frame: Rect, _ event: AxEvent) async {
     testWindow(id).rect = frame
     await world.sessions.onAxEvent(event)
     for _ in 0 ..< 100 where world.mouseManipulatedWindowId == nil { await Task.yield() }
-    await untilTheHeavyRefreshEnds()
+    await untilHeavyIdle()
 }
 
 private func releaseTheMouse() async throws {
     fake.isLeftMouseDown = false
     try await world.sessions.onLeftMouseUp()
-    await untilTheHeavyRefreshEnds()
-}
-
-private func untilTheHeavyRefreshEnds() async {
-    for _ in 0 ..< 100 where !world.sessions.isHeavyIdle { await Task.yield() }
+    await untilHeavyIdle()
 }

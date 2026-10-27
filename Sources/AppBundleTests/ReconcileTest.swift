@@ -222,7 +222,7 @@ struct ReconcileTest {
         world.sessions.scheduleHeavy(.ax("test")) // Both apps miss the deadline
         await answersOfA[0].untilWaiting()
         await answersOfB[0].untilWaiting()
-        for _ in 0 ..< 100 where !world.sessions.isHeavyIdle { await Task.yield() }
+        await untilHeavyIdle()
         expectEqual(Set(world.windows.keys), [])
 
         answersOfA[0].open() // A answers late, and a refresh lists it with the longer deadline. B's listing still runs
@@ -234,7 +234,7 @@ struct ReconcileTest {
 
         answersOfA[2].open()
         answersOfB[1].open()
-        for _ in 0 ..< 100 where !world.sessions.isHeavyIdle { await Task.yield() }
+        await untilHeavyIdle()
         expectEqual(Set(world.windows.keys), [1, 2])
         expectEqual(listings, ["A", "B", "A", "A", "B"])
         expectEqual(deadlines.deadline(appA.pid), .nanoseconds(1)) // Each longer deadline was used once
@@ -354,8 +354,7 @@ struct ReconcileTest {
         world.sessions.scheduleHeavy(.ax("test"))
         await gate.untilWaiting() // The refresh has registered 2 and runs its on-window-detected
         _ = try await world.sessions.light(.hotkeyBinding, .forceRun) {} // Cancels the refresh, presents, schedules another
-        for _ in 0 ..< 100 where !world.sessions.isHeavyIdle { await Task.yield() }
-        #expect(world.sessions.isHeavyIdle) // The light session and its heavy refresh have presented 2 on the focused workspace
+        await untilHeavyIdle() // The light session and its heavy refresh have presented 2 on the focused workspace
         expectEqual(fake.calls(of: .park), [])
 
         gate.open() // The callback moves 2 to workspace x
@@ -385,7 +384,7 @@ struct ReconcileTest {
         testWindow(1).rect = rect(100, 100, 500, 500)
         await world.sessions.onAxEvent(event)
         gate.open()
-        for _ in 0 ..< 100 where !world.sessions.isHeavyIdle { await Task.yield() }
+        await untilHeavyIdle()
         expectEqual(listings, expectedListings)
         expectEqual(testWindow(1).rect, tile)
     }
@@ -429,8 +428,7 @@ struct ReconcileTest {
         for _ in 0 ..< 100 { await Task.yield() } // A ends its callbacks
         expectEqual(focus.windowOrNil?.windowId, clicked)
         gate4.open()
-        for _ in 0 ..< 100 where !world.sessions.isHeavyIdle { await Task.yield() }
-        #expect(world.sessions.isHeavyIdle)
+        await untilHeavyIdle()
         expectEqual(focus.windowOrNil?.windowId, clicked)
         expectEqual(fake.focused, clicked)
     }

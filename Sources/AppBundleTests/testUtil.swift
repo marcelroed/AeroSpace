@@ -133,6 +133,13 @@ func runCliArgs(_ args: [String], stdin: String = "") async -> CmdOutput {
     }
 }
 
+/// Yields until no heavy refresh is scheduled or running. It records an issue if one still is after 100 yields: the test
+/// would go on to check a state that it never reached
+func untilHeavyIdle(sourceLocation: SourceLocation = #_sourceLocation) async {
+    for _ in 0 ..< 100 where !world.sessions.isHeavyIdle { await Task.yield() }
+    #expect(world.sessions.isHeavyIdle, "The heavy refresh didn't end in 100 yields", sourceLocation: sourceLocation)
+}
+
 extension Workspace {
     /// Applies the workspace's placements, without the parks of the other workspaces
     func layoutWorkspace() {
