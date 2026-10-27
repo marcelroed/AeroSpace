@@ -232,11 +232,8 @@ struct ExecAndForgetCommand: nonisolated Command {
     func run(_ cx: CmdContext) throws(CmdFail) {
         // todo shall exec-and-forget fork exec session?
         // It doesn't throw if exit code is non-zero
-        let process = Process()
-        process.environment = config.execConfig.envVariables + cx.env.asMap
-        process.executableURL = URL(filePath: "/bin/bash")
-        process.arguments = ["-c", bashScript]
-        if (try? process.run()) == nil { throw .silent }
+        let environment = config.execConfig.envVariables + cx.env.asMap
+        if !world.platform.launch("/bin/bash", ["-c", bashScript], environment: environment) { throw .silent }
     }
 }
 

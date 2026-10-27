@@ -286,6 +286,14 @@ final class LivePlatform: Platform {
         return true
     }
 
+    func launch(_ executable: String, _ arguments: [String], environment: [String: String]) -> Bool {
+        let process = Process()
+        process.executableURL = URL(filePath: executable)
+        process.arguments = arguments
+        process.environment = environment
+        return (try? process.run()) != nil
+    }
+
     // MARK: Termination
 
     nonisolated func restoreForTermination() {

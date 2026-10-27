@@ -73,6 +73,8 @@ protocol Platform: AnyObject, Sendable {
     func quit(_ app: AppInfo) -> Bool
     /// Moves the mouse cursor. false if it failed
     func warpMouse(to point: CGPoint) -> Bool
+    /// Starts the executable and doesn't wait for it. false if it can't start
+    func launch(_ executable: String, _ arguments: [String], environment: [String: String]) -> Bool
 
     // MARK: Termination
 

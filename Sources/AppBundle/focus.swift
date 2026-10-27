@@ -268,9 +268,6 @@ private func onWorkspaceChanged(_ oldWorkspace: String, _ newWorkspace: String, 
         prevWorkspace: oldWorkspace,
     ))
     if let exec = config.execOnWorkspaceChange.first {
-        let process = Process()
-        process.executableURL = URL(filePath: exec)
-        process.arguments = Array(config.execOnWorkspaceChange.dropFirst())
         var environment = config.execConfig.envVariables
         environment[AEROSPACE_FOCUSED_WORKSPACE] = newWorkspace
         environment[AEROSPACE_PREV_WORKSPACE] = oldWorkspace
@@ -281,7 +278,6 @@ private func onWorkspaceChanged(_ oldWorkspace: String, _ newWorkspace: String, 
             environment[AEROSPACE_WORKSPACE] = focus.workspace.name
             environment[AEROSPACE_WINDOW_ID] = nil
         }
-        process.environment = environment
-        _ = Result { try process.run() }
+        _ = world.platform.launch(exec, Array(config.execOnWorkspaceChange.dropFirst()), environment: environment)
     }
 }

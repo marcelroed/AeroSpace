@@ -205,6 +205,11 @@ final class FakePlatform: Platform {
         return true
     }
 
+    func launch(_ executable: String, _ arguments: [String], environment: [String: String]) -> Bool {
+        calls.append(.launch(executable, arguments, environment: environment))
+        return true
+    }
+
     nonisolated func restoreForTermination() {}
 
     private func answering(_ id: WindowId) -> FakeWindow? {
@@ -326,13 +331,13 @@ enum PlatformCall: Equatable {
     case axRead(WindowId), frame(WindowId, topLeft: CGPoint?, size: CGSize?)
     case rememberFloatingSize(WindowId), restoreFloatingSize(WindowId)
     case focus(WindowId), close(WindowId), setNative(WindowId, NativeChange), unhideApp(pid_t), quit(pid_t)
-    case warpMouse(CGPoint)
+    case warpMouse(CGPoint), launch(String, [String], environment: [String: String])
 
     enum Kind: Equatable {
         case listWindows, focusedWindow, classify, nativeFacts, observedRect
         case rect, title, facts, kind, windowCount, debugInfo
         case floating, park, leave, axRead, frame, rememberFloatingSize, restoreFloatingSize
-        case focus, close, setNative, unhideApp, quit, warpMouse
+        case focus, close, setNative, unhideApp, quit, warpMouse, launch
     }
 
     var kind: Kind {
@@ -361,6 +366,7 @@ enum PlatformCall: Equatable {
             case .unhideApp: .unhideApp
             case .quit: .quit
             case .warpMouse: .warpMouse
+            case .launch: .launch
         }
     }
 
@@ -371,7 +377,7 @@ enum PlatformCall: Equatable {
                  .floating(let id, _), .park(let id, _), .leave(let id), .axRead(let id), .frame(let id, _, _),
                  .rememberFloatingSize(let id), .restoreFloatingSize(let id), .focus(let id), .close(let id), .setNative(let id, _):
                 id
-            case .listWindows, .focusedWindow, .classify, .nativeFacts, .windowCount, .unhideApp, .quit, .warpMouse: nil
+            case .listWindows, .focusedWindow, .classify, .nativeFacts, .windowCount, .unhideApp, .quit, .warpMouse, .launch: nil
         }
     }
 }
