@@ -1,9 +1,12 @@
-nonisolated(unsafe) public var _isCli = true
-var isCli: Bool { unsafe _isCli }
-var isServer: Bool { unsafe !_isCli }
+import Synchronization
 
-nonisolated(unsafe) public var _terminationHandler: (any TerminationHandler)? = nil
-public var terminationHandler: (any TerminationHandler)? { unsafe _terminationHandler }
+/// The server's handler, installed once at startup. nil in the CLI and in tests
+public var terminationHandler: (any TerminationHandler)? { _terminationHandler.withLock { $0 } }
+private let _terminationHandler = Mutex<(any TerminationHandler)?>(nil)
+
+public func installTerminationHandler(_ handler: any TerminationHandler) {
+    _terminationHandler.withLock { $0 = handler }
+}
 
 public protocol TerminationHandler: Sendable {
     @MainActor

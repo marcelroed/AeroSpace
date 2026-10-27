@@ -23,11 +23,7 @@ func interceptTermination(_ sig: Int32) {
     signalSources.append(source)
 }
 
-func initTerminationHandler() {
-    unsafe _terminationHandler = AppServerTerminationHandler()
-}
-
-private struct AppServerTerminationHandler: TerminationHandler {
+struct AppServerTerminationHandler: TerminationHandler {
     func beforeTermination() {
         // Make all windows fullscreen before Quit
         for window in MacWindow.allWindowsMap.values {

@@ -4,9 +4,8 @@ import Foundation
 
 public func initAppBundle() {
     Task.startUnstructured {
-        initTerminationHandler()
-        unsafe _isCli = false
-        initServerArgs()
+        installTerminationHandler(AppServerTerminationHandler())
+        _ = serverArgs // `--help`, `--version` and bad args exit now
         await waitForAccessibilityPermission_nonCancellable()
         if isDebug {
             await toggleReleaseServerIfDebug(.off)
@@ -61,7 +60,7 @@ struct ServerArgs: Sendable {
     var isReadOnly: Bool = false
 }
 
-private let serverHelp = """
+nonisolated private let serverHelp = """
     USAGE: \(CommandLine.arguments.first ?? "AeroSpace.app/Contents/MacOS/AeroSpace") [<options>]
 
     OPTIONS:
@@ -73,11 +72,11 @@ private let serverHelp = """
                               Useful if you want to use only debug-windows or other query commands.
     """
 
-nonisolated(unsafe) private var _serverArgs = ServerArgs()
-/// Set at startup, before the AX threads start
-nonisolated var serverArgs: ServerArgs { unsafe _serverArgs }
-private func initServerArgs() {
-    let args = Array(CommandLine.arguments.dropFirst())
+/// The server's command line args. Parsed on the first access, at startup. Tests don't pass any
+nonisolated let serverArgs: ServerArgs = isUnitTest ? ServerArgs() : parseServerArgs(Array(CommandLine.arguments.dropFirst()))
+
+nonisolated private func parseServerArgs(_ args: [String]) -> ServerArgs {
+    var result = ServerArgs()
     if args.contains(where: { $0 == "-h" || $0 == "--help" }) {
         exit(EXIT_CODE_ZERO, out: serverHelp)
     }
@@ -90,12 +89,12 @@ private func initServerArgs() {
                 exit(EXIT_CODE_ZERO, out: "\(aeroSpaceAppVersion) \(gitHash)")
             case "--config-path":
                 switch args.getOrNil(atIndex: index) {
-                    case let arg?: unsafe _serverArgs.configLocation = arg
+                    case let arg?: result.configLocation = arg
                     case nil: exit(EXIT_CODE_TWO, err: "Missing <path> in --config-path flag")
                 }
                 index += 1
             case "--read-only": // todo rename to '--disabled' and unite with disabled feature
-                unsafe _serverArgs.isReadOnly = true
+                result.isReadOnly = true
             case "-NSDocumentRevisionsDebugMode" where isDebug:
                 // Skip Xcode CLI args.
                 // Usually it's '-NSDocumentRevisionsDebugMode NO'/'-NSDocumentRevisionsDebugMode YES'
@@ -104,7 +103,8 @@ private func initServerArgs() {
                 exit(EXIT_CODE_TWO, err: "Unrecognized flag \(current.singleQuoted)")
         }
     }
-    if let path = serverArgs.configLocation, !FileManager.default.fileExists(atPath: path) {
+    if let path = result.configLocation, !FileManager.default.fileExists(atPath: path) {
         exit(EXIT_CODE_TWO, err: "\(path) doesn't exist")
     }
+    return result
 }

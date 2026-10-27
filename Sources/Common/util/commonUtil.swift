@@ -52,7 +52,7 @@ public func bugPrompt(
         macOS version: \(ProcessInfo.processInfo.operatingSystemVersionString)
         Coordinate: \(file):\(line):\(column) \(function)
         recursionDetectorDuringTermination: \(recursionDetectorDuringTermination)
-        cli: \(isCli)
+        server: \(terminationHandler != nil)
         die: \(isDie)
         Monitor count: \(monitorCount)
         Displays have separate spaces: \(screensHaveSeparateSpaces)
@@ -72,7 +72,7 @@ public func dieT<T>(
     let id = ObjectIdentifier(Thread.current)
     dyingThreads.withLock { _ = $0.insert(id) }
     let message = bugPrompt(__message, isDie: true, file: file, line: line, column: column, function: function)
-    if !isUnitTest && isServer {
+    if terminationHandler != nil { // The server, not the CLI or tests
         showMessageInGui(
             filenameIfConsoleApp: recursionDetectorDuringTermination
                 ? "aerospace-runtime-error-recursion.txt"
