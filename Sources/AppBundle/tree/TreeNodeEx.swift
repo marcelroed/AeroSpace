@@ -50,11 +50,9 @@ extension TreeNode {
     /// nil for the minimized and popup windows: their containers are roots, like workspaces
     var nodeMonitor: MonitorInfo? { nodeWorkspace?.workspaceMonitor }
 
-    /// Follows the most recent children down to a window. A child without windows (an empty root container) is skipped
-    /// for the next most recent one
+    /// Follows the most recent children down to a window. nil if that path ends in a container without windows
     var mostRecentWindowRecursive: Window? {
-        if let window = self as? Window { return window }
-        return mostRecentChild?.mostRecentWindowRecursive ?? mruChildren.dropFirst().lazy.compactMap(\.mostRecentWindowRecursive).first
+        self as? Window ?? mostRecentChild?.mostRecentWindowRecursive
     }
 
     var anyLeafWindowRecursive: Window? {

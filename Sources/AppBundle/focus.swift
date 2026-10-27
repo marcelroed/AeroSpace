@@ -105,7 +105,15 @@ extension Workspace {
     func focusWorkspace() -> Bool { setFocus(to: toLiveFocus()) }
 
     func toLiveFocus() -> LiveFocus {
-        LiveFocus(windowOrNil: mostRecentWindowRecursive, workspace: self) // nil window: empty workspace
+        // nil window: empty workspace
+        LiveFocus(windowOrNil: mostRecentWindowRecursive ?? mostRecentWindowPastEmptyRoot ?? anyLeafWindowRecursive, workspace: self)
+    }
+
+    /// After the last tiling window closes, the empty root stays the most recent child (RB-77). Then the most recent window
+    /// of the other children, instead of the first one in DFS order
+    private var mostRecentWindowPastEmptyRoot: Window? {
+        guard let root = mostRecentChild as? TilingContainer, root.isEffectivelyEmpty else { return nil }
+        return mruChildren.dropFirst().lazy.compactMap(\.mostRecentWindowRecursive).first
     }
 }
 

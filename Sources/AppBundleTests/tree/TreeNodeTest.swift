@@ -101,13 +101,47 @@ struct TreeNodeTest {
     }
 
     @Test
-    func mostRecentWindowSkipsAnEmptyRootContainer() {
+    func toLiveFocusSkipsAnEmptyRootContainer() { // RB-77
         let workspace = setUpTree("h_tiles(1) floating(2 3)", workspace: "a")
         testWindow(1).markAsMostRecentChild()
         testWindow(1).unbindFromParent() // The last tiling window closes. The empty root stays the most recent child
         #expect(workspace.mostRecentChild === workspace.rootTilingContainer)
-        #expect(workspace.mostRecentWindowRecursive?.windowId == 3) // The most recent floating window, not the first one
-        #expect(workspace.toLiveFocus().windowOrNil?.windowId == 3)
+        #expect(workspace.mostRecentWindowRecursive == nil)
+        #expect(workspace.toLiveFocus().windowOrNil?.windowId == 3) // The most recent floating window, not the first one
+    }
+
+    @Test(arguments: [
+        ("h_tiles(1 v_tiles(2 3)) floating(4)", 4 as UInt32), // The only floating window closes
+        ("h_tiles(1 v_tiles(2) 3)", 2), // The only window of a nested container closes
+    ])
+    func toLiveFocusFallsBackToTheFirstWindowPastAnEmptyContainer(tree: String, closedWindowId: UInt32) {
+        let workspace = setUpTree(tree, workspace: "a")
+        testWindow(3).markAsMostRecentChild()
+        testWindow(closedWindowId).markAsMostRecentChild()
+        testWindow(closedWindowId).unbindFromParent() // The empty container stays the most recent child
+        #expect(workspace.mostRecentWindowRecursive == nil)
+        #expect(workspace.toLiveFocus().windowOrNil?.windowId == 1) // The first window in DFS order, not the most recent one
+    }
+
+    /// Where a new tiling window goes (`layout tiling` on a floating window uses the same slot): after the most recent
+    /// window if it's tiling, else at the end of the root
+    @Test(arguments: [
+        ("h_tiles(1 v_tiles(2 3) 4)", nil as UInt32?, "h_tiles(1 v_tiles(2 5 3) 4)"),
+        // The only floating window (a dialog) closed. The empty floating container is the most recent child
+        ("h_tiles(1 v_tiles(2 3) 4) floating(6)", 6, "h_tiles(1 v_tiles(2 3) 4 5)"),
+        // The most recent window is floating
+        ("h_tiles(1 v_tiles(2 3) 4) floating(6 7)", 6, "h_tiles(1 v_tiles(2 3) 4 5) floating(7)"),
+    ])
+    func newTilingWindowSlot(tree: String, closedWindowId: UInt32?, after: String) async throws {
+        let workspace = setUpTree(tree, workspace: "a")
+        testWindow(2).markAsMostRecentChild()
+        if let closedWindowId {
+            testWindow(closedWindowId).markAsMostRecentChild()
+            testWindow(closedWindowId).unbindFromParent()
+        }
+        let window = TestWindow.new(id: 5, parent: macosPopupWindowsContainer)
+        try await window.relayoutWindow(on: workspace, .cancellable, forceTile: true)
+        #expect(describeTree("a") == after)
     }
 
     @Test

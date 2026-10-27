@@ -65,6 +65,20 @@ struct LayoutCommandTest {
         #expect(describeTree() == after)
     }
 
+    /// The window goes to the end of the root, not after the most recent tiling window
+    @Test(arguments: [
+        ("v_tiles(*1 2) floating(3)", 3 as UInt32, "v_tiles(1 2 *3)"),
+        ("h_tiles(6 v_tiles(*7)) floating(9)", 9, "h_tiles(6 v_tiles(7) *9)"),
+        ("v_tiles(*1 2) floating(3 4)", 3, "v_tiles(1 2 *3) floating(4)"), // With another floating window
+    ], ["layout tiling", "layout floating tiling"])
+    func tilingOnFloatingWindow(tree: (before: String, floatingWindowId: UInt32, after: String), command: String) async {
+        setUpTree(tree.before)
+        #expect(testWindow(tree.floatingWindowId).focusWindow())
+        let output = await runCmd(command)
+        #expect(output == .ok)
+        #expect(describeTree() == tree.after)
+    }
+
     @Test(arguments: [
         ("h_tiles(*1 2)", "layout h_tiles", alreadyIn("h_tiles")),
         ("h_tiles(*1 2)", "layout tiling", alreadyIn("tiling")),
