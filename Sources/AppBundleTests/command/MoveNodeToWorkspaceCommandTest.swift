@@ -60,22 +60,22 @@ struct MoveNodeToWorkspaceCommandTest {
 
     @Test
     func focusFollowsWindow() async {
-        setUpTree("h_tiles(*1)", workspace: "a")
+        let source = setUpTree("h_tiles(*1)", workspace: "a") // Held: get(byName:) would recreate a collected workspace
         let output = await runCmd("move-node-to-workspace --focus-follows-window b")
         #expect(output == .ok)
         #expect(focus.workspace.name == "b")
         #expect(describeTree("b") == "h_tiles(*1)")
-        #expect(Workspace.get(byName: "a").isEffectivelyEmpty)
+        #expect(source.isEffectivelyEmpty)
     }
 
     @Test
     func summonWindow() async {
         setUpTree("h_tiles(*1)", workspace: "a")
-        setUpTree("h_tiles(2)", workspace: "b")
+        let source = setUpTree("h_tiles(2)", workspace: "b") // Held: get(byName:) would recreate a collected workspace
         let output = await runCmd("move-node-to-workspace --window-id 2 a")
         #expect(output == .ok)
         #expect(describeTree("a") == "h_tiles(*1 2)")
-        #expect(Workspace.get(byName: "b").isEffectivelyEmpty)
+        #expect(source.isEffectivelyEmpty)
     }
 
     @Test
