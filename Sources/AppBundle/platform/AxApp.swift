@@ -49,7 +49,7 @@ actor AxApp {
     /// An awaited read that waits for the app, however long it takes. nil without running `body` once termination
     /// started: the restore job waits behind it
     func run<T: Sendable>(_ body: @Sendable (isolated AxApp) -> T?) -> T? {
-        if isTerminating.load(ordering: .sequentiallyConsistent) { return nil }
+        if isTerminatingNow() { return nil }
         return body(self)
     }
 
@@ -63,7 +63,6 @@ actor AxApp {
         try checkCancellation()
         let result: FirstOutcome<Result<T, CancellationError>> = FirstOutcome()
         post { app in
-            func isTerminatingNow() -> Bool { isTerminating.load(ordering: .sequentiallyConsistent) }
             if result.isResolved { return } // Cancelled before the body started: skip the AX calls
             if isTerminatingNow() {
                 result.resolve(.failure(CancellationError()))
@@ -220,8 +219,7 @@ actor AxApp {
             let windowId = placement.windowId.raw
             if let ax = windows[windowId]?.ax {
                 let window = AxPlacementWindow(ax: ax, animations: animations) { @Sendable [self] in
-                    self.generations.withLock { $0.isLatest(windowId, generation) } &&
-                        !isTerminating.load(ordering: .sequentiallyConsistent)
+                    self.generations.withLock { $0.isLatest(windowId, generation) } && !isTerminatingNow()
                 }
                 windows[windowId]?.placement.apply(placement, to: window)
             }
@@ -233,9 +231,8 @@ actor AxApp {
     func rememberFloatingSize(_ windowId: UInt32) {
         guard let ax = windows[windowId]?.ax else { return }
         // It only reads: the animations stay on
-        windows[windowId]?.placement.rememberFloatingSize(of: AxPlacementWindow(ax: ax, animations: AnimationsOff(element)) { @Sendable in
-            !isTerminating.load(ordering: .sequentiallyConsistent)
-        })
+        let window = AxPlacementWindow(ax: ax, animations: AnimationsOff(element)) { @Sendable in !isTerminatingNow() }
+        windows[windowId]?.placement.rememberFloatingSize(of: window)
     }
 
     /// `layout floating`, see ``PlacementState/restoreFloatingSize(to:)``
@@ -243,9 +240,8 @@ actor AxApp {
         guard let window = windows[windowId] else { return }
         let animations = AnimationsOff(element)
         defer { animations.restore() }
-        window.placement.restoreFloatingSize(to: AxPlacementWindow(ax: window.ax, animations: animations) { @Sendable in
-            !isTerminating.load(ordering: .sequentiallyConsistent)
-        })
+        let ax = AxPlacementWindow(ax: window.ax, animations: animations) { @Sendable in !isTerminatingNow() }
+        window.placement.restoreFloatingSize(to: ax)
     }
 
     /// Termination: moves the window to the frame that `monitors` computes from its current rect and last floating size
@@ -377,6 +373,9 @@ nonisolated private func axRect(_ window: AXUIElement) -> Rect? {
     guard let topLeft, let size else { return nil }
     return Rect(topLeftX: topLeft.x, topLeftY: topLeft.y, width: size.width, height: size.height)
 }
+
+/// Termination started: the restore job waits behind the app's jobs, so they stop before their next AX call
+nonisolated private func isTerminatingNow() -> Bool { isTerminating.load(ordering: .sequentiallyConsistent) }
 
 /// A window of the app for ``PlacementState``, on the app's thread
 nonisolated private struct AxPlacementWindow: PlacementWindow {
