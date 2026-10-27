@@ -104,18 +104,27 @@ struct ClientServerTest: AeroSpaceTestSuite {
 
     @Test
     func testServerEventDecoding() {
-        let testData: [(String, ServerEventType)] = [
-            (#"{"_event":"focus-changed","windowId":123,"workspace":"1","monitorId":1}"#, .focusChanged),
-            (#"{"_event":"focused-monitor-changed","workspace":"2","monitorId":1}"#, .focusedMonitorChanged),
-            (#"{"_event":"focused-workspace-changed","workspace":"2","prevWorkspace":"1"}"#, .workspaceChanged),
-            (#"{"_event":"mode-changed","mode":"resize"}"#, .modeChanged),
-            (#"{"_event":"window-detected","windowId":456}"#, .windowDetected),
-            (#"{"_event":"binding-triggered","mode":"main","binding":"alt-h"}"#, .bindingTriggered),
+        let testData: [(String, ServerEvent)] = [
+            (#"{"_event":"focus-changed","windowId":123,"workspace":"1"}"#,
+             .focusChanged(windowId: 123, workspace: "1")),
+            (#"{"_event":"focused-monitor-changed","workspace":"2","monitorId":1}"#,
+             .focusedMonitorChanged(workspace: "2", monitorId_oneBased: 1)),
+            (#"{"_event":"focused-workspace-changed","workspace":"2","prevWorkspace":"1"}"#,
+             .workspaceChanged(workspace: "2", prevWorkspace: "1")),
+            (#"{"_event":"mode-changed","mode":"resize"}"#,
+             .modeChanged(mode: "resize")),
+            (#"{"_event":"window-detected","windowId":456}"#,
+             .windowDetected(windowId: 456, workspace: nil, appBundleId: nil, appName: nil)),
+            (#"{"_event":"window-detected","windowId":456,"workspace":"1","appBundleId":"com.example","appName":"Example"}"#,
+             .windowDetected(windowId: 456, workspace: "1", appBundleId: "com.example", appName: "Example")),
+            (#"{"_event":"binding-triggered","mode":"main","binding":"alt-h"}"#,
+             .bindingTriggered(mode: "main", binding: "alt-h")),
         ]
-        for (json, expectedEventType) in testData {
+        for (json, expected) in testData {
             let data = json.data(using: .utf8)!
             let event = try! JSONDecoder().decode(ServerEvent.self, from: data)
-            assertEquals(event.eventType, expectedEventType)
+            // ServerEvent isn't Equatable. Its description lists every stored property, so this compares all fields
+            assertEquals(String(describing: event), String(describing: expected))
         }
     }
 }
