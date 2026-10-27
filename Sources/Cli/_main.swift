@@ -88,7 +88,7 @@ private func printVersionAndExit() async -> Never {
     } else {
         // Any answer carries the server version, even the failure of an empty request
         let request = ClientRequest(args: [], stdin: "", windowId: nil, workspace: nil)
-        let answer = await withTimeout(seconds: versionAnswerTimeoutSeconds) { await trySend(connection, request) }
+        let answer = await withTimeout(.seconds(versionAnswerTimeoutSeconds)) { await trySend(connection, request) }
         let timeout = NoAnswer.failed("AeroSpace.app accepted the connection, but didn't answer within \(versionAnswerTimeoutSeconds) seconds")
         server = (answer ?? .failure(timeout)).map(\.serverVersionAndHash)
     }

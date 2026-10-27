@@ -175,7 +175,7 @@ struct SubscribeTest {
         }
         await expectSubscriptions(1)
         var stalledFrames = 0
-        while case .success = await withTimeout(seconds: 5, { await stalled.readFrame() }) { stalledFrames += 1 }
+        while case .success = await withTimeout(.seconds(5), { await stalled.readFrame() }) { stalledFrames += 1 }
         #expect(stalledFrames < maxQueuedEvents, "\(stalledFrames)")
         await expectEvents(reading, [])
     }
@@ -231,7 +231,7 @@ private func expectEvents(
 /// The next `count` frames of `client`, or fewer and why the read stopped
 private func readFrames(_ client: NWConnection, count: Int) async -> [String] {
     // One timeout for all of them: a missing event fails, rather than hangs
-    let frames: [String]? = await withTimeout(seconds: 5) {
+    let frames: [String]? = await withTimeout(.seconds(5)) {
         var frames: [String] = []
         for _ in 0 ..< count {
             let frame = await client.readFrame()

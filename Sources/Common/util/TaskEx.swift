@@ -22,8 +22,8 @@ extension Task  /*This comment breaks the regex in lint.sh*/ {
     }
 }
 
-/// nil if `body` doesn't finish within `seconds`. `body` can't be cancelled, so it keeps running then
-public func withTimeout<T: Sendable>(seconds: Int, _ body: @escaping @Sendable () async -> T) async -> T? {
+/// nil if `body` doesn't finish within `timeout`. `body` can't be cancelled, so it keeps running then
+public func withTimeout<T: Sendable>(_ timeout: DispatchTimeInterval, _ body: @escaping @Sendable () async -> T) async -> T? {
     await withCheckedContinuation { cont in
         let isDone = Mutex(false)
         let resume: @Sendable (T?) -> Void = { result in
@@ -35,6 +35,6 @@ public func withTimeout<T: Sendable>(seconds: Int, _ body: @escaping @Sendable (
             if !wasAlreadyDone { cont.resume(returning: result) }
         }
         Task.startUnstructured { resume(await body()) }
-        DispatchQueue.global().asyncAfter(deadline: .now() + .seconds(seconds)) { resume(nil) }
+        DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { resume(nil) }
     }
 }

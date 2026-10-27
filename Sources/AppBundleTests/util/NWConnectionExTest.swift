@@ -39,7 +39,7 @@ struct NWConnectionExTest {
         await expectEqual(connection.initConnection().error, nil)
         let request = ClientRequest(args: ["list-workspaces", "--all"], stdin: "", windowId: nil, workspace: nil)
         await expectEqual(connection.writeAtomic(request).error, nil)
-        let read = await withTimeout(seconds: expected == .timeout ? 1 : 5) { await connection.readFrame() }
+        let read = await withTimeout(expected == .timeout ? .milliseconds(100) : .seconds(5)) { await connection.readFrame() }
         let outcome: ReadOutcome? = switch read {
             case nil: .timeout
             case .failure(.closed): .closed
@@ -76,7 +76,7 @@ struct NWConnectionExTest {
         await expectEqual(connection.initConnection().error, nil)
         // A client from before the frames sends its protocol version, 1, and waits for the server's
         await connection.sendAndWait(withUnsafeBytes(of: UInt32(1)) { unsafe Data($0) })
-        let serverVersion = await withTimeout(seconds: 5) { await connection.receiveUInt32() }
+        let serverVersion = await withTimeout(.seconds(5)) { await connection.receiveUInt32() }
         expectEqual(serverVersion, .some(.some(2)))
     }
 
@@ -106,7 +106,7 @@ struct NWConnectionExTest {
             }
             connection.cancel()
         }
-        switch await withTimeout(seconds: 5, { await connection.initConnection().error }) {
+        switch await withTimeout(.seconds(5), { await connection.initConnection().error }) {
             case .some(.some): break
             case let other: Issue.record("Expected an error, got \(other.map { String(describing: $0) } ?? "a timeout")")
         }
