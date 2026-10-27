@@ -1,7 +1,7 @@
 /// P2's step for the macOS states: a window that macOS made fullscreen or minimized, or whose app is hidden, moves to the
 /// container of that state, and moves back when the state ends. A window without facts (gone, or its app didn't answer)
 /// stays as it is. `kinds`: the kinds of the windows whose state hid their kind. Such a window ends its state only after an
-/// on-screen read of its kind (R2a M1)
+/// on-screen read of its kind (``DetectedWindow/kindOnScreen``)
 func normalizeLayoutReason(_ facts: [WindowId: NativeFacts], _ kinds: [WindowId: DetectedWindow]) {
     for workspace in Workspace.all {
         for window in workspace.allLeafWindowsRecursive {

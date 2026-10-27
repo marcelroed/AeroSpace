@@ -6,8 +6,9 @@ import Synchronization
 /// notification of its observers runs there, so a hung app blocks only its own thread. ``LivePlatform`` keeps one per app.
 /// - Reads are isolated synchronous methods. LivePlatform awaits them (`run`), or makes them abandonable (`call`).
 /// - Writes are `post`s: FIFO and never awaited. Each closure that runs here is `@Sendable` with an `isolated AxApp`
-///   parameter, never inferred `@MainActor` (P3).
-/// - No `await` and no `Task` inside its methods (P4, P5), and nothing spins the run loop (P2).
+///   parameter: a closure that inherits `@MainActor` traps on this thread.
+/// - No `await` in its methods: later posts would run in the middle, out of order. No `Task`: it would run off this
+///   thread. Nothing spins the run loop: an observer callback would enter the actor in the middle of a method.
 actor AxApp {
     nonisolated let pid: pid_t
     /// The latest-wins slot of each window's placement (0f1b849d). See ``postWindowWrite(_:_:)``
@@ -33,7 +34,7 @@ actor AxApp {
     isolated deinit {
         subscription = nil
         windows = [:]
-        executor.shutdown() // P8: only here
+        executor.shutdown() // Only here: a job enqueued after it would never run
     }
 
     // MARK: Calls from the main actor
@@ -45,17 +46,17 @@ actor AxApp {
         }
     }
 
-    /// An awaited read that waits for the app, however long it takes (P7). nil without running `body` once termination
-    /// started: the restore job waits behind it (R2a L2)
+    /// An awaited read that waits for the app, however long it takes. nil without running `body` once termination
+    /// started: the restore job waits behind it
     func run<T: Sendable>(_ body: @Sendable (isolated AxApp) -> T?) -> T? {
         if isTerminating.load(ordering: .sequentiallyConsistent) { return nil }
         return body(self)
     }
 
-    /// An awaited read that the caller can abandon, so that a hung app can't hold a refresh (P7). On cancellation it
+    /// An awaited read that the caller can abandon, so that a hung app can't hold a refresh. On cancellation it
     /// throws right away. The body is skipped if it hasn't started yet; otherwise it runs to the end here and its result
     /// is dropped. The body can poll `isAbandoned` to stop early, but must then leave the actor's state unchanged.
-    /// Termination abandons it too: the restore job waits behind it (R2a L2)
+    /// Termination abandons it too: the restore job waits behind it
     nonisolated func call<T: Sendable>(
         _ body: @escaping @Sendable (isolated AxApp, _ isAbandoned: () -> Bool) -> T,
     ) async throws(CancellationError) -> T {
@@ -102,9 +103,9 @@ actor AxApp {
         }
     }
 
-    /// Posts one job for the app's placements of a batch, in the batch's order (design-m2 D4). Each placement is its
-    /// window's latest write until a newer write of the window is posted (as ``postWindowWrite(_:_:)``), and it stops,
-    /// also between its AX calls, once it's stale or termination starts
+    /// Posts one job for the app's placements of a batch, in the batch's order. Each placement is its window's latest
+    /// write until a newer write of the window is posted (as ``postWindowWrite(_:_:)``), and it stops, also between its AX
+    /// calls, once it's stale or termination starts
     nonisolated func postPlacements(_ placements: [Placement]) {
         let generations: [UInt64] = self.generations.withLock { generations in placements.map { generations.bump($0.windowId.raw) } }
         post { app in app.place(placements, generations) }
@@ -137,10 +138,10 @@ actor AxApp {
             for (id, window) in alive {
                 if isAbandoned() { return [] }
                 // Liveness via _AXUIElementGetWindow, not the unreliable kAXUIElementDestroyedNotification (405dec8b).
-                // PF-1: a listed CFEqual element has just answered containingWindowId() in the windowsAttr getter
+                // A listed (CFEqual) element is alive: the windowsAttr getter has just read its window id
                 if isBusy || listed.contains(where: { $0.ax == window.ax }) { continue }
                 let (error, windowId) = window.ax.containingWindowIdWithError()
-                // A timeout is no evidence that the window is gone, and the next call would wait as long (R2a L4)
+                // A timeout is no evidence that the window is gone, and the next call would wait as long
                 if error == .cannotComplete {
                     isBusy = true
                 } else if windowId == nil {
@@ -168,7 +169,7 @@ actor AxApp {
     }
 
     /// The native states of the windows that are registered. It stops after an AX timeout: the app is busy, each further
-    /// read would wait as long, and a timed-out read tells nothing (R2a L1). The windows from there are missing, and so
+    /// read would wait as long, and a timed-out read tells nothing. The windows from there are missing, and so
     /// is a window whose read failed otherwise (e.g. it closed after the listing): a failed read tells nothing either
     func nativeFacts(_ windowIds: [UInt32], _ isAbandoned: () -> Bool) -> [(UInt32, NativeFacts)] {
         var result: [(UInt32, NativeFacts)] = []
@@ -186,7 +187,7 @@ actor AxApp {
     /// The native states of one window that is registered
     func nativeFacts(of windowId: UInt32) -> NativeFactsRead {
         guard let window = windows[windowId]?.ax else { return .closed }
-        // PF-3: one IPC instead of two. A failed attribute comes back as an AXValue error, which the getters map to nil
+        // One IPC instead of two. A failed attribute comes back as an AXValue error, which the getters map to nil
         // like a failed get
         let (error, values) = window.getMultiple([Ax.isFullscreenAttr.key, Ax.minimizedAttr.key])
         if error == .cannotComplete { return .noAnswer }
@@ -195,7 +196,7 @@ actor AxApp {
         if error == .success, let values, values.count == 2 {
             isFullscreen = Ax.isFullscreenAttr.getter(values[0]) == true
             isMinimized = Ax.minimizedAttr.getter(values[1]) == true
-        } else { // One read per attribute (R2c L3)
+        } else { // An app that can't answer both at once: one read per attribute
             let fullscreenRead = window.getWithError(Ax.isFullscreenAttr)
             if fullscreenRead.error == .cannotComplete { return .noAnswer }
             guard let fullscreen = fact(fullscreenRead) else { return .closed }
@@ -262,7 +263,7 @@ actor AxApp {
         nsApp.activateForNativeFocus()
     }
 
-    /// Presses the window's close button. On success, unregisters the window
+    /// On success, unregisters the window
     func close(_ windowId: UInt32) {
         guard let closeButton = windows[windowId]?.ax.get(Ax.closeButtonAttr) else { return }
         if closeButton.cast.perform(kAXPressAction) {
@@ -388,11 +389,11 @@ nonisolated func axObserverCallback(
     _ refcon: UnsafeMutableRawPointer?,
 ) {
     guard let refcon = unsafe refcon else { return }
-    // No strong reference, not even a temporary one (P8): if it were the last one, the isolated deinit would run inline,
+    // No strong reference, not even a temporary one: if it were the last one, the isolated deinit would run inline,
     // inside this AXObserver callout, and release the observer whose callout is on the stack. Without it, the last
     // release happens elsewhere, and the deinit runs as a job after the callout
     let pid = unsafe Unmanaged<AxApp>.fromOpaque(refcon)._withUnsafeGuaranteedRef { app in
-        app.preconditionIsolated() // P1: traps on another thread
+        app.preconditionIsolated()
         return app.pid
     }
     let event: AxEvent

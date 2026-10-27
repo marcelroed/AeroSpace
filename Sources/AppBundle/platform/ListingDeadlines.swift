@@ -2,15 +2,15 @@ import Common
 import Foundation
 import Synchronization
 
-/// The deadline of each app's window listing in a heavy refresh (R2b L3): a hung app doesn't hold the refresh's reads of
+/// The deadline of each app's window listing in a heavy refresh: a hung app doesn't hold the refresh's reads of
 /// the other apps. An app that misses its deadline doesn't answer for this refresh, and its listing goes on; until that
 /// listing returns, the refreshes don't ask the app again.
 ///
 /// The deadline is twice the app's last answer time, between `minDeadline` and `maxDeadline`. An app that doesn't answer
 /// (an AX timeout) is back at `minDeadline`. The cap keeps one slow answer (e.g. the listing of an app that turned busy
-/// during it, with AX timeouts inside) from holding every refresh while the app stays busy (R2c M2). If a late listing
+/// during it, with AX timeouts inside) from holding every refresh while the app stays busy. If a late listing
 /// answers, a heavy refresh lists the app again, and the deadline is twice the late answer's time, past the cap, until a
-/// listing answers or misses it (a cancelled refresh keeps it, R2d M1): a slow app gets its windows registered. The late
+/// listing answers or misses it (a cancelled refresh keeps it): a slow app gets its windows registered. The late
 /// answer itself is dropped: it may be older than a window that a light session registered since, and the GC would drop
 /// that one
 final class ListingDeadlines {
@@ -23,7 +23,7 @@ final class ListingDeadlines {
     /// The apps whose listing missed its deadline and still runs
     private var lateApps: Set<pid_t> = []
     /// How long each app's late answer took, until a listing with a deadline answers in time or misses it. A cancelled
-    /// refresh doesn't use it up: its listing can be cancelled by another app's late answer (R2d M1)
+    /// refresh doesn't use it up: its listing can be cancelled by another app's late answer
     private var lateAnswerTimes: [pid_t: Duration] = [:]
     /// Waits until a deadline passes: `Task.sleep`, or a test's gate
     private let sleep: (Duration) async -> ()
@@ -76,7 +76,7 @@ final class ListingDeadlines {
                             }
                         case .deadline:
                             // Late: the refresh went on without the app. Only a late listing clears the mark: the listing
-                            // of a refresh that was cancelled before the deadline didn't set it, a newer listing did (R2c L1)
+                            // of a refresh that was cancelled before the deadline didn't set it, a newer listing did
                             lateApps.remove(pid)
                             switch answer {
                                 case .some(.some):

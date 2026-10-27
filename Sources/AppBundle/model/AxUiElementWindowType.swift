@@ -93,8 +93,6 @@ nonisolated extension AxUiElementMock {
         return false
     }
 
-    /// Alternative name: !isPopup
-    ///
     /// Why do we need to filter out non-windows?
     /// - "floating by default" workflow
     /// - It's annoying that the focus command treats these popups as floating windows
@@ -198,7 +196,7 @@ nonisolated extension AxUiElementMock {
 
     /// nil if the kind depends on the window's level and the level is unknown: the window server tells the levels of the
     /// on-screen windows only. A window that is minimized, of a hidden app or on another Space has none. Guessing would
-    /// demote a picture-in-picture window to a window or a dialog, or make a window a popup (R2a M1, RB-85)
+    /// demote a picture-in-picture window to a window or a dialog, or make a window a popup (RB-85)
     func getWindowType(
         axApp: AxUiElementMock,
         _ id: KnownBundleId?,

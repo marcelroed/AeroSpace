@@ -26,7 +26,6 @@ nonisolated enum Placement: Equatable, Sendable {
 
 /// Where a ``Placement/floating(_:_:)`` window belongs
 nonisolated struct FloatingTarget: Equatable, Sendable {
-    /// The workspace's monitor
     let monitor: MonitorInfo
     /// All the monitors, to find the one the window is on
     let monitors: NonEmptyArray<MonitorInfo>
@@ -77,7 +76,7 @@ nonisolated struct PlacementState {
     var isParked: Bool { parkedAt != nil }
 
     mutating func apply(_ placement: Placement, to window: some PlacementWindow) {
-        guard window.isCurrent() else { return } // Before any AX call: termination waits for this job (R-PLAT L4)
+        guard window.isCurrent() else { return } // Before any AX call: termination waits for this job
         switch placement {
             case .frame(_, let topLeft, let size):
                 // Every present reads where the window is, so a window that the app or the user moved goes back. It writes

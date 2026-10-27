@@ -20,7 +20,6 @@ protocol Platform: AnyObject, Sendable {
     var hasScreens: Bool { get }
     /// The registered apps: the regular apps and the other apps whose window got focused
     func runningApps() -> [AppInfo]
-    /// Whether the user hid the app (cmd-h)
     func isHidden(_ app: AppInfo) -> Bool
     var isLeftMouseDown: Bool { get }
     var mouseLocation: CGPoint { get }
@@ -40,8 +39,8 @@ protocol Platform: AnyObject, Sendable {
     func classify(_ windows: [AppInfo: [WindowId]]) async throws(CancellationError) -> [WindowId: DetectedWindow]
     /// A window that is gone is missing
     func nativeFacts(_ windows: [AppInfo: [WindowId]]) async throws(CancellationError) -> [WindowId: NativeFacts]
-    /// The focused window of the frontmost app; registers the app. Abandonable unlike D3's session read: the light session
-    /// that preempts a heavy one must not wait for a hung frontmost app
+    /// The focused window of the frontmost app; registers the app. Abandonable: the light session that preempts a heavy
+    /// one must not wait for a hung frontmost app
     func focusedWindow() async throws(CancellationError) -> FocusedWindow?
     /// The `debug-windows` dumps of the windows, for a recording. A window that is gone is missing
     func debugInfos(_ windows: [AppInfo: [WindowId]]) async throws(CancellationError) -> [WindowId: WindowDebugInfo]
@@ -63,7 +62,6 @@ protocol Platform: AnyObject, Sendable {
     func apply(_ batch: [Placement])
     /// The window's size now is its floating size (``PlacementState/lastFloatingSize``)
     func rememberFloatingSize(_ id: WindowId)
-    /// Gives the window its floating size back
     func restoreFloatingSize(_ id: WindowId)
     /// Gives the window the native focus: raises it and activates its app
     func focus(_ id: WindowId)
@@ -100,7 +98,6 @@ nonisolated struct AppInfo: Hashable, Sendable {
     var knownBundleId: KnownBundleId? { bundleId.flatMap(KnownBundleId.init) }
 }
 
-/// What ``Platform/listWindows()`` found for one app
 nonisolated enum AppWindows: Sendable {
     /// The app's alive windows, in the order the app lists them
     case listed(AppInfo, [WindowId])
@@ -108,7 +105,6 @@ nonisolated enum AppWindows: Sendable {
     case noAnswer(AppInfo)
 }
 
-/// What the classification found for a window
 nonisolated struct DetectedWindow: Equatable, Sendable {
     let kind: AxUiElementWindowType
     /// nil if AX doesn't tell
@@ -118,7 +114,7 @@ nonisolated struct DetectedWindow: Equatable, Sendable {
     let level: MacOsWindowLevel?
 
     /// The kind, if it may change a window's classification: an off-screen window's kind is a guess. Its level is unknown,
-    /// and macOS gives minimized windows and the windows of hidden apps the AXDialog subrole (R2a M1)
+    /// and macOS gives minimized windows and the windows of hidden apps the AXDialog subrole
     var kindOnScreen: AxUiElementWindowType? { level == nil ? nil : kind }
 }
 
@@ -134,7 +130,7 @@ nonisolated enum NativeFactsRead: Equatable, Sendable {
     case facts(NativeFacts)
     /// The window closed, or its app terminated
     case closed
-    /// The app didn't answer: the AX timeout of a busy app (R2c L4)
+    /// The app didn't answer: the AX timeout of a busy app
     case noAnswer
 }
 

@@ -42,7 +42,7 @@ final class LivePlatform: Platform {
     func runningApps() -> [AppInfo] { apps.values.map(\.info) }
     func isHidden(_ app: AppInfo) -> Bool { apps[app.pid]?.nsApp.isHidden == true }
     var isLeftMouseDown: Bool { isLeftMouseButtonDown }
-    /// Same motivation as in monitorFrameNormalized
+    /// AppKit's y axis goes up from the main monitor's bottom, AX's goes down from its top
     var mouseLocation: CGPoint { NSEvent.mouseLocation.withYAxisFlipped }
     var counters: [String: Int] { axCallCounts.withLock { $0 } }
 
@@ -75,9 +75,8 @@ final class LivePlatform: Platform {
                         return (pid, windowIds)
                     }
                 }
-                // Register new apps
                 for (index, nsApp) in NSWorkspace.shared.runningApplications.enumerated() {
-                    // PF-6: each activationPolicy read is a launchservicesd XPC, and there are hundreds of apps.
+                    // Each activationPolicy read is a launchservicesd XPC, and there are hundreds of apps.
                     // Yield now and then, so that a light session (`Sessions.light`) can cancel this refresh instead of
                     // waiting for the whole loop
                     if index % 16 == 15 { await Task.yield() }
@@ -132,7 +131,7 @@ final class LivePlatform: Platform {
         let levels = onScreenWindowLevels()
         var toClassify: [AppInfo: [WindowId]] = [:]
         for (app, ids) in windows {
-            // An off-screen window whose kind depends on its level has no kind yet: no AX job for it (R2c L5)
+            // An off-screen window whose kind depends on its level has no kind yet: no AX job for it
             let ids = kindNeedsWindowLevel(app.knownBundleId) ? ids.filter { levels[$0.raw] != nil } : ids
             if !ids.isEmpty { toClassify[app] = ids }
         }
@@ -208,7 +207,7 @@ final class LivePlatform: Platform {
 
     // MARK: Effects
 
-    /// One job per app: its placements in the batch's order (design-m2 D4)
+    /// One job per app: its placements in the batch's order
     func apply(_ batch: [Placement]) {
         var jobs: [pid_t: (app: LiveApp, placements: [Placement])] = [:]
         for placement in batch {

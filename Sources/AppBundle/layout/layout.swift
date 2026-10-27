@@ -9,9 +9,9 @@ struct WindowFrame: Equatable {
     let size: CGSize
 }
 
-/// The placement batch of P4 (design-m2.md D4). Its order is the contract: the visible workspaces' placements, then a
-/// park per window of the invisible workspaces (to reduce flicker). While AeroSpace is disabled, every workspace's
-/// placements: every window unparks
+/// The placement batch of P4. Its order is the contract: the visible workspaces' placements, then a park per window of
+/// the invisible workspaces (to reduce flicker). While AeroSpace is disabled, every workspace's placements: every window
+/// unparks
 func placements() -> [Placement] {
     // No screens (e.g., the screens disappeared in the middle of the refresh session): wait for them. Don't hide windows in
     // the corners of a monitor that doesn't exist. AeroSpace can't be disabled while there are no screens (EnableCommand),
@@ -45,7 +45,7 @@ extension Workspace {
     /// The placements of the workspace's windows: the frames of ``layoutTiling()`` in their order, then the floating
     /// windows, which keep their frame unless they are off the workspace's monitor, then the macOS fullscreen windows,
     /// which stay where they are. A hidden app's windows get none: they stay parked, so that a floating one goes back
-    /// where it was once the app is unhidden (R2a L3)
+    /// where it was once the app is unhidden
     func layoutPlacements() -> [Placement] {
         if isEffectivelyEmpty { return [] }
         var placements: [Placement] = layoutTiling().map { .frame($0.window.windowId, topLeft: $0.topLeft, size: $0.size) }

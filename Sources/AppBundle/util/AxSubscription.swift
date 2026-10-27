@@ -19,7 +19,8 @@ nonisolated final class AxSubscription {
         var observer: AXObserver?
         guard unsafe AXObserverCreate(app.pid, axObserverCallback, &observer) == .success, let observer else { return nil }
         let subscription = AxSubscription(observer, element)
-        // Unretained (P8): the actor removes its subscriptions in its isolated deinit, on this thread, before it's freed
+        // Unretained, or the actor would never deinit: it removes its subscriptions in its isolated deinit, on this thread,
+        // before it's freed
         let refcon = unsafe Unmanaged.passUnretained(app).toOpaque()
         for notification in notifications {
             // On failure, deinit removes the notifications added so far

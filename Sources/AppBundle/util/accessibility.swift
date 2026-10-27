@@ -66,7 +66,6 @@ nonisolated enum Ax {
         ReadableAttrImpl(key: key, getter: castToAxUiElementMock)
     }
 
-    /// An attribute whose value is an AXValue of the given type
     private static func writableAxValue<V: BitwiseCopyable & Sendable>(_ key: String, _ type: AXValueType, _ zero: V) -> WritableAttrImpl<V> {
         WritableAttrImpl(
             key: key,

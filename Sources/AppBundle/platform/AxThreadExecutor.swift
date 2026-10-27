@@ -36,7 +36,7 @@ nonisolated final class AxThreadExecutor: SerialExecutor, @unchecked Sendable {
             let source = unsafe CFRunLoopSourceCreate(nil, 0, &context)
             self.runLoop = runLoop
             self.source = source
-            // .commonModes: a job still runs if something on this thread runs the loop in another mode (it must not, P2)
+            // .commonModes: a job still runs while something on this thread runs the loop in another mode (see drain())
             CFRunLoopAddSource(runLoop, source, .commonModes)
             isReady.signal()
             CFRunLoopRun() // Returns after the .stop item
@@ -56,8 +56,8 @@ nonisolated final class AxThreadExecutor: SerialExecutor, @unchecked Sendable {
         push(.raw(body))
     }
 
-    /// Stops the run loop after everything enqueued before, and the thread exits. Only `AxApp`'s isolated deinit calls it
-    /// (P8): nothing can enqueue after it, because nothing references the actor anymore. A job enqueued later would never run
+    /// Stops the run loop after everything enqueued before, and the thread exits. Only `AxApp`'s isolated deinit calls it,
+    /// so nothing can enqueue after it: nothing references the actor anymore. A job enqueued later would never run
     func shutdown() {
         push(.stop)
     }
@@ -75,7 +75,8 @@ nonisolated final class AxThreadExecutor: SerialExecutor, @unchecked Sendable {
     }
 
     private func drain() {
-        // P2: if a job spins the run loop in a mode with this source, don't run other jobs in the middle of that job
+        // If a job spins the run loop (nothing should: an observer callback would enter the actor in the middle of the
+        // job, undetected), the other jobs wait until it ends
         if isDraining { return }
         isDraining = true
         defer { isDraining = false }
@@ -97,8 +98,9 @@ nonisolated final class AxThreadExecutor: SerialExecutor, @unchecked Sendable {
 
     var isCurrentThread: Bool { currentThreadId() == threadId }
 
-    // P1: the runtime asks these when `assumeIsolated` runs outside a job of this executor (raw posts, observer
-    // callbacks). Being on the thread means being isolated: every job runs on this thread, and drains never nest
+    // The runtime asks these when `assumeIsolated` runs outside a job of this executor (raw posts, observer callbacks),
+    // which traps without them. Being on the thread means being isolated: every job runs on this thread, and drains
+    // never nest
     func isIsolatingCurrentContext() -> Bool? { isCurrentThread }
 
     func checkIsolated() {
