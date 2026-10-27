@@ -15,6 +15,16 @@ struct SwapCommandTest {
             #expect(workspace.mostRecentWindowRecursive?.windowId == focus.windowOrNil?.windowId) // The focused window is the most recent one
         }
     }
+
+    /// RB-108: with --wrap-around, a floating window traded places with a tiling window
+    @Test(arguments: ["swap --wrap-around left", "swap left", "swap dfs-next"] as [String])
+    func failsForAWindowThatIsntTiled(command: String) async {
+        let tree: String = "h_tiles(1 2) floating(*3)"
+        setUpTree(tree)
+        let output = await runCmd(command)
+        #expect(output == .fail("Can't swap a window that isn't tiled"))
+        #expect(describeTree() == tree)
+    }
 }
 
 /// Explicitly typed: inferring the type of the nested literal took about a second of type checking

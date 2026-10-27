@@ -151,6 +151,7 @@ struct SwapCommand: nonisolated Command {
     func run(_ cx: CmdContext) async throws(CmdFail) {
         let liveFocus = try cx.target(windowId: windowId)
         guard let window = liveFocus.windowOrNil else { throw CmdFail(noWindowIsFocused) }
+        guard case .tiling = window.placement else { throw "Can't swap a window that isn't tiled" } // RB-108
         let targetWindow: Window?
         switch target {
             case .direction(let direction):
