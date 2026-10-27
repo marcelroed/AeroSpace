@@ -120,11 +120,13 @@ nonisolated struct PlacementState {
                     // window in place but marked parked: the next placement writes it (`.floating` to where it is) or parks it
                     window.setFrame(topLeft: parkTopLeft(size: rect.size, target: target), size: nil)
                 } else {
-                    // Parked already: the window moves only if it isn't in the corner (e.g., the app moved it). The bottom
-                    // left corner uses the size read now: the app may have resized the window
+                    // Parked already: the window moves only if it isn't in the corner (e.g., the app moved it). Only its x
+                    // tells: macOS clamps a parked window's y for some apps (Helium shows at y 1083 where AeroSpace wrote
+                    // 1116, on a screen 1117 high), so that window would never be in its corner, and every layout would
+                    // write it again. The bottom left corner uses the size read now: the app may have resized the window
                     let rect = window.rect()
                     let topLeft = parkTopLeft(size: rect?.size, target: target)
-                    if rect?.topLeftCorner != topLeft {
+                    if rect.map({ abs($0.topLeftX - topLeft.x) < 1 }) != true {
                         window.setFrame(topLeft: topLeft, size: nil)
                     }
                 }

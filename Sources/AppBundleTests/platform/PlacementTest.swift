@@ -33,6 +33,28 @@ struct PlacementTest {
         expectEqual(fake.windows[1]?.rect?.topLeftCorner, CGPoint(x: 1 - 600, y: 1079))
     }
 
+    /// A parked window is in its corner when its x is. macOS clamps the y of some apps' parked windows (Helium), and the
+    /// next layouts must not write them again
+    @Test
+    func aParkedWindowIsInItsCornerWhenItsXIs() {
+        let target = parkTarget(.bottomRightCorner, testMonitor)
+        let rows: [(name: String, afterThePark: Rect, isWritten: Bool)] = [
+            ("y clamped by macOS", rect(1919, 1046, 400, 300), false),
+            ("x moved by the app", rect(1880, 1079, 400, 300), true),
+        ]
+        for row in rows {
+            fake.windows[1] = FakeWindow(app: testApp, rect: rect(100, 100, 400, 300), title: "1")
+            fake.apply([.park(1, target)])
+            fake.windows[1]?.rect = row.afterThePark
+            fake.resetCalls()
+
+            fake.apply([.park(1, target)])
+
+            let writes: [PlatformCall] = row.isWritten ? [.frame(1, topLeft: CGPoint(x: 1919, y: 1079), size: nil)] : []
+            expectEqual(fake.calls, [.park(1, target), .axRead(1)] + writes, "\(row.name)")
+        }
+    }
+
     /// The park remembers where the window was relative to the monitor it was on (#1492), and only once: the second park
     /// doesn't remember the corner (90a7c672). The unpark puts it at the same relative position on its workspace's monitor
     @Test
