@@ -42,12 +42,12 @@ fi
 
 if test $local_build = 1; then
     # The CLI and the app are independent builds. Build the CLI in parallel with the app
-    swift "${swift_build_cli[@]}" -Xswiftc -warnings-as-errors & # CLI
+    swift "${swift_build_cli[@]}" & # CLI
     cli_build_pid=$!
     # Don't leave the CLI build running if the app build fails
     trap 'kill "$cli_build_pid" 2> /dev/null || true' EXIT
 else
-    swift "${swift_build_cli[@]}" -Xswiftc -warnings-as-errors # CLI
+    swift "${swift_build_cli[@]}" # CLI
     cli_bin_path="$(swift "${swift_build_cli[@]}" --show-bin-path)"
 fi
 

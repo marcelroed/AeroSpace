@@ -2,9 +2,8 @@
 cd "$(dirname "$0")"
 source ./script/setup.sh
 
-./build-debug.sh -Xswiftc -warnings-as-errors
-# --skip-build: test and lint exactly what was just built with -warnings-as-errors.
-# Building again with different args would rebuild all modules
+./build-debug.sh
+# --skip-build: test and lint exactly what was just built
 ./swift-test.sh --skip-build
 
 ./.debug/aerospace -h > /dev/null

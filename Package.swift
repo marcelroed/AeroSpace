@@ -6,6 +6,9 @@ import PackageDescription
 let swiftSettings: [SwiftSetting] = [
     .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
     .strictMemorySafety(),
+    // In the manifest rather than `-Xswiftc -warnings-as-errors` in the scripts: every `swift build`/`swift test`
+    // then has the same command line, and switching between two command lines rebuilds every module
+    .treatAllWarnings(as: .error),
 ]
 /// The app runs on the main thread, except for the AX app threads, the socket server and the signal handlers.
 /// Code that runs there is marked `nonisolated`
