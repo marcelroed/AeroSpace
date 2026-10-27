@@ -26,54 +26,45 @@ extension DynamicConfigValue {
     }
 }
 
-func parseDynamicValue(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> DynamicConfigValue<Int> {
-    if let simpleValue = raw.asIntOrNil {
-        return .constant(simpleValue)
-    } else if let array = raw.asArrayOrNil {
-        if array.isEmpty {
-            c.errors.append(.init(backtrace, "The array must not be empty"))
-            return .constant(0)
-        }
-
-        guard let defaultValue = array.last?.asIntOrNil else {
-            c.errors.append(.init(backtrace, "The last item in the array must be of type Int"))
-            return .constant(0)
-        }
-
-        if array.dropLast().isEmpty {
-            c.errors.append(.init(backtrace, "The array must contain at least one monitor pattern"))
-            return .constant(0)
-        }
-
-        let rules = parsePerMonitorValues(array.dropLast(), backtrace, &c)
-
-        return .perMonitor(rules, default: defaultValue)
-    } else {
-        c.errors.append(.init(backtrace, "Unsupported type: \(raw.tomlType), expected: Int or array"))
-        return .constant(0)
+let decodeDynamicInt: Decode<DynamicConfigValue<Int>> = { raw, path, d in
+    if let value = raw.asIntOrNil { return .constant(value) }
+    guard let array = raw.asArrayOrNil else {
+        d.error(path, "Unsupported type: \(raw.tomlType), expected: Int or array")
+        return nil
     }
+    guard let defaultValue = array.last?.asIntOrNil else {
+        d.error(path, array.isEmpty ? "The array must not be empty" : "The last item in the array must be of type Int")
+        return nil
+    }
+    if array.count == 1 {
+        d.error(path, "The array must contain at least one monitor pattern")
+        return nil
+    }
+    let rules = array.dropLast().enumerated().compactMap { index, raw in decodePerMonitorValue(raw, path + .index(index), &d) }
+    return .perMonitor(rules, default: defaultValue)
 }
 
-private func parsePerMonitorValues(_ array: OrderedJson.JsonArray, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> [PerMonitorValue<Int>] {
-    array.enumerated().compactMap { (index: Int, raw: OrderedJson) -> PerMonitorValue<Int>? in
-        var backtrace = backtrace + .index(index)
-
-        guard let (key, value) = raw.unwrapTableWithSingleKey(expectedKey: "monitor", &backtrace)
-            .flatMap({ $0.value.unwrapTableWithSingleKey(expectedKey: nil, &backtrace) })
-            .getOrNil(appendErrorTo: &c.errors)
-        else {
-            return nil
-        }
-
-        let monitorDescriptionResult = parseMonitorDescription(.string(key), backtrace)
-
-        guard let monitorDescription = monitorDescriptionResult.getOrNil(appendErrorTo: &c.errors) else { return nil }
-
-        guard let value = value.asIntOrNil else {
-            c.errors.append(.init(backtrace, "Expected type is 'Int'. But actual type is '\(value.tomlType)'"))
-            return nil
-        }
-
-        return PerMonitorValue(description: monitorDescription, value: value)
+/// `{ monitor.<pattern> = <int> }`
+private func decodePerMonitorValue(_ raw: OrderedJson, _ path: ConfigBacktrace, _ d: inout Diagnostics) -> PerMonitorValue<Int>? {
+    var path = path
+    guard let (_, monitor) = decodeSingleKeyTable(raw, expectedKey: "monitor", &path, &d),
+          let (pattern, value) = decodeSingleKeyTable(monitor, &path, &d),
+          let description = d.unwrap(parseMonitorDescription(pattern), path)
+    else { return nil }
+    guard let value = value.asIntOrNil else {
+        d.error(path, "Expected type is 'Int'. But actual type is '\(value.tomlType)'")
+        return nil
     }
+    return PerMonitorValue(description: description, value: value)
+}
+
+/// The single key and its value. `path` is extended with the key
+private func decodeSingleKeyTable(_ raw: OrderedJson, expectedKey: String? = nil, _ path: inout ConfigBacktrace, _ d: inout Diagnostics) -> (key: String, value: OrderedJson)? {
+    guard let table = decodeDict(raw, path, &d) else { return nil }
+    guard let (key, value) = table.elements.singleOrNil(), expectedKey == nil || expectedKey == key else {
+        d.error(path, expectedKey.map { "The table is expected to have a single key '\($0)'" } ?? "The table is expected to have a single key")
+        return nil
+    }
+    path = path + .key(key)
+    return (key, value)
 }

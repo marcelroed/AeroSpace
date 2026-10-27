@@ -27,8 +27,7 @@ func reloadConfig_nonCancellable(
     args: ReloadConfigCmdArgs = ReloadConfigCmdArgs(rawArgs: []),
     forceConfigUrl: URL? = nil,
 ) async -> ReloadConfigResult {
-    let result = readConfig(forceConfigUrl: forceConfigUrl)
-    let parseResult = result.parseConfigResult
+    let (url, parseResult) = loadConfig(forceUrl: forceConfigUrl)
     let warningsAsErrors = args.warningsAsErrors
 
     var errors = parseResult.errors.map { $0.description(.error) }
@@ -36,7 +35,7 @@ func reloadConfig_nonCancellable(
     let containsWarnings = !parseResult.warnings.isEmpty
 
     if !args.noGui {
-        let path = result.configUrl.absoluteURL.path.singleQuoted
+        let path = url.absoluteURL.path.singleQuoted
         let header: String? = if !errors.isEmpty {
             "Failed to parse \(path). \(errors.count) error(s). \(warnings.count) warning(s)"
         } else if warningsAsErrors && !warnings.isEmpty {
@@ -52,7 +51,7 @@ func reloadConfig_nonCancellable(
         TrayMenuModel.shared.lastReloadConfigContainedWarnings = containsWarnings
         resetHotKeys()
         config = parseResult.config
-        configUrl = result.configUrl
+        configUrl = url
         await activateMode_nonCancellable(activeMode)
         syncStartAtLogin()
         syncFocusFollowsMouse(config)
@@ -72,4 +71,24 @@ func reloadConfig_nonCancellable(
         stdout: errors.joined(separator: "\n\n"),
         stderr: warnings.joined(separator: "\n\n"),
     )
+}
+
+/// Finds and parses the config. A fatal result (ambiguous or unreadable file, TOML syntax error) must not be applied
+func loadConfig(forceUrl: URL?) -> (url: URL, result: ParseConfigResult) {
+    let url: URL
+    if let forceUrl {
+        url = forceUrl
+    } else {
+        switch findCustomConfigUrl() {
+            case .file(let found): url = found
+            case .noCustomConfigExists: url = defaultConfigUrl
+            case .ambiguousConfigError(let candidates):
+                return (defaultConfigUrl, .fatal("Ambiguous config error. Several configs found:\n" + candidates.map(\.path).joined(separator: "\n")))
+        }
+    }
+    do {
+        return (url, parseConfig(try String(contentsOf: url, encoding: .utf8)))
+    } catch {
+        return (url, .fatal("Can't read contents of \(url.path.singleQuoted) as a utf8 string: \(error.localizedDescription)"))
+    }
 }

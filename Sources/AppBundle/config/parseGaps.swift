@@ -72,15 +72,15 @@ struct ResolvedGaps {
     }
 }
 
-let gapsParser: [String: Parser<Gaps>] = [
-    "inner": Parser(\.inner, [
-        "vertical": Parser(\.vertical, parseDynamicValue),
-        "horizontal": Parser(\.horizontal, parseDynamicValue),
+let gapsFields: [String: Field<Gaps>] = [
+    "inner": Field(\.inner, [
+        "vertical": Field(\.vertical, decodeDynamicInt),
+        "horizontal": Field(\.horizontal, decodeDynamicInt),
     ]),
-    "outer": Parser(\.outer, [
-        "left": Parser(\.left, parseDynamicValue),
-        "bottom": Parser(\.bottom, parseDynamicValue),
-        "top": Parser(\.top, parseDynamicValue),
-        "right": Parser(\.right, parseDynamicValue),
+    "outer": Field(\.outer, [
+        "left": Field(\.left, decodeDynamicInt),
+        "bottom": Field(\.bottom, decodeDynamicInt),
+        "top": Field(\.top, decodeDynamicInt),
+        "right": Field(\.right, decodeDynamicInt),
     ]),
 ]

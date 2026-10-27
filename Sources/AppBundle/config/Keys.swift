@@ -4,6 +4,47 @@ import HotKey
 
 extension Key: @unchecked @retroactive Sendable {}
 
+struct KeyMapping: Equatable, Sendable {
+    enum Preset: String, CaseIterable, Sendable {
+        case qwerty, dvorak, colemak
+    }
+
+    init(
+        preset: Preset = .qwerty,
+        rawKeyNotationToKeyCode: [String: Key] = [:],
+    ) {
+        self.preset = preset
+        self.rawKeyNotationToKeyCode = rawKeyNotationToKeyCode
+    }
+
+    fileprivate var preset: Preset = .qwerty
+    fileprivate var rawKeyNotationToKeyCode: [String: Key] = [:]
+
+    func resolve() -> [String: Key] {
+        getKeysPreset(preset) + rawKeyNotationToKeyCode
+    }
+}
+
+let keyMappingFields: [String: Field<KeyMapping>] = [
+    "preset": Field(\.preset, decodeParsed { parseEnum($0, KeyMapping.Preset.self) }),
+    "key-notation-to-key-code": Field(\.rawKeyNotationToKeyCode) { raw, path, d in
+        guard let table = decodeDict(raw, path, &d) else { return nil }
+        var result: [String: Key] = [:]
+        for (notation, value) in table {
+            guard notation.rangeOfCharacter(from: .whitespacesAndNewlines) == nil && !notation.contains("-") else {
+                d.error(path, "\(notation.singleQuoted) is invalid key notation")
+                continue
+            }
+            guard let keyCode = decodeString(value, path + .key(notation), &d) else { continue }
+            switch keyNotationToKeyCode[keyCode] {
+                case let key?: result[notation] = key
+                case nil: d.error(path + .key(notation), "\(keyCode.singleQuoted) is invalid key code")
+            }
+        }
+        return result
+    },
+]
+
 func getKeysPreset(_ preset: KeyMapping.Preset) -> [String: Key] {
     switch preset {
         case .qwerty: keyNotationToKeyCode
