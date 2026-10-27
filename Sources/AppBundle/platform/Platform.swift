@@ -95,6 +95,9 @@ nonisolated struct AppInfo: Hashable, Sendable {
     let name: String?
     let execPath: String?
     let bundlePath: String?
+
+    /// The app's bundle id if AeroSpace handles the app specially
+    var knownBundleId: KnownBundleId? { bundleId.flatMap(KnownBundleId.init) }
 }
 
 /// What ``Platform/listWindows()`` found for one app

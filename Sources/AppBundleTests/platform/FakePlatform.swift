@@ -155,8 +155,7 @@ final class FakePlatform: Platform {
             }
             let id = placement.windowId
             guard let window = windows[id] else { continue }
-            let isZoom = window.app.bundleId == KnownBundleId.zoom.rawValue
-            window.placement.apply(placement, to: FakeAxWindow(id: id, window: window, platform: self), isZoom: isZoom)
+            window.placement.apply(placement, to: FakeAxWindow(id: id, window: window, platform: self))
         }
     }
 

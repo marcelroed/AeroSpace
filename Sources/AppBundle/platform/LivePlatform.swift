@@ -133,7 +133,7 @@ final class LivePlatform: Platform {
         var toClassify: [AppInfo: [WindowId]] = [:]
         for (app, ids) in windows {
             // An off-screen window whose kind depends on its level has no kind yet: no AX job for it (R2c L5)
-            let ids = apps[app.pid].map { kindNeedsWindowLevel($0.appId) } == true ? ids.filter { levels[$0.raw] != nil } : ids
+            let ids = kindNeedsWindowLevel(app.knownBundleId) ? ids.filter { levels[$0.raw] != nil } : ids
             if !ids.isEmpty { toClassify[app] = ids }
         }
         return try await observe(toClassify) { app in
@@ -216,7 +216,7 @@ final class LivePlatform: Platform {
             jobs[app.info.pid, default: (app, [])].placements.append(placement)
         }
         for (app, placements) in jobs.values {
-            app.ax?.postPlacements(placements, isZoom: app.appId == .zoom)
+            app.ax?.postPlacements(placements)
         }
     }
 
@@ -472,7 +472,6 @@ nonisolated private let nativeFocusGeneration: Atomic<UInt64> = Atomic(0)
 /// A registered app, main's side. Its AX state and calls live in ``AxApp``, on the app's own thread
 private final class LiveApp {
     let info: AppInfo
-    let appId: KnownBundleId?
     let nsApp: NSRunningApplication
     /// nil once the app is destroyed: later calls do nothing. The actor then deinits on its thread after its last job
     var ax: AxApp?
@@ -490,11 +489,10 @@ private final class LiveApp {
             execPath: nsApp.executableURL?.path,
             bundlePath: nsApp.bundleURL?.path,
         )
-        appId = nsApp.bundleIdentifier.flatMap { KnownBundleId.init(rawValue: $0) }
     }
 
     /// What the window classifier needs from main, captured for the app's thread
-    var classifier: WindowClassifier { WindowClassifier(appId: appId, nsApp: nsApp) }
+    var classifier: WindowClassifier { WindowClassifier(appId: info.knownBundleId, nsApp: nsApp) }
 }
 
 nonisolated private struct WindowClassifier: Sendable {

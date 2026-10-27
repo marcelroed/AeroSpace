@@ -5,7 +5,7 @@ import AppKit
 /// code: ``PlacementState``
 nonisolated enum Placement: Equatable, Sendable {
     /// The layout's frame of a window. It's written only if the window isn't there already, see
-    /// ``PlacementState/apply(_:to:isZoom:)``
+    /// ``PlacementState/apply(_:to:)``
     case frame(WindowId, topLeft: CGPoint, size: CGSize)
     /// A floating window of a workspace: it unparks to where it was, then it stays where it is unless it's off the
     /// workspace's monitor, see ``floatingTopLeft(current:target:)``
@@ -44,6 +44,8 @@ nonisolated struct ParkTarget: Equatable, Sendable {
     let monitors: NonEmptyArray<MonitorInfo>
     /// The park remembers a floating window's size, for its unpark and `layout floating`
     let isFloating: Bool
+    /// A window of Zoom keeps no pixel on the monitor: Zoom would jump off with one (#527)
+    let isZoom: Bool
 }
 
 /// A window as ``PlacementState`` sees it: an AX window of AxApp, or a window of FakePlatform
@@ -74,7 +76,7 @@ nonisolated struct PlacementState {
 
     var isParked: Bool { parkedAt != nil }
 
-    mutating func apply(_ placement: Placement, to window: some PlacementWindow, isZoom: Bool) {
+    mutating func apply(_ placement: Placement, to window: some PlacementWindow) {
         guard window.isCurrent() else { return } // Before any AX call: termination waits for this job (R-PLAT L4)
         switch placement {
             case .frame(_, let topLeft, let size):
@@ -104,12 +106,12 @@ nonisolated struct PlacementState {
                     if target.isFloating {
                         lastFloatingSize = rect.size
                     }
-                    window.setFrame(topLeft: parkTopLeft(size: rect.size, target: target, isZoom: isZoom), size: nil)
+                    window.setFrame(topLeft: parkTopLeft(size: rect.size, target: target), size: nil)
                 } else {
                     // Parked already: the window moves only if it isn't in the corner (e.g., the app moved it). The bottom
                     // left corner uses the size read now: the app may have resized the window
                     let rect = window.rect()
-                    let topLeft = parkTopLeft(size: rect?.size, target: target, isZoom: isZoom)
+                    let topLeft = parkTopLeft(size: rect?.size, target: target)
                     if rect?.topLeftCorner != topLeft {
                         window.setFrame(topLeft: topLeft, size: nil)
                     }
@@ -149,10 +151,9 @@ nonisolated func nearestMonitor(to point: CGPoint, in monitors: NonEmptyArray<Mo
 
 /// Where a parked window goes: one pixel inside the bottom corner of its monitor's visible rect. The bottom left corner
 /// needs the window's width: without it, the window goes to the bottom right corner
-nonisolated func parkTopLeft(size: CGSize?, target: ParkTarget, isZoom: Bool) -> CGPoint {
-    // Zoom will jump off if you do one pixel offset https://github.com/nikitabobko/AeroSpace/issues/527
+nonisolated func parkTopLeft(size: CGSize?, target: ParkTarget) -> CGPoint {
     // todo this ad hoc won't be necessary once I implement optimization suggested by Zalim
-    let offset: CGFloat = isZoom ? 0 : 1
+    let offset: CGFloat = target.isZoom ? 0 : 1
     let rect = target.monitor.visibleRect
     if target.corner == .bottomLeftCorner, let size {
         return CGPoint(x: rect.minX + offset - size.width, y: rect.maxY - offset)

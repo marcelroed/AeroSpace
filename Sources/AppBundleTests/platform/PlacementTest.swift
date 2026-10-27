@@ -8,15 +8,16 @@ import Testing
 struct PlacementTest {
     @Test
     func aParkedWindowKeepsOnePixelOnTheMonitorButZoomDoesNot() {
+        let workspace = setUpTree("h_tiles(1)", workspace: "a") // Not shown: its windows park
         let zoom = AppInfo(pid: 1, bundleId: KnownBundleId.zoom.rawValue, name: "zoom.us", execPath: nil, bundlePath: nil)
-        fake.windows[1] = FakeWindow(app: testApp, rect: rect(100, 100, 400, 300), title: "1")
         fake.windows[2] = FakeWindow(app: zoom, rect: rect(100, 100, 400, 300), title: "2")
-        let target = parkTarget(.bottomRightCorner, testMonitor)
+        _ = Window(id: 2, zoom, parent: workspace.existingRootTilingContainer.orDie(), weight: 1, index: nil)
+        testWindow(1).rect = rect(100, 100, 400, 300)
 
-        fake.apply([.park(1, target), .park(2, target)])
+        fake.apply(placements())
 
-        expectEqual(fake.windows[1]?.rect?.topLeftCorner, CGPoint(x: 1919, y: 1079))
-        expectEqual(fake.windows[2]?.rect?.topLeftCorner, CGPoint(x: 1920, y: 1080)) // #527
+        expectEqual(testWindow(1).rect?.topLeftCorner, CGPoint(x: 1919, y: 1079))
+        expectEqual(testWindow(2).rect?.topLeftCorner, CGPoint(x: 1920, y: 1080)) // #527
     }
 
     @Test
@@ -118,21 +119,21 @@ struct PlacementTest {
     func aStalePlacementStopsBeforeItsNextAxCallAndAStaleUnparkKeepsTheWindowParked() {
         var state = PlacementState(lastFloatingSize: nil)
         let target = FloatingTarget(monitor: testMonitor, monitors: NonEmptyArray(testMonitor), isShown: true)
-        state.apply(.park(1, parkTarget(.bottomRightCorner, testMonitor)), to: StaleAfter(calls: 100), isZoom: false)
+        state.apply(.park(1, parkTarget(.bottomRightCorner, testMonitor)), to: StaleAfter(calls: 100))
 
         let stale = StaleAfter(calls: 0)
-        state.apply(.park(1, parkTarget(.bottomRightCorner, testMonitor)), to: stale, isZoom: false)
-        state.apply(.frame(1, topLeft: .zero, size: CGSize(width: 400, height: 300)), to: stale, isZoom: false)
-        state.apply(.floating(1, target), to: stale, isZoom: false)
+        state.apply(.park(1, parkTarget(.bottomRightCorner, testMonitor)), to: stale)
+        state.apply(.frame(1, topLeft: .zero, size: CGSize(width: 400, height: 300)), to: stale)
+        state.apply(.floating(1, target), to: stale)
         expectEqual(stale.log.items, [])
 
         let staleAtTheWrite = StaleAfter(calls: 1)
-        state.apply(.floating(1, target), to: staleAtTheWrite, isZoom: false)
+        state.apply(.floating(1, target), to: staleAtTheWrite)
         expectEqual(staleAtTheWrite.log.items, [])
         #expect(state.isParked)
 
         let current = StaleAfter(calls: 100)
-        state.apply(.floating(1, target), to: current, isZoom: false)
+        state.apply(.floating(1, target), to: current)
         #expect(!state.isParked)
         expectEqual(current.log.items.first, "setFrame")
     }
@@ -143,7 +144,7 @@ struct PlacementTest {
         _ monitors: NonEmptyArray<MonitorInfo>? = nil,
         isFloating: Bool = false,
     ) -> ParkTarget {
-        ParkTarget(corner: corner, monitor: monitor, monitors: monitors ?? NonEmptyArray(monitor), isFloating: isFloating)
+        ParkTarget(corner: corner, monitor: monitor, monitors: monitors ?? NonEmptyArray(monitor), isFloating: isFloating, isZoom: false)
     }
 }
 

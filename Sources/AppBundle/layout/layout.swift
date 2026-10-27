@@ -33,7 +33,8 @@ func placements() -> [Placement] {
         let monitor = workspace.workspaceMonitor
         let corner = monitors.hideCorner(of: monitor)
         for window in workspace.allLeafWindowsRecursive {
-            let target = ParkTarget(corner: corner, monitor: monitor, monitors: monitors.all, isFloating: window.isFloating)
+            let isZoom = window.app.knownBundleId == .zoom
+            let target = ParkTarget(corner: corner, monitor: monitor, monitors: monitors.all, isFloating: window.isFloating, isZoom: isZoom)
             placements.append(.park(window.windowId, target))
         }
     }
@@ -123,7 +124,7 @@ extension TreeNode {
                     lastAppliedLayoutPhysicalRect = nil
                     frames.append(window.fullscreenFrame(on: params.monitor))
                 } else {
-                    let rect = window.app.bundleId == KnownBundleId.cmux.rawValue
+                    let rect = window.app.knownBundleId == .cmux
                         ? physicalRect.notLookingZoomed(in: params.monitor.visibleRect)
                         : physicalRect
                     lastAppliedLayoutPhysicalRect = rect

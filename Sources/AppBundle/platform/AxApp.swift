@@ -105,9 +105,9 @@ actor AxApp {
     /// Posts one job for the app's placements of a batch, in the batch's order (design-m2 D4). Each placement is its
     /// window's latest write until a newer write of the window is posted (as ``postWindowWrite(_:_:)``), and it stops,
     /// also between its AX calls, once it's stale or termination starts
-    nonisolated func postPlacements(_ placements: [Placement], isZoom: Bool) {
+    nonisolated func postPlacements(_ placements: [Placement]) {
         let generations: [UInt64] = self.generations.withLock { generations in placements.map { generations.bump($0.windowId.raw) } }
-        post { app in app.place(placements, generations, isZoom: isZoom) }
+        post { app in app.place(placements, generations) }
     }
 
     // MARK: Isolated: AX calls
@@ -207,8 +207,8 @@ actor AxApp {
         return .facts(NativeFacts(isFullscreen: isFullscreen, isMinimized: !isFullscreen && isMinimized))
     }
 
-    /// See ``postPlacements(_:isZoom:)``. The app's animations are off from the batch's first write to its end
-    private func place(_ placements: [Placement], _ generations: [UInt64], isZoom: Bool) {
+    /// See ``postPlacements(_:)``. The app's animations are off from the batch's first write to its end
+    private func place(_ placements: [Placement], _ generations: [UInt64]) {
         let animations = AnimationsOff(element)
         defer { animations.restore() }
         for (placement, generation) in zip(placements, generations) {
@@ -218,7 +218,7 @@ actor AxApp {
                     self.generations.withLock { $0.isLatest(windowId, generation) } &&
                         !isTerminating.load(ordering: .sequentiallyConsistent)
                 }
-                windows[windowId]?.placement.apply(placement, to: window, isZoom: isZoom)
+                windows[windowId]?.placement.apply(placement, to: window)
             }
             self.generations.withLock { $0.finish(windowId, generation) }
         }
