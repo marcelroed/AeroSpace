@@ -189,11 +189,7 @@ public func eprint(_ msg: String) {
 }
 
 public func exit(_ exitCode: Int32, out: String? = nil, err: String? = nil) -> Never {
-    exitT(exitCode, out: out, err: err)
-}
-
-public func exitT<T>(_ exitCode: Int32, out: String? = nil, err: String? = nil) -> T {
     if let out { print(out) }
     if let err { eprint(err) }
-    exit(exitCode)
+    Darwin.exit(exitCode)
 }

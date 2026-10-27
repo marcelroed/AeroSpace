@@ -179,7 +179,8 @@ func run(_ connection: NWConnection, _ args: StrArrSlice, stdin: String, windowI
 
     switch await connection.readNonAtomic() {
         case .success(let answer):
-            return (try? JSONDecoder().decode(ServerAnswer.self, from: answer)) ?? exitT(EXIT_CODE_TWO, err: "Failed to parse server response: \(String(data: answer, encoding: .utf8).prettyDescription)")
+            if let ans = try? JSONDecoder().decode(ServerAnswer.self, from: answer) { return ans }
+            exit(EXIT_CODE_TWO, err: "Failed to parse server response: \(String(data: answer, encoding: .utf8).prettyDescription)")
         case .failure(let error):
             exit(failExitCode, err: "Failed to read from server socket: \(error)")
     }
