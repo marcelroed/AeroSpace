@@ -85,6 +85,7 @@ let gapsFields: [String: Field<Gaps>] = [
     ]),
 ]
 
+/// An Int, or per-monitor rules followed by the default Int. Unusable if any rule is. `[n]` is the constant `n`
 let decodeDynamicInt: Decode<DynamicConfigValue<Int>> = { raw, path, d in
     if let value = raw.asIntOrNil { return .constant(value) }
     guard let array = raw.asArrayOrNil else {
@@ -95,12 +96,8 @@ let decodeDynamicInt: Decode<DynamicConfigValue<Int>> = { raw, path, d in
         d.error(path, array.isEmpty ? "The array must not be empty" : "The last item in the array must be of type Int")
         return nil
     }
-    if array.count == 1 {
-        d.error(path, "The array must contain at least one monitor pattern")
-        return nil
-    }
-    let rules = array.dropLast().enumerated().compactMap { index, raw in decodePerMonitorValue(raw, path + .index(index), &d) }
-    return .perMonitor(rules, default: defaultValue)
+    let rules = array.dropLast().enumerated().map { index, raw in decodePerMonitorValue(raw, path + .index(index), &d) }
+    return allOrNil(rules).map { .perMonitor($0, default: defaultValue) }
 }
 
 /// `{ monitor.<pattern> = <int> }`

@@ -25,6 +25,12 @@ func decodeParsed<T>(_ convert: @escaping (String) -> ResOrStr<T>) -> Decode<T> 
     { raw, path, d in decodeString(raw, path, &d).flatMap { d.unwrap(convert($0), path) } }
 }
 
+/// The elements, or nil if any is unusable. Decode them all first: each unusable one reports its own error
+func allOrNil<T>(_ decoded: [T?]) -> [T]? {
+    let usable = decoded.compactMap { $0 }
+    return usable.count == decoded.count ? usable : nil
+}
+
 /// How one key of a TOML table is decoded into a field of `S`
 struct Field<S> {
     /// False if the value is unusable

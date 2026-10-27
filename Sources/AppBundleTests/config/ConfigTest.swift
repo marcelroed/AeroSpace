@@ -271,8 +271,6 @@ struct ConfigTest {
                 "workspace_name_6": [.secondary, .sequenceNumber(1)],
                 "workspace_name_x": [.sequenceNumber(2)],
                 "7": [.pattern("foo")!],
-                "w7": [.main],
-                "w8": [],
             ],
         )
         #expect(result.strErrors == [

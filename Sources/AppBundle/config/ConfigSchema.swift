@@ -113,11 +113,10 @@ let decodeShellOfCommands: Decode<Shell<any Command>> = { raw, path, d in
         d.typeMismatch(path, expected: .string, .array, actual: raw)
         return nil
     }
-    // Decode every element to report all of their errors
     let commands = array.enumerated().map { index, elem in
         decodeString(elem, path + .index(index), &d).flatMap { parseCommandForConfig($0, allowExecAndForget: true, path + .index(index), &d) }
     }
-    return commands.contains { $0 == nil } ? nil : .compound(.seq, commands.compactMap { $0 })
+    return allOrNil(commands).map { .compound(.seq, $0) }
 }
 
 /// `nil` if `raw` doesn't parse
@@ -130,15 +129,17 @@ func parseCommandForConfig(_ raw: String, allowExecAndForget: Bool, _ path: Conf
     }
 }
 
+/// The monitor patterns of each workspace, tried in order. A workspace with an unusable pattern is dropped,
+/// and so is not force-assigned. `w = []` is valid: it doesn't force-assign `w` either
 private let decodeWorkspaceToMonitorAssignment: Decode<[String: [MonitorDescription]]> = { raw, path, d in
     guard let table = decodeDict(raw, path, &d) else { return nil }
     var result: [String: [MonitorDescription]] = [:]
     for (workspace, raw) in table {
         let path = path + .key(workspace)
         result[workspace] = if let array = raw.asArrayOrNil {
-            array.enumerated().compactMap { index, raw in decodeMonitorDescription(raw, path + .index(index), &d) }
+            allOrNil(array.enumerated().map { index, raw in decodeMonitorDescription(raw, path + .index(index), &d) })
         } else {
-            decodeMonitorDescription(raw, path, &d).map { [$0] } ?? []
+            decodeMonitorDescription(raw, path, &d).map { [$0] }
         }
     }
     return result

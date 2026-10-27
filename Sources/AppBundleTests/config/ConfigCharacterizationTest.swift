@@ -43,9 +43,8 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
             "[ERROR] gaps.outer.right: The last item in the array must be of type Int",
             "[ERROR] gaps.outer.top: The last item in the array must be of type Int",
         ])
-        var expectedGaps = Gaps.zero
-        expectedGaps.outer.left = .perMonitor([], default: 1)
-        #expect(result.config.gaps == expectedGaps)
+        // A per-monitor value with an unusable rule keeps the default
+        #expect(result.config.gaps == .zero)
     }
 
     @Test
@@ -83,14 +82,12 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
             """,
         )
         #expect(result.strErrors == [
-            "[ERROR] gaps.inner.horizontal: The array must contain at least one monitor pattern",
             "[ERROR] gaps.inner.vertical: The array must not be empty",
             "[ERROR] gaps.outer.left[0]: Expected type is 'Table'. But actual type is 'Int'",
             "[ERROR] gaps.outer.right[0].monitor.0: Monitor sequence numbers uses 1-based indexing. Values less than 1 are illegal",
         ])
         var expectedGaps = Gaps.zero
-        expectedGaps.outer.left = .perMonitor([], default: 2)
-        expectedGaps.outer.right = .perMonitor([PerMonitorValue(description: .main, value: 2)], default: 3)
+        expectedGaps.inner.horizontal = .constant(1)
         #expect(result.config.gaps == expectedGaps)
     }
 
@@ -210,13 +207,15 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
             [workspace-to-monitor-force-assignment]
                 w = true
                 x = [1, false, 'main']
+                y = []
             """,
         )
         #expect(result.strErrors == [
             "[ERROR] workspace-to-monitor-force-assignment.w: Expected types are 'String' or 'Int'. But actual type is 'Bool'",
             "[ERROR] workspace-to-monitor-force-assignment.x[1]: Expected types are 'String' or 'Int'. But actual type is 'Bool'",
         ])
-        #expect(result.config.workspaceToMonitorForceAssignment == ["w": [], "x": [.sequenceNumber(1), .main]])
+        // A workspace with an unusable pattern isn't force-assigned. Neither is one with an empty array, which is no error
+        #expect(result.config.workspaceToMonitorForceAssignment == ["y": []])
     }
 
     @Test
