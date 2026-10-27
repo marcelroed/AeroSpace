@@ -9,15 +9,11 @@ public func getMessageWindow(messageModel: MessageModel) -> some Scene {
             .onAppear {
                 // Set activation policy; otherwise, AeroSpace windows won't be able to receive focus and accept keyboard input
                 NSApp.setActivationPolicy(.accessory)
-                for window in NSApp.windows where window.identifier?.rawValue == messageWindowId {
-                    window.level = .floating
-                    window.styleMask.remove(.miniaturizable) // Disable minimize button, because we don't unminimize the window on config error
-                }
             }
-        // .windowMinimizeBehavior(WindowInteractionBehavior.disabled) // SwiftUI way of hiding minimize button. Available only since macOS 15
+            .windowMinimizeBehavior(.disabled) // Disable minimize button, because we don't unminimize the window on config error
     }
     .windowResizability(.contentMinSize)
-    //.windowLevel(.floating) //This might be the SwiftUI way of doing window level instead of the onAppear block above, but it's only available from macOS 15.0
+    .windowLevel(.floating)
 }
 
 public let messageWindowId = "\(aeroSpaceAppName).messageView"
@@ -56,7 +52,6 @@ struct MessageView: View {
                         TextEditor(text: cancelOnEnterBinding)
                             .font(.system(size: 12).monospaced())
                             .focused($focus)
-                        //  .onKeyPress(.return) { return .handled } // enter handling alternative. Only available since macOS 14
                         Spacer()
                     }
                     Spacer()
@@ -79,7 +74,7 @@ struct MessageView: View {
         }
         .textSelection(.enabled)
         .frame(minWidth: 480, maxWidth: 960, minHeight: 200)
-        .onChange(of: model.message) { message in
+        .onChange(of: model.message) { _, message in
             if message == nil {
                 self.dismiss()
             }
