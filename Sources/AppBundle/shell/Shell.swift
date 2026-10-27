@@ -93,8 +93,8 @@ extension Shell where T == any Command {
             case .cmd(let command):
                 let exitCode = await runReportingFailure(command, env, io)
                 if command.shouldResetClosedWindowsCache { resetClosedWindowsCache() }
-                // The next command sees the focus callbacks' changes and a normalized tree. The callbacks' own focus
-                // changes are recorded here, inside them, so they don't run the callbacks again
+                // The focus callbacks and the next command see a tidy tree. The callbacks' own focus changes are recorded
+                // here, inside them, so they don't run the callbacks again
                 await refreshModel_nonCancellable()
                 return exitCode
             case .op(.seq, let lhs, let rhs):

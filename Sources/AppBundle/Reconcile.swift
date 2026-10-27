@@ -229,11 +229,8 @@ enum Reconcile {
             detected.append(popup.windowId)
         }
 
-        // 7. GC the workspaces after the windows, because the workspaces contain them. 8. Normalize the containers
-        Workspace.garbageCollectUnusedWorkspaces()
-        for workspace in Workspace.all {
-            workspace.normalizeContainers()
-        }
+        // 7. The workspace GC comes after the windows', because the workspaces contain them
+        tidyModel()
         return Committed(
             detected: detected,
             newFocusedWindow: newFocusedWindow,
@@ -260,7 +257,7 @@ enum Reconcile {
             syncFocusFromMacOs(window)
             nativeFocusBaseline = focus.windowOrNil
         }
-        await refreshModel_nonCancellable() // The focus changes since P2, then the sync normalization
+        await refreshModel_nonCancellable() // The focus changes since P2
         return nativeFocusBaseline
     }
 
@@ -286,11 +283,17 @@ enum Reconcile {
     }
 }
 
-/// The light session's model refresh, and the end of P3: the focus callbacks, the workspace GC, the normalization
+/// The model refresh of the light session, of each command and of P3's end: tidies the model, then runs the focus
+/// callbacks, which see the tidy tree. Their commands refresh the model again
 func refreshModel_nonCancellable() async {
-    Workspace.garbageCollectUnusedWorkspaces()
+    tidyModel()
     await checkOnFocusChangedCallbacks_nonCancellable()
-    // Can't do it only for visible workspace because most of the commands support --window-id and --workspace flags
+}
+
+/// The workspace GC, then the normalization of the containers of every workspace: not only of the visible ones, because
+/// most commands take --window-id and --workspace
+func tidyModel() {
+    Workspace.garbageCollectUnusedWorkspaces()
     for workspace in Workspace.all {
         workspace.normalizeContainers()
     }

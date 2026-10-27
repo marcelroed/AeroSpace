@@ -570,6 +570,22 @@ struct ReconcileTest {
     }
 
     @Test
+    func theFocusCallbacksSeeATidyTree() async throws {
+        world.config.enableNormalizationFlattenContainers = true
+        setUpTree("h_tiles(*1 v_tiles(2 3))")
+        fake.focused = 1
+        await heavyRefresh()
+        logFocusOnFocusChanged(.tree)
+
+        _ = try await world.sessions.light(.hotkeyBinding, .forceRun) { // A body that isn't a command, e.g. a mouse drag
+            testWindow(3).move(to: Workspace.get(byName: "b").rootTilingContainerCreatingIfNeeded())
+            _ = testWindow(2).focusWindow()
+        }
+        world.sessions.cancelHeavy()
+        expectEqual(focusLog, ["h_tiles(1 *2)"])
+    }
+
+    @Test
     func debugWindowsRecordsTheWindowThatALightSessionRegistered() async throws {
         setUpTree("h_tiles(*1)")
         fake.focused = 1
@@ -668,9 +684,9 @@ private func logFocusOnFocusChanged(_ property: LogFocus.Property, then gate: Ga
     world.config.onFocusChanged = .cmd(LogFocus(property: property))
 }
 
-/// Logs the focus that it sees: the focused workspace, or the focused window
+/// Logs the focus that it sees: the focused workspace, the focused window, or the focused workspace's tree
 private struct LogFocus: nonisolated Command {
-    nonisolated enum Property { case workspace, window }
+    nonisolated enum Property { case workspace, window, tree }
     static let resetsClosedWindowsCache = false
     var source: SourceWords = ["log-focus"]
     let property: Property
@@ -680,6 +696,7 @@ private struct LogFocus: nonisolated Command {
         let entry = switch property {
             case .workspace: target.workspace.name
             case .window: target.windowOrNil.map { "\($0.windowId)" } ?? "nil"
+            case .tree: describeTree(target.workspace.name)
         }
         focusLog.append(entry)
         await focusLogGate?.wait()
