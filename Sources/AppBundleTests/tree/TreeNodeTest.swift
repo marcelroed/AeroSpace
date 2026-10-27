@@ -101,6 +101,16 @@ struct TreeNodeTest {
     }
 
     @Test
+    func mostRecentWindowSkipsAnEmptyRootContainer() {
+        let workspace = setUpTree("h_tiles(1) floating(2 3)", workspace: "a")
+        testWindow(1).markAsMostRecentChild()
+        testWindow(1).unbindFromParent() // The last tiling window closes. The empty root stays the most recent child
+        #expect(workspace.mostRecentChild === workspace.rootTilingContainer)
+        #expect(workspace.mostRecentWindowRecursive?.windowId == 3) // The most recent floating window, not the first one
+        #expect(workspace.toLiveFocus().windowOrNil?.windowId == 3)
+    }
+
+    @Test
     func canBeChild() {
         let workspace = setUpTree("h_tiles(1 v_tiles(2)) floating(3)", workspace: "a")
         let root = workspace.rootTilingContainer

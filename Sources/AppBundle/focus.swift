@@ -105,9 +105,7 @@ extension Workspace {
     func focusWorkspace() -> Bool { setFocus(to: toLiveFocus()) }
 
     func toLiveFocus() -> LiveFocus {
-        // todo unfortunately mostRecentWindowRecursive may recursively reach empty rootTilingContainer
-        //      while floating or macos unconventional windows might be presented
-        LiveFocus(windowOrNil: mostRecentWindowRecursive ?? anyLeafWindowRecursive, workspace: self) // nil window: empty workspace
+        LiveFocus(windowOrNil: mostRecentWindowRecursive, workspace: self) // nil window: empty workspace
     }
 }
 
