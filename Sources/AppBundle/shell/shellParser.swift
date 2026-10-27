@@ -49,13 +49,16 @@ private struct ShellParser {
     }
 
     /// Lexes the next token only now, so the limits stop the lexing of a long input too. An operator must be on the line
-    /// of its left operand, unless a backslash escapes the newline
+    /// of both its operands, unless a backslash escapes the newline
     private mutating func advance() throws(CmdParseError) {
         let previous = peek
         peek = try lexer.nextToken()
-        if previous.payload == .newline && [.and, .or, .pipe].contains(peek.payload) {
-            throw "\(previous.location): Please escape newline with backslash character."
+        let newline: Location? = switch (previous.payload, peek.payload) {
+            case (.newline, .and), (.newline, .or), (.newline, .pipe): previous.location
+            case (.and, .newline), (.or, .newline), (.pipe, .newline): peek.location
+            default: nil
         }
+        if let newline { throw "\(newline): Please escape newline with backslash character." }
     }
 
     mutating func parse(_ op: ShellOp) throws(CmdParseError) -> Shell<[String]> {

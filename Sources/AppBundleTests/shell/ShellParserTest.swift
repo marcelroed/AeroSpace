@@ -33,9 +33,7 @@ struct ShellParserTest {
         ("an operator needs a left operand", "&& foo", "Line 1 Column 1: Expected at least one word. Got: &&"),
         ("; needs a left operand", "\n;", "Line 2 Column 1: Expected at least one word. Got: ;"),
         ("a newline before an operator must be escaped", "echo foo\n  || bar", "Line 1 Column 9: Please escape newline with backslash character."),
-        // todo: the message names the newline with a raw line break, and doesn't suggest escaping it like the message about a
-        // newline before an operator does
-        ("the right operand must be on the operator's line", "foo ||\n    bar", "Line 1 Column 7: Expected at least one word. Got: \n"),
+        ("a newline after an operator must be escaped", "foo ||\n    bar", "Line 1 Column 7: Please escape newline with backslash character."),
         ("a group can't be empty", "(\n)", "Line 2 Column 1: Expected at least one word. Got: )"),
         ("an unclosed paren", "(foo", "Line 1 Column 5: Expected ')'. Got: 'End of input'"),
         ("an unopened paren", "foo)", "Line 1 Column 4: Unexpected token ')'"),
