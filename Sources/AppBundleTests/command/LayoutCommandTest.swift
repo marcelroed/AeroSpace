@@ -170,7 +170,7 @@ struct LayoutCommandTest {
     }
 }
 
-private let tilingDescriptions: [LayoutCommandTest.TilingDescription] = [
+nonisolated private let tilingDescriptions: [LayoutCommandTest.TilingDescription] = [
     .init(name: "h_accordion", orientation: "h", layout: "accordion"),
     .init(name: "v_accordion", orientation: "v", layout: "accordion"),
     .init(name: "h_tiles", orientation: "h", layout: "tiles"),

@@ -4,23 +4,20 @@ import Testing
 
 @MainActor
 @Suite(.aeroSpaceGlobalState)
-struct DebugWindowsCommandTest: AeroSpaceTestSuite {
+struct DebugWindowsCommandTest {
     @Test
-    func testFailedTargetResolutionDoesntStartRecording() async {
+    func failedTargetResolutionDoesntStartRecording() async {
         // RB-34: the session used to start before the target was resolved, and stayed on after the failure.
         // No window is focused below: recording a window needs a MacWindow
-        await assertRun(
-            "debug-windows",
-            env: .defaultEnv.withWindowId(42),
-            exitCode: 2,
-            stdout: [],
-            stderr: ["Invalid <window-id> 42 specified in AEROSPACE_WINDOW_ID env variable"],
-        )
+        var output = await runCmd("debug-windows", windowIdEnv: 42)
+        #expect(output == .fail("Invalid <window-id> 42 specified in AEROSPACE_WINDOW_ID env variable"))
 
-        let started = await assertRun("debug-windows", exitCode: 0)
-        assertEquals(started.stdout.first?.split(separator: "\n").first, "Debug windows session has started")
+        output = await runCmd("debug-windows")
+        #expect(output.exitCode == 0)
+        #expect(output.stdout.first?.split(separator: "\n").first == "Debug windows session has started")
 
-        let finished = await assertRun("debug-windows", exitCode: 0)
-        assertEquals(finished.stdout.last, "Debug session finished\n")
+        output = await runCmd("debug-windows")
+        #expect(output.exitCode == 0)
+        #expect(output.stdout.last == "Debug session finished\n")
     }
 }

@@ -4,9 +4,9 @@ import Testing
 
 @MainActor
 @Suite(.aeroSpaceGlobalState)
-struct EchoCommandTest: AeroSpaceTestSuite {
+struct EchoCommandTest {
     @Test
-    func testParse() {
+    func parse() {
         testParseSingleCommandSucc(
             "echo -- foo",
             EchoCmdArgs(rawArgs: []).copy(\.args, .initialized([[.literal("foo")]])),
@@ -38,67 +38,40 @@ struct EchoCommandTest: AeroSpaceTestSuite {
             EchoCmdArgs(rawArgs: []).copy(\.args, .initialized([[.literal("-h")]])),
         )
 
-        testParseCommandFail("echo", msg: "ERROR: Argument '--' is mandatory\nERROR: Argument '<string>' is mandatory")
-        testParseCommandFail("echo --", msg: "ERROR: Argument '<string>' is mandatory")
-        testParseCommandFail("echo foo", msg: "ERROR: Expected: --. Got: 'foo'")
-        testParseCommandFail("echo --stderr foo", msg: "ERROR: Expected: --. Got: 'foo'")
-        testParseCommandFail("echo -- %{foo}", msg: "ERROR: Can't parse 'foo'.\n       Possible values: (window-id|window-is-fullscreen|window-title|window-layout|window-parent-container-layout|workspace|workspace-is-focused|workspace-is-visible|workspace-root-container-layout|app-bundle-id|app-name|app-pid|app-exec-path|app-bundle-path|monitor-id|monitor-appkit-nsscreen-screens-id|monitor-name|monitor-is-main|right-padding|newline|tab)")
-
         testParseCommandHelp("echo -h")
         testParseCommandHelp("echo --help")
     }
 
-    @Test
-    func testRunPlainNoWindow() async {
-        assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
-        await assertRun("echo -- foo", exitCode: 0, stdout: ["foo"], stderr: [])
+    @Test(arguments: [
+        ("echo", "ERROR: Argument '--' is mandatory\nERROR: Argument '<string>' is mandatory"),
+        ("echo --", "ERROR: Argument '<string>' is mandatory"),
+        ("echo foo", "ERROR: Expected: --. Got: 'foo'"),
+        ("echo --stderr foo", "ERROR: Expected: --. Got: 'foo'"),
+        ("echo -- %{foo}", "ERROR: Can't parse 'foo'.\n       Possible values: (window-id|window-is-fullscreen|window-title|window-layout|window-parent-container-layout|workspace|workspace-is-focused|workspace-is-visible|workspace-root-container-layout|app-bundle-id|app-name|app-pid|app-exec-path|app-bundle-path|monitor-id|monitor-appkit-nsscreen-screens-id|monitor-name|monitor-is-main|right-padding|newline|tab)"),
+    ])
+    func parseError(command: String, error: String) async {
+        let output = await runCmd(command)
+        #expect(output == .fail(error))
+    }
+
+    @Test(arguments: [
+        ("h_tiles()", "echo -- foo", CmdOutput(stdout: ["foo"])),
+        ("h_tiles()", "echo -- foo bar baz", CmdOutput(stdout: ["foo", "bar", "baz"])),
+        ("h_tiles()", "echo --stderr -- foo", CmdOutput(stderr: ["foo"])),
+        ("h_tiles(*1)", "echo -- '%{window-id}'", CmdOutput(stdout: ["1"])),
+        ("h_tiles()", "echo -- '%{window-id}'", .fail("No window is focused")),
+        ("h_tiles(*42)", "echo -- 'id: %{window-id}'", CmdOutput(stdout: ["id: 42"])),
+        ("h_tiles(*5)", "echo --stderr -- '%{window-id}'", CmdOutput(stderr: ["5"])),
+    ])
+    func run(tree: String, command: String, expected: CmdOutput) async {
+        setUpTree(tree)
+        let output = await runCmd(command)
+        #expect(output == expected)
     }
 
     @Test
-    func testRunMultipleArgs() async {
-        assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
-        await assertRun("echo -- foo bar baz", exitCode: 0, stdout: ["foo", "bar", "baz"], stderr: [])
-    }
-
-    @Test
-    func testRunStderr() async {
-        assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
-        await assertRun("echo --stderr -- foo", exitCode: 0, stdout: [], stderr: ["foo"])
-    }
-
-    @Test
-    func testRunWindowInterpolation() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-        }
-        await assertRun("echo -- '%{window-id}'", exitCode: 0, stdout: ["1"], stderr: [])
-    }
-
-    @Test
-    func testRunWindowInterpolationNoWindow() async {
-        assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
-        await assertRun("echo -- '%{window-id}'", exitCode: 2, stdout: [], stderr: [noWindowIsFocused])
-    }
-
-    @Test
-    func testRunWorkspaceInterpolation() async {
-        assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
-        await assertRun("echo -- '%{workspace}'", exitCode: 0, stdout: [name], stderr: [])
-    }
-
-    @Test
-    func testRunMixedLiteralAndInterpolation() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 42, parent: $0).focusWindow(), true)
-        }
-        await assertRun("echo -- 'id: %{window-id}'", exitCode: 0, stdout: ["id: 42"], stderr: [])
-    }
-
-    @Test
-    func testRunStderrWithInterpolation() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 5, parent: $0).focusWindow(), true)
-        }
-        await assertRun("echo --stderr -- '%{window-id}'", exitCode: 0, stdout: [], stderr: ["5"])
+    func workspaceInterpolation() async {
+        let output = await runCmd("echo -- '%{workspace}'")
+        #expect(output == CmdOutput(stdout: [focus.workspace.name]))
     }
 }
