@@ -44,7 +44,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 - `subscribe` in a config binding fails with "subscribe is not supported in the eval", where there is no eval: 858762f5 changed the message to "subscribe is only available from the CLI".
 - A bug study of the restructure's prototype branches also listed RB-04, RB-05, RB-10, RB-13, RB-19, RB-22, RB-23, RB-24, RB-25, RB-38, RB-42, RB-44 and RB-101.
 - The initial `subscribe` events come in random order: RB-114.
-- `floatingWindowsContainer` creates the container on read, like RB-03: the RB-03 fix holds, because creating a container restores the most recent child. The other effects of creating containers on read are RB-129.
+- `floatingWindowsContainer` creates the container on read, like RB-03: the RB-03 fix holds, because creating a container restores the most recent child. The other effects of creating containers on read are RB-129. Since 7b7de1d0, reads don't create containers.
 
 **Severity** is about user impact:
 - **High:** a crash or hang that can happen in normal use.
@@ -155,7 +155,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 | [RB-123](#rb-123-moving-into-a-container-of-the-moves-orientation-always-inserts-at-its-start) | low | possible | Commands and CLI | Moving into a container of the move's orientation always inserts at its start | open |
 | [RB-124](#rb-124-concurrent-debug-windows-dumps-can-exceed-the-window-limit) | low | possible | Commands and CLI | Concurrent `debug-windows` dumps can exceed the window limit | open |
 | [RB-127](#rb-127-the-shell-lexer-drops-a-last-word-that-ends-in-a-unicode-prepend-character) | low | possible | Config, shell and UI | The shell lexer drops a last word that ends in a Unicode Prepend character | open |
-| [RB-129](#rb-129-a-hidden-workspaces-root-container-gets-the-auto-orientation-of-the-wrong-monitor) | low | possible | Core model | A hidden workspace's root container gets the `auto` orientation of the wrong monitor | open |
+| [RB-129](#rb-129-a-hidden-workspaces-root-container-gets-the-auto-orientation-of-the-wrong-monitor) | low | possible | Core model | A hidden workspace's root container gets the `auto` orientation of the wrong monitor | fixed on restructure |
 | [RB-133](#rb-133---stdin-on-a-terminal-waits-for-typed-input-or-fails-without-saying-why) | low | possible | Commands and CLI | `--stdin` on a terminal waits for typed input, or fails without saying why | fixed on restructure |
 | [RB-40](#rb-40-inconsistent-reporting-of-impossible-paths) | low | speculative | Commands and CLI | Inconsistent reporting of "impossible" paths | fixed |
 | [RB-41](#rb-41-workspace-gc-evaluates-focus-inside-its-filter) | low | speculative | Core model | Workspace GC evaluates `focus` inside its filter | fixed |
@@ -248,7 +248,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-03: Reading a special container creates it and makes it the most-recent child
 
-- **Status:** Fixed in a9c1685f. Regression tests in `TreeNodeTest`. The empty root container can still become the most recent child in another way: see RB-77.
+- **Status:** Fixed in a9c1685f. Regression tests in `TreeNodeTest`. The empty root container can still become the most recent child in another way: see RB-77. On `restructure`, 7b7de1d0 removed the trigger: reads return nil for a missing container, and only binding a window creates one (`Sources/AppBundle/tree/WorkspaceEx.swift:6-57`). Regression tests: `TreeNodeTest.focusAfterAWindowClosesGoesToTheMostRecentWindow` and `onlyBindingCreatesContainers`.
 - **Severity:** medium · **Confidence:** likely
 - **Original location:** `Sources/AppBundle/tree/WorkspaceEx.swift:27-52 @812da7fa`, `Sources/AppBundle/tree/TreeNode.swift:95 @812da7fa`
 - **Current location:** `Sources/AppBundle/tree/WorkspaceEx.swift:19-35` (the shared `singleChild` helper from CM-6 is at `:38-54`) and `Sources/AppBundle/tree/TreeNode.swift:97`. Behavior is unchanged.
@@ -425,7 +425,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-129: A hidden workspace's root container gets the `auto` orientation of the wrong monitor
 
-- **Status:** Open. Found on `restructure`.
+- **Status:** Open. Found on `restructure`. Fixed on `restructure` in 7b7de1d0: reads don't create the root or the special containers, so normalization and the closed-windows cache no longer do. The root is created when the first tiling window is bound, or by a command that writes the root's layout, with the orientation of the workspace's monitor at that moment. An empty workspace has no root. Moving a window to a workspace that was never visible still gives its new root the main monitor's orientation. Regression tests: `TreeNodeTest.onlyBindingCreatesContainers` and `ClosedWindowsCacheTest.restoringAWorkspaceWithoutRootCreatesNone`. The wrong monitor itself isn't testable with the one test monitor.
 - **Severity:** low · **Confidence:** possible
 - **Location:** `Sources/AppBundle/tree/WorkspaceEx.swift:6-8` and `:20-26` (`rootTilingContainer` and `newRootOrientation`), `Sources/AppBundle/tree/normalizeContainers.swift:3`, `Sources/AppBundle/layout/refresh.swift:106-108`
 - **Description:** Reading `rootTilingContainer` creates the root when there is none. With the `auto` orientation, the workspace's monitor at that moment decides the root's orientation. `refreshModel_nonCancellable` normalizes every workspace, and that reads the root, so every persistent workspace has a root from the first session on. For a workspace that was never visible and isn't force-assigned, `workspaceMonitor` is `mainMonitorInfo` (`Sources/AppBundle/tree/Workspace.swift:113-118`). An empty root is never removed, and nothing changes its orientation later. The code before `restructure` did the same.
