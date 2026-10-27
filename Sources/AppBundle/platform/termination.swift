@@ -39,37 +39,28 @@ nonisolated struct AppServerTerminationHandler: TerminationHandler {
 }
 
 /// Makes every window visible before quitting: centered on the monitor it's on (or the main monitor), at its last
-/// floating size or the monitor's visible size
-func restoreWindowsOnMainThread(_ windows: [(app: AxApp, windowId: UInt32)]) {
-    let monitors = TerminationMonitors(
-        all: world.monitors.all.map { TerminationMonitor(rect: $0.rect, visibleRect: $0.visibleRect) },
-        main: TerminationMonitor(rect: world.monitors.main.rect, visibleRect: world.monitors.main.visibleRect),
-    )
+/// floating size or the monitor's visible size (``TerminationMonitors``)
+func restoreWindowsOnMainThread(_ windows: [(app: AxApp, windowId: UInt32)], _ monitors: TerminationMonitors) {
     var timedOutApps: Set<pid_t> = []
     for (app, windowId) in windows where !timedOutApps.contains(app.pid) {
-        let isDone = app.postAndWait(timeout: terminationAxTimeout) { app in
-            app.restore(windowId) { monitors.restoreFrame(windowRect: $0, $1) }
-        }
+        let isDone = app.postAndWait(timeout: terminationAxTimeout) { app in app.restore(windowId, monitors) }
         if !isDone {
             timedOutApps.insert(app.pid)
         }
     }
 }
 
-/// A die off the main thread (e.g. on an AX thread) can't read the tree or NSScreen. It restores every window that the
-/// apps know at the size of its CoreGraphics display (no last floating size, no visible frame): one job per app, all in
-/// parallel, against one deadline. It skips the app whose thread is dying: that thread would never run the job
-nonisolated func restoreWindowsOffMainThread(_ apps: [AxApp]) {
-    // todo M2-AXP: restore with main's geometry (the monitors' visible rects, lastFloatingSize) instead of the full
-    //              display bounds
-    guard let monitors = TerminationMonitors.fromCoreGraphics() else { return } // No display: 0x0 frames would be worse
+/// A die off the main thread (e.g. on an AX thread) can't read the tree. It restores every window that the apps know, as
+/// the main thread does: one job per app, all in parallel, against one deadline. It skips the app whose thread is dying:
+/// that thread would never run the job
+nonisolated func restoreWindowsOffMainThread(_ apps: [AxApp], _ monitors: TerminationMonitors) {
     let deadline: DispatchTime = .now() + terminationAxTimeout
     let restores = DispatchGroup()
     for app in apps where !app.isCurrentThread {
         restores.enter()
         app.post { app in
             for windowId in app.windowIds {
-                app.restore(windowId) { rect, _ in monitors.restoreFrame(windowRect: rect, nil) }
+                app.restore(windowId, monitors)
             }
             restores.leave()
         }
@@ -77,19 +68,17 @@ nonisolated func restoreWindowsOffMainThread(_ apps: [AxApp]) {
     _ = restores.wait(timeout: deadline)
 }
 
-nonisolated private struct TerminationMonitor {
-    let rect: Rect
-    let visibleRect: Rect
-}
+/// The monitors that termination restores the windows onto: the last snapshot with screens, which
+/// ``LivePlatform/monitors()`` publishes for a die off the main thread too. Sendable: the AX threads compute the frames
+nonisolated struct TerminationMonitors: Sendable {
+    /// Sorted as ``Monitors/all``
+    let all: NonEmptyArray<MonitorInfo>
+    let main: MonitorInfo
 
-/// The monitors to restore windows onto. Sendable, so that the AX threads compute the frames
-nonisolated private struct TerminationMonitors {
-    let all: [TerminationMonitor]
-    let main: TerminationMonitor
-
-    /// Centered on the monitor nearest to the window's center (as `Monitors.approximation`), or the main monitor
+    /// Centered on the visible rect of the monitor nearest to the window's center (as `Monitors.approximation`), or of the
+    /// main monitor
     func restoreFrame(windowRect: Rect?, _ lastFloatingSize: CGSize?) -> (topLeft: CGPoint, size: CGSize) {
-        let monitor = windowRect.flatMap { nearestMonitor(to: $0) } ?? main
+        let monitor = windowRect.map { nearestMonitor(to: $0.center, in: all) } ?? main
         let visibleRect = monitor.visibleRect
         let size = lastFloatingSize ?? CGSize(width: visibleRect.width, height: visibleRect.height)
         let topLeft = CGPoint(
@@ -97,33 +86,5 @@ nonisolated private struct TerminationMonitors {
             y: visibleRect.topLeftY + (visibleRect.height - size.height) / 2,
         )
         return (topLeft, size)
-    }
-
-    /// `CGPoint.distance(toOuterFrame:)` is main actor isolated, so this repeats it (squared, which keeps the order)
-    private func nearestMonitor(to windowRect: Rect) -> TerminationMonitor? {
-        let x = windowRect.topLeftX + windowRect.width / 2
-        let y = windowRect.topLeftY + windowRect.height / 2
-        return all.minBy { monitor in
-            let rect = monitor.rect
-            let dx = max(rect.topLeftX - x, 0, x - (rect.topLeftX + rect.width - 1))
-            let dy = max(rect.topLeftY - y, 0, y - (rect.topLeftY + rect.height - 1))
-            return dx * dx + dy * dy
-        }
-    }
-
-    /// CoreGraphics' global display coordinates have AX's origin and orientation. nil without an active display (e.g.
-    /// during display reconfiguration)
-    static func fromCoreGraphics() -> TerminationMonitors? {
-        var count: UInt32 = 0
-        _ = unsafe CGGetActiveDisplayList(0, nil, &count)
-        if count == 0 { return nil }
-        var displays: [CGDirectDisplayID] = Array(repeating: 0, count: Int(count))
-        _ = unsafe CGGetActiveDisplayList(count, &displays, &count)
-        func monitor(_ display: CGDirectDisplayID) -> TerminationMonitor {
-            let bounds = CGDisplayBounds(display)
-            let rect = Rect(topLeftX: bounds.minX, topLeftY: bounds.minY, width: bounds.width, height: bounds.height)
-            return TerminationMonitor(rect: rect, visibleRect: rect)
-        }
-        return TerminationMonitors(all: displays.prefix(Int(count)).map(monitor), main: monitor(CGMainDisplayID()))
     }
 }

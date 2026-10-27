@@ -198,13 +198,13 @@ actor AxApp {
         })
     }
 
-    /// Termination: moves the window to the frame that `restoreFrame` computes from its current rect and last floating size
-    func restore(_ windowId: UInt32, _ restoreFrame: (Rect?, CGSize?) -> (topLeft: CGPoint, size: CGSize)) {
+    /// Termination: moves the window to the frame that `monitors` computes from its current rect and last floating size
+    func restore(_ windowId: UInt32, _ monitors: TerminationMonitors) {
         guard let window = windows[windowId] else { return }
         let animations = AnimationsOff(element)
         defer { animations.restore() }
         let ax = AxPlacementWindow(ax: window.ax, animations: animations) { @Sendable in true }
-        let frame = restoreFrame(ax.rect(), window.placement.lastFloatingSize)
+        let frame = monitors.restoreFrame(windowRect: ax.rect(), window.placement.lastFloatingSize)
         ax.setFrame(topLeft: frame.topLeft, size: frame.size)
     }
 

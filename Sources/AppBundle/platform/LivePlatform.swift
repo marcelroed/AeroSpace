@@ -16,20 +16,27 @@ final class LivePlatform: Platform {
     private var backoffObservers: [any NSObjectProtocol] = []
     /// The registered apps, for a die off the main thread: it can't read `apps`
     nonisolated private let terminationApps: Mutex<[pid_t: AxApp]> = Mutex([:])
+    /// The last monitors with screens, see ``monitors()``. nil before the first: then nothing is parked
+    nonisolated private let terminationMonitors: Mutex<TerminationMonitors?> = Mutex(nil)
 
     // MARK: Snapshot reads
 
+    /// Every session's snapshot (``updateMonitors(_:)``). It also publishes the monitors for termination
     func monitors() -> [MonitorInfo] {
         let screens = NSScreen.screens
         guard let mainScreen = screens.singleOrNil(where: \.isMainScreen) ?? screens.first else { return [] }
         let mainMonitorHeight = mainScreen.frame.height
-        return screens.enumerated().map {
+        let monitors = screens.enumerated().map {
             $0.element.toMonitorInfo(
                 monitorAppKitNsScreenScreensId: $0.offset + 1,
                 mainMonitorHeight: mainMonitorHeight,
                 isMain: $0.element.isMainScreen,
             )
         }
+        if let snapshot = Monitors(monitors) {
+            terminationMonitors.withLock { $0 = TerminationMonitors(all: snapshot.all, main: snapshot.main) }
+        }
+        return monitors
     }
 
     /// `monitors()` reads `NSScreen.visibleFrame`, which is slow
@@ -262,16 +269,17 @@ final class LivePlatform: Platform {
     // MARK: Termination
 
     nonisolated func restoreForTermination() {
+        guard let monitors = terminationMonitors.withLock({ $0 }) else { return }
         if Thread.isMainThread {
             MainActor.assumeIsolated {
                 restoreWindowsOnMainThread(world.windows.values.compactMap { window in
                     // The restore may run when something went wrong (e.g. some windows are unbound). That's why it
                     // doesn't read `.parent`
                     liveApp(of: window.windowId)?.ax.map { (app: $0, windowId: window.windowId.raw) }
-                })
+                }, monitors)
             }
         } else {
-            restoreWindowsOffMainThread(terminationApps.withLock { Array($0.values) })
+            restoreWindowsOffMainThread(terminationApps.withLock { Array($0.values) }, monitors)
         }
     }
 
