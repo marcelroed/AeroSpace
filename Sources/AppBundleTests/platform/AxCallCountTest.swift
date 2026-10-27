@@ -326,7 +326,10 @@ private struct Phase {
         var cost = AxCost()
         var listings = listings.makeIterator()
         var newFocused = newFocused.makeIterator()
-        var appsWithPlacementWrites: Set<pid_t> = []
+        // Two jobs per app and batch (LivePlatform.apply): the shown placements, then the parks. Each job that writes reads
+        // AXEnhancedUserInterface
+        var appsWithShownWrites: Set<pid_t> = []
+        var appsWithParkWrites: Set<pid_t> = []
         // The log entry of the placement whose AX calls come next. A `.frame` placement logs only its read and its write
         var placement: PlatformCall? = nil
         for call in calls {
@@ -376,7 +379,7 @@ private struct Phase {
                     if case .restoreFloatingSize = placement {
                         cost.appRead(1, .animations) // Its own job reads AXEnhancedUserInterface
                     } else if let pid = before.appOf[id] ?? after.appOf[id] {
-                        appsWithPlacementWrites.insert(pid)
+                        if case .park = placement { appsWithParkWrites.insert(pid) } else { appsWithShownWrites.insert(pid) }
                     }
                 case .focus(let id):
                     cost.write(id, 2, .writeFocus) // Two monitors with separate Spaces: AXMain, AXRaise (#101)
@@ -389,7 +392,7 @@ private struct Phase {
                 case .warpMouse, .launch: break // A posted CGEvent and a process spawn, neither AX nor an app's XPC
             }
         }
-        cost.appRead(appsWithPlacementWrites.count, .animations) // One AXEnhancedUserInterface read per app job that writes
+        cost.appRead(appsWithShownWrites.count + appsWithParkWrites.count, .animations)
         return cost
     }
 
