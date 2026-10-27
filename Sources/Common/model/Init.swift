@@ -5,7 +5,12 @@ public var terminationHandler: (any TerminationHandler)? { _terminationHandler.w
 private let _terminationHandler = Mutex<(any TerminationHandler)?>(nil)
 
 public func installTerminationHandler(_ handler: any TerminationHandler) {
-    _terminationHandler.withLock { $0 = handler }
+    let wasInstalled = _terminationHandler.withLock { current in
+        let wasInstalled = current != nil
+        current = handler
+        return wasInstalled
+    }
+    check(!wasInstalled, "The termination handler is installed twice") // Outside the lock: dieT reads the handler
 }
 
 public protocol TerminationHandler: Sendable {

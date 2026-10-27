@@ -2,10 +2,11 @@ import AppKit
 import Common
 import Foundation
 
+/// Called from `AeroSpaceApp.init`, before SwiftUI builds the scenes
 public func initAppBundle() {
+    installTerminationHandler(AppServerTerminationHandler())
+    _ = serverArgs // `--help`, `--version` and bad args exit here. The menu bar model reads `--config-path`
     Task.startUnstructured {
-        installTerminationHandler(AppServerTerminationHandler())
-        _ = serverArgs // `--help`, `--version` and bad args exit now
         await waitForAccessibilityPermission_nonCancellable()
         if isDebug {
             await toggleReleaseServerIfDebug(.off)
@@ -72,7 +73,7 @@ nonisolated private let serverHelp = """
                               Useful if you want to use only debug-windows or other query commands.
     """
 
-/// The server's command line args. Parsed on the first access, at startup. Tests don't pass any
+/// The server's command line args. Parsed at the start of `initAppBundle`. Tests don't pass any
 nonisolated let serverArgs: ServerArgs = isUnitTest ? ServerArgs() : parseServerArgs(Array(CommandLine.arguments.dropFirst()))
 
 nonisolated private func parseServerArgs(_ args: [String]) -> ServerArgs {
