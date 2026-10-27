@@ -7,18 +7,20 @@ extension String {
     }
 }
 
-private let reservedChars: Set<Character> = ["(", ")", "$", "~", "&", "?", "*", "!", "\\", "|", "<", ">", "`", "'", "\"", "#", "\n"]
+private let reservedChars: Set<Unicode.Scalar> = ["(", ")", "$", "~", "&", "?", "*", "!", "\\", "|", "<", ">", "`", "'", "\"", "#", "\n"]
 
 /// Besides whitespace and "&&", these characters end a bare word
-private let wordTerminators: Set<Character> = ["|", "\\", "#", ";", "(", ")", "'", "\""]
+private let wordTerminators: Set<Unicode.Scalar> = ["|", "\\", "#", ";", "(", ")", "'", "\""]
 
+/// Walks unicode scalars, not Characters: a Character can join a delimiter with its neighbor (a Unicode Prepend character,
+/// e.g. U+0600, joins the space or quote after it)
 private struct ShellLexer {
     let chars: [LocatedChar]
     var index = 0
     var tokens: [LexerToken] = []
 
-    var char: Character? { chars.getOrNil(atIndex: index)?.value }
-    var next: Character? { chars.getOrNil(atIndex: index + 1)?.value }
+    var char: Unicode.Scalar? { chars.getOrNil(atIndex: index)?.value }
+    var next: Unicode.Scalar? { chars.getOrNil(atIndex: index + 1)?.value }
     var location: Location { chars[index].location }
 
     mutating func lex() throws(CmdParseError) -> [LexerToken] {
@@ -35,7 +37,7 @@ private struct ShellLexer {
                 case "\\": try skipLineContinuation()
                 case "#": skipComment()
                 case "'", "\"": try lexQuotedWord()
-                case _ where char.isWhitespace: index += 1
+                case _ where char.properties.isWhitespace: index += 1
                 default: try lexBareWord()
             }
         }
@@ -61,7 +63,7 @@ private struct ShellLexer {
         while let char, char != "\n" {
             if char == "#" {
                 skipComment()
-            } else if char.isWhitespace {
+            } else if char.properties.isWhitespace {
                 index += 1
             } else {
                 throw "\(location): backslash can be followed only by whitespaces, newlines and comments, but it is followed by \(char.description.singleQuoted)."
@@ -75,7 +77,7 @@ private struct ShellLexer {
         index += 1
         var word = ""
         while let char, char != quote.value {
-            word.append(char)
+            word.unicodeScalars.append(char)
             index += 1
         }
         if char == nil {
@@ -85,7 +87,7 @@ private struct ShellLexer {
         tokens.append(.init(quote.location, .word(word)))
         switch char {
             case "'", "\"": throw "\(location): Please put a space in front of the quote character."
-            case let char? where !char.isWhitespace && !wordTerminators.contains(char) && !(char == "&" && next == "&"):
+            case let char? where !char.properties.isWhitespace && !wordTerminators.contains(char) && !(char == "&" && next == "&"):
                 throw "\(location): Please put a space after closing quote."
             default: break
         }
@@ -94,17 +96,16 @@ private struct ShellLexer {
     private mutating func lexBareWord() throws(CmdParseError) {
         let start = location
         var word = ""
-        while let char, !char.isWhitespace, !wordTerminators.contains(char), !(char == "&" && next == "&") {
-            word.append(char)
+        while let char, !char.properties.isWhitespace, !wordTerminators.contains(char), !(char == "&" && next == "&") {
+            word.unicodeScalars.append(char)
             index += 1
         }
         switch char {
             case "'", "\"": throw "\(location): Please put a space in front of the quote character."
             case "\\" where next == "#": throw "\(location): Please put a space between backslash and a comment start"
-            case nil: return // The word is dropped. Happens only if the synthetic trailing space joined the last character
             default: break
         }
-        if word != "~=", let reservedChar = word.first(where: { reservedChars.contains($0) }) {
+        if word != "~=", let reservedChar = word.unicodeScalars.first(where: { reservedChars.contains($0) }) {
             throw "\(start): Bare word '\(word)' contains reserved character: \(reservedChar). Please quote the bare word if you want to use the character."
         }
         tokens.append(.init(start, .word(word)))
@@ -112,14 +113,14 @@ private struct ShellLexer {
 }
 
 private struct LocatedChar {
-    let value: Character
+    let value: Unicode.Scalar
     let location: Location
 }
 
 private func locateChars(_ str: String) -> [LocatedChar] {
     var result = [LocatedChar]()
     var location = Location(line: 1, column: 1)
-    for char in str {
+    for char in str.unicodeScalars {
         result.append(LocatedChar(value: char, location: location))
         location.column += 1
         if char == "\n" {
