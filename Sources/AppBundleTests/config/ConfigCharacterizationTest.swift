@@ -2,7 +2,6 @@
 import Common
 import Testing
 
-@MainActor
 @Suite
 struct ConfigCharacterizationTest: AeroSpaceTestSuite {
     @Test

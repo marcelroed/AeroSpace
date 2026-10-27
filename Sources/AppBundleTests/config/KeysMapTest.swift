@@ -3,7 +3,6 @@ import Common
 import HotKey
 import Testing
 
-@MainActor
 @Suite
 struct KeysMapTest: AeroSpaceTestSuite {
     @Test
