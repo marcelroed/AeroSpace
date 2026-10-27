@@ -123,8 +123,6 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
         assertEquals(parseConfig("on-window-detected = 1").strErrors, ["[ERROR] on-window-detected: Expected type is 'Array'. But actual type is 'Int'"])
         assertEquals(parseConfig("on-window-detected = [1]").strErrors, [
             "[ERROR] on-window-detected[0]: Expected type is 'Table'. But actual type is 'Int'",
-            "[ERROR] on-window-detected[0]: Omitting 'if' is error prone. You can use `if = 'true'` to preserve the previous behavior.\nBut heads up! You may have missed 'check-further-callbacks = true'",
-            "[ERROR] on-window-detected[0]: 'run' is mandatory key",
         ])
     }
 
@@ -172,7 +170,9 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
         )
         assertEquals(parseConfig("on-window-detected = [{ if = 1, run = '' }]").strErrors, [
             "[ERROR] on-window-detected[0].if: Expected type is 'String'. But actual type is 'Int'",
-            "[ERROR] on-window-detected[0]: Omitting 'if' is error prone. You can use `if = 'true'` to preserve the previous behavior.\nBut heads up! You may have missed 'check-further-callbacks = true'",
+        ])
+        assertEquals(parseConfig("on-window-detected = [{ if = 'foo', run = '' }]").strErrors, [
+            "[ERROR] on-window-detected[0].if: Unrecognized subcommand 'foo'",
         ])
         assertEquals(
             parseConfig("on-window-detected = [{ if.during-aerospace-startup = 1, run = '' }]").strErrors,

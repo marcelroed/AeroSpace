@@ -131,15 +131,19 @@ private let decodeMatcher: Decode<WindowDetectedCallbackMatcher> = { raw, path, 
 
 /// A rule with any error is dropped
 private func decodeWindowRule(_ raw: OrderedJson, _ path: ConfigBacktrace, _ d: inout Diagnostics) -> WindowDetectedCallback? {
+    guard let table = decodeDict(raw, path, &d) else { return nil }
     let errorCount = d.errors.count
     var rule = WindowDetectedCallback(run: .empty)
     decodeTable(raw, into: &rule, callbackFields, path, &d)
-    if rule.matcher == .command(.empty) && !rule.checkFurtherCallbacks {
+    // An 'if' that fails to decode leaves the empty matcher too, but it has its own error
+    let ifPath = path + .key("if")
+    let ifFailed = d.errors[errorCount...].contains { $0.backtrace == ifPath }
+    if rule.matcher == .command(.empty) && !ifFailed && !rule.checkFurtherCallbacks {
         let msg = "Omitting 'if' is error prone. You can use `if = 'true'` to preserve the previous behavior.\n" +
             "But heads up! You may have missed 'check-further-callbacks = true'"
         d.error(path, msg)
     }
-    if raw.asDictOrNil?["run"] == nil {
+    if table["run"] == nil {
         d.error(path, "'run' is mandatory key")
     }
     return d.errors.count == errorCount ? rule : nil
