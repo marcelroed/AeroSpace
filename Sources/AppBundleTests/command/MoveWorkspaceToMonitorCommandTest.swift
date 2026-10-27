@@ -8,7 +8,7 @@ struct MoveWorkspaceToMonitorCommandTest {
     func parse() {
         #expect(parseMoveWorkspaceToMonitorTarget("move-workspace-to-monitor next") == .relative(.next))
         #expect(parseMoveWorkspaceToMonitorTarget("move-workspace-to-monitor main") == .patterns([.main]))
-        #expect(parseMoveWorkspaceToMonitorTarget("move-workspace-to-monitor -- next") == .patterns([.pattern("next")!]))
+        #expect(parseMoveWorkspaceToMonitorTarget("move-workspace-to-monitor -- next") == .patterns([.pattern("next")]))
     }
 
     @Test(arguments: [

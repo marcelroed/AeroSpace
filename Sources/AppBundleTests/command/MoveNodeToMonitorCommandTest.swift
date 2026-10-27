@@ -8,14 +8,14 @@ struct MoveNodeToMonitorCommandTest {
     func parse() {
         testParseSingleCommandSucc("move-node-to-monitor next", MoveNodeToMonitorCommand(target: .relative(.next)))
         testParseSingleCommandSucc("move-node-to-monitor --fail-if-noop main", MoveNodeToMonitorCommand(target: .patterns([.main]), failIfNoop: true))
-        testParseSingleCommandSucc("move-node-to-monitor -- next", MoveNodeToMonitorCommand(target: .patterns([.pattern("next")!])))
+        testParseSingleCommandSucc("move-node-to-monitor -- next", MoveNodeToMonitorCommand(target: .patterns([.pattern("next")])))
         testParseSingleCommandSucc(
             "move-node-to-monitor -- main 2",
             MoveNodeToMonitorCommand(target: .patterns([.main, .sequenceNumber(2)])),
         )
         testParseSingleCommandSucc(
             "move-node-to-monitor --fail-if-noop -- next",
-            MoveNodeToMonitorCommand(target: .patterns([.pattern("next")!]), failIfNoop: true),
+            MoveNodeToMonitorCommand(target: .patterns([.pattern("next")]), failIfNoop: true),
         )
     }
 

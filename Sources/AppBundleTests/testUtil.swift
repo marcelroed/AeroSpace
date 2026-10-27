@@ -144,6 +144,11 @@ func runCliArgs(_ args: [String], stdin: String = "") async -> CmdOutput {
     return CmdOutput(stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode)
 }
 
+extension MonitorDescription {
+    /// `.pattern` of a valid regex
+    static func pattern(_ raw: String) -> MonitorDescription { .pattern((try? CaseInsensitiveRegex(raw)).orDie()) }
+}
+
 extension HotkeyBinding {
     init(_ modifiers: NSEvent.ModifierFlags, _ keyCode: Key, _ commands: Shell<any Command>) {
         let descriptionWithKeyNotation = modifiers.isEmpty

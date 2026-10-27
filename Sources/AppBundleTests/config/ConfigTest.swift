@@ -266,11 +266,11 @@ struct ConfigTest {
                 "workspace_name_1": [.sequenceNumber(1)],
                 "workspace_name_2": [.main],
                 "workspace_name_3": [.secondary],
-                "workspace_name_4": [.pattern("built-in")!],
-                "workspace_name_5": [.pattern("^built-in retina display$")!],
+                "workspace_name_4": [.pattern("built-in")],
+                "workspace_name_5": [.pattern("^built-in retina display$")],
                 "workspace_name_6": [.secondary, .sequenceNumber(1)],
                 "workspace_name_x": [.sequenceNumber(2)],
-                "7": [.pattern("foo")!],
+                "7": [.pattern("foo")],
             ],
         )
         #expect(result.strErrors == [
@@ -465,7 +465,7 @@ struct ConfigTest {
                     bottom: .constant(13),
                     top: .perMonitor(
                         [
-                            PerMonitorValue(description: .pattern("built-in")!, value: 3),
+                            PerMonitorValue(description: .pattern("built-in"), value: 3),
                             PerMonitorValue(description: .secondary, value: 4),
                         ],
                         default: 6,

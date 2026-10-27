@@ -3,10 +3,6 @@ public enum MonitorDescription: Equatable, Sendable {
     case main
     case secondary
     case pattern(CaseInsensitiveRegex)
-
-    public static func pattern(_ raw: String) -> MonitorDescription? {
-        (try? CaseInsensitiveRegex(raw)).map(MonitorDescription.pattern)
-    }
 }
 
 public func parseMonitorDescription(_ raw: String) throws(CmdParseError) -> MonitorDescription {

@@ -9,7 +9,7 @@ struct FocusMonitorCommandTest {
         #expect(parseFocusMonitorTarget("focus-monitor next") == .relative(.next))
         #expect(parseFocusMonitorTarget("focus-monitor left") == .direction(.left))
         #expect(parseFocusMonitorTarget("focus-monitor main") == .patterns([.main]))
-        #expect(parseFocusMonitorTarget("focus-monitor -- next") == .patterns([.pattern("next")!]))
+        #expect(parseFocusMonitorTarget("focus-monitor -- next") == .patterns([.pattern("next")]))
         #expect(parseFocusMonitorTarget("focus-monitor -- main 2") == .patterns([.main, .sequenceNumber(2)]))
     }
 
