@@ -17,10 +17,8 @@ private let rootFields: [String: Field<Config>] = [
     "enable-normalization-flatten-containers": Field(\.enableNormalizationFlattenContainers, decodeBool),
     "enable-normalization-opposite-orientation-for-nested-containers": Field(\.enableNormalizationOppositeOrientationForNestedContainers, decodeBool),
 
-    "default-root-container-layout": Field(\.defaultRootContainerLayout, decodeParsed { Layout(rawValue: $0).toResult("Can't parse layout '\($0)'") }),
-    "default-root-container-orientation": Field(\.defaultRootContainerOrientation, decodeParsed {
-        DefaultContainerOrientation(rawValue: $0).toResult("Can't parse default container orientation '\($0)'")
-    }),
+    "default-root-container-layout": Field(\.defaultRootContainerLayout, decodeRawValue("layout")),
+    "default-root-container-orientation": Field(\.defaultRootContainerOrientation, decodeRawValue("default container orientation")),
 
     "start-at-login": Field(\.startAtLogin, decodeBool),
     "auto-reload-config": Field(\.autoReloadConfig, decodeBool),
@@ -56,9 +54,10 @@ enum ParseConfigResult {
 func parseConfig(_ rawToml: String) -> ParseConfigResult {
     var d = Diagnostics()
     let root: OrderedJson.JsonDict
-    switch decodeTomlRoot(rawToml, &d) {
-        case .success(let it): root = it
-        case .failure(let syntaxError): return .fatal(syntaxError)
+    do {
+        root = try decodeTomlRoot(rawToml, &d)
+    } catch {
+        return .fatal(error.description)
     }
     var config = Config()
     // The order is pinned: the sorted root keys, key-mapping, then mode (bindings resolve through key-mapping)
@@ -150,5 +149,5 @@ private func decodeMonitorDescription(_ raw: OrderedJson, _ path: ConfigBacktrac
         d.typeMismatch(path, expected: .string, .int, actual: raw)
         return nil
     }
-    return d.unwrap(parseMonitorDescription(string), path)
+    return d.parsed(path) { () throws(CmdParseError) in try parseMonitorDescription(string) }
 }

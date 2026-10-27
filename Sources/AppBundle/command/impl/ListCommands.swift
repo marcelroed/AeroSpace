@@ -115,7 +115,7 @@ private func parseWorkspaceFilters(_ raw: [String]) throws(CmdParseError) -> [Li
         switch workspace {
             case "visible": .visible
             case "focused": .focused
-            default: .name(try parseWorkspaceName(workspace))
+            default: .name(try WorkspaceName.parse(workspace))
         }
     }
 }

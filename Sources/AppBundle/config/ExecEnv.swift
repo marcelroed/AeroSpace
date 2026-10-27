@@ -47,10 +47,36 @@ private let decodeEnvVariables: Decode<[String: String]> = { raw, path, d in
         if let add: String = fullEnv[key] {
             interpolationEnv[key] = add
         }
-        switch rawStr.interpolate(with: interpolationEnv) {
-            case .success(let interpolated): result[key] = interpolated
-            case .failure(let errors): for error in errors { d.error(path, error) }
+        if let interpolated = interpolate(rawStr, with: interpolationEnv, path, &d) {
+            result[key] = interpolated
         }
     }
     return result
+}
+
+/// `raw` with the `${name}` variables replaced, or nil after reporting each unknown variable
+func interpolate(_ raw: String, with variables: [String: String], _ path: ConfigBacktrace, _ d: inout Diagnostics) -> String? {
+    let tokens: [InterToken<String>]
+    do {
+        tokens = try raw.rawInterpolationTokens(interpolationChar: "$")
+    } catch {
+        d.error(path, error.message)
+        return nil
+    }
+    var result = ""
+    var isComplete = true
+    for token in tokens {
+        switch token {
+            case .literal(let literal): result += literal
+            case .interVar(let name):
+                if let value = variables[name] {
+                    result += value
+                } else {
+                    d.error(path, "Env variable '\(name)' isn't presented in AeroSpace.app env vars, "
+                        + "or not available for interpolation (because it's mutated)")
+                    isComplete = false
+                }
+        }
+    }
+    return isComplete ? result : nil
 }

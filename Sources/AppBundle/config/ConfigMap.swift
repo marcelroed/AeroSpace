@@ -13,14 +13,14 @@ enum ConfigMap: Equatable {
         }
     }
 
-    func find(keyPath: StrArrSlice) -> Result<ConfigMap, String> {
-        guard let key = keyPath.first else { return .success(self) }
+    func find(keyPath: ArraySlice<String>) throws(CmdFail) -> ConfigMap {
+        guard let key = keyPath.first else { return self }
         switch self {
             case .string(let string):
-                return .failure("Can't dereference scalar value '\(string)'")
+                throw "Can't dereference scalar value '\(string)'"
             case .table(let table):
-                guard let value = table[key] else { return .failure("No value at key token '\(key)'") }
-                return value.find(keyPath: keyPath.slice(1...).orDie())
+                guard let value = table[key] else { throw "No value at key token '\(key)'" }
+                return try value.find(keyPath: keyPath.dropFirst())
         }
     }
 

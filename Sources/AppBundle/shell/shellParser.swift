@@ -17,19 +17,15 @@ import Common
 // Cmd = Word+
 
 extension String {
-    func lexAndParseShell() -> ResOrStr<Shell<[String]>> {
-        self.shellLexerTokens().flatMap { tokens in
-            Result { () throws(String) in
-                var parser = ShellParser(tokens: tokens)
-                parser.skipNewlines() // Skip leading empty lines and comment lines
-                if parser.peek.payload == .end { return .empty }
-                let result = try parser.parse(.seq)
-                if parser.peek.payload != .end {
-                    throw "\(parser.peek.location): Unexpected token \(parser.peek.payload.description.singleQuoted)"
-                }
-                return result
-            }
+    func lexAndParseShell() throws(CmdParseError) -> Shell<[String]> {
+        var parser = ShellParser(tokens: try shellLexerTokens())
+        parser.skipNewlines() // Skip leading empty lines and comment lines
+        if parser.peek.payload == .end { return .empty }
+        let result = try parser.parse(.seq)
+        if parser.peek.payload != .end {
+            throw "\(parser.peek.location): Unexpected token \(parser.peek.payload.description.singleQuoted)"
         }
+        return result
     }
 }
 
@@ -41,7 +37,7 @@ private struct ShellParser {
 
     var peek: LexerToken { tokens[index] }
 
-    mutating func parse(_ op: ShellOp) throws(String) -> Shell<[String]> {
+    mutating func parse(_ op: ShellOp) throws(CmdParseError) -> Shell<[String]> {
         switch op {
             case .seq: try parseSeq()
             case .or: try parseChain(.or, separator: .or)
@@ -51,7 +47,7 @@ private struct ShellParser {
     }
 
     /// `Operand (separator Operand)*`
-    private mutating func parseChain(_ op: ShellOp, separator: LexerToken.Payload) throws(String) -> Shell<[String]> {
+    private mutating func parseChain(_ op: ShellOp, separator: LexerToken.Payload) throws(CmdParseError) -> Shell<[String]> {
         var result = try parseOperand(of: op)
         while peek.payload == separator {
             index += 1
@@ -60,12 +56,12 @@ private struct ShellParser {
         return result
     }
 
-    private mutating func parseOperand(of op: ShellOp) throws(String) -> Shell<[String]> {
+    private mutating func parseOperand(of op: ShellOp) throws(CmdParseError) -> Shell<[String]> {
         if let next = ShellOp(rawValue: op.rawValue + 1) { try parse(next) } else { try parseCmd() }
     }
 
     /// Like `parseChain(.seq, …)`, but a separator is one or more of ';' and newline, and the trailing one is optional
-    private mutating func parseSeq() throws(String) -> Shell<[String]> {
+    private mutating func parseSeq() throws(CmdParseError) -> Shell<[String]> {
         var result = try parse(.or)
         while peek.payload.isSeqSeparator {
             while peek.payload.isSeqSeparator { index += 1 }
@@ -81,7 +77,7 @@ private struct ShellParser {
         while peek.payload == .newline { index += 1 }
     }
 
-    private mutating func parseGroup() throws(String) -> Shell<[String]> {
+    private mutating func parseGroup() throws(CmdParseError) -> Shell<[String]> {
         index += 1
         skipNewlines() // Like at the top level
         let result = try parse(.seq)
@@ -92,7 +88,7 @@ private struct ShellParser {
         return result
     }
 
-    private mutating func parseCmd() throws(String) -> Shell<[String]> {
+    private mutating func parseCmd() throws(CmdParseError) -> Shell<[String]> {
         var words = [String]()
         while case .word(let word) = peek.payload {
             words.append(word)

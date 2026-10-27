@@ -113,49 +113,6 @@ struct CommonUtilTest {
     }
 
     @Test
-    func testArrSlice() {
-        let arr = [10, 20, 30, 40]
-        #expect(arr.slice.toArray() == arr)
-        #expect(arr.slice(1...)?.toArray() == [20, 30, 40])
-        #expect(arr.slice(1 ..< 3)?.toArray() == [20, 30])
-        #expect(arr.slice(4...)?.toArray() == [])
-        #expect(arr.slice(0 ..< 5) == nil)
-
-        let slice = arr.slice(1...).orDie()
-        #expect(slice.count == 3)
-        #expect(slice[0] == 20)
-        #expect(slice[2] == 40)
-        #expect(slice.first == 20)
-        #expect(slice.getOrNil(atIndex: 2) == 40)
-        #expect(slice.getOrNil(atIndex: 3) == nil)
-        #expect(slice.getOrNil(atIndex: -1) == nil)
-        #expect(slice.map { $0 / 10 } == [2, 3, 4])
-        var iterated: [Int] = []
-        for elem in slice { iterated.append(elem) }
-        #expect(iterated == [20, 30, 40])
-        #expect(Array(slice.reversed()) == [40, 30, 20])
-
-        // Nested slices are zero-based relative to the outer slice
-        #expect(slice.slice(1...)?.toArray() == [30, 40])
-        #expect(slice.slice(1 ..< 2)?.toArray() == [30])
-        #expect(slice.slice(1 ..< 2)?[0] == 30)
-        #expect(slice.slice(1 ..< 4) == nil)
-
-        let literal: ArrSlice<Int> = [1, 2]
-        #expect(literal.toArray() == [1, 2])
-    }
-
-    @Test
-    func testArrSliceEquality() {
-        #expect([1, 2, 3].slice(1...) == [9, 2, 3].slice(1...))
-        #expect([1, 2, 3].slice(1...).orDie() == [2, 3])
-        #expect([1, 2].slice != [1, 2, 3].slice)
-        #expect([1, 2].slice != [1, 3].slice)
-        #expect([1].slice(1...).orDie() == [Int]().slice)
-        #expect([1].slice(1...).orDie() == [5, 6].slice(2...).orDie())
-    }
-
-    @Test
     func testSortedEntries() {
         let entries = ["b": 2, "a": 1, "c": 3].sortedEntries
         #expect(entries.map(\.key) == ["a", "b", "c"])
@@ -177,16 +134,6 @@ struct CommonUtilTest {
         let objects: [AnyObject] = [Base(), Derived(), Base()]
         #expect(objects.filterIsInstance(of: Base.self).count == 3)
         #expect(objects.filterIsInstance(of: Derived.self).count == 1)
-    }
-
-    @Test
-    func testFlattenOptional() {
-        let some: Int?? = .some(.some(1))
-        let someNil: Int?? = .some(nil)
-        let none: Int?? = nil
-        #expect(some.flattenOptional() == 1)
-        #expect(someNil.flattenOptional() == nil)
-        #expect(none.flattenOptional() == nil)
     }
 
     @Test

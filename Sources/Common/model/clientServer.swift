@@ -25,10 +25,6 @@ public struct ClientRequest: Codable, Sendable, Equatable {
         self.windowId = windowId
         self.workspace = workspace
     }
-
-    public static func decodeJson(_ data: Data) -> Result<ClientRequest, String> {
-        Result { try JSONDecoder().decode(Self.self, from: data) }.mapError { $0.localizedDescription }
-    }
 }
 
 public struct ServerAnswer: Codable, Sendable, Equatable {

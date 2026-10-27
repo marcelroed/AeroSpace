@@ -304,12 +304,7 @@ nonisolated enum MonitorTarget: Equatable, Sendable {
             if let nextPrev = NextPrev(rawValue: first) { return .relative(nextPrev) }
             if let direction = CardinalDirection(rawValue: first) { return .direction(direction) }
         }
-        return try .patterns(([first] + a.allPositionals()).map { (raw) throws(CmdParseError) in
-            switch parseMonitorDescription(raw) {
-                case .success(let it): it
-                case .failure(let msg): throw .invalid(msg)
-            }
-        })
+        return try .patterns(([first] + a.allPositionals()).map(parseMonitorDescription))
     }
 
     var isPatterns: Bool {

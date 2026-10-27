@@ -5,15 +5,15 @@ import Testing
 @Suite(.aeroSpaceGlobalState)
 struct WorkspaceCommandTest {
     @Test
-    func parse() {
+    func parse() throws {
         testParseSingleCommandSucc("workspace next", WorkspaceCommand(target: .relative(.next)))
-        testParseSingleCommandSucc("workspace --auto-back-and-forth W", WorkspaceCommand(target: .direct(.parse("W").getOrDie()), autoBackAndForth: true))
+        testParseSingleCommandSucc("workspace --auto-back-and-forth W", WorkspaceCommand(target: .direct(try .parse("W")), autoBackAndForth: true))
         testParseSingleCommandSucc("workspace next --wrap-around", WorkspaceCommand(target: .relative(.next), wrapAround: true))
         testParseSingleCommandSucc("workspace --stdin next", WorkspaceCommand(target: .relative(.next), useStdin: true))
-        testParseSingleCommandSucc("workspace -- foo", WorkspaceCommand(target: .direct(.parse("foo").getOrDie())))
+        testParseSingleCommandSucc("workspace -- foo", WorkspaceCommand(target: .direct(try .parse("foo"))))
         testParseSingleCommandSucc(
             "workspace --auto-back-and-forth -- foo",
-            WorkspaceCommand(target: .direct(.parse("foo").getOrDie()), autoBackAndForth: true),
+            WorkspaceCommand(target: .direct(try .parse("foo")), autoBackAndForth: true),
         )
     }
 

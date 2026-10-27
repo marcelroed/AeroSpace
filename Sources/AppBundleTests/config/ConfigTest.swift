@@ -281,7 +281,7 @@ struct ConfigTest {
     }
 
     @Test
-    func testParseOnWindowDetected() {
+    func testParseOnWindowDetected() throws {
         let result = parseConfig(
             """
             on-window-detected = [
@@ -318,7 +318,7 @@ struct ConfigTest {
                 checkFurtherCallbacks: true,
                 run: .seq([
                     .cmd(LayoutCommand(toggleBetween: [.floating])),
-                    .cmd(MoveNodeToWorkspaceCommand(target: .direct(.parse("W").getOrDie()))),
+                    .cmd(MoveNodeToWorkspaceCommand(target: .direct(try .parse("W")))),
                 ]),
             ),
             WindowDetectedCallback( // 1
@@ -330,27 +330,27 @@ struct ConfigTest {
             WindowDetectedCallback( // 3
                 matcher: .command(.cmd(TrueCommand())),
                 run: .seq([
-                    .cmd(MoveNodeToWorkspaceCommand(target: .direct(.parse("S").getOrDie()))),
+                    .cmd(MoveNodeToWorkspaceCommand(target: .direct(try .parse("S")))),
                     .cmd(LayoutCommand(toggleBetween: [.tiling])),
                 ]),
             ),
             WindowDetectedCallback( // 4
                 matcher: .command(.cmd(TrueCommand())),
                 run: .seq([
-                    .cmd(MoveNodeToWorkspaceCommand(target: .direct(.parse("S").getOrDie()))),
-                    .cmd(MoveNodeToWorkspaceCommand(target: .direct(.parse("W").getOrDie()))),
+                    .cmd(MoveNodeToWorkspaceCommand(target: .direct(try .parse("S")))),
+                    .cmd(MoveNodeToWorkspaceCommand(target: .direct(try .parse("W")))),
                 ]),
             ),
             WindowDetectedCallback( // 5
                 matcher: .command(.cmd(TrueCommand())),
                 run: .seq([
-                    .cmd(MoveNodeToWorkspaceCommand(target: .direct(.parse("S").getOrDie()))),
+                    .cmd(MoveNodeToWorkspaceCommand(target: .direct(try .parse("S")))),
                     .cmd(LayoutCommand(toggleBetween: [.h_tiles])),
                 ]),
             ),
             WindowDetectedCallback( // 6
                 matcher: .command(.cmd(TestCommand(negated: false, lhs: .appBundleId, infixOperator: .equals, rhs: "org.alacritty"))),
-                run: .cmd(MoveNodeToWorkspaceCommand(target: .direct(.parse("T").getOrDie()))),
+                run: .cmd(MoveNodeToWorkspaceCommand(target: .direct(try .parse("T")))),
             ),
         ])
 
@@ -426,15 +426,15 @@ struct ConfigTest {
                 run = []
             """,
         )
-        let expected = WindowDetectedCallbackMatcher.legacy(LegacyWindowDetectedCallbackMatcher(appNameRegexSubstring: .new("^system settings$").getOrDie()))
+        let expected = WindowDetectedCallbackMatcher.legacy(LegacyWindowDetectedCallbackMatcher(appNameRegexSubstring: try CaseInsensitiveRegex("^system settings$")))
         #expect(try #require(result.config.onWindowDetected.singleOrNil()).matcher == expected)
         #expect(result.errors == [])
     }
 
     @Test
-    func testRegex() {
-        #expect("System Settings".contains(caseInsensitiveRegex: CaseInsensitiveRegex.new("settings").getOrDie()))
-        #expect(!"System Settings".contains(caseInsensitiveRegex: CaseInsensitiveRegex.new("^settings^").getOrDie()))
+    func testRegex() throws {
+        #expect("System Settings".contains(caseInsensitiveRegex: try CaseInsensitiveRegex("settings")))
+        #expect(!"System Settings".contains(caseInsensitiveRegex: try CaseInsensitiveRegex("^settings^")))
     }
 
     @Test
@@ -543,7 +543,7 @@ struct ConfigTest {
     }
 
     @Test
-    func testParseKeyMapping() {
+    func testParseKeyMapping() throws {
         let result = parseConfig(
             """
             [key-mapping.key-notation-to-key-code]
@@ -559,7 +559,7 @@ struct ConfigTest {
             "q": .q,
             "unicorn": .u,
         ]))
-        let binding = HotkeyBinding(.option, .u, .cmd(WorkspaceCommand(target: .direct(.parse("wonderland").getOrDie()))))
+        let binding = HotkeyBinding(.option, .u, .cmd(WorkspaceCommand(target: .direct(try .parse("wonderland")))))
         #expect(result.config.modes[mainModeId]?.bindings == [binding.descriptionWithKeyCode: binding])
 
         let errors1 = parseConfig(

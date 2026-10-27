@@ -77,7 +77,7 @@ nonisolated(unsafe) private var _serverArgs = ServerArgs()
 /// Set at startup, before the AX threads start
 nonisolated var serverArgs: ServerArgs { unsafe _serverArgs }
 private func initServerArgs() {
-    let args = CommandLine.arguments.slice(1...) ?? []
+    let args = Array(CommandLine.arguments.dropFirst())
     if args.contains(where: { $0 == "-h" || $0 == "--help" }) {
         exit(EXIT_CODE_ZERO, out: serverHelp)
     }

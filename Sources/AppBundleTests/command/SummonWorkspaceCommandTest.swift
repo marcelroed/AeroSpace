@@ -5,15 +5,15 @@ import Testing
 @Suite(.aeroSpaceGlobalState)
 struct SummonWorkspaceCommandTest {
     @Test
-    func parse() {
-        testParseSingleCommandSucc("summon-workspace foo", SummonWorkspaceCommand(target: .parse("foo").getOrDie()))
+    func parse() throws {
+        testParseSingleCommandSucc("summon-workspace foo", SummonWorkspaceCommand(target: try .parse("foo")))
         testParseSingleCommandSucc(
             "summon-workspace -- foo",
-            SummonWorkspaceCommand(target: .parse("foo").getOrDie()),
+            SummonWorkspaceCommand(target: try .parse("foo")),
         )
         testParseSingleCommandSucc(
             "summon-workspace --fail-if-noop -- foo",
-            SummonWorkspaceCommand(target: .parse("foo").getOrDie(), failIfNoop: true),
+            SummonWorkspaceCommand(target: try .parse("foo"), failIfNoop: true),
         )
     }
 

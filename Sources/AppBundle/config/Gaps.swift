@@ -105,7 +105,7 @@ private func decodePerMonitorValue(_ raw: OrderedJson, _ path: ConfigBacktrace, 
     var path = path
     guard let (_, monitor) = decodeSingleKeyTable(raw, expectedKey: "monitor", &path, &d),
           let (pattern, value) = decodeSingleKeyTable(monitor, &path, &d),
-          let description = d.unwrap(parseMonitorDescription(pattern), path)
+          let description = d.parsed(path, { () throws(CmdParseError) in try parseMonitorDescription(pattern) })
     else { return nil }
     guard let value = value.asIntOrNil else {
         d.typeMismatch(path, expected: .int, actual: value)

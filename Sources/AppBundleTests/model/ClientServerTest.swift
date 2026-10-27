@@ -6,45 +6,45 @@ import Testing
 @Suite
 struct ClientServerTest {
     @Test
-    func testClientRequestJsonV1_decoding() {
+    func testClientRequestJsonV1_decoding() throws {
         let data = #"{ "command": "deprecated", "args": ["foo", "bar"], "stdin": "stdin" }"#.data(using: .utf8)!
         let expected = ClientRequest(args: ["foo", "bar"], stdin: "stdin", windowId: nil, workspace: nil)
-        assertSucc(ClientRequest.decodeJson(data), expected)
+        #expect(try decode(data) == expected)
     }
 
     @Test
-    func testClientRequestJsonV2_decoding() {
+    func testClientRequestJsonV2_decoding() throws {
         let data = #"{ "args": ["foo", "bar"], "stdin": "stdin" }"#.data(using: .utf8)!
         let expected = ClientRequest(args: ["foo", "bar"], stdin: "stdin", windowId: nil, workspace: nil)
-        assertSucc(ClientRequest.decodeJson(data), expected)
+        #expect(try decode(data) == expected)
     }
 
     @Test
-    func testClientRequestJsonV3_decoding() {
+    func testClientRequestJsonV3_decoding() throws {
         let data = #"{ "args": ["foo", "bar"], "stdin": "stdin", "windowId": null, "workspace": null }"#.data(using: .utf8)!
         let expected = ClientRequest(args: ["foo", "bar"], stdin: "stdin", windowId: nil, workspace: nil)
-        assertSucc(ClientRequest.decodeJson(data), expected)
+        #expect(try decode(data) == expected)
     }
 
     @Test
-    func testClientRequestJsonV3_decoding2() {
+    func testClientRequestJsonV3_decoding2() throws {
         let data = #"{ "args": ["foo", "bar"], "stdin": "stdin", "windowId": 1, "workspace": "foo" }"#.data(using: .utf8)!
         let expected = ClientRequest(args: ["foo", "bar"], stdin: "stdin", windowId: 1, workspace: "foo")
-        assertSucc(ClientRequest.decodeJson(data), expected)
+        #expect(try decode(data) == expected)
     }
 
     @Test
     func testClientRequestJsonV9999_decoding() {
         let data = #"{ "args": ["foo", "bar"], "stdin": "stdin", "yet another future field": 1 }"#.data(using: .utf8)!
-        assertSucc(ClientRequest.decodeJson(data))
+        #expect(throws: Never.self) { try decode(data) }
     }
 
     @Test
-    func testClientRequestJson_decodingMissingIsNull() {
+    func testClientRequestJson_decodingMissingIsNull() throws {
         let data1 = #"{ "args": [], "stdin": "", "windowId": null }"#.data(using: .utf8)!
-        assertSucc(ClientRequest.decodeJson(data1), ClientRequest(args: [], stdin: "", windowId: nil, workspace: nil))
+        #expect(try decode(data1) == ClientRequest(args: [], stdin: "", windowId: nil, workspace: nil))
         let data2 = #"{ "args": [], "stdin": "", "workspace": "w" }"#.data(using: .utf8)!
-        assertSucc(ClientRequest.decodeJson(data2), ClientRequest(args: [], stdin: "", windowId: nil, workspace: "w"))
+        #expect(try decode(data2) == ClientRequest(args: [], stdin: "", windowId: nil, workspace: "w"))
     }
 
     @Test
@@ -67,10 +67,11 @@ struct ClientServerTest {
         ]
         for (json, expectedKind, expectedDescription) in testData {
             let data = json.data(using: .utf8)!
-            assertFail(ClientRequest.decodeJson(data), expectedDescription)
+            let error = #expect(throws: (any Error).self) { try decode(data) }
+            #expect(error?.localizedDescription == expectedDescription)
             let kind: String
             do {
-                _ = try JSONDecoder().decode(ClientRequest.self, from: data)
+                _ = try decode(data)
                 kind = "success"
             } catch DecodingError.typeMismatch(_, let context) {
                 kind = "typeMismatch \(context.codingPath.map(\.stringValue))"
@@ -157,4 +158,8 @@ struct ClientServerTest {
             #expect(String(describing: event) == String(describing: expected))
         }
     }
+}
+
+private func decode(_ data: Data) throws -> ClientRequest {
+    try JSONDecoder().decode(ClientRequest.self, from: data)
 }

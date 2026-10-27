@@ -1,19 +1,6 @@
 extension Sequence {
     @inlinable public func filterIsInstance<R>(of _: R.Type) -> [R] { compactMap { $0 as? R } }
 
-    public func mapAllOrFailure<T, E>(_ transform: (Self.Element) -> Result<T, E>) -> Result<[T], E> {
-        var result: [T] = []
-        for element in self {
-            switch transform(element) {
-                case .success(let element):
-                    result.append(element)
-                case .failure(let errors):
-                    return .failure(errors)
-            }
-        }
-        return .success(result)
-    }
-
     @inlinable public func minBy(_ selector: (Self.Element) -> some Comparable) -> Self.Element? {
         self.min(by: { a, b in selector(a) < selector(b) })
     }

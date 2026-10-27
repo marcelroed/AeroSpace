@@ -6,16 +6,16 @@ import Testing
 struct ParseEnvVariablesTest {
     @Test
     func testInterpolation() {
-        #expect("echo ${foo}".interpolate(with: ["foo": "bar"]) == .success("echo bar"))
-        #expect("echo $foo".interpolate(with: [:]) == .success("echo $foo"))
-        #expect("echo $$foo".interpolate(with: [:]) == .success("echo $$foo"))
-        #expect("echo $${foo}".interpolate(with: ["foo": "bar"]) == .success("echo $bar"))
-        #expect("echo $".interpolate(with: [:]) == .success("echo $"))
+        #expect(interpolate("echo ${foo}", ["foo": "bar"]) == ("echo bar", []))
+        #expect(interpolate("echo $foo") == ("echo $foo", []))
+        #expect(interpolate("echo $$foo") == ("echo $$foo", []))
+        #expect(interpolate("echo $${foo}", ["foo": "bar"]) == ("echo $bar", []))
+        #expect(interpolate("echo $") == ("echo $", []))
 
         for str in ["echo ${foo", "echo ${foo{bar}", "echo ${foo$bar}", "echo ${foo}"] {
-            if case .success(let actual) = str.interpolate(with: [:]) {
-                Issue.record("\(str.singleQuoted) must fail to interpolate. Got: \(actual.singleQuoted)")
-            }
+            let (result, errors) = interpolate(str)
+            #expect(result == nil, "\(str.singleQuoted) must fail to interpolate")
+            #expect(!errors.isEmpty, "\(str.singleQuoted) must report why it fails")
         }
     }
 
@@ -24,10 +24,17 @@ struct ParseEnvVariablesTest {
         let notPresented = { (name: String) in
             "Env variable '\(name)' isn't presented in AeroSpace.app env vars, or not available for interpolation (because it's mutated)"
         }
-        #expect("".interpolate(with: [:]) == .success(""))
-        #expect("a${x}b${y}${x}$c".interpolate(with: ["x": "1", "y": "2"]) == .success("a1b21$c"))
-        #expect("${a} ${b} ${c}".interpolate(with: ["b": "B"]) == .failure([notPresented("a"), notPresented("c")]))
-        #expect("${a} ${b".interpolate(with: [:]) == .failure(["Unbalanced curly braces"]))
+        #expect(interpolate("") == ("", []))
+        #expect(interpolate("a${x}b${y}${x}$c", ["x": "1", "y": "2"]) == ("a1b21$c", []))
+        #expect(interpolate("${a} ${b} ${c}", ["b": "B"]) == (nil, [notPresented("a"), notPresented("c")]))
+        #expect(interpolate("${a} ${b") == (nil, ["Unbalanced curly braces"]))
+    }
+
+    /// The interpolated string, or nil, and the reported errors
+    private func interpolate(_ raw: String, _ variables: [String: String] = [:]) -> (String?, [String]) {
+        var d = Diagnostics()
+        let result = AppBundle.interpolate(raw, with: variables, .emptyRoot, &d)
+        return (result, d.errors.map(\.message))
     }
 
     @Test

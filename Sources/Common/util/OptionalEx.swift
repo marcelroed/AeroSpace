@@ -9,12 +9,6 @@ extension Optional {
         self ?? dieT("orDie: " + message, file: file, line: line, column: column, function: function)
     }
 
-    public func toResult<F: Error>(_ or: @autoclosure () -> F) -> Result<Wrapped, F> {
-        self.map(Result.success) ?? .failure(or())
-    }
-
-    public func flattenOptional<T>() -> T? where Wrapped == T? { flatMap { $0 } }
-
     public var prettyDescription: String {
         switch self {
             case let ok?: String(describing: ok)

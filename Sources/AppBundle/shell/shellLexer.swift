@@ -1,9 +1,9 @@
 import Common
 
 extension String {
-    func shellLexerTokens() -> ResOrStr<[LexerToken]> {
+    func shellLexerTokens() throws(CmdParseError) -> [LexerToken] {
         var lexer = ShellLexer(chars: locateChars(self + " ")) // synthetic trailing space to flush the last word
-        return Result { () throws(String) in try lexer.lex() }
+        return try lexer.lex()
     }
 }
 
@@ -21,7 +21,7 @@ private struct ShellLexer {
     var next: Character? { chars.getOrNil(atIndex: index + 1)?.value }
     var location: Location { chars[index].location }
 
-    mutating func lex() throws(String) -> [LexerToken] {
+    mutating func lex() throws(CmdParseError) -> [LexerToken] {
         while let char {
             switch char {
                 case "\n": emit(.newline)
@@ -56,7 +56,7 @@ private struct ShellLexer {
     }
 
     /// A backslash escapes the next newline. Only whitespace and a comment may come in between
-    private mutating func skipLineContinuation() throws(String) {
+    private mutating func skipLineContinuation() throws(CmdParseError) {
         index += 1
         while let char, char != "\n" {
             if char == "#" {
@@ -70,7 +70,7 @@ private struct ShellLexer {
         index += 1
     }
 
-    private mutating func lexQuotedWord() throws(String) {
+    private mutating func lexQuotedWord() throws(CmdParseError) {
         let quote = chars[index]
         index += 1
         var word = ""
@@ -91,7 +91,7 @@ private struct ShellLexer {
         }
     }
 
-    private mutating func lexBareWord() throws(String) {
+    private mutating func lexBareWord() throws(CmdParseError) {
         let start = location
         var word = ""
         while let char, !char.isWhitespace, !wordTerminators.contains(char), !(char == "&" && next == "&") {

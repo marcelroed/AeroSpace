@@ -1,14 +1,5 @@
 import Foundation
 
-public typealias ResOrStr<T> = Result<T, String>
-extension String: @retroactive LocalizedError { // Make it possible to use String in Result. todo migrate to self written Result monad
-    public var errorDescription: String? { self }
-}
-
-// Make it possible to use [String] in Result. todo migrate to self written Result monad
-extension Array: @retroactive Error where Element: Error {}
-extension Array: @retroactive LocalizedError where Element: LocalizedError {}
-
 extension String {
     public func prefixLines(with: String) -> String {
         split(separator: "\n", omittingEmptySubsequences: false).map { with + $0 }.joined(separator: "\n")
@@ -61,27 +52,7 @@ extension [[String]] {
 
 
 extension String {
-    public func interpolate(with variables: [String: String]) -> Result<String, [String]> {
-        rawInterpolationTokens(interpolationChar: "$").mapError { [$0] }.flatMap { tokens in
-            var result = ""
-            var errors: [String] = []
-            for token in tokens {
-                switch token {
-                    case .literal(let literal): result += literal
-                    case .interVar(let name):
-                        if let value = variables[name] {
-                            result += value
-                        } else {
-                            errors.append("Env variable '\(name)' isn't presented in AeroSpace.app env vars, "
-                                + "or not available for interpolation (because it's mutated)")
-                        }
-                }
-            }
-            return errors.isEmpty ? .success(result) : .failure(errors)
-        }
-    }
-
-    public func rawInterpolationTokens(interpolationChar: Character) -> Result<[InterToken<String>], String> {
+    public func rawInterpolationTokens(interpolationChar: Character) throws(CmdParseError) -> [InterToken<String>] {
         var mode: InterpolationParserState = .stringLiteral(currLiteral: "")
         var result: [InterToken<String>] = []
         for char: Character? in (Array(self) + [nil]) {
@@ -105,16 +76,16 @@ extension String {
                     result.append(.interVar(value))
                     mode = .stringLiteral(currLiteral: "")
                 case (.interpolationVariable(let value), "{"):
-                    return .failure("Can't parse '\(value + "{")' inside interpolation (Open curly brace is invalid character)")
+                    throw "Can't parse '\(value + "{")' inside interpolation (Open curly brace is invalid character)"
                 case (.interpolationVariable(let value), interpolationChar):
-                    return .failure("Can't parse '\(value + .init(interpolationChar))' inside interpolation ('\(interpolationChar)' is disallowed character)")
+                    throw "Can't parse '\(value + .init(interpolationChar))' inside interpolation ('\(interpolationChar)' is disallowed character)"
                 case (.interpolationVariable(let value), let char?):
                     mode = .interpolationVariable(currVariable: value + .init(char))
                 case (.interpolationVariable, nil):
-                    return .failure("Unbalanced curly braces")
+                    throw "Unbalanced curly braces"
             }
         }
-        return .success(result.filter { $0 != .literal("") })
+        return result.filter { $0 != .literal("") }
     }
 }
 

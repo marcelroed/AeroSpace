@@ -12,32 +12,40 @@ struct WorkspaceNameTest {
             "all", "none", "mouse", "target",
         ]
         for name in reserved {
-            assertFail(WorkspaceName.parse(name), "'\(name)' is a reserved workspace name")
+            #expect(workspaceName(name) == .failure("'\(name)' is a reserved workspace name"))
         }
-        assertSucc(WorkspaceName.parse("Next").map(\.raw), "Next")
-        assertSucc(WorkspaceName.parse("nextt").map(\.raw), "nextt")
+        #expect(workspaceName("Next").map(\.raw) == .success("Next"))
+        #expect(workspaceName("nextt").map(\.raw) == .success("nextt"))
     }
 
     @Test
     func testIllegalNames() {
-        assertFail(WorkspaceName.parse(""), "Empty workspace name is forbidden")
-        assertFail(WorkspaceName.parse("a,b"), "Workspace names are not allowed to contain comma")
-        assertFail(WorkspaceName.parse("_a"), "Workspace names starting with underscore are reserved for future use")
-        assertFail(WorkspaceName.parse("-a"), "Workspace names starting with dash are disallowed")
-        assertFail(WorkspaceName.parse("a b"), "Whitespace characters are forbidden in workspace names")
-        assertFail(WorkspaceName.parse("_a,b"), "Workspace names are not allowed to contain comma")
+        #expect(workspaceName("") == .failure("Empty workspace name is forbidden"))
+        #expect(workspaceName("a,b") == .failure("Workspace names are not allowed to contain comma"))
+        #expect(workspaceName("_a") == .failure("Workspace names starting with underscore are reserved for future use"))
+        #expect(workspaceName("-a") == .failure("Workspace names starting with dash are disallowed"))
+        #expect(workspaceName("a b") == .failure("Whitespace characters are forbidden in workspace names"))
+        #expect(workspaceName("_a,b") == .failure("Workspace names are not allowed to contain comma"))
     }
 
     @Test
     func testParseMonitorDescription() {
-        assertSucc(parseMonitorDescription("main"), .main)
-        assertSucc(parseMonitorDescription("secondary"), .secondary)
-        assertSucc(parseMonitorDescription("2"), .sequenceNumber(2))
-        assertSucc(parseMonitorDescription("Main"), .pattern("Main")!)
-        assertSucc(parseMonitorDescription(" 1"), .pattern(" 1")!)
-        assertFail(parseMonitorDescription("0"), "Monitor sequence numbers uses 1-based indexing. Values less than 1 are illegal")
-        assertFail(parseMonitorDescription("-1"), "Monitor sequence numbers uses 1-based indexing. Values less than 1 are illegal")
-        assertFail(parseMonitorDescription(""), "Empty string is an illegal monitor description")
-        assertFail(parseMonitorDescription("("), "Can't parse '(' regex: expected ')'")
+        #expect(monitorDescription("main") == .success(.main))
+        #expect(monitorDescription("secondary") == .success(.secondary))
+        #expect(monitorDescription("2") == .success(.sequenceNumber(2)))
+        #expect(monitorDescription("Main") == .success(.pattern("Main")!))
+        #expect(monitorDescription(" 1") == .success(.pattern(" 1")!))
+        #expect(monitorDescription("0") == .failure("Monitor sequence numbers uses 1-based indexing. Values less than 1 are illegal"))
+        #expect(monitorDescription("-1") == .failure("Monitor sequence numbers uses 1-based indexing. Values less than 1 are illegal"))
+        #expect(monitorDescription("") == .failure("Empty string is an illegal monitor description"))
+        #expect(monitorDescription("(") == .failure("Can't parse '(' regex: expected ')'"))
     }
+}
+
+private func workspaceName(_ raw: String) -> Result<WorkspaceName, CmdParseError> {
+    Result { () throws(CmdParseError) in try WorkspaceName.parse(raw) }
+}
+
+private func monitorDescription(_ raw: String) -> Result<MonitorDescription, CmdParseError> {
+    Result { () throws(CmdParseError) in try parseMonitorDescription(raw) }
 }

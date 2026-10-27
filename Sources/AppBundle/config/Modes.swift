@@ -72,8 +72,10 @@ private func decodeBindings(_ raw: OrderedJson, _ path: ConfigBacktrace, _ mappi
 
 private func parseBinding(_ raw: String, _ path: ConfigBacktrace, _ mapping: [String: Key], _ d: inout Diagnostics) -> (NSEvent.ModifierFlags, Key)? {
     let parts = raw.split(separator: "-")
-    let modifiers = parts.dropLast().mapAllOrFailure { modifiersMap[String($0)].toResult("Can't parse modifiers in '\(raw)' binding") }
-    guard let modifiers = d.unwrap(modifiers, path) else { return nil }
+    guard let modifiers = allOrNil(parts.dropLast().map { modifiersMap[String($0)] }) else {
+        d.error(path, "Can't parse modifiers in '\(raw)' binding")
+        return nil
+    }
     guard let key = parts.last.flatMap({ mapping[String($0)] }) else {
         d.error(path, "Can't parse the key in '\(raw)' binding")
         return nil

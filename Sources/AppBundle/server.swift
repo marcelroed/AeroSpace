@@ -48,14 +48,14 @@ nonisolated private func newConnection(_ connection: NWConnection) async {
         case nil: return
     }
     let request: ClientRequest
-    switch ClientRequest.decodeJson(rawRequest) {
-        case .success(let it): request = it
-        case .failure(let err):
-            let msg = """
-                Can't parse request \(String(describing: String(data: rawRequest, encoding: .utf8)).singleQuoted).
-                Error: \(err)
-                """
-            return await answer(exitCode: EXIT_CODE_TWO, stderr: msg)
+    do {
+        request = try JSONDecoder().decode(ClientRequest.self, from: rawRequest)
+    } catch {
+        let msg = """
+            Can't parse request \(String(describing: String(data: rawRequest, encoding: .utf8)).singleQuoted).
+            Error: \(error.localizedDescription)
+            """
+        return await answer(exitCode: EXIT_CODE_TWO, stderr: msg)
     }
     switch await handle(request) {
         case .answer(let exitCode, let stdout, let stderr):

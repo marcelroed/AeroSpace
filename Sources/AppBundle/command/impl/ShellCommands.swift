@@ -50,23 +50,26 @@ struct TestCommand: nonisolated Command {
             Interpolation variable: \(lhs.rawValue.singleQuoted) has a type of \(lhsType). The \(lhsType) type is not compatible with \(infixOperator.rawValue.singleQuoted) operator.
             """
 
-        let result: Result<Bool, String> = switch (lhsValue, infixOperator) {
+        let result: Bool
+        switch (lhsValue, infixOperator) {
             case (.bool(let lhs), .equals):
-                Bool(rhs).toResult("Can't convert String \(rhs.singleQuoted) to Bool").map { rhs in lhs == rhs }
+                guard let rhs = Bool(rhs) else { throw "Can't convert String \(rhs.singleQuoted) to Bool" }
+                result = lhs == rhs
             case (.int(let lhs), .equals):
-                Int64(rhs).toResult("Can't convert String \(rhs.singleQuoted) to Int").map { rhs in lhs == rhs }
+                guard let rhs = Int64(rhs) else { throw "Can't convert String \(rhs.singleQuoted) to Int" }
+                result = lhs == rhs
             case (.bool, .matchesRegex), (.int, .matchesRegex):
-                .failure(incompatibleLhsAndOperatorMsg)
+                throw CmdFail(incompatibleLhsAndOperatorMsg)
             case (.string(let lhs), .equals):
-                .success(lhs == rhs)
+                result = lhs == rhs
             case (.string(let lhs), .matchesRegex):
-                CaseInsensitiveRegex.new(rhs).map { rhs in lhs.contains(caseInsensitiveRegex: rhs) }
+                do {
+                    result = lhs.contains(caseInsensitiveRegex: try CaseInsensitiveRegex(rhs))
+                } catch {
+                    throw CmdFail(error.message)
+                }
         }
-
-        switch result {
-            case .success(let result): if result == negated { throw .no }
-            case .failure(let err): throw CmdFail(err)
-        }
+        if result == negated { throw .no }
     }
 }
 
@@ -88,10 +91,7 @@ private func parseLhs(_ raw: String) throws(CmdParseError) -> FormatVar {
 }
 
 private func rawTokens(_ raw: String) throws(CmdParseError) -> [InterToken<String>] {
-    switch raw.rawInterpolationTokens(interpolationChar: "%") {
-        case .success(let tokens): tokens
-        case .failure(let msg): throw .invalid(msg)
-    }
+    try raw.rawInterpolationTokens(interpolationChar: "%")
 }
 
 struct RunCallbackCommand: nonisolated Command {

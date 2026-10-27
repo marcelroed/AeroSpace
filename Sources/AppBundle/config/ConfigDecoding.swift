@@ -20,9 +20,20 @@ let decodeString: Decode<String> = expect(.string) { $0.asStringOrNil }
 let decodeArray: Decode<OrderedJson.JsonArray> = expect(.array) { $0.asArrayOrNil }
 let decodeDict: Decode<OrderedJson.JsonDict> = expect(.table) { $0.asDictOrNil }
 
-/// Decodes a string and converts it. A conversion failure is reported at the value's path
-func decodeParsed<T>(_ convert: @escaping (String) -> ResOrStr<T>) -> Decode<T> {
-    { raw, path, d in decodeString(raw, path, &d).flatMap { d.unwrap(convert($0), path) } }
+/// Decodes a string and parses it. A parse error is reported at the value's path
+func decodeParsed<T>(_ parse: @escaping (String) throws(CmdParseError) -> T) -> Decode<T> {
+    { raw, path, d in
+        guard let string = decodeString(raw, path, &d) else { return nil }
+        return d.parsed(path) { () throws(CmdParseError) in try parse(string) }
+    }
+}
+
+/// Decodes a string into the case of `T` with that raw value
+func decodeRawValue<T: RawRepresentable<String>>(_ what: String) -> Decode<T> {
+    decodeParsed { raw throws(CmdParseError) in
+        guard let value = T(rawValue: raw) else { throw "Can't parse \(what) '\(raw)'" }
+        return value
+    }
 }
 
 /// The elements, or nil if any is unusable. Decode them all first: each unusable one reports its own error
@@ -82,14 +93,10 @@ func decodeTable<S>(_ raw: OrderedJson, into target: inout S, _ fields: [String:
     return isUsable
 }
 
-/// The root table with sorted keys, or the syntax error. Values of unsupported types are reported and dropped
-func decodeTomlRoot(_ rawToml: String, _ d: inout Diagnostics) -> ResOrStr<OrderedJson.JsonDict> {
-    do {
-        let dict: [String: Any] = try .init(try TOMLTable(source: rawToml))
-        return .success(tomlToOrderedJson(dict, .emptyRoot, &d)?.asDictOrNil ?? [:])
-    } catch {
-        return .failure(error.description)
-    }
+/// The root table with sorted keys. Values of unsupported types are reported and dropped
+func decodeTomlRoot(_ rawToml: String, _ d: inout Diagnostics) throws(TOMLError) -> OrderedJson.JsonDict {
+    let dict: [String: Any] = try .init(try TOMLTable(source: rawToml))
+    return tomlToOrderedJson(dict, .emptyRoot, &d)?.asDictOrNil ?? [:]
 }
 
 private func tomlToOrderedJson(_ any: Any, _ path: ConfigBacktrace, _ d: inout Diagnostics) -> OrderedJson? {

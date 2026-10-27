@@ -60,12 +60,7 @@ typealias FormatToken = InterToken<FormatVar>
 
 /// Parses the `%{var}` interpolations of `raw`
 nonisolated func parseFormat(_ raw: String) throws(CmdParseError) -> [FormatToken] {
-    let tokens: [InterToken<String>]
-    switch raw.rawInterpolationTokens(interpolationChar: "%") {
-        case .success(let it): tokens = it
-        case .failure(let msg): throw .invalid(msg)
-    }
-    return try tokens.map { (token) throws(CmdParseError) in
+    return try raw.rawInterpolationTokens(interpolationChar: "%").map { (token) throws(CmdParseError) in
         switch token {
             case .literal(let literal): .literal(literal)
             case .interVar(let name): .interVar(try parseEnum(name))

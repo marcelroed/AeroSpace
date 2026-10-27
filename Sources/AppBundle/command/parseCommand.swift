@@ -1,22 +1,5 @@
 import Common
 
-/// Why words don't make a command
-nonisolated enum CmdParseError: Error, Equatable, ExpressibleByStringInterpolation {
-    case invalid(String)
-    /// `-h` or `--help` asks for the help of the subcommand instead of a command
-    case help(CmdKind)
-
-    init(stringLiteral message: String) { self = .invalid(message) }
-
-    /// Where help isn't an answer, it's an error with the help as its message
-    var message: String {
-        switch self {
-            case .invalid(let message): message
-            case .help(let kind): kind.help
-        }
-    }
-}
-
 /// Parses a command line of the config or of `eval`: an aerospace shell expression
 func parseShell(_ raw: String, allowExecAndForget: Bool, allowEval: Bool) throws(CmdParseError) -> Shell<any Command> {
     if allowExecAndForget && raw.starts(with: "exec-and-forget") {
@@ -25,12 +8,7 @@ func parseShell(_ raw: String, allowExecAndForget: Bool, allowEval: Bool) throws
             return .cmd(ExecAndForgetCommand(bashScript: bashScript))
         }
     }
-    let shell: Shell<[String]>
-    switch raw.lexAndParseShell() {
-        case .success(let it): shell = it
-        case .failure(let msg): throw .invalid(msg)
-    }
-    return try shell.map { (words) throws(CmdParseError) in
+    return try raw.lexAndParseShell().map { (words) throws(CmdParseError) in
         let command = try parseCommand(words)
         if command is EvalCommand && !allowEval { throw "Illegal eval (Tip: nested evals are forbidden)" }
         return command
@@ -201,7 +179,7 @@ nonisolated struct ArgCursor {
     }
 
     mutating func workspace(of option: String) throws(CmdParseError) -> WorkspaceName {
-        try value(of: option, "<workspace>", parseWorkspaceName)
+        try value(of: option, "<workspace>", WorkspaceName.parse)
     }
 
     /// The next positional arg. Call after the options
@@ -267,11 +245,4 @@ nonisolated func parseUInt32(_ raw: String) throws(CmdParseError) -> UInt32 {
 nonisolated func parseInt32(_ raw: String) throws(CmdParseError) -> Int32 {
     guard let value = Int32(raw) else { throw "Can't convert '\(raw)' to Int32" }
     return value
-}
-
-nonisolated func parseWorkspaceName(_ raw: String) throws(CmdParseError) -> WorkspaceName {
-    switch WorkspaceName.parse(raw) {
-        case .success(let name): name
-        case .failure(let msg): throw .invalid(msg)
-    }
 }

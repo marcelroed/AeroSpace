@@ -143,7 +143,7 @@ nonisolated private final class TestSocketServer: Sendable {
                     await connection.sendAndWait(withUnsafeBytes(of: UInt32(100)) { unsafe Data($0) }) // The answer size
                     return
                 }
-                let request = ClientRequest.decodeJson(raw).getOrDie()
+                guard let request = try? JSONDecoder().decode(ClientRequest.self, from: raw) else { return }
                 let answer = ServerAnswer(
                     exitCode: 0,
                     stdout: request.args.joined(separator: " "),
@@ -178,7 +178,7 @@ nonisolated private final class TestSocketServer: Sendable {
         let server = TestSocketServer(path: path, listener: listener)
         guard case .ready = state else {
             server.stop()
-            throw "Test socket listener at \(path) isn't ready: \(state.map { "\($0)" } ?? "timed out after \(timeoutSeconds)s")"
+            throw ListenerNotReady(description: "Test socket listener at \(path) isn't ready: \(state.map { "\($0)" } ?? "timed out after \(timeoutSeconds)s")")
         }
         return server
     }
@@ -187,6 +187,10 @@ nonisolated private final class TestSocketServer: Sendable {
         listener.cancel()
         try? FileManager.default.removeItem(atPath: path)
     }
+}
+
+private struct ListenerNotReady: Error, CustomStringConvertible {
+    let description: String
 }
 
 extension NWConnection {

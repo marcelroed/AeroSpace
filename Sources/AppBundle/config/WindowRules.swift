@@ -100,7 +100,7 @@ private let callbackFields: [String: Field<WindowDetectedCallback>] = [
     "run": Field(\.run, decodeShellOfCommands),
 ]
 
-private let decodeRegex: Decode<CaseInsensitiveRegex> = decodeParsed(CaseInsensitiveRegex.new)
+private let decodeRegex: Decode<CaseInsensitiveRegex> = decodeParsed(CaseInsensitiveRegex.init)
 
 private let legacyMatcherFields: [String: Field<LegacyWindowDetectedCallbackMatcher>] = [
     "app-id": Field(\.appId, decodeString),

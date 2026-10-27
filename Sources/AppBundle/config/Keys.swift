@@ -26,7 +26,7 @@ struct KeyMapping: Equatable, Sendable {
 }
 
 let keyMappingFields: [String: Field<KeyMapping>] = [
-    "preset": Field(\.preset, decodeParsed { raw in Result { () throws(CmdParseError) in try parseEnum(raw, KeyMapping.Preset.self) }.mapError(\.message) }),
+    "preset": Field(\.preset, decodeParsed { raw throws(CmdParseError) in try parseEnum(raw, KeyMapping.Preset.self) }),
     "key-notation-to-key-code": Field(\.rawKeyNotationToKeyCode) { raw, path, d in
         guard let table = decodeDict(raw, path, &d) else { return nil }
         var result: [String: Key] = [:]

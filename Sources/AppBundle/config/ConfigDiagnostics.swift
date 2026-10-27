@@ -24,13 +24,13 @@ struct Diagnostics: Sendable {
         errors.append(ConfigParseDiagnostic(path, message))
     }
 
-    /// The success value, or nil after reporting the failure at `path`
-    mutating func unwrap<T>(_ result: ResOrStr<T>, _ path: ConfigBacktrace) -> T? {
-        switch result {
-            case .success(let value): return value
-            case .failure(let message):
-                error(path, message)
-                return nil
+    /// The parsed value, or nil after reporting the parse error at `path`
+    mutating func parsed<T>(_ path: ConfigBacktrace, _ parse: () throws(CmdParseError) -> T) -> T? {
+        do {
+            return try parse()
+        } catch {
+            self.error(path, error.message)
+            return nil
         }
     }
 

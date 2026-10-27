@@ -69,16 +69,7 @@ struct ConfigCommand: nonisolated Command {
 
     /// `--keys` lists the sorted keys of a table
     private func getKey(_ cx: CmdContext, key: String) throws(CmdFail) {
-        let keyPath: [String]
-        switch key.toKeyPath() {
-            case .success(let it): keyPath = it
-            case .failure(let msg): throw CmdFail(msg)
-        }
-        let configMap: ConfigMap
-        switch buildConfigMap().find(keyPath: keyPath.slice) {
-            case .success(let it): configMap = it
-            case .failure(let msg): throw CmdFail(msg)
-        }
+        let configMap = try buildConfigMap().find(keyPath: try key.toKeyPath()[...])
         switch configMap {
             case .string(let string) where keys:
                 throw "--keys flag cannot be applied to scalar object '\(string)'"
@@ -105,11 +96,11 @@ struct ConfigCommand: nonisolated Command {
 }
 
 extension String {
-    fileprivate func toKeyPath() -> Result<[String], String> {
-        if self == "." { return .success([]) }
-        if isEmpty { return .failure("Invalid empty key") }
-        if contains("..") || hasSuffix(".") { return .failure("Invalid key '\(self)'") }
-        return .success(split(separator: ".", omittingEmptySubsequences: false).map(String.init))
+    fileprivate func toKeyPath() throws(CmdFail) -> [String] {
+        if self == "." { return [] }
+        if isEmpty { throw "Invalid empty key" }
+        if contains("..") || hasSuffix(".") { throw "Invalid key '\(self)'" }
+        return split(separator: ".", omittingEmptySubsequences: false).map(String.init)
     }
 }
 

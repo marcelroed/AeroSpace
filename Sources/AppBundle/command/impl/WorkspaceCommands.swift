@@ -12,7 +12,7 @@ nonisolated enum WorkspaceTarget: Equatable, Sendable {
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
         let (arg, isLiteral) = try a.positionalAndIsLiteral(placeholder)
         if !isLiteral, let nextPrev = NextPrev(rawValue: arg) { return .relative(nextPrev) }
-        return .direct(try parseWorkspaceName(arg))
+        return .direct(try WorkspaceName.parse(arg))
     }
 
     var isRelative: Bool {
@@ -83,14 +83,13 @@ struct WorkspaceCommand: nonisolated Command {
 
 func getNextPrevWorkspace(current: Workspace, isNext: Bool, wrapAround: Bool, stdin: String?) throws(CmdFail) -> Workspace {
     let stdinWorkspaces: [WorkspaceName]
-    switch stdin?.split(whereSeparator: \.isWhitespace)
-        .map({ String($0).trimmingCharacters(in: .whitespacesAndNewlines) })
-        .filter({ !$0.isEmpty })
-        .mapAllOrFailure(WorkspaceName.parse)
-    {
-        case .success(let names): stdinWorkspaces = names
-        case .failure(let msg): throw CmdFail(msg)
-        case nil: stdinWorkspaces = []
+    do {
+        stdinWorkspaces = try (stdin ?? "").split(whereSeparator: \.isWhitespace)
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .map(WorkspaceName.parse)
+    } catch {
+        throw CmdFail(error.message)
     }
     let currentMonitor = current.workspaceMonitor
     let workspaces: [Workspace] = stdin != nil
@@ -144,7 +143,7 @@ struct SummonWorkspaceCommand: nonisolated Command {
                 default: throw .unknownOption(option)
             }
         }
-        let target = try parseWorkspaceName(a.positional("<workspace>"))
+        let target = try WorkspaceName.parse(a.positional("<workspace>"))
         try a.end()
         return Self(target: target, failIfNoop: failIfNoop)
     }

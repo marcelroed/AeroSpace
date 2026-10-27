@@ -6,21 +6,21 @@ import Testing
 struct ShellParserTest {
     @Test
     func testParser() {
-        assertSucc("echo foo && bar".lexAndParseShell(), .and(.cmd("echo", "foo"), "bar"))
-        assertSucc("foo && bar || baz".lexAndParseShell(), .or(.and("foo", "bar"), "baz"))
-        assertSucc("foo || bar && baz".lexAndParseShell(), .or("foo", .and("bar", "baz")))
-        assertSucc("echo '' \"\"".lexAndParseShell(), .cmd(["echo", "", ""]))
+        #expect(shell("echo foo && bar") == .success(.and(.cmd("echo", "foo"), "bar")))
+        #expect(shell("foo && bar || baz") == .success(.or(.and("foo", "bar"), "baz")))
+        #expect(shell("foo || bar && baz") == .success(.or("foo", .and("bar", "baz"))))
+        #expect(shell("echo '' \"\"") == .success(.cmd(["echo", "", ""])))
 
         let a = """
             foo ||
                 bar
             """
-        assertFail(a.lexAndParseShell(), "Line 1 Column 7: Expected at least one word. Got: \n")
+        #expect(shell(a) == .failure("Line 1 Column 7: Expected at least one word. Got: \n"))
         let b = """
             foo
                 || bar
             """
-        assertFail(b.lexAndParseShell(), "Line 1 Column 4: Please escape newline with backslash character.")
+        #expect(shell(b) == .failure("Line 1 Column 4: Please escape newline with backslash character."))
         let c = """
             foo || \\
                 bar || \\ # comment
@@ -28,124 +28,124 @@ struct ShellParserTest {
                 || duh \\ # comment
                 || qux
             """
-        assertSucc(c.lexAndParseShell(), .or(["foo", "bar", "baz", "duh", "qux"]))
+        #expect(shell(c) == .success(.or(["foo", "bar", "baz", "duh", "qux"])))
     }
 
     @Test
     func testParserEmpty() {
-        assertSucc("".lexAndParseShell(), .empty)
-        assertSucc("   ".lexAndParseShell(), .empty)
-        assertSucc("\t".lexAndParseShell(), .empty)
-        assertSucc("# only a comment".lexAndParseShell(), .empty)
+        #expect(shell("") == .success(.empty))
+        #expect(shell("   ") == .success(.empty))
+        #expect(shell("\t") == .success(.empty))
+        #expect(shell("# only a comment") == .success(.empty))
     }
 
     @Test
     func testParserOnlyNewlinesAndComments() {
-        assertSucc("\n".lexAndParseShell(), .empty)
-        assertSucc("\n\n".lexAndParseShell(), .empty)
-        assertSucc("# only a comment\n".lexAndParseShell(), .empty)
-        assertSucc("    # first comment\n    # second comment\n".lexAndParseShell(), .empty)
-        assertSucc("# comment\nfoo".lexAndParseShell(), "foo")
-        assertSucc("\n\nfoo bar\n".lexAndParseShell(), .cmd("foo", "bar"))
-        assertFail("\n;".lexAndParseShell(), "Line 2 Column 1: Expected at least one word. Got: ;")
+        #expect(shell("\n") == .success(.empty))
+        #expect(shell("\n\n") == .success(.empty))
+        #expect(shell("# only a comment\n") == .success(.empty))
+        #expect(shell("    # first comment\n    # second comment\n") == .success(.empty))
+        #expect(shell("# comment\nfoo") == .success("foo"))
+        #expect(shell("\n\nfoo bar\n") == .success(.cmd("foo", "bar")))
+        #expect(shell("\n;") == .failure("Line 2 Column 1: Expected at least one word. Got: ;"))
     }
 
     @Test
     func testParserSingleCommand() {
-        assertSucc("foo".lexAndParseShell(), "foo")
-        assertSucc("foo bar".lexAndParseShell(), .cmd("foo", "bar"))
-        assertSucc("foo bar baz".lexAndParseShell(), .cmd(["foo", "bar", "baz"]))
+        #expect(shell("foo") == .success("foo"))
+        #expect(shell("foo bar") == .success(.cmd("foo", "bar")))
+        #expect(shell("foo bar baz") == .success(.cmd(["foo", "bar", "baz"])))
     }
 
     @Test
     func testParserPipe() {
-        assertSucc("foo | bar".lexAndParseShell(), .pipe("foo", "bar"))
-        assertSucc("a | b | c".lexAndParseShell(), .pipe(["a", "b", "c"]))
-        assertSucc("a b | c d".lexAndParseShell(), .pipe(.cmd("a", "b"), .cmd("c", "d")))
+        #expect(shell("foo | bar") == .success(.pipe("foo", "bar")))
+        #expect(shell("a | b | c") == .success(.pipe(["a", "b", "c"])))
+        #expect(shell("a b | c d") == .success(.pipe(.cmd("a", "b"), .cmd("c", "d"))))
     }
 
     @Test
     func testParserAndChain() {
-        assertSucc("a && b && c".lexAndParseShell(), .and(["a", "b", "c"]))
+        #expect(shell("a && b && c") == .success(.and(["a", "b", "c"])))
     }
 
     @Test
     func testParserOrChain() {
-        assertSucc("a || b || c".lexAndParseShell(), .or(["a", "b", "c"]))
+        #expect(shell("a || b || c") == .success(.or(["a", "b", "c"])))
     }
 
     @Test
     func testParserPrecedence() {
-        assertSucc("a | b && c".lexAndParseShell(), .and(.pipe("a", "b"), "c"))
-        assertSucc("a && b | c".lexAndParseShell(), .and("a", .pipe("b", "c")))
-        assertSucc("a | b || c".lexAndParseShell(), .or(.pipe("a", "b"), "c"))
-        assertSucc("a || b | c".lexAndParseShell(), .or("a", .pipe("b", "c")))
-        assertSucc("a | b && c || d".lexAndParseShell(), .or(.and(.pipe("a", "b"), "c"), "d"))
+        #expect(shell("a | b && c") == .success(.and(.pipe("a", "b"), "c")))
+        #expect(shell("a && b | c") == .success(.and("a", .pipe("b", "c"))))
+        #expect(shell("a | b || c") == .success(.or(.pipe("a", "b"), "c")))
+        #expect(shell("a || b | c") == .success(.or("a", .pipe("b", "c"))))
+        #expect(shell("a | b && c || d") == .success(.or(.and(.pipe("a", "b"), "c"), "d")))
     }
 
     @Test
     func testParserSemicolon() {
-        assertSucc("foo; bar".lexAndParseShell(), .seq("foo", "bar"))
-        assertSucc("a;b".lexAndParseShell(), .seq("a", "b"))
-        assertSucc("a;;b".lexAndParseShell(), .seq("a", "b"))
-        assertSucc("a; b; c".lexAndParseShell(), .seq(["a", "b", "c"]))
-        assertSucc("a && b; c || d".lexAndParseShell(), .seq(.and("a", "b"), .or("c", "d")))
-        assertSucc("a | b; c | d".lexAndParseShell(), .seq(.pipe("a", "b"), .pipe("c", "d")))
+        #expect(shell("foo; bar") == .success(.seq("foo", "bar")))
+        #expect(shell("a;b") == .success(.seq("a", "b")))
+        #expect(shell("a;;b") == .success(.seq("a", "b")))
+        #expect(shell("a; b; c") == .success(.seq(["a", "b", "c"])))
+        #expect(shell("a && b; c || d") == .success(.seq(.and("a", "b"), .or("c", "d"))))
+        #expect(shell("a | b; c | d") == .success(.seq(.pipe("a", "b"), .pipe("c", "d"))))
     }
 
     @Test
     func testParserParens() {
-        assertSucc("(foo)".lexAndParseShell(), "foo")
-        assertSucc("(foo bar)".lexAndParseShell(), .cmd("foo", "bar"))
-        assertSucc("((foo))".lexAndParseShell(), "foo")
-        assertSucc("(a; b)".lexAndParseShell(), .seq("a", "b"))
-        assertSucc("(a && b) || c".lexAndParseShell(), .or(.and("a", "b"), "c"))
-        assertSucc("a && (b || c)".lexAndParseShell(), .and("a", .or("b", "c")))
-        assertSucc("(a || b) && (c || d)".lexAndParseShell(), .and(.or("a", "b"), .or("c", "d")))
+        #expect(shell("(foo)") == .success("foo"))
+        #expect(shell("(foo bar)") == .success(.cmd("foo", "bar")))
+        #expect(shell("((foo))") == .success("foo"))
+        #expect(shell("(a; b)") == .success(.seq("a", "b")))
+        #expect(shell("(a && b) || c") == .success(.or(.and("a", "b"), "c")))
+        #expect(shell("a && (b || c)") == .success(.and("a", .or("b", "c"))))
+        #expect(shell("(a || b) && (c || d)") == .success(.and(.or("a", "b"), .or("c", "d"))))
     }
 
     @Test
     func testParserParensStartingWithNewlines() {
-        assertSucc("(\n  foo\n)".lexAndParseShell(), "foo")
-        assertSucc("( # comment\n  a;\n  b\n)".lexAndParseShell(), .seq("a", "b"))
-        assertSucc("a && (\n\n  b || c\n)".lexAndParseShell(), .and("a", .or("b", "c")))
-        assertFail("(\n)".lexAndParseShell(), "Line 2 Column 1: Expected at least one word. Got: )")
+        #expect(shell("(\n  foo\n)") == .success("foo"))
+        #expect(shell("( # comment\n  a;\n  b\n)") == .success(.seq("a", "b")))
+        #expect(shell("a && (\n\n  b || c\n)") == .success(.and("a", .or("b", "c"))))
+        #expect(shell("(\n)") == .failure("Line 2 Column 1: Expected at least one word. Got: )"))
     }
 
     @Test
     func testParserNewlineSeparatesCommands() {
-        assertSucc("foo\nbar".lexAndParseShell(), .seq("foo", "bar"))
-        assertSucc("foo bar;\nbaz".lexAndParseShell(), .seq(.cmd("foo", "bar"), "baz"))
-        assertSucc("a && b\n\n(c\nd) # comment\ne".lexAndParseShell(), .seq([.and("a", "b"), .seq("c", "d"), "e"]))
-        assertFail("a\n&& b".lexAndParseShell(), "Line 1 Column 2: Please escape newline with backslash character.")
+        #expect(shell("foo\nbar") == .success(.seq("foo", "bar")))
+        #expect(shell("foo bar;\nbaz") == .success(.seq(.cmd("foo", "bar"), "baz")))
+        #expect(shell("a && b\n\n(c\nd) # comment\ne") == .success(.seq([.and("a", "b"), .seq("c", "d"), "e"])))
+        #expect(shell("a\n&& b") == .failure("Line 1 Column 2: Please escape newline with backslash character."))
     }
 
     @Test
     func testParserTrailingOperator() {
-        assertSucc("foo;".lexAndParseShell(), .cmd("foo"))
-        assertSucc("foo\n\n".lexAndParseShell(), .cmd("foo"))
-        assertSucc("foo\n\n;\n".lexAndParseShell(), .cmd("foo"))
+        #expect(shell("foo;") == .success(.cmd("foo")))
+        #expect(shell("foo\n\n") == .success(.cmd("foo")))
+        #expect(shell("foo\n\n;\n") == .success(.cmd("foo")))
 
-        assertFail("foo &&".lexAndParseShell(), "Line 1 Column 7: Expected at least one word. Got: End of input")
-        assertFail("foo ||".lexAndParseShell(), "Line 1 Column 7: Expected at least one word. Got: End of input")
-        assertFail("foo |".lexAndParseShell(), "Line 1 Column 6: Expected at least one word. Got: End of input")
+        #expect(shell("foo &&") == .failure("Line 1 Column 7: Expected at least one word. Got: End of input"))
+        #expect(shell("foo ||") == .failure("Line 1 Column 7: Expected at least one word. Got: End of input"))
+        #expect(shell("foo |") == .failure("Line 1 Column 6: Expected at least one word. Got: End of input"))
     }
 
     @Test
     func testParserFailLeadingOperator() {
-        assertFail("&& foo".lexAndParseShell(), "Line 1 Column 1: Expected at least one word. Got: &&")
-        assertFail("|| foo".lexAndParseShell(), "Line 1 Column 1: Expected at least one word. Got: ||")
-        assertFail("| foo".lexAndParseShell(), "Line 1 Column 1: Expected at least one word. Got: |")
-        assertFail(";".lexAndParseShell(), "Line 1 Column 1: Expected at least one word. Got: ;")
+        #expect(shell("&& foo") == .failure("Line 1 Column 1: Expected at least one word. Got: &&"))
+        #expect(shell("|| foo") == .failure("Line 1 Column 1: Expected at least one word. Got: ||"))
+        #expect(shell("| foo") == .failure("Line 1 Column 1: Expected at least one word. Got: |"))
+        #expect(shell(";") == .failure("Line 1 Column 1: Expected at least one word. Got: ;"))
     }
 
     @Test
     func testParserFailParens() {
-        assertFail("()".lexAndParseShell(), "Line 1 Column 2: Expected at least one word. Got: )")
-        assertFail("(foo".lexAndParseShell(), "Line 1 Column 5: Expected ')'. Got: 'End of input'")
-        assertFail("foo)".lexAndParseShell(), "Line 1 Column 4: Unexpected token ')'")
+        #expect(shell("()") == .failure("Line 1 Column 2: Expected at least one word. Got: )"))
+        #expect(shell("(foo") == .failure("Line 1 Column 5: Expected ')'. Got: 'End of input'"))
+        #expect(shell("foo)") == .failure("Line 1 Column 4: Unexpected token ')'"))
         // Per the grammar, a parenthesized group is a Pipe-level atom and cannot itself be piped.
-        assertFail("(foo) | bar".lexAndParseShell(), "Line 1 Column 7: Unexpected token '|'")
+        #expect(shell("(foo) | bar") == .failure("Line 1 Column 7: Unexpected token '|'"))
     }
 
     @Test
@@ -182,4 +182,8 @@ extension Shell: ExpressibleByUnicodeScalarLiteral where T == [String] {}
 extension Shell: ExpressibleByExtendedGraphemeClusterLiteral where T == [String] {}
 extension Shell: ExpressibleByStringLiteral where T == [String] {
     public init(stringLiteral value: String) { self = .cmd([value]) }
+}
+
+private func shell(_ raw: String) -> Result<Shell<[String]>, CmdParseError> {
+    Result { () throws(CmdParseError) in try raw.lexAndParseShell() }
 }
