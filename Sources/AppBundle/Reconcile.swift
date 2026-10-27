@@ -50,7 +50,7 @@ enum Reconcile {
     /// The light session's observe and commit: takes the native focus from macOS. A new focused window is registered (and
     /// recorded by debug-windows), its on-window-detected callbacks run (as in P3), then it takes the focus
     static func syncFocus(isStartup: Bool) async throws(CancellationError) {
-        guard let focused = try await readNativeFocus() else { return syncFocusFromMacOs(nil) }
+        guard let focused = try await readNativeFocus(hasDeadline: true) else { return syncFocusFromMacOs(nil) }
         if let window = Window.get(byId: focused.windowId) { return syncFocusFromMacOs(window) }
         // The read is stale once another session reads another native focus at a suspension point below, even one that
         // the model has already: the newest read wins
@@ -140,11 +140,36 @@ enum Reconcile {
         )
     }
 
-    /// Every session reads the native focus through this: P3 and ``syncFocus(isStartup:)`` tell a stale read by it
-    private static func readNativeFocus() async throws(CancellationError) -> FocusedWindow? {
-        let focused = try await world.platform.focusedWindow()
+    /// Every session reads the native focus through this: P3 and ``syncFocus(isStartup:)`` tell a stale read by it.
+    /// `hasDeadline`: the light session's read, see ``focusedWindowInTime()``
+    private static func readNativeFocus(hasDeadline: Bool = false) async throws(CancellationError) -> FocusedWindow? {
+        let focused = try await hasDeadline ? focusedWindowInTime() : world.platform.focusedWindow()
         world.focusStore.lastReadNativeFocusedWindowId = focused?.windowId
         return focused
+    }
+
+    /// While the frontmost app has the model's focus, the read waits at most ``Platform/focusReadDeadline``: a hung app
+    /// (e.g. a beachballing Xcode) doesn't hold a switch away from it. A late read is abandoned and taken to be the
+    /// model's focus at the deadline, as AeroSpace gave it: the next heavy refresh reads macOS's. While another app is frontmost, the
+    /// model's focus is stale (e.g. right after cmd-tab), and the read is awaited. The risk: an app that is slower than
+    /// the deadline right after its focus moved to another of its windows (e.g. after cmd-N or a click) gets the
+    /// command on the window that had the focus before
+    private static func focusedWindowInTime() async throws(CancellationError) -> FocusedWindow? {
+        let platform = world.platform
+        guard let app = focus.windowOrNil?.app, platform.frontmostAppPid == app.pid else {
+            return try await platform.focusedWindow()
+        }
+        let deadline = platform.focusReadDeadline
+        let read = Task.immediate { @MainActor in try await platform.focusedWindow() } // A read that doesn't suspend wins
+        let timer = Task.startUnstructured { try await Task.sleep(for: deadline); read.cancel() }
+        defer { timer.cancel() }
+        do {
+            return try await withTaskCancellationHandler { try await read.value } onCancel: { read.cancel() }
+        } catch {
+            try checkCancellation()
+            // Not the window of the guard: another session may have closed it meanwhile
+            return focus.windowOrNil.map { FocusedWindow(app: $0.app, windowId: $0.windowId) }
+        }
     }
 
     /// Abandonable like the other reads of P1: a hung app doesn't hold the sessions while debug-windows records

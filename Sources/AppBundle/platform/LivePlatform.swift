@@ -36,6 +36,7 @@ final class LivePlatform: Platform {
     var hasScreens: Bool { !NSScreen.screens.isEmpty }
     func runningApps() -> [AppInfo] { apps.values.map(\.info) }
     func isHidden(_ app: AppInfo) -> Bool { apps[app.pid]?.nsApp.isHidden == true }
+    var frontmostAppPid: pid_t? { NSWorkspace.shared.frontmostApplication?.processIdentifier }
     var isLeftMouseDown: Bool { isLeftMouseButtonDown }
     /// AppKit's y axis goes up from the main monitor's bottom, AX's goes down from its top
     var mouseLocation: CGPoint { NSEvent.mouseLocation.withYAxisFlipped }
@@ -110,6 +111,11 @@ final class LivePlatform: Platform {
         }
         return result
     }
+
+    /// Longer than a busy app's usual answer: SlowApp, busy 400 ms of every 410 ms, answers only in its gaps, so 100 ms
+    /// would miss most of its reads. Short against a hung app's: its AX calls took ~1.5 s each, and a switch away from it
+    /// took ~3 s
+    let focusReadDeadline: Duration = .milliseconds(500)
 
     func focusedWindow() async throws(CancellationError) -> FocusedWindow? {
         guard let nsApp = NSWorkspace.shared.frontmostApplication,

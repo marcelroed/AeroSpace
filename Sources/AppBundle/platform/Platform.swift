@@ -21,6 +21,8 @@ protocol Platform: AnyObject, Sendable {
     /// The registered apps: the regular apps and the other apps whose window got focused
     func runningApps() -> [AppInfo]
     func isHidden(_ app: AppInfo) -> Bool
+    /// The app that has the native focus, without asking it (unlike ``focusedWindow()``)
+    var frontmostAppPid: pid_t? { get }
     var isLeftMouseDown: Bool { get }
     var mouseLocation: CGPoint { get }
     /// Secure input is on (e.g. a password field has the keyboard focus): macOS doesn't deliver the hotkeys
@@ -42,8 +44,10 @@ protocol Platform: AnyObject, Sendable {
     /// A window that is gone is missing
     func nativeFacts(_ windows: [AppInfo: [WindowId]]) async throws(CancellationError) -> [WindowId: NativeFacts]
     /// The focused window of the frontmost app; registers the app. Abandonable: the light session that preempts a heavy
-    /// one must not wait for a hung frontmost app
+    /// one, or whose deadline passes, must not wait for a hung frontmost app
     func focusedWindow() async throws(CancellationError) -> FocusedWindow?
+    /// How long a light session waits for ``focusedWindow()`` while the frontmost app has the model's focus
+    var focusReadDeadline: Duration { get }
     /// The `debug-windows` dumps of the windows, for a recording. A window that is gone is missing
     func debugInfos(_ windows: [AppInfo: [WindowId]]) async throws(CancellationError) -> [WindowId: WindowDebugInfo]
     /// The mouse sessions' read: a newer mouse event cancels it

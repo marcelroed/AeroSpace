@@ -27,6 +27,11 @@ final class FakePlatform: Platform {
     var onRead: ((PlatformCall) -> ())? = nil
     /// Awaited before each title read: a ``Gate`` there holds a callback's title matcher, as a busy app does
     var beforeTitle: ((WindowId) async -> ())? = nil
+    /// Awaited before the focus read: a sleep there holds it, as a hung frontmost app does. Like LivePlatform's AX call,
+    /// the read throws once it's abandoned
+    var beforeFocusRead: (() async throws(CancellationError) -> ())? = nil
+    /// LivePlatform's 500 ms. The tests that hold the focus read shorten it
+    var focusReadDeadline: Duration = .milliseconds(500)
     /// Awaited before an app lists its windows: a ``Gate`` there makes the app miss its listing deadline
     var beforeListing: ((AppInfo) async -> ())? = nil
     /// LivePlatform's listing deadlines, for the tests that hold an app in `beforeListing`: the apps are then listed at
@@ -52,6 +57,7 @@ final class FakePlatform: Platform {
     var hasScreens: Bool { !monitorInfos.isEmpty }
     func runningApps() -> [AppInfo] { apps }
     func isHidden(_ app: AppInfo) -> Bool { hiddenApps.contains(app.pid) }
+    var frontmostAppPid: pid_t? { focused.flatMap { windows[$0]?.app.pid } }
     var counters: [String: Int] { [:] }
 
     // MARK: Observe reads
@@ -90,7 +96,8 @@ final class FakePlatform: Platform {
         return apps.map { app in listed[app.pid].flatMap(\.self).map { .listed(app, $0) } ?? .noAnswer(app) }
     }
 
-    func focusedWindow() -> FocusedWindow? {
+    func focusedWindow() async throws(CancellationError) -> FocusedWindow? {
+        try await beforeFocusRead?()
         defer { logRead(.focusedWindow) }
         return focused.flatMap { id in answering(id).map { FocusedWindow(app: $0.app, windowId: id) } }
     }

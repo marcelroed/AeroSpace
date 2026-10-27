@@ -402,6 +402,102 @@ struct ReconcileTest {
         expectEqual(fake.calls(of: .title), [.title(2)]) // Its on-window-detected callbacks ran
     }
 
+    /// The app with the model's focus hangs in front, after it moved its focus to 2. The light session abandons the
+    /// focus read at the deadline, takes the model's focus as macOS's and switches the workspace without the app
+    @Test
+    func aLightSessionDoesntWaitForTheFocusReadOfAHungAppThatHasTheFocus() async throws {
+        setUpTree("h_tiles(*1 2)", workspace: "a")
+        setUpTree("h_tiles(3)", workspace: "b")
+        fake.focused = 1
+        await heavyRefresh()
+        fake.focused = 2
+        var isAbandoned = false
+        hangFocusReads(onAbandon: { isAbandoned = true })
+
+        let focusedInBody = try await world.sessions.light(.hotkeyBinding, .forceRun) {
+            let focused = focus.windowOrNil?.windowId
+            _ = await runCmd("workspace b")
+            return focused
+        }
+        world.sessions.cancelHeavy()
+        #expect(isAbandoned)
+        expectEqual(focusedInBody, 1) // 2 waits for a heavy refresh that gets the app's answer
+        expectEqual(fake.focused, 3)
+    }
+
+    /// `workspace a` gave 1 the native focus, then its app turned slow. The next session's late read is the model's
+    /// focus, 1, so the heavy refresh that reads 1 afterwards doesn't take the user back from the empty workspace c
+    @Test
+    func aLateFocusReadDoesntPullTheFocusBackLater() async throws {
+        setUpTree("h_tiles(1)", workspace: "a")
+        setUpTree("h_tiles(*2)", workspace: "b")
+        fake.focused = 2
+        await heavyRefresh()
+        _ = try await world.sessions.light(.hotkeyBinding, .forceRun) { await runCmd("workspace a") }
+        world.sessions.cancelHeavy()
+        expectEqual(fake.focused, 1)
+
+        hangFocusReads()
+        _ = try await world.sessions.light(.hotkeyBinding, .forceRun) { await runCmd("workspace c") }
+        world.sessions.cancelHeavy()
+        fake.beforeFocusRead = nil
+        await heavyRefresh()
+        expectEqual(focus.workspace.name, "c")
+    }
+
+    /// Focus follows mouse gave 1 the native focus, then its app turned slow. Back on 2, the late read is the model's
+    /// focus, 1, so 2 gets the native focus
+    @Test
+    func focusFollowsMouseAfterALateFocusReadGivesTheNativeFocus() async throws {
+        setUpTree("h_tiles(1 *2)")
+        fake.focused = 2
+        await heavyRefresh()
+        try await world.sessions.focusFollowsMouse(testWindow(1), .forceRun)
+        expectEqual(fake.focused, 1)
+
+        hangFocusReads()
+        try await world.sessions.focusFollowsMouse(testWindow(2), .forceRun)
+        expectEqual(fake.focused, 2)
+    }
+
+    /// 1 closes while the light session waits for the hung app's focus read: the late read is the model's focus then, 2.
+    /// Not 1, which would send the session to the hung app again to classify it
+    @Test
+    func aLateFocusReadIsTheModelsFocusAtTheDeadline() async throws {
+        setUpTree("h_tiles(*1 2)")
+        fake.focused = 1
+        await heavyRefresh()
+        hangFocusReads(meanwhile: {
+            fake.windows[1] = nil
+            testWindow(1).garbageCollect(skipClosedWindowsCache: true) // Another session sees it close
+        })
+        fake.resetCalls()
+
+        let focusedInBody = try await world.sessions.light(.hotkeyBinding, .forceRun) { focus.windowOrNil?.windowId }
+        world.sessions.cancelHeavy()
+        expectEqual(focusedInBody, 2)
+        expectEqual(fake.calls(of: .classify), [])
+    }
+
+    /// Another app is in front (e.g. right after cmd-tab): the model's focus is stale, so the light session waits for
+    /// the focus read past the deadline
+    @Test
+    func aLightSessionWaitsForTheFocusReadOfAnotherFrontmostApp() async throws {
+        setUpTree("h_tiles(*1)")
+        try readTitlesOnWindowDetected()
+        fake.apps = [testApp, appB]
+        openWindow(2, appB)
+        fake.focused = 2
+        fake.focusReadDeadline = .milliseconds(1)
+        fake.beforeFocusRead = { () async throws(CancellationError) in
+            do { try await Task.sleep(for: .milliseconds(100)) } catch { throw CancellationError() }
+        }
+
+        let focusedInBody = try await world.sessions.light(.hotkeyBinding, .forceRun) { focus.windowOrNil?.windowId }
+        world.sessions.cancelHeavy()
+        expectEqual(focusedInBody, 2)
+    }
+
     /// 2 opens with the native focus, and its refresh A runs its callbacks. Meanwhile, the user clicks `clicked` (another
     /// window, or 1, which had the focus before 2), and the refresh B that replaces A takes that focus. A's 2 doesn't take
     /// it back
@@ -712,6 +808,19 @@ private func openWindow(_ id: WindowId, _ app: AppInfo = testApp) {
 
 private func heavyRefresh() async {
     await Reconcile.heavy(.ax("test"))
+}
+
+/// The frontmost app hangs: each focus read runs `meanwhile`, then waits until it's abandoned, and the light sessions
+/// give up after 1 ms
+private func hangFocusReads(meanwhile: @escaping () -> () = {}, onAbandon: @escaping () -> () = {}) {
+    fake.focusReadDeadline = .milliseconds(1)
+    fake.beforeFocusRead = { () async throws(CancellationError) in
+        meanwhile()
+        do { try await Task.sleep(for: .seconds(10)) } catch {
+            onAbandon()
+            throw CancellationError()
+        }
+    }
 }
 
 /// An on-window-detected callback whose matcher reads the window's title: the title reads in the call log show which
