@@ -36,6 +36,16 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 - `.prohibited` prints with a leading space: RB-28.
 - "Rached": RB-18.
 
+Branch `restructure` starts from `refactor-cleanup` at `ba6b0d70`. It rewrites the CLI and its protocol, the commands, the config, the tree and the code that spans them. Unlike `refactor-cleanup`, it may change behavior, so it fixes bugs too. Its outcomes are added to the **Status** line. The statuses from the earlier branches stay as they were:
+- **Fixed on `restructure` in `<commit>`:** like **Fixed in**, but on `restructure`.
+- **Moot on `restructure`:** the code was deleted or redesigned, so the bug can't happen. The status says why.
+
+The summary table marks an entry that was open until then as "fixed on restructure" or "moot on restructure". Entries RB-115 and up were found during the restructure. RB-115 to RB-119 and RB-130 to RB-133 are already fixed there. Every open entry was checked against `restructure` at `6fee1079`. These restructure items got no ID:
+- `subscribe` in a config binding fails with "subscribe is not supported in the eval", where there is no eval: 858762f5 changed the message to "subscribe is only available from the CLI".
+- A bug study of the restructure's prototype branches also listed RB-04, RB-05, RB-10, RB-13, RB-19, RB-22, RB-23, RB-24, RB-25, RB-38, RB-42, RB-44 and RB-101.
+- The initial `subscribe` events come in random order: RB-114.
+- `floatingWindowsContainer` creates the container on read, like RB-03: the RB-03 fix holds, because creating a container restores the most recent child. The other effects of creating containers on read are RB-129.
+
 **Severity** is about user impact:
 - **High:** a crash or hang that can happen in normal use.
 - **Medium:** one of the following:
@@ -56,7 +66,9 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 - **Current** is `refactor-cleanup` at `c394622e`.
 - Paths are relative to the repository root.
 - Entries RB-71 and up give a single **Location**. For a fixed entry, it is on `fix-review-bugs`, before the fix.
-- Open entries give their **Location** at `integrate` `99679420`.
+- Entries that `restructure` fixed or made moot keep the **Location** they had before. For an entry that was open, that is `integrate` `99679420`.
+- Open entries give their **Location** at `restructure` `6fee1079`.
+- Entries RB-115 and up give their **Location** at `6fee1079`. For a fixed one, that is where the fix is.
 - RB-19 and RB-67 also have an **At integrate** line, because `simplify` rewrote the code they point at.
 
 **IDs are stable.** A gap in the summary table is an entry that moved to [Resolved by the refactor](#resolved-by-the-refactor) or [Dropped entries](#dropped-entries).
@@ -72,11 +84,16 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 | [RB-05](#rb-05-int32exitcodesucc-is-2) | medium | likely | Commands and CLI | `Int32ExitCode.succ` is 2 | fixed |
 | [RB-06](#rb-06-dying-recurses-forever-when-tmpbobkoaerospace-isnt-writable) | medium | likely | Shared utilities | Dying recurses forever when `/tmp/bobko.aerospace` isn't writable | fixed |
 | [RB-71](#rb-71-a-die-on-an-ax-thread-deadlocks-termination) | medium | likely | Core model | A die on an AX thread deadlocks termination | fixed |
+| [RB-115](#rb-115---monitor-with-the-smallest-integer-crashes-aerospace) | medium | likely | Commands and CLI | `--monitor` with the smallest integer crashes AeroSpace | fixed on restructure |
+| [RB-116](#rb-116-deeply-nested-or-long-shell-expressions-overflow-the-stack) | medium | likely | Config, shell and UI | Deeply nested or long shell expressions overflow the stack | fixed on restructure |
+| [RB-120](#rb-120-a-binding-or-callback-that-runs-itself-recurses-without-bound) | medium | likely | Commands and CLI | A binding or callback that runs itself recurses without bound | open |
+| [RB-130](#rb-130-a-long-interpolated-string-takes-quadratic-time-to-tokenize) | medium | likely | Shared utilities | A long interpolated string takes quadratic time to tokenize | fixed on restructure |
+| [RB-131](#rb-131-a-config-array-of-thousands-of-commands-overflows-the-stack) | medium | likely | Config, shell and UI | A config array of thousands of commands overflows the stack | fixed on restructure |
 | [RB-07](#rb-07-ax-size-and-position-getters-crash-on-unexpected-values-and-can-deadlock-on-quit) | medium | possible | Shared utilities | AX size and position getters crash on unexpected values and can deadlock on quit | fixed |
 | [RB-08](#rb-08-readbytes-busy-loops-when-the-peer-closes-early) | medium | possible | Shared utilities | `read(bytes:)` busy-loops when the peer closes early | closed |
 | [RB-09](#rb-09-on-quit-windows-are-centered-without-the-monitors-origin) | medium | possible | Shared utilities | On quit, windows are centered without the monitor's origin | fixed |
 | [RB-10](#rb-10-config-reload-crashes-if-librarylaunchagents-cant-be-created) | medium | possible | Config, shell and UI | Config reload crashes if `~/Library/LaunchAgents` can't be created | fixed |
-| [RB-108](#rb-108-swap---wrap-around-on-a-floating-window-swaps-it-into-the-tiling-tree) | medium | possible | Commands and CLI | `swap --wrap-around` on a floating window swaps it into the tiling tree | open |
+| [RB-108](#rb-108-swap---wrap-around-on-a-floating-window-swaps-it-into-the-tiling-tree) | medium | possible | Commands and CLI | `swap --wrap-around` on a floating window swaps it into the tiling tree | fixed on restructure |
 | [RB-11](#rb-11-test-not---help-prints-the-test-usage) | low | likely | Commands and CLI | `test-not --help` prints the `test` usage | fixed |
 | [RB-12](#rb-12-the-move-workspace-to-display-alias-skips-post-parse-validation) | low | likely | Commands and CLI | The `move-workspace-to-display` alias skips post-parse validation | fixed |
 | [RB-13](#rb-13-output-and-error-order-depends-on-dictionary-and-set-iteration) | low | likely | Commands and CLI | Output and error order depends on Dictionary and Set iteration | fixed |
@@ -99,12 +116,15 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 | [RB-29](#rb-29-jointruncating-adds-an-ellipsis-when-nothing-was-cut) | low | likely | Shared utilities | `joinTruncating` adds an ellipsis when nothing was cut | fixed |
 | [RB-30](#rb-30-kaxtrustedcheckoptionprompt-is-taken-as-retained) | low | likely | Shared utilities | `kAXTrustedCheckOptionPrompt` is taken as retained | fixed |
 | [RB-72](#rb-72-resize-blames-floating-windows-when-a-tiled-window-has-no-ancestor-of-the-right-orientation) | low | likely | Commands and CLI | `resize` blames floating windows when a tiled window has no ancestor of the right orientation | fixed |
-| [RB-77](#rb-77-an-empty-root-container-stays-the-most-recent-child-after-the-last-tiling-window-closes) | low | likely | Core model | An empty root container stays the most recent child after the last tiling window closes | open |
-| [RB-89](#rb-89-config-errors-for-binding-commands-show-the-error-prefix-twice) | low | likely | Config, shell and UI | Config errors for binding commands show the `ERROR:` prefix twice | open |
-| [RB-96](#rb-96-config-errors-with-several-expected-types-print-lowercase-type-names) | low | likely | Config, shell and UI | Config errors with several expected types print lowercase type names | open |
-| [RB-97](#rb-97-an-invalid-key-notation-is-reported-at-the-tables-path) | low | likely | Config, shell and UI | An invalid key notation is reported at the table's path | open |
+| [RB-77](#rb-77-an-empty-root-container-stays-the-most-recent-child-after-the-last-tiling-window-closes) | low | likely | Core model | An empty root container stays the most recent child after the last tiling window closes | fixed on restructure |
+| [RB-89](#rb-89-config-errors-for-binding-commands-show-the-error-prefix-twice) | low | likely | Config, shell and UI | Config errors for binding commands show the `ERROR:` prefix twice | fixed on restructure |
+| [RB-96](#rb-96-config-errors-with-several-expected-types-print-lowercase-type-names) | low | likely | Config, shell and UI | Config errors with several expected types print lowercase type names | fixed on restructure |
+| [RB-97](#rb-97-an-invalid-key-notation-is-reported-at-the-tables-path) | low | likely | Config, shell and UI | An invalid key notation is reported at the table's path | fixed on restructure |
 | [RB-103](#rb-103-clean-xcodesh-deletes-paths-that-moved-to-xcode) | low | likely | Scripts | `clean-xcode.sh` deletes paths that moved to `xcode/` | open |
 | [RB-109](#rb-109-typo-in-the-layout-error-for-minimized-fullscreen-and-hidden-app-windows) | low | likely | Commands and CLI | Typo in the `layout` error for minimized, fullscreen and hidden-app windows | open |
+| [RB-118](#rb-118-focus-over-floating-windows-reorders-the-floating-container-and-the-mru-order) | low | likely | Commands and CLI | Focus over floating windows reorders the floating container and the MRU order | fixed on restructure |
+| [RB-119](#rb-119-focus---window-id-and---dfs-index-accept-options-given-with-their-default-values) | low | likely | Commands and CLI | `focus --window-id` and `--dfs-index` accept options given with their default values | fixed on restructure |
+| [RB-132](#rb-132-aerospace---version-hangs-when-aerospaceapp-doesnt-answer) | low | likely | Commands and CLI | `aerospace --version` hangs when AeroSpace.app doesn't answer | fixed on restructure |
 | [RB-31](#rb-31-workspace-back-and-forth-ignores-whether-focusing-succeeded) | low | possible | Commands and CLI | `workspace-back-and-forth` ignores whether focusing succeeded | fixed |
 | [RB-32](#rb-32-run-callback---for-every-window-differs-from-real-window-detection) | low | possible | Commands and CLI | `run-callback --for-every-window` differs from real window detection | fixed |
 | [RB-33](#rb-33-resize-accepts-doubled-signs) | low | possible | Commands and CLI | `resize` accepts doubled signs | fixed |
@@ -122,14 +142,21 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 | [RB-84](#rb-84-the-main-axis-of-virtual-rects-uses-the-physical-size) | low | possible | Core model | The main axis of virtual rects uses the physical size | open |
 | [RB-85](#rb-85-a-window-first-seen-off-screen-is-classified-as-a-popup) | low | possible | Core model | A window first seen off-screen is classified as a popup | open |
 | [RB-88](#rb-88-a-monitor-that-disappears-briefly-loses-its-visible-workspace) | low | possible | Core model | A monitor that disappears briefly loses its visible workspace | open |
-| [RB-90](#rb-90-parse-errors-with-an-explicit-exit-code-have-no-error-prefix) | low | possible | Commands and CLI | Parse errors with an explicit exit code have no `ERROR:` prefix | open |
+| [RB-90](#rb-90-parse-errors-with-an-explicit-exit-code-have-no-error-prefix) | low | possible | Commands and CLI | Parse errors with an explicit exit code have no `ERROR:` prefix | moot on restructure |
 | [RB-91](#rb-91-the-list-windows-order-depends-on-the-format) | low | possible | Commands and CLI | The `list-windows` order depends on the format | open |
 | [RB-92](#rb-92-workspace-names-that-differ-only-in-leading-zeros-have-no-stable-order) | low | possible | Core model | Workspace names that differ only in leading zeros have no stable order | fixed |
-| [RB-93](#rb-93-focus-follows-mouse-can-stop-scanning-the-floating-windows-early) | low | possible | Core model | Focus follows mouse can stop scanning the floating windows early | open |
-| [RB-100](#rb-100-a-wrong-type-if-also-reports-that-if-was-omitted) | low | possible | Config, shell and UI | A wrong-type `if` also reports that `if` was omitted | open |
-| [RB-101](#rb-101-a-binding-whose-command-fails-to-parse-stays-bound-and-does-nothing) | low | possible | Config, shell and UI | A binding whose command fails to parse stays bound and does nothing | open |
-| [RB-104](#rb-104-slicen-traps-instead-of-returning-nil-when-n-is-past-the-end) | low | possible | Shared utilities | `slice(n...)` traps instead of returning nil when `n` is past the end | open |
+| [RB-93](#rb-93-focus-follows-mouse-can-stop-scanning-the-floating-windows-early) | low | possible | Core model | Focus follows mouse can stop scanning the floating windows early | moot on restructure |
+| [RB-100](#rb-100-a-wrong-type-if-also-reports-that-if-was-omitted) | low | possible | Config, shell and UI | A wrong-type `if` also reports that `if` was omitted | fixed on restructure |
+| [RB-101](#rb-101-a-binding-whose-command-fails-to-parse-stays-bound-and-does-nothing) | low | possible | Config, shell and UI | A binding whose command fails to parse stays bound and does nothing | fixed on restructure |
+| [RB-104](#rb-104-slicen-traps-instead-of-returning-nil-when-n-is-past-the-end) | low | possible | Shared utilities | `slice(n...)` traps instead of returning nil when `n` is past the end | moot on restructure |
 | [RB-111](#rb-111-test-rejects-an-empty-right-hand-side) | low | possible | Commands and CLI | `test` rejects an empty right-hand side | open |
+| [RB-117](#rb-117-a-requests-length-field-can-make-the-server-reserve-4-gib) | low | possible | Shared utilities | A request's length field can make the server reserve 4 GiB | fixed on restructure |
+| [RB-121](#rb-121-commands-that-fail-to-focus-exit-2-without-a-message) | low | possible | Commands and CLI | Commands that fail to focus exit 2 without a message | open |
+| [RB-123](#rb-123-moving-into-a-container-of-the-moves-orientation-always-inserts-at-its-start) | low | possible | Commands and CLI | Moving into a container of the move's orientation always inserts at its start | open |
+| [RB-124](#rb-124-concurrent-debug-windows-dumps-can-exceed-the-window-limit) | low | possible | Commands and CLI | Concurrent `debug-windows` dumps can exceed the window limit | open |
+| [RB-127](#rb-127-the-shell-lexer-drops-a-last-word-that-ends-in-a-unicode-prepend-character) | low | possible | Config, shell and UI | The shell lexer drops a last word that ends in a Unicode Prepend character | open |
+| [RB-129](#rb-129-a-hidden-workspaces-root-container-gets-the-auto-orientation-of-the-wrong-monitor) | low | possible | Core model | A hidden workspace's root container gets the `auto` orientation of the wrong monitor | open |
+| [RB-133](#rb-133---stdin-on-a-terminal-waits-for-typed-input-or-fails-without-saying-why) | low | possible | Commands and CLI | `--stdin` on a terminal waits for typed input, or fails without saying why | fixed on restructure |
 | [RB-40](#rb-40-inconsistent-reporting-of-impossible-paths) | low | speculative | Commands and CLI | Inconsistent reporting of "impossible" paths | fixed |
 | [RB-41](#rb-41-workspace-gc-evaluates-focus-inside-its-filter) | low | speculative | Core model | Workspace GC evaluates `focus` inside its filter | fixed |
 | [RB-42](#rb-42-hotkey-events-can-report-another-modes-key-notation) | low | speculative | Config, shell and UI | Hotkey events can report another mode's key notation | fixed |
@@ -143,19 +170,23 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 | [RB-49](#rb-49-transposed-assumes-a-rectangular-table) | low | speculative | Shared utilities | `transposed()` assumes a rectangular table | fixed |
 | [RB-69](#rb-69-isunittest-depends-on-xctest-being-loaded) | low | speculative | Shared utilities | `isUnitTest` depends on XCTest being loaded | fixed |
 | [RB-78](#rb-78-debug-windows-stays-recording-after-a-failed-first-dump) | low | speculative | Commands and CLI | `debug-windows` stays recording after a failed first dump | open |
-| [RB-79](#rb-79-the-server-writes-an-error-into-a-connection-the-client-closed) | low | speculative | Shared utilities | The server writes an error into a connection the client closed | open |
-| [RB-81](#rb-81-subscribe-drops-the-duplicate-event-error-when-an-unknown-event-follows) | low | speculative | Commands and CLI | `subscribe` drops the duplicate-event error when an unknown event follows | open |
+| [RB-79](#rb-79-the-server-writes-an-error-into-a-connection-the-client-closed) | low | speculative | Shared utilities | The server writes an error into a connection the client closed | moot on restructure |
+| [RB-81](#rb-81-subscribe-drops-the-duplicate-event-error-when-an-unknown-event-follows) | low | speculative | Commands and CLI | `subscribe` drops the duplicate-event error when an unknown event follows | moot on restructure |
 | [RB-82](#rb-82-the-workspace-back-and-forth-docs-say-it-always-succeeds) | low | speculative | Commands and CLI | The `workspace-back-and-forth` docs say it always succeeds | fixed |
 | [RB-86](#rb-86-getorregister-can-bind-a-new-window-into-a-workspace-that-was-garbage-collected) | low | speculative | Core model | `getOrRegister` can bind a new window into a workspace that was garbage-collected | open |
 | [RB-87](#rb-87-dragging-can-make-a-window-floating-again-after-it-became-tiling) | low | speculative | Core model | Dragging can make a window floating again after it became tiling | open |
 | [RB-95](#rb-95-subscribe-works-while-the-server-is-disabled) | low | speculative | Shared utilities | `subscribe` works while the server is disabled | open |
-| [RB-98](#rb-98-config-error-paths-dont-quote-keys-with-dots-or-spaces) | low | speculative | Config, shell and UI | Config error paths don't quote keys with dots or spaces | open |
-| [RB-99](#rb-99-the-on-window-detected-debug-json-omits-check-further-callbacks-and-doesnt-escape-values) | low | speculative | Config, shell and UI | The `on-window-detected` debug JSON omits `check-further-callbacks` and doesn't escape values | open |
+| [RB-98](#rb-98-config-error-paths-dont-quote-keys-with-dots-or-spaces) | low | speculative | Config, shell and UI | Config error paths don't quote keys with dots or spaces | fixed on restructure |
+| [RB-99](#rb-99-the-on-window-detected-debug-json-omits-check-further-callbacks-and-doesnt-escape-values) | low | speculative | Config, shell and UI | The `on-window-detected` debug JSON omits `check-further-callbacks` and doesn't escape values | fixed on restructure |
 | [RB-105](#rb-105-the-accessibility-reset-script-uses-the-wrong-case-in-the-bundle-id) | low | speculative | Scripts | The accessibility reset script uses the wrong case in the bundle ID | open |
 | [RB-106](#rb-106-setupsh-rejects-bash-6-and-later) | low | speculative | Scripts | `setup.sh` rejects bash 6 and later | open |
-| [RB-107](#rb-107-the-generated-command-help-doesnt-escape-the-docs-text) | low | speculative | Scripts | The generated command help doesn't escape the docs text | open |
-| [RB-110](#rb-110-debug-windows-can-log-a-window-after-its-session-ended) | low | speculative | Commands and CLI | `debug-windows` can log a window after its session ended | open |
+| [RB-107](#rb-107-the-generated-command-help-doesnt-escape-the-docs-text) | low | speculative | Scripts | The generated command help doesn't escape the docs text | moot on restructure |
+| [RB-110](#rb-110-debug-windows-can-log-a-window-after-its-session-ended) | low | speculative | Commands and CLI | `debug-windows` can log a window after its session ended | fixed on restructure |
 | [RB-112](#rb-112-the-initial-focused-workspace-changed-event-names-the-current-workspace-as-the-previous-one) | low | speculative | Commands and CLI | The initial `focused-workspace-changed` event names the current workspace as the previous one | open |
+| [RB-122](#rb-122---fail-if-fullscreen-exits-2-without-a-message) | low | speculative | Commands and CLI | `--fail-if-fullscreen` exits 2 without a message | open |
+| [RB-125](#rb-125-subscribe-loses-the-events-sent-before-the-subscriber-is-registered) | low | speculative | Commands and CLI | `subscribe` loses the events sent before the subscriber is registered | open |
+| [RB-126](#rb-126-an-exec-table-that-doesnt-set-path-drops-the-homebrew-directories) | low | speculative | Config, shell and UI | An `[exec]` table that doesn't set `PATH` drops the Homebrew directories | open |
+| [RB-128](#rb-128-crlf-line-endings-dont-end-commands-comments-or-line-continuations) | low | speculative | Config, shell and UI | CRLF line endings don't end commands, comments or line continuations | open |
 | [RB-113](#rb-113-an-app-whose-ax-subscription-fails-is-retried-on-every-refresh) | low | possible | Core model | An app whose AX subscription fails is retried on every refresh | open |
 | [RB-114](#rb-114-subscribe-sends-the-initial-events-in-random-order) | low | possible | Commands and CLI | `subscribe` sends the initial events in random order | open |
 | [RB-61](#rb-61-tests-cant-reset-two-private-focus-globals) | low | possible | Tests | Tests can't reset two private focus globals | fixed |
@@ -165,7 +196,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 | [RB-94](#rb-94-newscalarornil-reads-json-booleans-as-integers) | low | speculative | Tests | `newScalarOrNil` reads JSON booleans as integers | open |
 | [RB-102](#rb-102-syncfocusfrommacos-crashes-on-test-windows) | low | speculative | Tests | `syncFocusFromMacOs` crashes on test windows | open |
 
-**Totals:** 55 entries were open before `fix-review-bugs`: 2 high, 8 medium and 45 low. Of these, 51 fixed and 4 closed. The fixes turned up 22 new entries (RB-71 to RB-92; 1 medium and 21 low): 8 fixed and 14 open (RB-76 was fixed after the user chose a 2 s limit per app). A further 18 entries were resolved by the refactor, and 3 were dropped. The `simplify` stream added 20 entries (RB-93 to RB-112; 1 medium and 19 low), all open. Two more low entries came from the `perf` stream and from merging (RB-113 and RB-114), both open. The `perf` stream's other report, about stale cached window levels, is already covered by RB-35 and RB-85.
+**Totals:** 55 entries were open before `fix-review-bugs`: 2 high, 8 medium and 45 low. Of these, 51 fixed and 4 closed. The fixes turned up 22 new entries (RB-71 to RB-92; 1 medium and 21 low): 8 fixed and 14 open (RB-76 was fixed after the user chose a 2 s limit per app). A further 18 entries were resolved by the refactor, and 3 were dropped. The `simplify` stream added 20 entries (RB-93 to RB-112; 1 medium and 19 low), all open. Two more low entries came from the `perf` stream and from merging (RB-113 and RB-114), both open. The `perf` stream's other report, about stale cached window levels, is already covered by RB-35 and RB-85. On `restructure`, 10 of these 36 open entries were fixed and 6 became moot, so 20 are still open. Seven entries that were already fixed or closed became moot too (RB-05, RB-10, RB-12, RB-16, RB-43, RB-44 and RB-61). The restructure added 19 entries (RB-115 to RB-133; 5 medium and 14 low): 9 are fixed there and 10 are open.
 
 ## Core model
 
@@ -313,7 +344,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 ### RB-77: An empty root container stays the most recent child after the last tiling window closes
 
-- **Status:** Open.
+- **Status:** Open. Fixed on `restructure` in 95269136, narrowed in 8c281cb0: when the most recent child is an empty root, `toLiveFocus` takes the most recent window of the other children (`Sources/AppBundle/focus.swift:107-117`). Regression test: `TreeNodeTest.toLiveFocusSkipsAnEmptyRootContainer`. The narrowing keeps the old behavior for other empty containers: after the last floating window closes, focus still goes to the first window in DFS order. `TreeNodeTest.toLiveFocusFallsBackToTheFirstWindowPastAnEmptyContainer` pins that.
 - **Severity:** low · **Confidence:** likely
 - **Location:** `Sources/AppBundle/focus.swift:86-88`, the `todo` in `toLiveFocus`
 - **Description:** After a workspace's last tiling window closes, its empty root tiling container stays the workspace's most recent child. `toLiveFocus()` then picks the first floating or unconventional window, not the last focused one. The existing `todo` describes this; RB-03 only removed the "created on read" trigger.
@@ -324,7 +355,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 - **Status:** Open.
 - **Severity:** low · **Confidence:** possible
-- **Location:** `Sources/AppBundle/layout/layoutRecursive.swift:112-140`
+- **Location:** `Sources/AppBundle/layout/layout.swift:154-190` (`layoutTiles`); the `height - 1` workaround is at `:31`
 - **Description:** The main axis of virtual rects still uses weights normalized to the physical main size. With same-orientation nesting (h in v in h, inner gap 20), the children's virtual rects end 10 px before the container's virtual edge. In v-containers, the `height - 1` workaround leaves a 1 px gap.
 - **How it shows up:** points in the gap match no child in `findWindowRecursively(virtual: true)`, which resize with mouse and floating-as-tiling focus use.
 - **Fix direction:** scale the main-axis virtual size by virtual/physical.
@@ -333,7 +364,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 - **Status:** Open.
 - **Severity:** low · **Confidence:** possible
-- **Location:** `Sources/AppBundle/model/AxUiElementWindowType.swift:107-111` and `Sources/AppBundle/windowLevelCache.swift:18-41`
+- **Location:** `Sources/AppBundle/model/AxUiElementWindowType.swift:107-112` and `Sources/AppBundle/windowLevelCache.swift:14-37`
 - **Description:** The window-level cache holds on-screen windows only. A window first detected while off-screen (minimized at startup, or of a hidden app) gets a nil level. For Slack, Chrome, Firefox, iTerm2 and the other listed apps, `windowLevel != .normalWindow` then holds, so it is classified as a popup.
 - **How it shows up:** the window isn't tiled. It is fixed only when it comes on screen and `validateStillPopups` lays it out, on `focus.workspace` rather than its original workspace.
 - **Fix direction:** treat an unknown level as unknown rather than as not normal, or query off-screen windows too.
@@ -342,7 +373,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 - **Status:** Open.
 - **Severity:** low · **Confidence:** speculative
-- **Location:** `Sources/AppBundle/tree/MacWindow.swift:17-28` and `:186-193`
+- **Location:** `Sources/AppBundle/tree/MacWindow.swift:17-39` and `:188-195`
 - **Description:** `getOrRegister` reads `focus.workspace` before its AX awaits and binds the new window into it afterwards. If a concurrent light session changed focus and garbage-collected that empty, now invisible workspace in between, the window lands in a workspace that is no longer registered.
 - **How it shows up:** the window isn't laid out. A later `Workspace.get(byName:)` creates a duplicate workspace, and the `Workspace.==` check dies.
 - **Fix direction:** read `focus.workspace` after the awaits.
@@ -352,7 +383,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 - **Status:** Open.
 - **Severity:** low · **Confidence:** speculative
 - **Location:** `Sources/AppBundle/mouse/moveWithMouse.swift:21-27`
-- **Description:** If the window became tiling during the `getCenter` await (for example, `layout tiling` ran in between), `bindAsFloatingWindow` makes it floating again when the target workspace differs. This was already the case before RB-20.
+- **Description:** If the window became tiling during the `getCenter` await (for example, `layout tiling` ran in between), the move into the target workspace's floating container (`:25`, `bindAsFloatingWindow` before `restructure`) makes it floating again when the target workspace differs. This was already the case before RB-20.
 - **How it shows up:** a `layout tiling` that races with a drag is silently undone.
 - **Fix direction:** re-check that the window is still floating after the await.
 
@@ -376,7 +407,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 ### RB-93: Focus follows mouse can stop scanning the floating windows early
 
-- **Status:** Open.
+- **Status:** Open. Moot on `restructure`: b2524011 replaced `MruStack` with MRU stamps. `mruChildren` is now an array sorted by stamp (`Sources/AppBundle/tree/TreeNode.swift:117`), so focus follows mouse iterates a snapshot (`Sources/AppBundle/mouse/focusFollowsMouse.swift:38`). No regression test: it needs a raise during the AX awaits.
 - **Severity:** low · **Confidence:** possible
 - **Location:** `Sources/AppBundle/util/MruStack.swift:28` and `Sources/AppBundle/mouse/focusFollowsMouse.swift:31-39`
 - **Description:** Focus follows mouse iterates the live `mruChildren` stack of the floating container and awaits `getAxRect` for each window. `MruStack.remove` sets `next` to nil on the node it unlinks, and raising a window removes it first. If the window that the iterator returns next is raised or unbound during an await, the iterator returns it and then stops.
@@ -387,16 +418,27 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 - **Status:** Open. Found by the `perf` stream.
 - **Severity:** low · **Confidence:** possible
-- **Location:** `Sources/AppBundle/tree/MacApp.swift:73-82`
+- **Location:** `Sources/AppBundle/tree/MacApp.swift:76-87`
 - **Description:** If `AxSubscription.bulkSubscribe` fails for a regular app, `getOrRegister` stores `nil` in `allAppsMap` and the app thread exits. The next lookup finds nothing, so it creates a new per-app thread and tries to subscribe again.
 - **How it shows up:** while an app that rejects or ignores AX observers is running, every heavy refresh spawns a thread and waits for the failed subscription attempt. That means thread churn and slower refreshes.
 - **Fix direction:** remember the failure (for example, with a retry backoff per pid) instead of retrying on every refresh.
+
+### RB-129: A hidden workspace's root container gets the `auto` orientation of the wrong monitor
+
+- **Status:** Open. Found on `restructure`.
+- **Severity:** low · **Confidence:** possible
+- **Location:** `Sources/AppBundle/tree/WorkspaceEx.swift:6-8` and `:20-26` (`rootTilingContainer` and `newRootOrientation`), `Sources/AppBundle/tree/normalizeContainers.swift:3`, `Sources/AppBundle/layout/refresh.swift:106-108`
+- **Description:** Reading `rootTilingContainer` creates the root when there is none. With the `auto` orientation, the workspace's monitor at that moment decides the root's orientation. `refreshModel_nonCancellable` normalizes every workspace, and that reads the root, so every persistent workspace has a root from the first session on. For a workspace that was never visible and isn't force-assigned, `workspaceMonitor` is `mainMonitorInfo` (`Sources/AppBundle/tree/Workspace.swift:113-118`). An empty root is never removed, and nothing changes its orientation later. The code before `restructure` did the same.
+
+  Reads create the special containers too. `cacheClosedWindowIfNeeded` reads the root and all three special containers of every workspace (`Sources/AppBundle/tree/frozen/closedWindowsCache.swift:21-28`), so `workspace.children` are in the order of the first reads. Creating a container restores the most recent child, so the RB-03 fix holds. 083bfaad and b76587e1 removed two such reads: expanding `%{workspace-root-container-layout}` and `balance-sizes` no longer create the root.
+- **How it shows up:** with `default-root-container-orientation = 'auto'` (the default) and a portrait monitor that isn't the main monitor, a persistent workspace that is first shown on the portrait monitor tiles its windows side by side. The order of `workspace.children` matters only where focus falls back to `anyLeafWindowRecursive`, which is speculative.
+- **Fix direction:** read `existingRootTilingContainer` in `normalizeContainers` and in the closed-windows cache, so that the root is created when the first window is placed. Alternatively, decide the orientation of an empty root again when its workspace becomes visible.
 
 ## Commands and CLI
 
 ### RB-05: `Int32ExitCode.succ` is 2
 
-- **Status:** Fixed in 5749afae. Regression test: `RunCallbackCommandTest.testOnWindowDetectedWithoutCallbacksSucceeds`.
+- **Status:** Fixed in 5749afae. Regression test: `RunCallbackCommandTest.testOnWindowDetectedWithoutCallbacksSucceeds`. Moot on `restructure`: 858762f5 deleted `Int32ExitCode`. `onWindowDetected` starts from `EXIT_CODE_ZERO` (`Sources/AppBundle/config/WindowRules.swift:87`), and `RunCallbackCommandTest.onWindowDetectedWithoutCallbacksSucceeds` still pins the exit code.
 - **Severity:** medium · **Confidence:** likely
 - **Original location:** `Sources/Common/cmdArgs/ExitCode.swift:17 @812da7fa`. It is used at `Sources/AppBundle/tree/MacWindow.swift:274` and `Sources/AppBundle/command/impl/RunCallbackCommand.swift:12`.
 - **Current location:** `Sources/Common/cmdArgs/ExitCode.swift:17`. It is used at `Sources/AppBundle/tree/MacWindow.swift:255` and `Sources/AppBundle/command/impl/RunCallbackCommand.swift:12`. Unchanged.
@@ -421,7 +463,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 ### RB-12: The `move-workspace-to-display` alias skips post-parse validation
 
-- **Status:** Fixed in c6ed54b7. Regression test: `MoveWorkspaceToMonitorCommandTest.testParseDeprecatedAliasIsValidatedLikeTheCommand`.
+- **Status:** Fixed in c6ed54b7. Regression test: `MoveWorkspaceToMonitorCommandTest.testParseDeprecatedAliasIsValidatedLikeTheCommand`. Moot on `restructure`: 858762f5 deleted the alias. `MoveWorkspaceToMonitorCommandTest.parseError` pins that `move-workspace-to-display` is an unrecognized subcommand.
 - **Severity:** low · **Confidence:** likely
 - **Original location:** `Sources/Common/cmdArgs/cmdArgsManifest.swift:124 @812da7fa`. The validator is at `Sources/Common/cmdArgs/impl/MoveWorkpsaceToMonitorCmdArgs.swift:21-26`.
 - **Current location:** `Sources/Common/cmdArgs/cmdArgsManifest.swift:124`. The validator is `parseMoveWorkspaceToMonitorCmdArgs` at `Sources/Common/cmdArgs/impl/MoveWorkspaceToMonitorCmdArgs.swift:21-26`; the file was renamed to fix its typo. Behavior is unchanged.
@@ -470,7 +512,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 ### RB-16: Post-parse validation errors lack the `ERROR:` prefix
 
-- **Status:** Fixed in 4739987d: post-parse validation errors are formatted like the arg-parser errors. The 45 test expectations that pinned the old messages now expect the prefix. Related: errors with an explicit exit code still have no prefix (RB-90), and config errors show the prefix twice (RB-89).
+- **Status:** Fixed in 4739987d: post-parse validation errors are formatted like the arg-parser errors. The 45 test expectations that pinned the old messages now expect the prefix. Related: errors with an explicit exit code still have no prefix (RB-90), and config errors show the prefix twice (RB-89). Moot on `restructure`: since 858762f5, no command error has the `ERROR:` prefix.
 - **Severity:** low · **Confidence:** likely
 - **Original location:** `Sources/Common/cmdArgs/ParsedCmd.swift:29-37 @812da7fa`. `joinErrors` is at `Sources/Common/util/StringEx.swift:26`.
 - **Current location:** same lines. Unchanged.
@@ -602,7 +644,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 - **Status:** Open.
 - **Severity:** low · **Confidence:** speculative
-- **Location:** `Sources/AppBundle/command/impl/DebugWindowsCommand.swift:44-63`
+- **Location:** `Sources/AppBundle/command/impl/MiscCommands.swift:62-79`: the state is set at `:64`, and a failed dump throws at `:77`
 - **Description:** The state is set to `.recording` before the starting window is dumped. If that dump throws, the command exits 2 with a bug prompt but stays in `.recording`.
 - **How it shows up:** the next `debug-windows` finishes a session that the user thinks failed.
 - **Fix direction:** reset the state when the first dump fails.
@@ -611,14 +653,14 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 - **Status:** Open.
 - **Severity:** low · **Confidence:** possible
-- **Location:** `Sources/AppBundle/command/parseCommand.swift:8`
-- **Description:** `raw` isn't trimmed before the `exec-and-forget` check, so `' exec-and-forget open …'` goes to the shell parser, which fails with "Unrecognized subcommand 'exec-and-forget'". The friendlier message in `cmdManifest.swift:16` can't be reached, because `parseCmdArgs` rejects the name first.
+- **Location:** `Sources/AppBundle/command/parseCommand.swift:5`
+- **Description:** `raw` isn't trimmed before the `exec-and-forget` check, so `' exec-and-forget open …'` goes to the shell parser, which fails with "Unrecognized subcommand 'exec-and-forget'". The friendlier message at `parseCommand.swift:61` can't be reached, because `parseSubcommand` rejects the name first (`:44`).
 - **How it shows up:** a binding with a leading space fails at config load with a confusing error.
 - **Fix direction:** trim leading whitespace before the check.
 
 ### RB-81: `subscribe` drops the duplicate-event error when an unknown event follows
 
-- **Status:** Open.
+- **Status:** Open. Moot on `restructure`: since 858762f5, parsing stops at the first error for every command, so there is no second error to collect. `subscribe a a bogus` still reports the unknown event, although the duplicate comes first, because the duplicate check runs after all events are parsed (`Sources/AppBundle/subscriptions.swift:48-53`).
 - **Severity:** low · **Confidence:** speculative
 - **Location:** `Sources/Common/cmdArgs/impl/SubscribeCmdArgs.swift:35-50`
 - **Description:** When a duplicate event comes before an unknown one, only the unknown-event error is reported. This was already the case before RB-14.
@@ -636,7 +678,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 ### RB-90: Parse errors with an explicit exit code have no `ERROR:` prefix
 
-- **Status:** Open.
+- **Status:** Open. Moot on `restructure`: since 858762f5, no command error has the `ERROR:` prefix, so `aerospace bogus` and `aerospace focus --bogus` are formatted alike.
 - **Severity:** low · **Confidence:** possible
 - **Location:** `Sources/Common/cmdArgs/parseCmdArgs.swift:4, 9`, `Sources/AppBundle/command/parseCommand.swift:18, 21`, `Sources/AppBundle/command/cmdManifest.swift:16, 42`
 - **Description:** Errors created with `failure(_:_:)` (empty command, unrecognized subcommand, illegal eval, shell syntax errors) have no `ERROR: ` prefix, unlike the arg-parser and, since RB-16, the validation errors.
@@ -647,14 +689,14 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 - **Status:** Open.
 - **Severity:** low · **Confidence:** possible
-- **Location:** `Sources/AppBundle/command/impl/ListWindowsCommand.swift:47-55`
-- **Description:** The windows are sorted by app name, title and window ID, but the title is fetched only when the format uses `%{window-title}`. Otherwise every title is empty for the sort.
-- **How it shows up:** `list-windows --all --format '%{window-id}'` orders one app's windows by ID, while the default format orders them by title.
+- **Location:** `Sources/AppBundle/command/impl/ListCommands.swift:97-106`
+- **Description:** The windows are sorted by app name and title, and ties keep the workspace and tree order. The title is fetched only when the format uses `%{window-title}`. Otherwise every title is empty for the sort.
+- **How it shows up:** `list-windows --all --format '%{window-id}'` orders one app's windows by workspace and tree position, while the default format orders them by title.
 - **Fix direction:** document it, or always fetch the title for sorting. Fetching it costs an AX call per window.
 
 ### RB-108: `swap --wrap-around` on a floating window swaps it into the tiling tree
 
-- **Status:** Open.
+- **Status:** Open. Fixed on `restructure` in 4d324dcd: `swap` fails with "Can't swap a window that isn't tiled" before it looks for a target (`Sources/AppBundle/command/impl/MoveCommands.swift:154`). That also gives `swap <direction>` and `swap dfs-next` a message where they used to exit 2 without one. Regression test: `SwapCommandTest.failsForAWindowThatIsntTiled`.
 - **Severity:** medium · **Confidence:** possible
 - **Location:** `Sources/AppBundle/command/impl/SwapCommand.swift:15-21`
 - **Description:** For a floating or macOS-native window, `closestParent` returns nil, because the window's parent isn't a tiling container. With `--wrap-around`, the command then takes a tiling window of the workspace as the target. `swapWindows` exchanges the parents of the two windows.
@@ -665,14 +707,14 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 - **Status:** Open.
 - **Severity:** low · **Confidence:** likely
-- **Location:** `Sources/AppBundle/command/impl/LayoutCommand.swift:30`
+- **Location:** `Sources/AppBundle/command/impl/LayoutCommands.swift:99`
 - **Description:** The message says "Can't change layout for macOS minimized, fullscreen windows or windows or hidden apps". It should say "windows of hidden apps".
-- **How it shows up:** user-visible stderr text when `layout` runs on a minimized, macOS fullscreen or hidden-app window. `WindowParentTest.swift:66` pins it.
+- **How it shows up:** user-visible stderr text when `layout` runs on a minimized, macOS fullscreen or hidden-app window. `WindowParentTest.swift:55` pins it.
 - **Fix direction:** fix the wording and update the test.
 
 ### RB-110: `debug-windows` can log a window after its session ended
 
-- **Status:** Open.
+- **Status:** Open. Fixed on `restructure` in b88a0df4, after a partial fix in 945949c4: each recording owns its log (`DebugWindowsLog`), and a dump goes into the log of the recording it started in (`Sources/AppBundle/command/impl/MiscCommands.swift:135-143`). A dump that ends after its recording lands in a log that nobody reads. Regression test: `DebugWindowsCommandTest.dumpAwaitedDuringOneRecordingStaysOutOfTheNext`.
 - **Severity:** low · **Confidence:** speculative
 - **Location:** `Sources/AppBundle/command/impl/DebugWindowsCommand.swift:117-126`
 - **Description:** `debugWindowsIfRecording` checks the state, then writes the result of `await dumpWindowDebugInfo(...)` into `debugWindowsLog` at `:125` without checking the state again. A related case is RB-78.
@@ -683,8 +725,8 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 - **Status:** Open.
 - **Severity:** low · **Confidence:** possible
-- **Location:** `Sources/Common/cmdArgs/impl/TestCmdArgs.swift:25-33`. Empty literals are dropped at `Sources/Common/util/StringEx.swift:144`.
-- **Description:** `rawInterpolationTokens` drops empty literals, so an empty right-hand side has no tokens at all. `parseTestRhs` then falls to the default arm.
+- **Location:** `Sources/AppBundle/command/impl/ShellCommands.swift:22-26`. Empty literals are dropped at `Sources/AppBundle/util/interpolationTokens.swift:43`.
+- **Description:** `rawInterpolationTokens` drops empty literals, so an empty right-hand side has no tokens at all. The single-token check then fails.
 - **How it shows up:** `test %{window-title} = ''` fails with "Right hand side doesn't allow interpolation variables" instead of comparing the title with the empty string.
 - **Fix direction:** treat an empty token list as the empty literal.
 
@@ -692,19 +734,118 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 - **Status:** Open.
 - **Severity:** low · **Confidence:** speculative
-- **Location:** `Sources/AppBundle/subscriptions.swift:25`
+- **Location:** `Sources/AppBundle/subscriptions.swift:71`
 - **Description:** Unless `--no-send-initial` is given, `subscribe` sends an initial event for each subscribed type. The initial `focused-workspace-changed` event sets `prevWorkspace` to the current workspace.
 - **How it shows up:** the initial event looks like a change from the current workspace to itself, and nothing marks it as initial. A subscriber that tracks the previous workspace gets a wrong value.
-- **Fix direction:** send the real previous workspace (`_prevFocusedWorkspaceName`), or document the initial value.
+- **Fix direction:** send the real previous workspace (`world.focusStore.prevWorkspaceName`), or document the initial value.
 
 ### RB-114: `subscribe` sends the initial events in random order
 
 - **Status:** Open. Found while merging the round-2 branches.
 - **Severity:** low · **Confidence:** possible
-- **Location:** `Sources/AppBundle/subscriptions.swift:19`
-- **Description:** `SubscribeCmdArgs.events` is a `Set<ServerEventType>`, and the initial events are sent by iterating it. Set iteration order changes from run to run.
+- **Location:** `Sources/AppBundle/subscriptions.swift:35` and `:65`
+- **Description:** `SubscribeArgs.events` is a `Set<ServerEventType>`, and the initial events are sent by iterating it. Set iteration order changes from run to run.
 - **How it shows up:** with several event types, `aerospace subscribe` prints its initial events in a different order each time. A client that expects a fixed order can misread the stream.
 - **Fix direction:** iterate in a fixed order, such as `ServerEventType.allCases` filtered by `args.events`.
+
+### RB-115: `--monitor` with the smallest integer crashes AeroSpace
+
+- **Status:** Fixed on `restructure` in ca57e0d2: a monitor ID below 1 is a parse error. Regression tests: `UntrustedInputTest.monitorIdBelowOneIsRejected`, and `UntrustedInputTest.extremeNumbersDontCrash`, which runs every numeric option with extreme numbers through the server's parser.
+- **Severity:** medium · **Confidence:** likely (confirmed with a copy of the parser)
+- **Location:** `Sources/AppBundle/command/impl/ListCommands.swift:136-140` (`MonitorId.parseList`)
+- **Description:** `--monitor` turns a monitor ID into an index with `id - 1`, which traps for `Int.min`. 858762f5 made this reachable: the server parses the CLI's words now, and an argument that starts with `-` can be an option's value. The parser before `restructure` took such an argument for a flag, so a negative ID never reached the subtraction.
+- **How it shows up:** `aerospace list-windows --monitor -9223372036854775808` crashes AeroSpace.app. So does `list-workspaces --monitor` with the same value.
+- **Fix direction:** reject IDs below 1 while parsing.
+
+### RB-118: Focus over floating windows reorders the floating container and the MRU order
+
+- **Status:** Fixed on `restructure` in b76587e1: focus decides while the floating windows are bound as tiling windows inside `withTemporaryEdits`, which then puts the tree back, and it focuses afterwards. c22fc5fa made the restore cover every tree, and the orientation and layout of the containers (`World.withTemporaryTreeEdits`). 5dac5c49 made the MRU test fail on the old code. Regression tests: `FocusCommandTest.focusOverFloatingWindows`, `focusOverFloatingWindowsLeavesTheTilingMruAlone` and `focusingAFloatingWindowKeepsTheFullscreenTilingWindow` (b5c56c52).
+- **Severity:** low · **Confidence:** likely
+- **Location:** `Sources/AppBundle/command/impl/FocusCommands.swift:133-138` and `Sources/AppBundle/tree/TreeNode.swift:189-216` (`World.withTemporaryTreeEdits`). Before the fix: `makeFloatingWindowsSeenAsTiling` and `restoreFloatingWindows` (`Sources/AppBundle/command/impl/FocusCommand.swift:103-157 @ba6b0d70`).
+- **Description:** Unless `--ignore-floating` is given, `focus` sees the floating windows as tiling windows. Before the fix, it bound them into the tiling tree, focused, and then appended them to the floating container again, sorted by center from right to left. A `todo bug: floating windows break mru` comment noted the problem. Focusing while they were bound made the tiling containers above the focused window the most recent children of their parents.
+- **How it shows up:** `focus right` over `floating(1 *2 3)` leaves `floating(*3 2 1)`. With `h_tiles(v_tiles(1 2) 3) floating(4)`, where window 3 is the most recent and fullscreen, `focus --window-id 4` made `v_tiles` the most recent child of the root, and layout showed window 2 fullscreen instead of window 3. A later focus of the workspace can also go to another window than the last focused one.
+- **Fix direction:** decide with the floating windows bound as tiling windows, put the tree back, and only then focus.
+
+### RB-119: `focus --window-id` and `--dfs-index` accept options given with their default values
+
+- **Status:** Fixed on `restructure` in c1c6d1b9: each focus target carries only its own options, and the parser checks which options were given, not their values. Regression test: the rows of `FocusCommandTest.parseError` after the comment "An option is rejected even when it is given with its default value".
+- **Severity:** low · **Confidence:** likely
+- **Location:** `Sources/AppBundle/command/impl/FocusCommands.swift:64-66` and `:110-113`
+- **Description:** 858762f5 checked that `--window-id` and `--dfs-index` come alone by comparing the parsed command with one that has only the target. An option given with its default value doesn't change the command, so it passed. The parser before `restructure` rejected these. A review of 858762f5 found it.
+- **How it shows up:** `focus --window-id 1 --boundaries workspace` and `focus --dfs-index 0 --boundaries-action stop` are accepted, but `--boundaries all-monitors-outer-frame` is rejected. So the result depends on the option's value.
+- **Fix direction:** track which options were given, or give each target its own options.
+
+### RB-120: A binding or callback that runs itself recurses without bound
+
+- **Status:** Open. Found in a review of `restructure`. The code before it does the same.
+- **Severity:** medium · **Confidence:** likely (not run)
+- **Location:** `Sources/AppBundle/command/impl/ShellCommands.swift:289-298` (`trigger-binding`) and `:129-143` (`run-callback`). The guard that stops on-focus-changed callbacks from re-entering is at `Sources/AppBundle/focus.swift:150`.
+- **Description:** `trigger-binding` runs the commands of a binding, and `run-callback` runs the configured callbacks through `onFocusChanged`, `onFocusedMonitorChanged` or `onWindowDetected`. Nothing limits how deep these nest. `isRunningOnFocusChangedCallbacks` guards only the callbacks that a focus change runs, not `run-callback`.
+- **How it shows up:** a config with `alt-a = 'trigger-binding --mode main alt-a'`, or with `on-focus-changed = 'run-callback on-focus-changed'`, makes the key press or the focus change run forever. AeroSpace stops responding, and it crashes when memory or the stack runs out. Two bindings that trigger each other do the same.
+- **Fix direction:** limit the nesting depth of `trigger-binding` and `run-callback`, for example with a task-local counter, and fail with a message past the limit.
+
+### RB-121: Commands that fail to focus exit 2 without a message
+
+- **Status:** Open. Found on `restructure`. `WorkspaceBackAndForthCommandTest.failsWhenFocusingThePreviousWorkspaceFails` pins it, with a `todo`.
+- **Severity:** low · **Confidence:** possible
+- **Location:** `Sources/AppBundle/command/impl/WorkspaceCommands.swift:91, 139, 173`, `Sources/AppBundle/command/impl/FocusCommands.swift:142, 145, 278, 338` and `Sources/AppBundle/command/impl/MoveCommands.swift:166, 281`. The failure comes from `setFocus` (`Sources/AppBundle/focus.swift:75-92`).
+- **Description:** These commands fail silently when `focusWorkspace()`, `focusWindow()` or `setFocus` returns false. That happens when there are no screens and the target workspace isn't visible (`focus.swift:78`), when the workspace can't be shown on its monitor, or when the window isn't in a workspace.
+- **How it shows up:** `workspace <name>`, `workspace-back-and-forth`, `focus`, `focus-back-and-forth`, `focus-monitor`, `summon-workspace`, `swap --swap-focus` and `move-node-to-workspace --focus-follows-window` exit 2 without saying why, typically during display reconfiguration. RB-31 made `workspace-back-and-forth` report the failure in its exit code, but not with a message.
+- **Fix direction:** print a message, for example "Can't focus workspace 'x' while there are no screens".
+
+### RB-122: `--fail-if-fullscreen` exits 2 without a message
+
+- **Status:** Open. Found on `restructure`. This is probably intended: the doc comment says "fail silently", and `--fail-if-noop` fails silently too (`Sources/AppBundle/command/Command.swift:113-117`).
+- **Severity:** low · **Confidence:** speculative
+- **Location:** `Sources/AppBundle/command/impl/MoveCommands.swift:119-123` (`Window.failIfFullscreen`)
+- **Description:** `focus` and `move` with `--fail-if-fullscreen` or `--fail-if-macos-native-fullscreen` exit 2 without a message when the window is fullscreen. Exit code 2 is also the code of every error. The docs only say "Exit with non-zero code" (`docs/aerospace-focus.adoc:69-75`, `docs/aerospace-move.adoc:42-46`).
+- **How it shows up:** a script can tell "the window is fullscreen" from an error only by the empty stderr. `FocusCommandTest.failIfFullscreen` and `MoveCommandTest.failIfFullscreen` pin the silent failure.
+- **Fix direction:** document that these flags fail silently, or decide on a separate exit code for all the `--fail-if-*` flags.
+
+### RB-123: Moving into a container of the move's orientation always inserts at its start
+
+- **Status:** Open. Found on `restructure`, which kept the behavior. It comes from upstream (`deepMoveIn` before `restructure`).
+- **Severity:** low · **Confidence:** possible
+- **Location:** `Sources/AppBundle/command/impl/MoveCommands.swift:73-84` (`moveIn`)
+- **Description:** When `move` goes into a sibling container, it follows the most recent children down to a container with the move's orientation, or to a window. A window target gets the moved window right after it. A container target gets it at index 0, whatever the direction.
+- **How it shows up:** `move right` and `move down` land next to where the window was, but `move left` and `move up` land at the far end of the container. With `h_tiles(0 v_tiles(h_tiles(1 2) 4) *3)`, where `h_tiles(1 2)` is the most recent child of `v_tiles`, `move left` gives `h_tiles(0 v_tiles(h_tiles(*3 1 2) 4))`. Window 3 lands left of window 1 instead of right of window 2. No test covers `move left` or `move up` into such a container.
+- **Fix direction:** insert at the end of the container for `left` and `up`. Check upstream's intent first.
+
+### RB-124: Concurrent `debug-windows` dumps can exceed the window limit
+
+- **Status:** Open. Found on `restructure`.
+- **Severity:** low · **Confidence:** possible
+- **Location:** `Sources/AppBundle/command/impl/MiscCommands.swift:135-143` (`recordDebugWindow`)
+- **Description:** `recordDebugWindow` checks the window limit and whether the log has the window before it awaits the dump, and adds the dump after the await. Dumps that run at the same time all pass the checks.
+- **How it shows up:** a recording can hold more than 10 windows, by the number of dumps in flight. The same window can be dumped twice; the later dump replaces the earlier one. This is harmless.
+- **Fix direction:** reserve the slot before the await, or check the limit again after it.
+
+### RB-125: `subscribe` loses the events sent before the subscriber is registered
+
+- **Status:** Open. Found on `restructure`.
+- **Severity:** low · **Confidence:** speculative
+- **Location:** `Sources/AppBundle/server.swift:78-80` and `Sources/AppBundle/subscriptions.swift:60-85`
+- **Description:** With protocol version 2, the server first answers a `subscribe` request (`server.swift:79`) and then registers the subscriber (`subscriptions.swift:61`). Events broadcast while the answer is written don't reach the subscriber. Before `restructure`, the subscriber was registered first. A second problem predates `restructure`: the initial events are built from one snapshot of the focus (`:64`) and written with one await each (`:81`). Live events can be written in between, and an initial event written after a live one carries the older state.
+- **How it shows up:** with `--no-send-initial`, a focus change right after `aerospace subscribe` starts can be missed. `window-detected` and `binding-triggered` events can be missed with or without initial events. A client that applies the events in order can end up with a stale focus.
+- **Fix direction:** register the subscriber before the answer is written, and hold its live events until the answer and the initial events are out.
+
+### RB-132: `aerospace --version` hangs when AeroSpace.app doesn't answer
+
+- **Status:** Fixed on `restructure` in 98e73cfd: `--version` waits at most 3 s for the answer. Then it prints the client line and "AeroSpace.app server version: Unknown (no answer)", and exits 2. Regression test: `NWConnectionExTest.readOfServerThatDoesntAnswerTimesOut`.
+- **Severity:** low · **Confidence:** likely (checked with a server that never answers)
+- **Location:** `Sources/Cli/_main.swift:87-88` and `:99-103`, and `Sources/Common/util/TaskEx.swift:25-40` (`withTimeout`)
+- **Description:** `--version` prints the CLI's version and the version that AeroSpace.app sends back. The CLI printed nothing until the answer came. The server answers on the main thread, so when the main thread is stuck, for example in a hung accessibility call, the connection is accepted but no answer comes. The CLI before `restructure` waited the same way.
+- **How it shows up:** `aerospace --version` hangs without output, just when it's needed to find out what's wrong with AeroSpace.
+- **Fix direction:** bound the wait, and print the client version either way.
+
+### RB-133: `--stdin` on a terminal waits for typed input, or fails without saying why
+
+- **Status:** Fixed on `restructure` in 4d46d350: the CLI exits 2 with "--stdin needs piped input, but stdin is a terminal" before it connects. No regression test: it was checked with a pseudo-terminal.
+- **Severity:** low · **Confidence:** possible
+- **Location:** `Sources/Cli/_main.swift:41-46`. Before `restructure`: `readStdinOrExit` (`Sources/Cli/_main.swift:71` and `:140 @ba6b0d70`).
+- **Description:** With `--stdin`, the CLI sends its stdin along with the command. On `restructure`, `workspace`, `move-node-to-workspace` and `eval` take it. Before `restructure`, the CLI read stdin to its end, so on a terminal it waited until the user typed the input and pressed Ctrl-D. a28d3095 made the CLI skip reading from a terminal and send an empty stdin instead.
+- **How it shows up:** `aerospace workspace --stdin next` typed in a terminal seemed to hang. On `restructure` before the fix, it failed with "The list of workspaces is empty", which doesn't say why.
+- **Fix direction:** reject `--stdin` when stdin is a terminal.
 
 ## Config, shell and UI
 
@@ -722,7 +863,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 ### RB-10: Config reload crashes if `~/Library/LaunchAgents` can't be created
 
-- **Status:** Fixed in c843e5c3: the directory is no longer created. No regression test: the code works on the real home directory. Verified by reading the code.
+- **Status:** Fixed in c843e5c3: the directory is no longer created. No regression test: the code works on the real home directory. Verified by reading the code. Moot on `restructure`: a927f32a deleted `cleanupPlistFromPrevVersions`, so a reload no longer touches `~/Library/LaunchAgents`.
 - **Severity:** medium · **Confidence:** possible
 - **Original location:** `Sources/AppBundle/config/startAtLogin.swift:16-21 @812da7fa`
 - **Current location:** `Sources/AppBundle/config/startAtLogin.swift:16-21`. Unchanged.
@@ -802,7 +943,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 ### RB-43: `on-window-detected` warnings are dropped when there are no errors
 
-- **Status:** Closed: the only warning is the outdated-config-version warning, which is added at the root after parsing. `on-window-detected` produces no warnings that could be dropped.
+- **Status:** Closed: the only warning is the outdated-config-version warning, which is added at the root after parsing. `on-window-detected` produces no warnings that could be dropped. Moot on `restructure`: 1db3ce8b deleted `config-version` and with it config warnings.
 - **Severity:** low · **Confidence:** speculative
 - **Original location:** `Sources/AppBundle/config/parseOnWindowDetected.swift:130-134 @812da7fa`
 - **Current location:** `Sources/AppBundle/config/parseOnWindowDetected.swift:127-131`. Unchanged.
@@ -812,7 +953,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 ### RB-44: Implicit persistent-workspace order depends on Dictionary iteration
 
-- **Status:** Closed: the implicit persistent workspaces are only used through `contains` and the workspace GC loop, which don't depend on the order, and they are never displayed.
+- **Status:** Closed: the implicit persistent workspaces are only used through `contains` and the workspace GC loop, which don't depend on the order, and they are never displayed. Moot on `restructure`: 1db3ce8b deleted the implicit persistent workspaces. Bindings and the force assignment no longer make workspaces persistent.
 - **Severity:** low · **Confidence:** speculative
 - **Original location:** `Sources/AppBundle/config/parseConfig.swift:280-288 @812da7fa`
 - **Current location:** `Sources/AppBundle/config/parseConfig.swift:286` and `:299-310` (`implicitPersistentWorkspaces`). Unchanged.
@@ -843,14 +984,14 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 - **Status:** Open. Whether a config that fails to parse should be watched is a design choice: the setting that enables watching is in that config.
 - **Severity:** low · **Confidence:** possible
-- **Location:** `Sources/AppBundle/config/ConfigFileWatcher.swift:31-33`, `Sources/AppBundle/initAppBundle.swift:21`
+- **Location:** `Sources/AppBundle/config/ConfigFile.swift:86-88` (`ConfigAutoReload.sync`), `Sources/AppBundle/initAppBundle.swift:21`
 - **Description:** If the user's config fails to parse at startup, the default config stays active, and it has `auto-reload-config = false`. So no watcher is armed, and fixing the file isn't picked up until a manual `reload-config`.
 - **How it shows up:** a user starts AeroSpace with a typo in the config, fixes the typo, and nothing happens.
 - **Fix direction:** arm the watcher on the user's config file after a failed parse, or tell the user to run `reload-config` in the parse-error message.
 
 ### RB-89: Config errors for binding commands show the `ERROR:` prefix twice
 
-- **Status:** Open.
+- **Status:** Open. Fixed on `restructure` in d633f3a7. Since 858762f5, no command error has the `ERROR:` prefix, and `parseCommandForConfig` reports the parser's message as is (`Sources/AppBundle/config/ConfigSchema.swift:135-142`). Regression test: `ConfigCharacterizationTest.testInvalidCommandInConfig`.
 - **Severity:** low · **Confidence:** likely
 - **Location:** `Sources/AppBundle/config/parseConfig.swift:190-202` (`parseCommandForConfig`, which replaced `ParsedCmd.toResult`)
 - **Description:** Config parsing reports a bad binding command with the command parser's message, which already starts with `ERROR: `, inside its own `[ERROR] <key>: ` line. This was already the case for arg-parser errors. Since RB-16, post-parse validation errors look the same.
@@ -859,7 +1000,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 ### RB-96: Config errors with several expected types print lowercase type names
 
-- **Status:** Open.
+- **Status:** Open. Fixed on `restructure` in 01314f55: one `Diagnostics.typeMismatch` (`Sources/AppBundle/config/ConfigDiagnostics.swift:37-42`) prints the TOML type names for one or several expected types, and the gaps decoder uses it too. Regression tests: `ConfigCharacterizationTest.testDynamicGapValueOfWrongScalarType` and `testScalarKeyValues`.
 - **Severity:** low · **Confidence:** likely
 - **Location:** `Sources/AppBundle/config/parseConfig.swift:471-474` (the `[TomlType]` overload of `expectedActualTypeDiagnostic`) and `Sources/AppBundle/config/DynamicConfigValue.swift:52, 73`
 - **Description:** The single-type message prints the raw values of `TomlType`, such as `'String'`. The multi-type message and the two messages in `DynamicConfigValue.swift` interpolate the enum cases, which print in lowercase. A doc comment at `:471` notes the difference.
@@ -868,7 +1009,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 ### RB-97: An invalid key notation is reported at the table's path
 
-- **Status:** Open.
+- **Status:** Open. Fixed on `restructure` in 2b96b902: an invalid key notation is reported at its own key (`Sources/AppBundle/config/Keys.swift:34-36`), like an invalid key code. Regression test: `ConfigTest.testParseKeyMapping`.
 - **Severity:** low · **Confidence:** likely
 - **Location:** `Sources/AppBundle/config/parseKeyMapping.swift:51`. The key-code error is at `:47`.
 - **Description:** An invalid key notation is reported at the path of the `key-notation-to-key-code` table. An invalid key code is reported at the path of its key.
@@ -877,7 +1018,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 ### RB-98: Config error paths don't quote keys with dots or spaces
 
-- **Status:** Open.
+- **Status:** Open. Fixed on `restructure` in 789c01e3: a key that isn't a bare TOML key is quoted (`Sources/AppBundle/config/ConfigDiagnostics.swift:51-62` and `:74-79`). Regression test: `ConfigTest.testErrorPathQuotesKeysLikeToml`.
 - **Severity:** low · **Confidence:** speculative
 - **Location:** `Sources/AppBundle/config/parseConfig.swift:435-445` (`ConfigBacktrace.description`)
 - **Description:** The path joins keys with `.` and never quotes them.
@@ -886,7 +1027,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 ### RB-99: The `on-window-detected` debug JSON omits `check-further-callbacks` and doesn't escape values
 
-- **Status:** Open.
+- **Status:** Open. Fixed on `restructure` in eb60fd10: each rule shows its `check-further-callbacks` (`Sources/AppBundle/config/WindowRules.swift:8-17`), and a legacy matcher prints as a JSON object keyed like the config (`:55-64`), so JSON escapes its values. Regression test: `ConfigCharacterizationTest.testLegacyMatcherDebugJson`.
 - **Severity:** low · **Confidence:** speculative
 - **Location:** `Sources/AppBundle/config/parseOnWindowDetected.swift:8-16` (`WindowDetectedCallback.debugJson`) and `:37-46` (`LegacyWindowDetectedCallbackMatcher.debugJson`)
 - **Description:** The debug JSON of a callback has `matcher` and `commands`, but not `check-further-callbacks`. The legacy matcher text wraps values in `"…"` without escaping them.
@@ -895,7 +1036,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 ### RB-100: A wrong-type `if` also reports that `if` was omitted
 
-- **Status:** Open.
+- **Status:** Open. Fixed on `restructure` in 3b2dd6d8: an `if` that fails to decode is no longer also reported as omitted (`Sources/AppBundle/config/WindowRules.swift:136-142`). Regression test: `ConfigCharacterizationTest.testOnWindowDetectedMatcherErrors`.
 - **Severity:** low · **Confidence:** possible
 - **Location:** `Sources/AppBundle/config/parseOnWindowDetected.swift:97-100` and `:108-112`
 - **Description:** For an `if` of the wrong type, `parseMatcher` reports the type error and returns the empty matcher. An omitted `if` gives the same empty matcher, so the callback also gets "Omitting 'if' is error prone". An `if` command that fails to parse does the same, because `parseCommandForConfig` returns an empty shell.
@@ -904,12 +1045,57 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 ### RB-101: A binding whose command fails to parse stays bound and does nothing
 
-- **Status:** Open.
+- **Status:** Open. Fixed on `restructure` in e899deec: a binding whose command fails to parse is dropped, so the key stays with the apps (`Sources/AppBundle/config/Modes.swift:53-71`). Regression test: `ConfigCharacterizationTest.testInvalidCommandInConfig`, which checks that only the valid binding is left.
 - **Severity:** low · **Confidence:** possible
 - **Location:** `Sources/AppBundle/config/HotkeyBinding.swift:89-102` and `Sources/AppBundle/config/parseConfig.swift:190-202` (`parseCommandForConfig`)
 - **Description:** When a binding's command fails to parse, `parseCommandForConfig` reports the error and returns an empty shell, and `parseBindings` still adds the binding. Only severe errors such as TOML syntax errors stop a reload (`allowReloadConfig`), so the config is applied with the empty binding.
 - **How it shows up:** after a reload that reports the error, the hotkey is registered but does nothing. It still takes the key, and the binding of the previous config is gone. This may be intended.
 - **Fix direction:** skip bindings whose command fails to parse, or keep the previous config's binding for that key.
+
+### RB-116: Deeply nested or long shell expressions overflow the stack
+
+- **Status:** Fixed on `restructure` in ca57e0d2: the parser rejects more than 100 nested groups or more than 1000 operators in one expression. Regression tests: `UntrustedInputTest.deeplyNestedParenthesesAreRejected`, `longChainIsRejected` and `expressionAtTheLimitsRuns`.
+- **Severity:** medium · **Confidence:** likely (a scratch test crashed with SIGSEGV)
+- **Location:** `Sources/AppBundle/shell/shellParser.swift:32-36` (the limits) and `:92-102` (the checks)
+- **Description:** The shell parser recurses once per pair of parentheses, so deep nesting overflows the stack. This predates `restructure`. Since 9f57130d, an operator node holds exactly two operands and a chain nests to the left, so everything that walks a `Shell` (running it, mapping it, its description, its deinit) also recurses once per `&&`, `||`, `|` or `;`. Before that, a chain was one flat array. The input comes from the CLI too, through `eval`, and from the config. Config arrays of commands, which the parser doesn't build, are RB-131.
+- **How it shows up:** `aerospace eval` with thousands of nested parentheses, or with a chain of tens of thousands of commands, crashes AeroSpace.app. A config binding with such a command crashes it at reload.
+- **Fix direction:** limit the nesting and the number of operators while parsing.
+
+### RB-126: An `[exec]` table that doesn't set `PATH` drops the Homebrew directories
+
+- **Status:** Open. Found in a bug study of the prototype branches. The code before `restructure` does the same.
+- **Severity:** low · **Confidence:** speculative
+- **Location:** `Sources/AppBundle/config/ExecEnv.swift:9-13` (the default) and `:26-31` (`decodeExecConfig`)
+- **Description:** Without an `[exec]` table, `exec-and-forget` and the callbacks run with `/opt/homebrew/bin:/opt/homebrew/sbin` in front of the inherited `PATH`. Any `[exec]` table replaces this default, so a table that sets only `inherit-env-vars`, or `env-vars` without `PATH`, runs commands with the inherited `PATH` alone. The doc comment at `:26` says so, and the guide says the default applies "unless you override `exec` section" (`docs/guide.adoc:254-263`). So this is probably intended, but easy to miss.
+- **How it shows up:** after adding an `[exec.env-vars]` table that sets only `FOO`, an `exec-and-forget` of a Homebrew tool such as `exec-and-forget sketchybar --reload` stops finding the tool. `list-exec-env-vars` shows the `PATH`.
+- **Fix direction:** keep the Homebrew directories unless the table sets `PATH`, or say in the guide that any `[exec]` table drops them.
+
+### RB-127: The shell lexer drops a last word that ends in a Unicode Prepend character
+
+- **Status:** Open. Found in a bug study of the prototype branches. The lexer before `restructure` is the same.
+- **Severity:** low · **Confidence:** possible
+- **Location:** `Sources/AppBundle/shell/shellLexer.swift:5` (the synthetic trailing space) and `:104`
+- **Description:** The lexer appends a space to the input so that the last word ends at whitespace. A grapheme cluster joins a Prepend character, such as U+0600 ARABIC NUMBER SIGN, with the next character, so a last word that ends in one joins the synthetic space into its last character. The word then reaches the end of the input, and `lexBareWord` drops it (`case nil: return`). Its comment assumes that this happens only to the synthetic space.
+- **How it shows up:** `focus a\u{600}` parses as `focus`, which then fails with a misleading message. A last argument such as a workspace name that ends in such a character disappears.
+- **Fix direction:** flush the last word at the end of the input instead of appending a space, or report an error instead of dropping the word.
+
+### RB-128: CRLF line endings don't end commands, comments or line continuations
+
+- **Status:** Open. Found in a bug study of the prototype branches. The lexer before `restructure` is the same.
+- **Severity:** low · **Confidence:** speculative
+- **Location:** `Sources/AppBundle/shell/shellLexer.swift:27`, `:54-56` (`skipComment`), `:59-71` (`skipLineContinuation`) and `:119-131` (`locateChars`)
+- **Description:** Swift treats `\r\n` as one `Character`, which isn't equal to `"\n"`. The lexer checks for `"\n"`, so a CRLF line ending is plain whitespace. Since 9f8d492e a newline separates commands, but a CRLF doesn't. A comment runs to the end of the input, and a backslash before a CRLF reports that it's followed by the next line's first character. Error locations stay on line 1. It is unknown whether TOMLKit passes the CR of a multi-line string through. `eval` can pass CRLF directly.
+- **How it shows up:** a multi-line command string with CRLF line endings runs its lines as one command with all their words, or fails to parse with a misleading message. A comment hides all the lines after it.
+- **Fix direction:** treat `\r\n` like `\n` in the lexer and in `locateChars`.
+
+### RB-131: A config array of thousands of commands overflows the stack
+
+- **Status:** Fixed on `restructure` in 1e239edd: an array counts as its commands joined by `;`, so it gets the 1000-operator limit of one expression. The error is reported at the array's path. Regression tests: `UntrustedInputTest.longConfigArrayOfCommandsIsRejected` and `configArrayCountsTheOperatorsOfItsCommands`.
+- **Severity:** medium · **Confidence:** likely (a scratch test crashed with SIGSEGV)
+- **Location:** `Sources/AppBundle/config/ConfigSchema.swift:106-132` (`decodeShellOfCommands`, with the checks at `:119` and `:127`) and `Sources/AppBundle/shell/Shell.swift:42-48` (`operatorCount`)
+- **Description:** A command in the config can be an array of command strings that run in sequence. `decodeShellOfCommands` joins them into one `Shell` with `;`. Since 9f57130d, an operator node is binary and a chain nests to the left (RB-116), so the depth of that `Shell` is the length of the array. The parser's limits don't apply, because the parser doesn't build the array's `Shell`. Walking it overflows the stack: `flatten` while the config is parsed, and the description that `config --get` builds.
+- **How it shows up:** with a binding such as `alt-a = ['true', 'true', …]` of 20,000 commands, the config loads, but every `aerospace config --get` crashes AeroSpace.app. That includes the shell completion's `config --get mode --keys`. With 40,000 commands, AeroSpace.app crashes while it loads the config, at startup or on `reload-config`. These numbers are from a debug build; a release build needs more.
+- **Fix direction:** limit the array like one expression, or build a balanced tree.
 
 ## Shared utilities and app entry point
 
@@ -1074,7 +1260,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 ### RB-69: `isUnitTest` depends on XCTest being loaded
 
-- **Status:** Fixed in 9515ab00: test runs are detected with a class that the test target defines. Verified in every test run mode (Swift Testing only, XCTest only, both).
+- **Status:** Fixed in 9515ab00: test runs are detected with a class that the test target defines. Verified in every test run mode (Swift Testing only, XCTest only, both). The fix holds on `restructure`: the check is at `Sources/Common/util/commonUtil.swift:166` and the marker class at `Sources/AppBundleTests/SwiftTestingSupport.swift:42-43`. Since 459fceae, every test is a Swift Testing test and runs with `--disable-xctest`. Regression test: `IsUnitTestTest.testIsUnitTest`.
 - **Severity:** low · **Confidence:** speculative
 - **Original location:** `Sources/Common/util/commonUtil.swift:151 @812da7fa`
 - **Current location:** `Sources/Common/util/commonUtil.swift:149`. It is now a `let` instead of a computed property, with the same check.
@@ -1086,7 +1272,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 ### RB-79: The server writes an error into a connection the client closed
 
-- **Status:** Open.
+- **Status:** Open. Moot on `restructure`: since 858762f5, a connection carries one request, and since a28d3095 the server returns without answering when the client closed the connection (`Sources/AppBundle/server.swift:59`).
 - **Severity:** low · **Confidence:** speculative
 - **Location:** `Sources/AppBundle/server.swift:48-50`
 - **Description:** After every normal CLI request, the client closes the socket, so the server's next `readNonAtomic` fails with ENOTCONN or ENODATA. `newConnection` then writes an `Error: …` answer into the closed connection before returning.
@@ -1097,19 +1283,37 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 - **Status:** Open.
 - **Severity:** low · **Confidence:** speculative
-- **Location:** `Sources/AppBundle/server.swift:58-66`. The check that the server is enabled is at `:68`.
+- **Location:** `Sources/AppBundle/server.swift:107`. The check that the server is enabled is at `:115`.
 - **Description:** The server handles `subscribe` before the `isServerEnabled` check that every other command goes through.
 - **How it shows up:** after `enable off`, `aerospace subscribe` still connects and gets its initial events, while every other command fails with "server is disabled". This may be intended.
 - **Fix direction:** decide whether subscribing is allowed while disabled. Then check `isServerEnabled` first, or document the exception.
 
 ### RB-104: `slice(n...)` traps instead of returning nil when `n` is past the end
 
-- **Status:** Open.
+- **Status:** Open. Moot on `restructure`: 8ced2f42 deleted `ArrSlice`. The callers use the standard library.
 - **Severity:** low · **Confidence:** possible
 - **Location:** `Sources/Common/util/ArrSlice.swift:48, 61`
 - **Description:** `slice(_: PartialRangeFrom<Int>)` builds `range.lowerBound ..< count` before the range is checked. When the lower bound is greater than `count`, building the range traps, so the function never returns the nil its optional result promises.
 - **How it shows up:** nothing today: every caller passes a lower bound of at most `count`. A new caller would crash instead of getting nil.
 - **Fix direction:** return nil when the lower bound is greater than `count`.
+
+### RB-117: A request's length field can make the server reserve 4 GiB
+
+- **Status:** Fixed on `restructure` in a28d3095: a request longer than 16 MiB isn't read, and the read buffer grows with the data instead of being reserved up front. Regression test: `NWConnectionExTest.frameLongerThanMaxSizeIsNotRead`.
+- **Severity:** low · **Confidence:** possible
+- **Location:** `Sources/Common/model/clientServer.swift:18` (`maxRequestSize`), `Sources/AppBundle/server.swift:56`, and `Sources/Common/util/NWConnectionEx.swift:46-62` (`read(bytes:)`) and `:81-90` (`readFrame`). The CLI checks the size before it sends (`Sources/Cli/_main.swift:171`).
+- **Description:** A request starts with a 32-bit length. The server read that many bytes into `Data(capacity: size)`, so a length of `0xFFFFFFFF` reserved 4 GiB before any of the data arrived. The CLI never sends such a length, but any local process can connect to the socket.
+- **How it shows up:** not seen. A client that sends a large length and nothing else makes AeroSpace.app reserve 4 GiB per connection while it waits for the data. Several such connections can exhaust memory.
+- **Fix direction:** cap the request size, and don't reserve the buffer from the length field.
+
+### RB-130: A long interpolated string takes quadratic time to tokenize
+
+- **Status:** Fixed on `restructure` in a92ab2b3: the tokenizer appends to one buffer instead of copying the text read so far. Regression test: `UntrustedInputTest.longInterpolationTakesLinearTime`, which fails on the old code.
+- **Severity:** medium · **Confidence:** likely (measured in a debug build)
+- **Location:** `Sources/AppBundle/util/interpolationTokens.swift:6-44` (`rawInterpolationTokens`). Before the fix: `Sources/Common/util/StringEx.swift:111-145 @ba6b0d70`.
+- **Description:** For each character, the tokenizer copied the literal or variable name read so far out of its state, so it took time quadratic in the length of the string. It runs on the main thread when a command is parsed: for the arguments of `echo` and `test`, every `--format`, and the `exec` environment variables. The code before `restructure` was the same.
+- **How it shows up:** `aerospace echo` with a 1,000,000-character argument, which fits the CLI's argument limit, froze AeroSpace for 6.5 s in a debug build. A client that writes a 16 MiB request to the socket directly could freeze it for about half an hour (extrapolated).
+- **Fix direction:** keep the text out of the state, and grow one buffer in place.
 
 ## Scripts
 
@@ -1127,7 +1331,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 - **Status:** Open.
 - **Severity:** low · **Confidence:** speculative
 - **Location:** `script/reset-accessibility-permission-for-debug.sh:7`
-- **Description:** The script resets `bobko.AeroSpace.debug`, but the debug bundle ID is `bobko.aerospace.debug` (`xcode/project.yml:43`).
+- **Description:** The script resets `bobko.AeroSpace.debug`, but the debug bundle ID is `bobko.aerospace.debug` (`xcode/project.yml:45`).
 - **How it shows up:** it works only if `tccutil` matches bundle IDs without regard to case. Otherwise the debug build keeps its stale permission.
 - **Fix direction:** use `bobko.aerospace.debug`.
 
@@ -1142,7 +1346,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 ### RB-107: The generated command help doesn't escape the docs text
 
-- **Status:** Open.
+- **Status:** Open. Moot on `restructure`: c7d79d79 deleted `generate-cmd-help.sh`. The help is written by hand in `Sources/Common/CmdKind.swift`, and `SubcommandHelpTest` checks it against the docs.
 - **Severity:** low · **Confidence:** speculative
 - **Location:** `script/generate-cmd-help.sh:23`, and `:34` for the synopsis lines. `simplify` moved this code out of `generate.sh`.
 - **Description:** The `:manpurpose:` line of each `docs/aerospace-*.adoc` goes into a Swift string literal in `Sources/Common/cmdHelpGenerated.swift` without escaping. The synopsis lines go into a multi-line literal the same way.
@@ -1155,7 +1359,7 @@ Test-suite issues are all low severity: they hide regressions but don't affect u
 
 ### RB-61: Tests can't reset two private focus globals
 
-- **Status:** Fixed in a404d01a: `setUpWorkspacesForTests` resets both globals through a test-only reset function. Regression tests in `SetUpWorkspacesForTestsTest`.
+- **Status:** Fixed in a404d01a: `setUpWorkspacesForTests` resets both globals through a test-only reset function. Regression tests in `SetUpWorkspacesForTestsTest`. Moot on `restructure`: cd44e123 moved both globals into `world.focusStore` (`Sources/AppBundle/focus.swift:43-58`), and `setUpWorkspacesForTests` starts from a new `World` (`Sources/AppBundleTests/testUtil.swift:18`), so there is no reset function to forget. Regression tests: `SetUpWorkspacesForTestsTest.forgetsThePreviousFocus`, `forgetsTheLastKnownNativeFocusedWindow` and `startsFromAnEmptyWorld`.
 - **Severity:** low · **Confidence:** possible
 - **Original location (`@812da7fa`):**
   - the test suites `Sources/AppBundleTests/command/FormatTest.swift:200, 206`, `Sources/AppBundleTests/command/ListModesTest.swift:5, 20` and `Sources/AppBundleTests/command/WorkspaceCommandTest.swift:9`
@@ -1216,7 +1420,7 @@ Test-suite issues are all low severity: they hide regressions but don't affect u
 
 - **Status:** Open.
 - **Severity:** low · **Confidence:** speculative
-- **Location:** `Sources/AppBundle/focusCache.swift:19`
+- **Location:** `Sources/AppBundle/focusCache.swift:17`. `asMacWindow()` is at `Sources/AppBundle/tree/Window.swift:76`.
 - **Description:** `syncFocusFromMacOs` ends with `nativeFocused?.asMacWindow()`, which is `self as! MacWindow`. In unit tests, the native focused window comes from `appForTests` and is a `TestWindow`.
 - **How it shows up:** test-only. A test that runs a session while a test window is focused crashes the test run, so sessions can't be unit-tested. Production windows are always `MacWindow`s.
 - **Fix direction:** skip the update for windows that aren't `MacWindow`s.
