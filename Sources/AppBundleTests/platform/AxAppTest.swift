@@ -261,29 +261,40 @@ struct AxAppTest {
     }
 
     @Test
-    func anActivationForgetsTheFailedRegistrationsOfItsApp() { // RB-113
-        let pid = NSRunningApplication.current.processIdentifier
-        let platform = LivePlatform()
-        platform.failedRegistrations[pid] = RegistrationBackoff(after: nil, now: .now)
-        platform.forgetFailedRegistration(Notification(
-            name: NSWorkspace.didActivateApplicationNotification,
-            userInfo: [NSWorkspace.applicationUserInfoKey: NSRunningApplication.current],
-        ))
-        expectEqual(platform.failedRegistrations[pid], nil)
+    func failedRegistrationsBackOffFrom1To60Seconds() { // RB-113
+        let backoffs = RegistrationBackoffs(observing: NotificationCenter())
+        let failedAt: ContinuousClock.Instant = .now
+        let delays: [Int] = [1, 2, 4, 8, 16, 32, 60, 60]
+        for (index, delay) in delays.enumerated() {
+            backoffs.failed(1, now: failedAt)
+            let retryAt = failedAt + .seconds(delay)
+            #expect(backoffs.isBackingOff(1, now: retryAt - .milliseconds(1)), "failure \(index + 1)")
+            #expect(!backoffs.isBackingOff(1, now: retryAt), "failure \(index + 1)")
+        }
+        backoffs.forget(1)
+        backoffs.failed(1, now: failedAt)
+        #expect(!backoffs.isBackingOff(1, now: failedAt + .seconds(1)), "a forgotten app starts over at 1 s")
     }
 
     @Test
-    func failedRegistrationsBackOffFrom1To60Seconds() { // RB-113
-        let now: ContinuousClock.Instant = .now
-        var backoff: RegistrationBackoff? = nil
-        var delays: [Duration] = []
-        for _ in 0 ..< 8 {
-            let next = RegistrationBackoff(after: backoff, now: now)
-            delays.append(next.delay)
-            backoff = next
+    func launchingActivatingOrTerminatingAnAppForgetsItsFailedRegistrations() { // RB-113
+        let center = NotificationCenter()
+        let backoffs = RegistrationBackoffs(observing: center)
+        let app = NSRunningApplication.current
+        let otherPid = app.processIdentifier + 1
+        let names: [Notification.Name] = [
+            NSWorkspace.didLaunchApplicationNotification,
+            NSWorkspace.didActivateApplicationNotification,
+            NSWorkspace.didTerminateApplicationNotification,
+        ]
+        let failedAt: ContinuousClock.Instant = .now
+        for name in names {
+            backoffs.failed(app.processIdentifier, now: failedAt)
+            backoffs.failed(otherPid, now: failedAt)
+            center.post(name: name, object: nil, userInfo: [NSWorkspace.applicationUserInfoKey: app])
+            #expect(!backoffs.isBackingOff(app.processIdentifier, now: failedAt), "\(name.rawValue)")
+            #expect(backoffs.isBackingOff(otherPid, now: failedAt), "\(name.rawValue): another app's")
         }
-        expectEqual(delays, [1, 2, 4, 8, 16, 32, 60, 60].map { Duration.seconds($0) })
-        expectEqual(backoff?.retryAt, now + .seconds(60))
     }
 }
 

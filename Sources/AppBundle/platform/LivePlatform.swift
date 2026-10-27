@@ -4,14 +4,12 @@ import Common
 import Synchronization
 
 /// The macOS ``Platform``. It owns the AX registry: one ``AxApp`` per registered app, each on its own thread. The
-/// registration backs off after a failure (RB-113). The termination registry lets a die off the main thread reach the apps
+/// termination registry lets a die off the main thread reach the apps
 final class LivePlatform: Platform {
     private var apps: [pid_t: LiveApp] = [:]
     /// Registrations in progress. Everyone who asks for the app meanwhile awaits the same task
     private var pendingRegistrations: [pid_t: Task<Void, Never>] = [:]
-    /// Internal for tests
-    var failedRegistrations: [pid_t: RegistrationBackoff] = [:]
-    private var backoffObservers: [any NSObjectProtocol] = []
+    private let registrationBackoffs = RegistrationBackoffs()
     private let listingDeadlines = ListingDeadlines(minDeadline: .milliseconds(250), maxDeadline: .seconds(1))
     /// The registered apps, for a die off the main thread: it can't read `apps`
     nonisolated private let terminationApps: Mutex<[pid_t: AxApp]> = Mutex([:])
@@ -353,47 +351,22 @@ final class LivePlatform: Platform {
 
     /// nil for the bulk scan while a failed registration of the app backs off (RB-113)
     private func startRegistration(_ nsApp: NSRunningApplication, _ pid: pid_t, _ isBulkScan: Bool) -> Task<Void, Never>? {
-        if isBulkScan, let backoff = failedRegistrations[pid], ContinuousClock.now < backoff.retryAt { return nil }
+        if isBulkScan && registrationBackoffs.isBackingOff(pid) { return nil }
         let threadName = "AxAppThread \(nsApp.idForDebug)"
         let registration = Task.startUnstructured { @MainActor [self] in
             let ax = AxApp(pid: pid, threadName: threadName)
             let isSubscribed = await ax.subscribe()
             pendingRegistrations[pid] = nil
             if isSubscribed {
-                failedRegistrations[pid] = nil
+                registrationBackoffs.forget(pid)
                 apps[pid] = LiveApp(nsApp, ax)
                 terminationApps.withLock { $0[pid] = ax }
             } else { // `ax` deinits: its thread exits
-                failedRegistrations[pid] = RegistrationBackoff(after: failedRegistrations[pid], now: .now)
-                forgetFailedRegistrationsOnLaunchAndActivation()
+                registrationBackoffs.failed(pid)
             }
         }
         pendingRegistrations[pid] = registration
         return registration
-    }
-
-    /// Launching, activating or terminating an app forgets its failed registrations (RB-113)
-    private func forgetFailedRegistrationsOnLaunchAndActivation() {
-        if !backoffObservers.isEmpty { return }
-        let names: [Notification.Name] = [
-            NSWorkspace.didLaunchApplicationNotification,
-            NSWorkspace.didActivateApplicationNotification,
-            NSWorkspace.didTerminateApplicationNotification,
-        ]
-        backoffObservers = names.map { name in
-            NSWorkspace.shared.notificationCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] in
-                self?.forgetFailedRegistration($0)
-            }
-        }
-    }
-
-    /// Internal for tests
-    nonisolated func forgetFailedRegistration(_ notification: Notification) {
-        guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
-        let pid = app.processIdentifier
-        MainActor.assumeIsolated { // The observers' queue is .main
-            _ = failedRegistrations.removeValue(forKey: pid)
-        }
     }
 
     /// nil if the app didn't answer
@@ -552,18 +525,6 @@ private func onScreenWindowLevels() -> [UInt32: MacOsWindowLevel] {
         result[windowId] = .new(windowLevel: layer)
     }
     return result
-}
-
-/// RB-113: after an app's AX subscription fails, the refresh's bulk scan retries its registration after 1 s, then 2 s,
-/// 4 s, … up to 60 s, instead of on every refresh. Launching, activating or terminating the app forgets the failures
-nonisolated struct RegistrationBackoff: Equatable {
-    let delay: Duration
-    let retryAt: ContinuousClock.Instant
-
-    init(after previous: RegistrationBackoff?, now: ContinuousClock.Instant) {
-        delay = previous.map { min($0.delay * 2, .seconds(60)) } ?? .seconds(1)
-        retryAt = now + delay
-    }
 }
 
 // Note to myself: Don't use NSScreen.main, it's garbage
