@@ -23,6 +23,8 @@ struct AxCallCountTest {
             for phase in phases {
                 expectEqual(phase.waste.focusOfFocused, 0, "\(scenario): \(phase.name)")
                 expectEqual(phase.waste.unhideOfVisible, 0, "\(scenario): \(phase.name)")
+                // A frame write that leaves the window where it was makes the app lay it out again for nothing
+                expectEqual(phase.waste.sameFrame, [:], "\(scenario): \(phase.name)")
                 if !phase.isIdle { continue }
                 // An idle phase only reads: no frame writes, parks or focus
                 expectEqual(phase.calls.filter(\.isEffect), [], "\(scenario): \(phase.name)")
