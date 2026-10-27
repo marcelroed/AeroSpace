@@ -42,11 +42,6 @@ func placements() -> [Placement] {
 }
 
 extension Workspace {
-    /// Applies the workspace's ``layoutPlacements()``
-    func layoutWorkspace() {
-        world.platform.apply(layoutPlacements())
-    }
-
     /// The placements of the workspace's windows: the frames of ``layoutTiling()`` in their order, then the floating
     /// windows, which keep their frame unless they are off the workspace's monitor, then the macOS fullscreen windows,
     /// which stay where they are. A hidden app's windows get none: they stay parked, so that a floating one goes back

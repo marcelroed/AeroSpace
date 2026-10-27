@@ -123,6 +123,13 @@ func runCliArgs(_ args: [String], stdin: String = "") async -> CmdOutput {
     return CmdOutput(stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode)
 }
 
+extension Workspace {
+    /// Applies the workspace's placements, without the parks of the other workspaces
+    func layoutWorkspace() {
+        world.platform.apply(layoutPlacements())
+    }
+}
+
 extension MonitorDescription {
     /// `.pattern` of a valid regex
     nonisolated static func pattern(_ raw: String) -> MonitorDescription { .pattern((try? CaseInsensitiveRegex(raw)).orDie()) }
