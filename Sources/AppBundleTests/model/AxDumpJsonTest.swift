@@ -17,4 +17,11 @@ struct AxDumpJsonTest {
         expectEqual(pretty(NSArray(array: [kCFBooleanTrue.orDie(), NSNumber(value: 7)])), .array([.int(1), .int(7)]))
         expectEqual(pretty(nil), .null)
     }
+
+    /// The committed dumps have these names, and AxUiElementWindowTypeTest reads them back
+    @Test
+    func testActivationPolicyNames() {
+        let policies: [NSApplication.ActivationPolicy] = [.regular, .accessory, .prohibited]
+        expectEqual(policies.map(\.prettyDescription), ["regular", "accessory", "prohibited"])
+    }
 }
