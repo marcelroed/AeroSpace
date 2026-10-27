@@ -68,7 +68,8 @@ struct MoveCommandTest {
     func failIfFullscreen() async {
         setUpTree("h_tiles(*1 2)")
         testWindow(1).isFullscreen = true
-        #expect(await runCmd("move --fail-if-fullscreen right").exitCode == 2)
+        let output = await runCmd("move --fail-if-fullscreen right")
+        #expect(output == .fail())
         #expect(describeTree() == "h_tiles(*1 2)")
     }
 
@@ -76,7 +77,8 @@ struct MoveCommandTest {
     func failIfMacosNativeFullscreen() async {
         setUpTree("h_tiles(*1 2)")
         testWindow(1).isMacosFullscreenForTest = true
-        #expect(await runCmd("move --fail-if-macos-native-fullscreen right").exitCode == 2)
+        let output = await runCmd("move --fail-if-macos-native-fullscreen right")
+        #expect(output == .fail())
         #expect(describeTree() == "h_tiles(*1 2)")
     }
 
