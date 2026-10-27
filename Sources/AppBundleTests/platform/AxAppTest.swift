@@ -160,6 +160,60 @@ struct AxAppTest {
         #expect(app.postAndWait(timeout: .seconds(5)) { _ in })
     }
 
+    /// Each layout parks every hidden window again, and in the steady state these parks move nothing
+    @Test
+    func aParksJobThatMovesNoWindowDoesntWaitForTheShownJobs() async {
+        let hung = AxApp(pid: 0, threadName: "Hung")
+        let parker = AxApp(pid: 0, threadName: "Parker")
+        let gate = DispatchSemaphore(value: 0)
+        defer { gate.signal() }
+        hung.post { _ in gate.wait() }
+        let shownJobs = ShownJobs(deadline: .now() + .seconds(10))
+        hung.postPlacements([], .shown(shownJobs))
+        let target = ParkTarget(corner: .bottomRightCorner, monitor: testMonitor, monitors: NonEmptyArray(testMonitor), isFloating: false, isZoom: false)
+        parker.postPlacements([.park(1, target)], .parks(waitingFor: shownJobs)) // The parker has no window 1
+
+        let start: DispatchTime = .now()
+        await parker.run { _ in } // After the parks job
+        #expect(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds < 5_000_000_000)
+    }
+
+    /// pid-0 apps have no windows to write, so the parker calls what its first write calls (`AnimationsOff`)
+    @Test
+    func aParksJobsFirstWriteWaitsForEveryShownJobUntilTheDeadline() async throws {
+        let slow = AxApp(pid: 0, threadName: "Slow")
+        let hung = AxApp(pid: 0, threadName: "Hung")
+        let parker = AxApp(pid: 0, threadName: "Parker")
+        let slowGate = DispatchSemaphore(value: 0)
+        let hungGate = DispatchSemaphore(value: 0)
+        defer { hungGate.signal() }
+        let log = Log<String>()
+
+        slow.post { _ in
+            slowGate.wait()
+            log.append("the slow app wrote")
+        }
+        let shownJobs = ShownJobs(deadline: .now() + .seconds(10))
+        slow.postPlacements([], .shown(shownJobs))
+        parker.post { _ in
+            shownJobs.wait()
+            log.append("the parker writes")
+        }
+        try await Task.sleep(for: .milliseconds(50))
+        expectEqual(log.items, [])
+        slowGate.signal()
+        try await waitUntil { log.items.count == 2 }
+        expectEqual(log.items, ["the slow app wrote", "the parker writes"])
+
+        hung.post { _ in hungGate.wait() }
+        let start: DispatchTime = .now()
+        let shownJobsWithAHungApp = ShownJobs(deadline: start + .milliseconds(100))
+        hung.postPlacements([], .shown(shownJobsWithAHungApp))
+        await parker.run { _ in shownJobsWithAHungApp.wait() }
+        let waited = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
+        #expect(waited >= 100_000_000 && waited < 5_000_000_000, "waited \(waited) ns")
+    }
+
     @Test
     func aWindowWriteMakesTheEarlierWritesOfTheSameWindowStale() {
         var generations = WindowGenerations()

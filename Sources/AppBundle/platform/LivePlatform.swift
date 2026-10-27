@@ -210,8 +210,9 @@ final class LivePlatform: Platform {
     // MARK: Effects
 
     /// Two jobs per app: its shown workspaces' placements, then its parks, each in the batch's order. The apps run their
-    /// jobs in parallel, so the parks wait until every app has run its shown placements (at most ``parkWaitLimit``): a
-    /// window leaves for its corner only once the windows that replace it are there, or the desktop shows for a few frames
+    /// jobs in parallel, so a parks job waits, before its first write, until every app has run its shown placements (at
+    /// most ``parkWaitLimit``): a window leaves for its corner only once the windows that replace it are there, see
+    /// ``ShownJobs``
     func apply(_ batch: [Placement]) {
         var shown: [pid_t: (ax: AxApp, placements: [Placement])] = [:]
         var parks: [pid_t: (ax: AxApp, placements: [Placement])] = [:]
@@ -223,14 +224,12 @@ final class LivePlatform: Platform {
                 shown[app.info.pid, default: (ax, [])].placements.append(placement)
             }
         }
-        let shownJobs = DispatchGroup()
+        let shownJobs = ShownJobs(deadline: .now() + parkWaitLimit)
         for (ax, placements) in shown.values {
-            shownJobs.enter()
-            ax.postPlacements(placements, after: { shownJobs.leave() })
+            ax.postPlacements(placements, .shown(shownJobs))
         }
-        let deadline: DispatchTime = .now() + parkWaitLimit
         for (ax, placements) in parks.values {
-            ax.postPlacements(placements, before: { _ = shownJobs.wait(timeout: deadline) })
+            ax.postPlacements(placements, .parks(waitingFor: shownJobs))
         }
     }
 

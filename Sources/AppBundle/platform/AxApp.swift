@@ -100,18 +100,13 @@ actor AxApp {
 
     /// Posts one job for the app's placements of a batch, in the batch's order. Each placement is its window's latest
     /// write until a newer write of the window is posted (as ``postWindowWrite(_:_:)``), and it stops, also between its AX
-    /// calls, once it's stale or termination starts. The job runs `before` and `after` on the app's thread
-    nonisolated func postPlacements(
-        _ placements: [Placement],
-        before: @escaping @Sendable () -> Void = {},
-        after: @escaping @Sendable () -> Void = {},
-    ) {
+    /// calls, once it's stale or termination starts. The batch's jobs wait for each other, see ``ShownJobs``
+    nonisolated func postPlacements(_ placements: [Placement], _ job: PlacementJob) {
         let generations: [UInt64] = self.generations.withLock { generations in placements.map { generations.bump($0.windowId.raw) } }
-        post { app in
-            before()
-            app.place(placements, generations)
-            after()
+        if case .shown(let shownJobs) = job {
+            shownJobs.posted()
         }
+        post { app in app.place(placements, generations, job) }
     }
 
     // MARK: Isolated: AX calls
@@ -223,11 +218,12 @@ actor AxApp {
         return .facts(NativeFacts(isFullscreen: isFullscreen, isMinimized: !isFullscreen && isMinimized))
     }
 
-    /// See ``postPlacements(_:before:after:)``. The app's animations are off from the batch's first write to its end. The
-    /// job ends once the window server shows the tiles that it unparked
-    private func place(_ placements: [Placement], _ generations: [UInt64]) {
+    /// See ``postPlacements(_:_:)``. The app's animations are off from the job's first write to its end. A shown job ends
+    /// once the window server shows the tiles that it unparked
+    private func place(_ placements: [Placement], _ generations: [UInt64], _ job: PlacementJob) {
         var unparkedTiles: [(windowId: UInt32, topLeft: CGPoint)] = []
-        let animations = AnimationsOff(element)
+        let beforeFirstWrite: (() -> Void)? = if case .parks(let shownJobs) = job { shownJobs.wait } else { nil }
+        let animations = AnimationsOff(element, beforeFirstWrite: beforeFirstWrite)
         for (placement, generation) in zip(placements, generations) {
             let windowId = placement.windowId.raw
             if let ax = windows[windowId]?.ax {
@@ -244,6 +240,9 @@ actor AxApp {
         }
         animations.restore()
         waitUntilOnScreen(unparkedTiles)
+        if case .shown(let shownJobs) = job {
+            shownJobs.ended()
+        }
     }
 
     /// `layout tiling` and `enable on`, see ``PlacementState/rememberFloatingSize(of:)``
@@ -344,6 +343,31 @@ nonisolated struct WindowGenerations {
     }
 }
 
+/// An app's job of a batch (``LivePlatform/apply(_:)``)
+nonisolated enum PlacementJob: Sendable {
+    /// The shown workspaces' placements. The job ends once the window server shows the tiles it unparked
+    case shown(ShownJobs)
+    /// The parks. Before its first write, the job waits for the shown jobs
+    case parks(waitingFor: ShownJobs)
+}
+
+/// The shown jobs of a batch, which its parks wait for: a window leaves for its corner only once the windows that replace
+/// it are on screen, or the desktop shows for a few frames. The apps run their jobs in parallel, so a parks job waits,
+/// before its first write, until every shown job has ended or the deadline has passed. A parks job that moves no window
+/// (each layout parks every hidden window again) doesn't wait
+nonisolated struct ShownJobs: Sendable {
+    private let group: DispatchGroup = DispatchGroup()
+    /// The parks stop waiting then: a slow or hung app holds the other apps' windows in place only that long
+    let deadline: DispatchTime
+
+    /// Every shown job is posted before the parks
+    func posted() { group.enter() }
+
+    func ended() { group.leave() }
+
+    func wait() { _ = group.wait(timeout: deadline) }
+}
+
 /// The one AXObserver callback of every app. It runs on the app's thread: the observers' sources are on its run loop.
 /// `refcon` is the unretained app (see AxSubscription). It maps the notification to an ``AxEvent`` and hands it to the
 /// main actor, so it never touches the actor's state
@@ -436,6 +460,7 @@ nonisolated private struct AxPlacementWindow: PlacementWindow {
     func setFrame(topLeft: CGPoint?, size: CGSize?) -> Bool {
         guard isCurrent() else { return false }
         animations.turnOff()
+        guard isCurrent() else { return false } // A park's first write waited for the shown jobs
         // Set size and then the position. The order is important https://github.com/nikitabobko/AeroSpace/issues/143
         //                                                        https://github.com/nikitabobko/AeroSpace/issues/335
         if let size { ax.set(Ax.sizeAttr, size) }
@@ -452,13 +477,20 @@ nonisolated private struct AxPlacementWindow: PlacementWindow {
 ///             https://github.com/rxhanson/Rectangle/pull/285
 nonisolated private final class AnimationsOff {
     private let app: AXUIElement
+    /// Runs once, before the first write and before the animations go off: a parks job waits there for the shown jobs,
+    /// so that a parks job that moves no window doesn't wait
+    private let beforeFirstWrite: (() -> Void)?
     /// nil until the first write
     private var wasEnabled: Bool? = nil
 
-    init(_ app: AXUIElement) { self.app = app }
+    init(_ app: AXUIElement, beforeFirstWrite: (() -> Void)? = nil) {
+        self.app = app
+        self.beforeFirstWrite = beforeFirstWrite
+    }
 
     func turnOff() {
         if wasEnabled != nil { return }
+        beforeFirstWrite?()
         let wasEnabled = app.get(Ax.enhancedUserInterfaceAttr) == true
         if wasEnabled {
             app.set(Ax.enhancedUserInterfaceAttr, false)

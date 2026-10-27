@@ -116,6 +116,8 @@ nonisolated struct PlacementState {
                     if target.isFloating {
                         lastFloatingSize = rect.size
                     }
+                    // A park that turns stale before this write (e.g., while AxApp waits for the shown jobs) leaves the
+                    // window in place but marked parked: the next placement writes it (`.floating` to where it is) or parks it
                     window.setFrame(topLeft: parkTopLeft(size: rect.size, target: target), size: nil)
                 } else {
                     // Parked already: the window moves only if it isn't in the corner (e.g., the app moved it). The bottom
