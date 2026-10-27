@@ -8,7 +8,8 @@ import Common
 /// A class while the nodes are classes: a copy wouldn't copy the trees. Each property is a separate access, so writing one
 /// property doesn't conflict with reading another
 final class World {
-    /// See ``Workspace/get(byName:)`` and ``Workspace/garbageCollectUnusedWorkspaces()``
+    /// A workspace exists from its first lookup by name until it's garbage collected: without windows, invisible, unfocused
+    /// and not persistent
     var workspacesByName: [String: Workspace] = [:] {
         didSet { sortedWorkspaces = nil }
     }
@@ -18,11 +19,12 @@ final class World {
     private(set) var macosMinimizedWindowsContainer: Container = Container(root: .macosMinimized)
     /// The objects that are windows from the AX perspective, but not even dialogs from the human perspective
     private(set) var macosPopupWindowsContainer: Container = Container(root: .macosPopup)
-    /// Every window, bound or not, from its registration until it's garbage collected. See ``Window/get(byId:)``
+    /// Every window, bound or not, from its registration until it's garbage collected
     var windows: [WindowId: Window] = [:]
-    /// See ``TreeNode/markAsMostRecentChild()``
+    /// The last stamp that ``TreeNode/markAsMostRecentChild()`` gave out. One clock for all the trees, so that the stamp of
+    /// a node that moves stays comparable with its new siblings' stamps
     var mruClock: UInt64 = 0
-    /// The monitors of the current session, see ``updateMonitors(_:)``
+    /// The snapshot of the screens that ``updateMonitors(_:)`` takes at the start of every session
     var monitors: Monitors = .beforeFirstSnapshot
     var assignment: MonitorAssignment = MonitorAssignment()
     var focusStore: FocusStore = FocusStore()
@@ -49,7 +51,7 @@ final class World {
     }
     /// The models of the menu bar and the message window. The same instance for the app's lifetime: the scenes hold it
     let ui: Ui
-    /// The funnel for every session, see Sessions.swift
+    /// Every input that reads or changes the model (a hotkey, a CLI request, an AX notification, ...) enters through it
     let sessions: Sessions
     /// macOS: the only way to the windows, the apps, the screens and the mouse
     private(set) var platform: any Platform
@@ -61,13 +63,13 @@ final class World {
     }
 
     /// The fresh world of ``reset(platform:)``. It shares `ui` and `sessions`, so it doesn't build a menu bar model
-    private init(sharingUiAndSessionsOf other: World, platform: any Platform) {
+    init(sharingUiAndSessionsOf other: World, platform: any Platform) {
         ui = other.ui
         sessions = other.sessions
         self.platform = platform
     }
 
-    /// Tests only: puts every property back to its initial value. A property that it misses leaks from test to test
+    /// Tests only: puts every property back to its initial value. WorldResetTest fails for a property that it misses
     func reset(platform: any Platform) {
         let fresh = World(sharingUiAndSessionsOf: self, platform: platform)
         self.platform = fresh.platform
