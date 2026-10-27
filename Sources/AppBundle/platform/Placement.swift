@@ -93,7 +93,9 @@ nonisolated struct PlacementState {
                     guard window.setFrame(topLeft: topLeft, size: nil) else { return }
                     self.parkedAt = nil
                 }
-                guard window.isCurrent(), let rect = window.rect(), let topLeft = floatingTopLeft(current: rect, target: target)
+                guard window.isCurrent(), let rect = window.rect(),
+                      let topLeft = floatingTopLeft(current: rect, target: target),
+                      topLeft != rect.topLeftCorner
                 else { return }
                 window.setFrame(topLeft: topLeft, size: nil)
             case .park(_, let target):
@@ -106,9 +108,14 @@ nonisolated struct PlacementState {
                     }
                     window.setFrame(topLeft: parkTopLeft(size: rect.size, target: target, isZoom: isZoom), size: nil)
                 } else {
-                    // Parked already. The bottom left corner re-reads the size: the app may have resized the window
+                    // Parked already: the window moves only if it isn't in the corner (e.g., the app moved it). The bottom
+                    // left corner re-reads the size: the app may have resized the window
+                    let current = window.topLeft()
                     let size = target.corner == .bottomLeftCorner ? window.size() : nil
-                    window.setFrame(topLeft: parkTopLeft(size: size, target: target, isZoom: isZoom), size: nil)
+                    let topLeft = parkTopLeft(size: size, target: target, isZoom: isZoom)
+                    if current != topLeft {
+                        window.setFrame(topLeft: topLeft, size: nil)
+                    }
                 }
             case .leave:
                 parkedAt = nil

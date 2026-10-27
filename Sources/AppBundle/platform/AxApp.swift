@@ -162,13 +162,13 @@ actor AxApp {
         return NativeFacts(isFullscreen: isFullscreen, isMinimized: !isFullscreen && window.get(Ax.minimizedAttr) == true)
     }
 
-    /// See ``postPlacements(_:isZoom:)``. The app's animations are off from a placement's first write to its end
+    /// See ``postPlacements(_:isZoom:)``. The app's animations are off from the batch's first write to its end
     private func place(_ placements: [Placement], _ generations: [UInt64], isZoom: Bool) {
+        let animations = AnimationsOff(element)
+        defer { animations.restore() }
         for (placement, generation) in zip(placements, generations) {
             let windowId = placement.windowId.raw
             if let ax = windows[windowId]?.ax {
-                let animations = AnimationsOff(element)
-                defer { animations.restore() }
                 let window = AxPlacementWindow(ax: ax, animations: animations) { @Sendable [self] in
                     self.generations.withLock { $0.isLatest(windowId, generation) } &&
                         !isTerminating.load(ordering: .sequentiallyConsistent)

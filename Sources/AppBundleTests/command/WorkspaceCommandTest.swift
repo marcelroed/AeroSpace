@@ -91,7 +91,7 @@ struct WorkspaceCommandTest {
 
     /// The AX work of a switch: each window of the shown workspace gets one frame write, each window of the hidden one is
     /// parked once (a read of its frame and a write of its position), and no window gets both. A layout without changes
-    /// writes the tiles again, and the parked windows
+    /// writes the tiles again, but doesn't move the parked windows
     @Test
     func switchingWorkspacesWritesTheShownWindowsAndParksTheHiddenOnes() async throws {
         setUpTree("h_tiles(1 2)", workspace: "a")
@@ -115,10 +115,7 @@ struct WorkspaceCommandTest {
 
         fake.resetCalls()
         try layoutWorkspaces()
-        expectEqual(fake.calls.filter { $0.kind != .park }, [
-            .frame(3, topLeft: CGPoint(x: 0, y: 0), size: CGSize(width: 1920, height: 1079)),
-            .frame(1, topLeft: CGPoint(x: 1919, y: 1079), size: nil),
-            .frame(2, topLeft: CGPoint(x: 1919, y: 1079), size: nil),
-        ])
+        // The bottom right corner: a parked window's position is read, and it's already there
+        expectEqual(fake.calls.filter { $0.kind != .park }, [.frame(3, topLeft: CGPoint(x: 0, y: 0), size: CGSize(width: 1920, height: 1079)), .axRead(1), .axRead(2)])
     }
 }

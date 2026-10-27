@@ -197,7 +197,7 @@ struct LayoutTest {
 
         workspace.layoutWorkspace()
 
-        expectEqual(centered.setAxFrameHistory, [AxFrame(topLeft: CGPoint(x: 960, y: 540), size: nil)])
+        expectEqual(centered.setAxFrameHistory, []) // Already where it goes: nothing to write
         expectEqual(outside.setAxFrameHistory, [AxFrame(topLeft: CGPoint(x: 1620, y: 880), size: nil)])
         expectEqual(noRect.setAxFrameHistory, [])
         expectEqual(fullscreen.setAxFrameHistory, [frame(0, 0, 1920, 1080)])
@@ -208,7 +208,7 @@ struct LayoutTest {
         // Floating windows of the active workspace are not moved
         #expect(workspace.focusWorkspace())
         workspace.layoutWorkspace()
-        expectEqual(centered.setAxFrameHistory.count, 1)
+        expectEqual(centered.setAxFrameHistory.count, 0)
         expectEqual(outside.setAxFrameHistory.count, 1)
         expectEqual(fullscreen.setAxFrameHistory.count, 1)
     }
