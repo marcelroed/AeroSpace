@@ -70,7 +70,7 @@ final class ListingDeadlines {
                     switch race.resolve(answer.map { .answer($0) } ?? .cancelled) {
                         case nil: // By the deadline
                             if let answer { record(pid, answer, since: start) }
-                        case .deadline?:
+                        case .deadline:
                             // Late: the refresh went on without the app. Only a late listing clears the mark: the listing
                             // of a refresh that was cancelled before the deadline didn't set it, a newer listing did (R2c L1)
                             lateApps.remove(pid)
@@ -81,7 +81,7 @@ final class ListingDeadlines {
                                 case .some(.none): answerTimes[pid] = nil
                                 case .none: break
                             }
-                        case .answer?, .cancelled?: break // The refresh was cancelled first
+                        case .answer, .cancelled: break // The refresh was cancelled first
                     }
                 }
                 timer = Task.startUnstructured { [self] in
