@@ -10,10 +10,6 @@ extension Array: @retroactive Error where Element: Error {}
 extension Array: @retroactive LocalizedError where Element: LocalizedError {}
 
 extension String {
-    public func trim() -> String {
-        self.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     public func prefixLines(with: String) -> String {
         split(separator: "\n", omittingEmptySubsequences: false).map { with + $0 }.joined(separator: "\n")
     }
