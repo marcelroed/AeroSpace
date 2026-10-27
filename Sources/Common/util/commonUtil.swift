@@ -10,17 +10,9 @@ public let mainModeId = "main"
 @TaskLocal
 public var refreshSessionEvent: RefreshSessionEvent? = nil
 
-@TaskLocal
-private var recursionDetectorDuringTermination = false
-
-/// Threads that entered `dieT`. Such a thread never runs its run loop again: an AX app thread waits in `MainActor.runSync`
-/// until `beforeTermination` returns, so `beforeTermination` must not wait for a job on it
-private let dyingThreads = Mutex(Set<ObjectIdentifier>())
-
-public func isDyingThread(_ thread: Thread) -> Bool {
-    let id = ObjectIdentifier(thread)
-    return dyingThreads.withLock { $0.contains(id) }
-}
+/// Set by the first die. A later die (one inside the termination handler, or on another thread meanwhile) doesn't run the
+/// handler again (RB-06, RB-07)
+private let isDying = Mutex(false)
 
 public func bugPrompt(
     _ __message: String = "",
@@ -50,7 +42,6 @@ public func bugPrompt(
         Is main thread: \(thread.isMainThread)
         macOS version: \(ProcessInfo.processInfo.operatingSystemVersionString)
         Coordinate: \(file):\(line):\(column) \(function)
-        recursionDetectorDuringTermination: \(recursionDetectorDuringTermination)
         server: \(terminationHandler != nil)
         die: \(isDie)
         Monitor count: \(monitorCount)
@@ -68,35 +59,21 @@ public func dieT<T>(
     column: Int = #column,
     function: String = #function,
 ) -> T {
-    let id = ObjectIdentifier(Thread.current)
-    dyingThreads.withLock { _ = $0.insert(id) }
     let message = bugPrompt(__message, isDie: true, file: file, line: line, column: column, function: function)
-    if terminationHandler != nil { // The server, not the CLI or tests
+    let isFirstDie = isDying.withLock { isDying in
+        defer { isDying = true }
+        return !isDying
+    }
+    if let terminationHandler { // The server, not the CLI or tests
         showMessageInGui(
-            filenameIfConsoleApp: recursionDetectorDuringTermination
-                ? "aerospace-runtime-error-recursion.txt"
-                : "aerospace-runtime-error.txt",
+            filenameIfConsoleApp: isFirstDie ? "aerospace-runtime-error.txt" : "aerospace-runtime-error-recursion.txt",
             title: "AeroSpace Runtime Error",
             message: message,
         )
-    }
-    if let terminationHandler, !recursionDetectorDuringTermination {
-        MainActor.runSync {
-            $recursionDetectorDuringTermination.withValue(true) {
-                terminationHandler.beforeTermination()
-            }
-        }
+        // On the dying thread, without the main thread: main may be busy or blocked (RB-71)
+        if isFirstDie { terminationHandler.beforeTermination() }
     }
     fatalError("\n" + message)
-}
-
-extension MainActor {
-    static func runSync(block: @escaping @MainActor () -> ()) {
-        switch Thread.isMainThread {
-            case true: MainActor.assumeIsolated(block)
-            case false: DispatchQueue.main.asyncAndWait { block() }
-        }
-    }
 }
 
 public enum RefreshSessionEvent: Sendable, CustomStringConvertible {

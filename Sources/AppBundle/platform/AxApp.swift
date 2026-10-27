@@ -81,6 +81,8 @@ actor AxApp {
         return isDone.wait(timeout: .now() + timeout) == .success
     }
 
+    nonisolated var isCurrentThread: Bool { executor.isCurrentThread }
+
     /// Posts a write of one window: a placement, an attribute write or a close. It makes the window's earlier writes
     /// stale (latest wins, 0f1b849d). `body` gets whether it's still the window's latest write. Placements check it and
     /// stop; attribute writes and closes don't: they cancel a pending placement, never the reverse

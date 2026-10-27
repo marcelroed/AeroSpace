@@ -65,6 +65,7 @@ final class MacApp: nonisolated AbstractApp { // nonisolated: Hashable compares 
             if isSubscribed {
                 failedRegistrations[pid] = nil
                 allAppsMap[pid] = MacApp(nsApp, ax)
+                axAppsForTermination.withLock { $0[pid] = ax }
             } else { // `ax` deinits: its thread exits
                 failedRegistrations[pid] = RegistrationBackoff(after: failedRegistrations[pid], now: .now)
                 forgetFailedRegistrationsOnLaunchAndActivation()
@@ -235,6 +236,7 @@ final class MacApp: nonisolated AbstractApp { // nonisolated: Hashable compares 
 
     private func destroy() {
         MacApp.allAppsMap.removeValue(forKey: pid)
+        axAppsForTermination.withLock { _ = $0.removeValue(forKey: pid) }
         ax = nil
     }
 

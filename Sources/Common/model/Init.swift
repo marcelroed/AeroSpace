@@ -14,6 +14,6 @@ public func installTerminationHandler(_ handler: any TerminationHandler) {
 }
 
 public protocol TerminationHandler: Sendable {
-    @MainActor
+    /// On the dying thread, which can be any thread (a die), or on main (quitting)
     func beforeTermination()
 }

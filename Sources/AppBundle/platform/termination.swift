@@ -8,13 +8,21 @@ import Synchronization
 nonisolated private let terminationAxTimeout: DispatchTimeInterval = .seconds(2)
 
 /// Set once termination starts. From then on, pending placements are skipped, so that they can't move a restored window
-/// again
+/// again (a die off the main thread leaves the main actor running)
 nonisolated let isTerminating: Atomic<Bool> = Atomic(false)
 
-struct AppServerTerminationHandler: TerminationHandler {
+/// The registered apps, for a die off the main thread: it can't read `MacApp.allAppsMap`
+nonisolated let axAppsForTermination: Mutex<[pid_t: AxApp]> = Mutex([:])
+
+nonisolated struct AppServerTerminationHandler: TerminationHandler {
+    /// On the dying thread, which can be any thread. It never waits for the main thread
     func beforeTermination() {
         isTerminating.store(true, ordering: .sequentiallyConsistent)
-        restoreWindowsOnMainThread()
+        if Thread.isMainThread {
+            MainActor.assumeIsolated { restoreWindowsOnMainThread() }
+        } else {
+            restoreWindowsOffMainThread()
+        }
         if isDebug {
             let semaphore = DispatchSemaphore(value: 0)
             // Use Task.detached to avoid inheriting @MainActor, and a nonisolated function.
@@ -51,6 +59,20 @@ private func restoreWindowsOnMainThread() {
     }
 }
 
+/// A die off the main thread (e.g. on an AX thread) can't read the tree or NSScreen. It restores every window that the
+/// apps know at the size of its CoreGraphics display (no last floating size, no visible frame), one job per app.
+/// It skips the app whose thread is dying: that thread would never run the job
+nonisolated private func restoreWindowsOffMainThread() {
+    let monitors = TerminationMonitors.fromCoreGraphics()
+    for app in axAppsForTermination.withLock({ Array($0.values) }) where !app.isCurrentThread {
+        _ = app.postAndWait(timeout: terminationAxTimeout) { app in
+            for windowId in app.windowIds {
+                app.restore(windowId) { monitors.restoreFrame(windowRect: $0, nil) }
+            }
+        }
+    }
+}
+
 nonisolated private struct TerminationMonitor {
     let rect: Rect
     let visibleRect: Rect
@@ -83,5 +105,19 @@ nonisolated private struct TerminationMonitors {
             let dy = max(rect.topLeftY - y, 0, y - (rect.topLeftY + rect.height - 1))
             return dx * dx + dy * dy
         }
+    }
+
+    /// CoreGraphics' global display coordinates have AX's origin and orientation
+    static func fromCoreGraphics() -> TerminationMonitors {
+        var count: UInt32 = 0
+        _ = unsafe CGGetActiveDisplayList(0, nil, &count)
+        var displays: [CGDirectDisplayID] = Array(repeating: 0, count: Int(count))
+        _ = unsafe CGGetActiveDisplayList(count, &displays, &count)
+        func monitor(_ display: CGDirectDisplayID) -> TerminationMonitor {
+            let bounds = CGDisplayBounds(display)
+            let rect = Rect(topLeftX: bounds.minX, topLeftY: bounds.minY, width: bounds.width, height: bounds.height)
+            return TerminationMonitor(rect: rect, visibleRect: rect)
+        }
+        return TerminationMonitors(all: displays.prefix(Int(count)).map(monitor), main: monitor(CGMainDisplayID()))
     }
 }
