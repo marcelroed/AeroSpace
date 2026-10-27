@@ -3,7 +3,7 @@ import AppKit
 import Common
 import Testing
 
-// Characterization tests for layoutRecursive.swift. The test monitor is 1920x1080 at (0, 0). The trees are in workspace
+// Characterization tests for layout.swift. The test monitor is 1920x1080 at (0, 0). The trees are in workspace
 // 'a', which isn't the active workspace of the monitor
 @Suite(.aeroSpaceGlobalState)
 struct LayoutTest {
@@ -227,6 +227,20 @@ struct LayoutTest {
         #expect(w1.lastAppliedLayoutVirtualRect == nil)
         #expect(w1.hWeight == 960)
         #expect(w2.setAxFrameHistory == [frame(960, 0, 960, 1079)])
+    }
+
+    @Test
+    func layoutTilingReturnsTheFramesWithoutAxCalls() {
+        let workspace = setUpTree("h_tiles(1 v_accordion(2 3) 4) floating(5)", workspace: "a")
+
+        let frames = workspace.layoutTiling()
+
+        #expect(frames.map(\.window.windowId) == [1, 2, 3, 4]) // Depth first: the order layoutWorkspace applies them in
+        #expect(frames.first == WindowFrame(window: testWindow(1), topLeft: CGPoint(x: 0, y: 0), size: CGSize(width: 640, height: 1079)))
+        #expect(frames.last == WindowFrame(window: testWindow(4), topLeft: CGPoint(x: 1280, y: 0), size: CGSize(width: 640, height: 1079)))
+        #expect((1 ... 5).allSatisfy { testWindow($0).setAxFrameHistory.isEmpty })
+        expectRects(testWindow(4), physical: rect(1280, 0, 640, 1079), virtual: rect(1280, 0, 640, 1080))
+        #expect(testWindow(4).hWeight == 640)
     }
 
     @Test

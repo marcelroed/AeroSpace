@@ -94,7 +94,7 @@ final class MacWindow: Window {
         macApp.closeAndUnregisterAxWindow(windowId)
     }
 
-    // todo it's part of the window layout and should be moved to layoutRecursive.swift
+    // todo it's part of the window layout and should be moved to layout.swift
     func hideInCorner(_ corner: OptimalHideCorner) async throws {
         guard let nodeMonitor else { return }
         // Don't accidentally override prevUnhiddenProportionalPositionInsideWorkspaceRect in case of subsequent `hideInCorner` calls
@@ -106,7 +106,7 @@ final class MacWindow: Window {
             // Check for isHiddenInCorner for the second time because of the suspension point above
             if !isHiddenInCorner {
                 let topLeftCorner = windowRect.topLeftCorner
-                let monitorRect = windowRect.center.monitorApproximation.rect // Similar to layoutFloatingWindow. Non idempotent
+                let monitorRect = windowRect.center.monitorApproximation.rect // Similar to layoutFloatingWindows. Non idempotent
                 let absolutePoint = topLeftCorner - monitorRect.topLeftCorner
                 prevUnhiddenProportionalPositionInsideWorkspaceRect =
                     CGPoint(x: absolutePoint.x / monitorRect.width, y: absolutePoint.y / monitorRect.height)
@@ -137,7 +137,7 @@ final class MacWindow: Window {
         guard let nodeWorkspace else { return } // hiding only makes sense for workspace windows
 
         // Just a small optimization to avoid unnecessary AX calls for non floating windows
-        // Tiling windows should be unhidden with layoutRecursive anyway
+        // Tiling windows should be unhidden with layoutWorkspace anyway
         if isFloating {
             let workspaceRect = nodeWorkspace.workspaceMonitor.rect
             var newX = workspaceRect.topLeftX + workspaceRect.width * prevUnhiddenProportionalPositionInsideWorkspaceRect.x
