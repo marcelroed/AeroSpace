@@ -24,10 +24,13 @@ private func getStubWorkspace(forPoint point: CGPoint) -> Workspace {
     {
         return candidate
     }
-    return (1 ... Int.max).lazy
-        .map { Workspace.get(byName: String($0)) }
-        .first { $0.isEffectivelyEmpty && !$0.isVisible && !config.persistentWorkspaces.contains($0.name) && $0.forceAssignedMonitor == nil }
-        .orDie("Can't create empty workspace")
+    for index in 1 ... Int.max {
+        let workspace = Workspace.get(byName: String(index))
+        if workspace.isEffectivelyEmpty && !workspace.isVisible && !config.persistentWorkspaces.contains(workspace.name) && workspace.forceAssignedMonitor == nil {
+            return workspace
+        }
+    }
+    die("Can't create empty workspace")
 }
 
 final class Workspace: TreeNode, Hashable, Comparable {

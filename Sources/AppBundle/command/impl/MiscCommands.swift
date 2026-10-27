@@ -92,7 +92,7 @@ struct DebugWindowsCommand: nonisolated Command {
 
 private func dumpWindowDebugInfo(_ window: Window, _ cm: CancellationMode) async throws -> String {
     let window = window.asMacWindow()
-    let appInfoDic = window.macApp.nsApp.bundleURL.flatMap { Bundle.init(url: $0) }?.infoDictionary ?? [:]
+    let appInfoDic: [String: Any] = window.macApp.nsApp.bundleURL.flatMap { Bundle(url: $0) }?.infoDictionary ?? [:]
 
     var result: OrderedJson.JsonDict = try await window.macApp.dumpWindowAxInfo(windowId: window.windowId, cm)
 
@@ -269,7 +269,8 @@ struct VolumeCommand: nonisolated Command {
         }
         if gui {
             do {
-                VolumePanel.shared.update(with: Sound.output.isMuted ? 0 : try Sound.output.readVolume())
+                let volume: Float = Sound.output.isMuted ? 0 : try Sound.output.readVolume()
+                VolumePanel.shared.update(with: volume)
             } catch {
                 throw CmdFail(bugPrompt(String(describing: error)))
             }

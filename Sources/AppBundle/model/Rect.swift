@@ -33,7 +33,7 @@ extension CGRect {
 
 extension Rect {
     func contains(_ point: CGPoint) -> Bool {
-        minX.until(excl: maxX)?.contains(point.x) == true && minY.until(excl: maxY)?.contains(point.y) == true
+        minX <= point.x && point.x < maxX && minY <= point.y && point.y < maxY
     }
 
     var center: CGPoint {

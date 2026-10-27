@@ -104,10 +104,13 @@ nonisolated extension AxUiElementMock {
         _ activationPolicy: NSApplication.ActivationPolicy,
         _ windowLevel: MacOsWindowLevel?,
     ) -> Bool {
-        if windowLevel != .normalWindow &&
-            // Slowly roll out windowLevel for applications for which we have the appropriate dumps
-            (id == .slack || id == .chrome || id?.isFirefox == true || id == .braveBrowser || id == .screenstudio || id == .cleanshotx || id == .iterm2 || id == .outlook || id == .codex || id == .wisprFlow)
-        {
+        // Slowly roll out windowLevel for applications for which we have the appropriate dumps
+        let usesWindowLevel: Bool = switch id {
+            case .slack, .chrome, .braveBrowser, .screenstudio, .cleanshotx, .iterm2, .outlook, .codex, .wisprFlow: true
+            case let id?: id.isFirefox
+            case nil: false
+        }
+        if usesWindowLevel && windowLevel != .normalWindow {
             return false
         }
 

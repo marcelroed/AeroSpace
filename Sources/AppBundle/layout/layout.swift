@@ -157,8 +157,9 @@ extension TilingContainer {
         var point = point
         var virtualPoint = virtual.topLeftCorner
 
-        guard let delta = ((orientation == .h ? width : height) - children.sum { $0.getWeight(orientation) })
-            .div(children.count) else { return }
+        let size: CGFloat = orientation == .h ? width : height
+        let weightSum: CGFloat = children.sum { $0.getWeight(orientation) }
+        guard let delta = (size - weightSum).div(children.count) else { return }
 
         let lastIndex = children.indices.last
         let rawGap = Double(params.gaps.inner.get(orientation))

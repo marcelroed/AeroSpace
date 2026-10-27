@@ -100,7 +100,7 @@ extension String {
         if self == "." { return [] }
         if isEmpty { throw "Invalid empty key" }
         if contains("..") || hasSuffix(".") { throw "Invalid key '\(self)'" }
-        return split(separator: ".", omittingEmptySubsequences: false).map(String.init)
+        return split(separator: ".", omittingEmptySubsequences: false).map { String($0) }
     }
 }
 

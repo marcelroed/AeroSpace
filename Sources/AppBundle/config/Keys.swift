@@ -76,7 +76,7 @@ private let permutableKeys: [Key] = [
 ]
 
 private func presetKeys(_ names: String) -> [String: Key] {
-    let names = names.split(separator: " ").map(String.init)
+    let names = names.split(separator: " ").map { String($0) }
     check(names.count == permutableKeys.count && Set(names).count == names.count)
     return sharedKeys + Dictionary(uniqueKeysWithValues: zip(names, permutableKeys))
 }

@@ -52,7 +52,8 @@ nonisolated enum FormatSubject: CaseIterable, Sendable {
             case .workspace: [.workspace, .monitor]
             case .app, .monitor: [self]
         }
-        return subjects.flatMap { s in FormatVar.allCases.filter { $0.subject == s } } + FormatVar.allCases.filter { $0.subject == nil }
+        let subjectVars: [FormatVar] = subjects.flatMap { (subject: FormatSubject) -> [FormatVar] in FormatVar.allCases.filter { $0.subject == subject } }
+        return subjectVars + FormatVar.allCases.filter { $0.subject == nil }
     }
 }
 

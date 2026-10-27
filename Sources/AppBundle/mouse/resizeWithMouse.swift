@@ -38,10 +38,12 @@ private func resizeWithMouse(_ window: Window) async throws { // todo cover with
             let siblingDiff = diff.div(pastTheEndIndex - startIndex).orDie()
             let orientation = parent.orientation
 
-            window.tilingPath.lazy
-                .prefix(while: { $0.node != parent })
-                .filter { $0.parent.orientation == orientation && $0.parent.layout == .tiles }
-                .forEach { $0.node.setWeight(orientation, $0.node.getWeightBeforeResize(orientation) + diff) }
+            for step in window.tilingPath {
+                if step.node == parent { break }
+                if step.parent.orientation == orientation && step.parent.layout == .tiles {
+                    step.node.setWeight(orientation, step.node.getWeightBeforeResize(orientation) + diff)
+                }
+            }
             for sibling in parent.children[startIndex ..< pastTheEndIndex] {
                 sibling.setWeight(orientation, sibling.getWeightBeforeResize(orientation) - siblingDiff)
             }

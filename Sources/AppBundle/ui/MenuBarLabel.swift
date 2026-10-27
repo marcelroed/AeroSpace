@@ -14,7 +14,8 @@ struct MenuBarLabel: View {
     var color: Color? = nil
 
     private var finalColor: Color {
-        color ?? (menuColorScheme == .dark ? Color.white : Color.black)
+        if let color { return color }
+        return menuColorScheme == .dark ? .white : .black
     }
 
     var body: some View {
@@ -44,13 +45,13 @@ struct MenuBarLabel: View {
                         otherWorkspaces(with: workspaces)
                     }
                 case .i3Ordered:
-                    let modeItem = viewModel.trayItems.first { $0.type == .mode }
+                    let modeItem = viewModel.trayItems.first { $0.type == TrayItemType.mode }
                     if let modeItem {
                         itemView(for: modeItem)
                         modeSeparator
                     }
                     let orderedWorkspaces = viewModel.workspaces.filter { !$0.isEffectivelyEmpty || $0.isVisible }
-                    ForEach(orderedWorkspaces, id: \.name) { item in
+                    ForEach(orderedWorkspaces, id: \.name) { (item: WorkspaceViewModel) in
                         let trayItem = TrayItem(
                             type: .workspace,
                             name: item.name,

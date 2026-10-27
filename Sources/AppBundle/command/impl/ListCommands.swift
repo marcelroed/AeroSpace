@@ -103,7 +103,7 @@ struct ListWindowsCommand: nonisolated Command {
         }
         let list = resolved
             .filter { $0.window.isBound }
-            .sortedBy([{ $0.window.app.name ?? "" }, { $0.title ?? "" }])
+            .sortedBy([{ (w: WindowWithPrefetchedTitle) -> String in w.window.app.name ?? "" }, { $0.title ?? "" }])
             .map(AeroObj.window)
         try output.print(list, cx)
     }

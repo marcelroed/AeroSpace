@@ -22,15 +22,16 @@ struct FrozenWorkspace: Sendable {
         name = workspace.name
         monitor = FrozenMonitor(workspace.workspaceMonitor)
         rootTilingNode = FrozenContainer(workspace.rootTilingContainer)
-        floatingWindows = (workspace.floatingWindowsContainer.children +
+        let floatingNodes: [TreeNode] = workspace.floatingWindowsContainer.children +
             workspace.macOsNativeHiddenAppsWindowsContainer.children +
-            workspace.macOsNativeFullscreenWindowsContainer.children).map { FrozenWindow($0 as! Window) }
+            workspace.macOsNativeFullscreenWindowsContainer.children
+        floatingWindows = floatingNodes.map { FrozenWindow($0 as! Window) }
     }
 }
 
 func cacheClosedWindowIfNeeded() {
     let allWs = Workspace.all
-    let allWindowIds = allWs.flatMap(\.allLeafWindowsRecursive).map(\.windowId).toSet()
+    let allWindowIds: Set<UInt32> = allWs.flatMap(\.allLeafWindowsRecursive).map(\.windowId).toSet()
     if allWindowIds.isSubset(of: world.closedWindowsCache.windowIds) {
         return // already cached
     }

@@ -272,7 +272,8 @@ struct ResizeCommand: nonisolated Command {
         let target = try cx.target(windowId: windowId)
 
         // The window and its ancestors in a tiles container. For .smart, the node is the first one
-        let candidates = target.windowOrNil?.tilingPath.filter { $0.parent.layout == .tiles } ?? []
+        let path: [(node: TreeNode, parent: TilingContainer, index: Int)] = target.windowOrNil?.tilingPath ?? []
+        let candidates = path.filter { $0.parent.layout == .tiles }
         let orientation: Orientation? = switch dimension {
             case .width: .h
             case .height: .v
