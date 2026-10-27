@@ -41,7 +41,7 @@ Branch `restructure` starts from `refactor-cleanup` at `ba6b0d70`. It rewrites t
 - **Partly fixed on `restructure` in `<commit>`:** part of the bug is fixed there. The status says what is still open.
 - **Moot on `restructure`:** the code was deleted or redesigned, so the bug can't happen. The status says why.
 
-The summary table marks an entry that was open until then as "fixed on restructure", "partly fixed on restructure" or "moot on restructure". Entries RB-115 and up were found during the restructure. RB-134 to RB-141 come from its second milestone (M2): RB-136 to RB-139 were bugs in M2's own code that shipped in a deployed stage, RB-141 came with M2 and hasn't shipped, and the others are older. RB-115 to RB-120, RB-130 to RB-134 and RB-136 to RB-140 are fixed there, and RB-129 partly. Every open entry was checked against `restructure` at `6fee1079`, and again after M2 at `22228538`. These restructure items got no ID:
+The summary table marks an entry that was open until then as "fixed on restructure", "partly fixed on restructure" or "moot on restructure". Entries RB-115 and up were found during the restructure. RB-134 to RB-144 come from its second milestone (M2): RB-136 to RB-139 were bugs in M2's own code that shipped in a deployed stage, RB-141 came with M2 and never shipped, and the others are older. RB-115 to RB-120, RB-130 to RB-134 and RB-136 to RB-144 are fixed there, and RB-129 partly. Every open entry was checked against `restructure` at `6fee1079`, and again after M2 at `22228538`. These restructure items got no ID:
 - `subscribe` in a config binding fails with "subscribe is not supported in the eval", where there is no eval: 858762f5 changed the message to "subscribe is only available from the CLI".
 - A bug study of the restructure's prototype branches also listed RB-04, RB-05, RB-10, RB-13, RB-19, RB-22, RB-23, RB-24, RB-25, RB-38, RB-42, RB-44 and RB-101.
 - The initial `subscribe` events come in random order: RB-114.
@@ -72,7 +72,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 - Entries RB-71 and up give a single **Location**. For a fixed entry, it is on `fix-review-bugs`, before the fix.
 - Entries that `restructure` fixed or made moot keep the **Location** they had before. For an entry that was open, that is `integrate` `99679420`.
 - Open entries give their **Location** at `restructure` `6fee1079`.
-- Entries RB-115 to RB-133 give their **Location** at `6fee1079`, and RB-134 and up at `22228538`. For a fixed one, that is where the fix is. Entries RB-136 to RB-140 give the buggy code at the commit they name.
+- Entries RB-115 to RB-133 give their **Location** at `6fee1079`, and RB-134 and up at `22228538`. For a fixed one, that is where the fix is. Entries RB-136 to RB-140 and RB-142 to RB-144 give the buggy code at the commit they name.
 - RB-19 and RB-67 also have an **At integrate** line, because `simplify` rewrote the code they point at.
 
 **IDs are stable.** A gap in the summary table is an entry that moved to [Resolved by the refactor](#resolved-by-the-refactor) or [Dropped entries](#dropped-entries).
@@ -133,7 +133,9 @@ The summary table marks an entry that was open until then as "fixed on restructu
 | [RB-137](#rb-137-hotkeys-stall-during-a-debug-windows-recording-while-an-app-is-slow) | low | likely | Core model | Hotkeys stall during a `debug-windows` recording while an app is slow | fixed on restructure |
 | [RB-139](#rb-139-after-a-crash-off-the-main-thread-windows-are-restored-at-the-full-display-size) | low | likely | Core model | After a crash off the main thread, windows are restored at the full display size | fixed on restructure |
 | [RB-140](#rb-140-move-workspace-to-monitor---workspace-with-a-hidden-workspace-replaces-the-visible-workspace-of-its-monitor) | low | likely | Commands and CLI | `move-workspace-to-monitor --workspace` with a hidden workspace replaces the visible workspace of its monitor | fixed on restructure |
-| [RB-141](#rb-141-the-heavy-refresh-that-the-startup-schedules-doesnt-lay-out) | low | likely | Core model | The heavy refresh that the startup schedules doesn't lay out | open |
+| [RB-141](#rb-141-the-heavy-refresh-that-the-startup-schedules-doesnt-lay-out) | low | likely | Core model | The heavy refresh that the startup schedules doesn't lay out | fixed on restructure |
+| [RB-142](#rb-142-a-facts-read-that-times-out-moves-a-fullscreen-or-minimized-window-out-of-its-container) | low | likely | Core model | A facts read that times out moves a fullscreen or minimized window out of its container | fixed on restructure |
+| [RB-144](#rb-144-a-hung-app-holds-every-heavy-refresh-for-the-ax-timeout) | low | likely | Core model | A hung app holds every heavy refresh for the AX timeout | fixed on restructure |
 | [RB-31](#rb-31-workspace-back-and-forth-ignores-whether-focusing-succeeded) | low | possible | Commands and CLI | `workspace-back-and-forth` ignores whether focusing succeeded | fixed |
 | [RB-32](#rb-32-run-callback---for-every-window-differs-from-real-window-detection) | low | possible | Commands and CLI | `run-callback --for-every-window` differs from real window detection | fixed |
 | [RB-33](#rb-33-resize-accepts-doubled-signs) | low | possible | Commands and CLI | `resize` accepts doubled signs | fixed |
@@ -169,6 +171,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 | [RB-135](#rb-135-a-parked-floating-window-of-a-hidden-app-stays-in-the-corner-after-the-app-is-unhidden) | low | possible | Core model | A parked floating window of a hidden app stays in the corner after the app is unhidden | fixed |
 | [RB-136](#rb-136-a-cancelled-heavy-refresh-can-move-a-window-back-after-the-user-moved-it) | low | possible | Core model | A cancelled heavy refresh can move a window back after the user moved it | fixed on restructure |
 | [RB-138](#rb-138-quitting-right-after-a-workspace-switch-can-leave-a-slow-apps-windows-in-the-corner) | low | possible | Core model | Quitting right after a workspace switch can leave a slow app's windows in the corner | fixed on restructure |
+| [RB-143](#rb-143-a-liveness-check-that-times-out-drops-an-alive-window) | low | possible | Core model | A liveness check that times out drops an alive window | fixed on restructure |
 | [RB-40](#rb-40-inconsistent-reporting-of-impossible-paths) | low | speculative | Commands and CLI | Inconsistent reporting of "impossible" paths | fixed |
 | [RB-41](#rb-41-workspace-gc-evaluates-focus-inside-its-filter) | low | speculative | Core model | Workspace GC evaluates `focus` inside its filter | fixed |
 | [RB-42](#rb-42-hotkey-events-can-report-another-modes-key-notation) | low | speculative | Config, shell and UI | Hotkey events can report another mode's key notation | fixed |
@@ -208,7 +211,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 | [RB-94](#rb-94-newscalarornil-reads-json-booleans-as-integers) | low | speculative | Tests | `newScalarOrNil` reads JSON booleans as integers | open |
 | [RB-102](#rb-102-syncfocusfrommacos-crashes-on-test-windows) | low | speculative | Tests | `syncFocusFromMacOs` crashes on test windows | moot on restructure |
 
-**Totals:** 55 entries were open before `fix-review-bugs`: 2 high, 8 medium and 45 low. Of these, 51 fixed and 4 closed. The fixes turned up 22 new entries (RB-71 to RB-92; 1 medium and 21 low): 8 fixed and 14 open (RB-76 was fixed after the user chose a 2 s limit per app). A further 18 entries were resolved by the refactor, and 3 were dropped. The `simplify` stream added 20 entries (RB-93 to RB-112; 1 medium and 19 low), all open. Two more low entries came from the `perf` stream and from merging (RB-113 and RB-114), both open. The `perf` stream's other report, about stale cached window levels, is already covered by RB-35 and RB-85. On `restructure`, 14 of these 36 open entries were fixed, 1 was partly fixed (RB-88) and 8 became moot, so 13 are still open. Twelve entries that were already fixed or closed became moot too (RB-02, RB-05, RB-10, RB-12, RB-16, RB-35, RB-43, RB-44, RB-61, RB-69, RB-71 and RB-76). The restructure added 27 entries (RB-115 to RB-141; 6 medium and 21 low): 17 are fixed there, 1 is partly fixed (RB-129) and 9 are open.
+**Totals:** 55 entries were open before `fix-review-bugs`: 2 high, 8 medium and 45 low. Of these, 51 fixed and 4 closed. The fixes turned up 22 new entries (RB-71 to RB-92; 1 medium and 21 low): 8 fixed and 14 open (RB-76 was fixed after the user chose a 2 s limit per app). A further 18 entries were resolved by the refactor, and 3 were dropped. The `simplify` stream added 20 entries (RB-93 to RB-112; 1 medium and 19 low), all open. Two more low entries came from the `perf` stream and from merging (RB-113 and RB-114), both open. The `perf` stream's other report, about stale cached window levels, is already covered by RB-35 and RB-85. On `restructure`, 14 of these 36 open entries were fixed, 1 was partly fixed (RB-88) and 8 became moot, so 13 are still open. Twelve entries that were already fixed or closed became moot too (RB-02, RB-05, RB-10, RB-12, RB-16, RB-35, RB-43, RB-44, RB-61, RB-69, RB-71 and RB-76). The restructure added 30 entries (RB-115 to RB-144; 6 medium and 24 low): 21 are fixed there, 1 is partly fixed (RB-129) and 8 are open.
 
 ## Core model
 
@@ -383,7 +386,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-85: A window first seen off-screen is classified as a popup
 
-- **Status:** Open. Fixed on `restructure` in 2f480e2b: the window-level cache is gone. Each classification queries the levels of the on-screen windows once, and an unknown level no longer makes a window a popup (`Sources/AppBundle/model/AxUiElementWindowType.swift:114-118`). Regression test: `AxUiElementWindowTypeTest.testUnknownWindowLevelIsNotAPopup`.
+- **Status:** Open. Fixed on `restructure` in 2f480e2b: the window-level cache is gone, and each classification queries the levels of the on-screen windows once. 2f480e2b took an unknown level as a normal one, which made an off-screen popup of these apps a window. Since 2827a2bc the kind of such a window is unknown while it's off-screen (`getWindowType` returns nil, `Sources/AppBundle/model/AxUiElementWindowType.swift:208`): a new one is registered once it's on screen, and a registered one keeps its kind. Regression tests: `ReconcileTest.aNewWindowWhoseKindIsUnknownWaitsUntilItIsOnScreen` and `ReconcileTest.anOffScreenPopupStaysAPopup`; `AxUiElementWindowTypeTest` also checks each AX dump without its level.
 - **Severity:** low · **Confidence:** possible
 - **Location:** `Sources/AppBundle/model/AxUiElementWindowType.swift:107-112` and `Sources/AppBundle/windowLevelCache.swift:14-37`
 - **Description:** The window-level cache holds on-screen windows only. A window first detected while off-screen (minimized at startup, or of a hidden app) gets a nil level. For Slack, Chrome, Firefox, iTerm2 and the other listed apps, `windowLevel != .normalWindow` then holds, so it is classified as a popup.
@@ -511,12 +514,39 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-141: The heavy refresh that the startup schedules doesn't lay out
 
-- **Status:** Open. Found on `restructure` (M2-FIN). dbec281a introduced it, and no deployed stage has it yet.
+- **Status:** Fixed on `restructure` in c8042096: the startup's light session schedules its heavy refresh as `.afterStartup`, so only the startup's own heavy refresh skips P4 and registers windows the startup's way (`Sources/AppBundle/Sessions.swift:64`). Regression test: `ReconcileTest.theRefreshAfterTheStartupTilesAWindowThatOpenedMeanwhile`. Found on `restructure` (M2-FIN). dbec281a introduced it, and no deployed stage had it.
 - **Severity:** low · **Confidence:** likely (checked with a test on `FakePlatform`)
 - **Location:** `Sources/AppBundle/Sessions.swift:61` and `Sources/AppBundle/Reconcile.swift:38`
 - **Description:** Startup runs a heavy refresh that registers the open windows without moving them, then a light session that lays them out. Like every light session, that session ends by scheduling a heavy refresh with its own event, here `.startup`. `Reconcile.heavy` returns before P4 for every `.startup` refresh, so this second one registers the windows that opened in between and runs their callbacks, but doesn't lay out or park anything. Before dbec281a, it laid out. As before, it registers the windows as the startup does.
 - **How it shows up:** a window that opens while AeroSpace starts, for example from a login item, isn't tiled until the next event, and the other tiles of its workspace aren't resized for it.
 - **Fix direction:** skip P4 only in the startup's own heavy refresh, for example with a parameter, or have the startup's light session schedule its heavy refresh with another event.
+
+### RB-142: A facts read that times out moves a fullscreen or minimized window out of its container
+
+- **Status:** Fixed on `restructure` in c2dcbbce: a window whose facts read fails gets no facts, so it keeps its state, and the batch stops reading the app's windows at the first AX timeout (`AxApp.nativeFacts`, `Sources/AppBundle/platform/AxApp.swift:172-189`). Found by the review of M2's reconcile (R2a L1). It is older than the restructure: `refactor-cleanup` (`Sources/AppBundle/tree/MacApp.swift:258` `@ba6b0d70`) and the deployed stage `restructure-m2-s2` have it. No regression test: it needs an app that times out.
+- **Severity:** low · **Confidence:** likely
+- **Location:** `Sources/AppBundle/platform/AxApp.swift:165-176` `@13566f6a`
+- **Description:** The facts read (native fullscreen, minimized) asks for both attributes at once. When that failed, it read them one by one and took a failed read for false. After an AX timeout it took fullscreen as false at once, but still read minimized, which waited for a second timeout.
+- **How it shows up:** an app that answers the listing but is busy for the facts read has a native fullscreen or minimized window. The window is moved out of its fullscreen or minimized container into its tiling or floating place and gets frames, then moves back at the next refresh. The heavy refresh waits up to two AX timeouts per window of that app.
+- **Fix direction:** return no facts when the read fails, and stop reading the app's windows after a timeout.
+
+### RB-143: A liveness check that times out drops an alive window
+
+- **Status:** Fixed on `restructure` in c2dcbbce: a timed-out check counts as alive, and the app's remaining checks of that refresh are skipped (`AxApp.refreshWindows`, `Sources/AppBundle/platform/AxApp.swift:136-147`). Found by the review of M2's reconcile (R2a L4). It is older than the restructure: `refactor-cleanup` (`Sources/AppBundle/tree/MacApp.swift:326` `@ba6b0d70`) and the deployed stage `restructure-m2-s2` have it. No regression test: it needs an app that times out.
+- **Severity:** low · **Confidence:** possible
+- **Location:** `Sources/AppBundle/platform/AxApp.swift:140` `@13566f6a`
+- **Description:** A window that its app doesn't list (for example, one on another Space) stays only if `containingWindowId()` answers for it. A timeout there dropped the window without evidence that it was gone, and each further check of the app waited for its own timeout.
+- **How it shows up:** a busy app's unlisted window is garbage-collected. The next refresh detects it as new: it loses its place in the tree, and its on-window-detected callbacks run again.
+- **Fix direction:** treat a timeout of the check as alive. This needs a variant of `containingWindowId()` that returns the AX error.
+
+### RB-144: A hung app holds every heavy refresh for the AX timeout
+
+- **Status:** Fixed on `restructure` in ff18290b: each app's listing has a deadline, 250 ms or twice its last answer time (`ListingDeadlines`, `Sources/AppBundle/platform/ListingDeadlines.swift`). An app that misses it doesn't answer for that refresh and isn't asked again until its listing returns; if that listing answers, a heavy refresh lists the app again. The startup's refresh still waits for every app. Regression tests: `ReconcileTest.aHungAppDoesntHoldTheRefreshAndItsWindowsComeWhenItAnswers` and `ReconcileTest.theStartupWaitsForEveryApp`. Found by the review of M2's sessions (R2b L3). It is older than the restructure: `refactor-cleanup` (`Sources/AppBundle/tree/MacApp.swift:271` `@ba6b0d70`) and the deployed stage `restructure-m2-s2` have it.
+- **Severity:** low · **Confidence:** likely (from the code; the wait wasn't measured)
+- **Location:** `Sources/AppBundle/platform/LivePlatform.swift:61-97` `@13566f6a`
+- **Description:** The heavy refresh lists the windows of all apps in parallel, but waits for every app. A hung app answers only after the AX timeout (about 6 s by default), and each new listing queues behind the hung one on that app's thread. A light session or an AX event cancels the waiting refresh and starts a new one, which waits again.
+- **How it shows up:** while one app hangs, new windows of the other apps aren't tiled and closed ones aren't removed until the user stops for the whole timeout.
+- **Fix direction:** give each app's listing a deadline, and don't queue a new listing behind one that is late.
 
 ## Commands and CLI
 
