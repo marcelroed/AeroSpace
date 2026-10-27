@@ -255,6 +255,21 @@ struct ReconcileTest {
     }
 
     @Test
+    func theRefreshAfterTheStartupTilesAWindowThatOpenedMeanwhile() async throws { // RB-141
+        fake.monitorInfos = [testMonitor, rightTestMonitor]
+        openWindow(1)
+        fake.focused = 1
+
+        try await world.sessions.startup {
+            // An app opens a window on the right monitor during the startup
+            fake.windows[2] = FakeWindow(app: testApp, rect: Rect(topLeftX: 2000, topLeftY: 100, width: 800, height: 600), title: "Window 2")
+        }
+        for _ in 0 ..< 100 where fake.calls(of: .frame, 2).isEmpty { await Task.yield() } // Let the heavy refresh run
+        expectEqual(Window.get(byId: 2)?.nodeWorkspace?.name, focus.workspace.name) // Registered as a new window
+        #expect(!fake.calls(of: .frame, 2).isEmpty) // and laid out
+    }
+
+    @Test
     func focusFollowsMouseKeepsTheScheduledHeavyRefresh() async throws {
         setUpTree("h_tiles(*1)")
         openWindow(2)

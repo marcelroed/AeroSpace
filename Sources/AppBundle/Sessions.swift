@@ -15,6 +15,7 @@ import Common
 /// | Work                          | Mechanism                                             | Preempted by                          |
 /// |-------------------------------|-------------------------------------------------------|---------------------------------------|
 /// | Heavy refresh                 | `heavy`, a ``LatestTaskSlot``                         | A newer heavy refresh, a light session (but ffm): P1 stops, P3 runs to the end, P4 is skipped |
+/// | Startup heavy refresh         | Awaited in ``startup(_:)``, outside the slot; it skips P4 | Nothing                           |
 /// | Light session                 | Runs at once in its caller's task, cancels `heavy` (not ffm's) | — (but see the next row)     |
 /// | ffm, mouse move, mouse resize | One ``LatestTaskSlot`` per kind around a light session | A newer event of the same kind       |
 /// | AX read of a heavy refresh    | An observe read of ``Platform`` (`AxApp.call`): abandonable | Cancellation of the heavy refresh: it returns at once |
@@ -58,7 +59,8 @@ final class Sessions {
         await refreshModel(isFocusFollowsMouse)
 
         try Reconcile.present(nativeFocusBaseline: focusBefore, isTrayDeferred: true, isLayout: !isFocusFollowsMouse)
-        if !isFocusFollowsMouse { scheduleHeavy(event) }
+        // Only the startup's own heavy refresh registers windows the startup's way and skips P4 (RB-141)
+        if !isFocusFollowsMouse { scheduleHeavy(event.isStartup ? .afterStartup : event) }
         return result
     }
 
@@ -84,7 +86,8 @@ final class Sessions {
 
     /// The first sessions after the launch. The heavy refresh registers the windows that are already open, each on the
     /// workspace of its monitor, without moving them. Nothing cancels it, so every window that it finds gets the startup's
-    /// on-window-detected callbacks. Then a light session lays them out and runs `body`. The focus callbacks start after it
+    /// on-window-detected callbacks. Then a light session lays them out and runs `body`. The focus callbacks start after it.
+    /// The heavy refresh that the light session schedules (`.afterStartup`) is an ordinary one
     func startup(_ body: () async throws -> ()) async throws {
         defer { armFocusChangedCallbacks() }
         await Reconcile.heavy(.startup)
@@ -198,6 +201,8 @@ nonisolated enum RefreshSessionEvent: Sendable, CustomStringConvertible {
     case menuBarButton
     case hotkeyBinding
     case startup
+    /// The heavy refresh that the startup's light session schedules
+    case afterStartup
     case socketServer([String])
     case resetManipulatedWithMouse
     case ax(String)
@@ -222,6 +227,7 @@ nonisolated enum RefreshSessionEvent: Sendable, CustomStringConvertible {
             case .resetManipulatedWithMouse: "resetManipulatedWithMouse"
             case .socketServer(let args): "socketServer: \(args.joinArgs())"
             case .startup: "startup"
+            case .afterStartup: "afterStartup"
             case .focusFollowsMouse: "focusFollowsMouse"
         }
     }

@@ -14,8 +14,9 @@ import Common
 /// Cancellation is checked at the end of P1 and at the start of P4 only. Nothing is queued for retry: what a refresh
 /// skips, the next one does again, because each one recomputes everything from the tree and from macOS.
 enum Reconcile {
-    /// The heavy refresh of ``Sessions``. At startup (`event` is `.startup`) it registers every window on the workspace of
-    /// the monitor that the window is on, and doesn't present: the startup's light session does. `preLayout`: present
+    /// The heavy refresh of ``Sessions``. At startup (`event` is `.startup`, only for ``Sessions/startup(_:)``'s own heavy
+    /// refresh) it registers every window on the workspace of the monitor that the window is on, and doesn't present: the
+    /// startup's light session does. `preLayout`: present
     /// before P1 too, so that an app activation shows the app's workspace without waiting for the windows of all apps
     static func heavy(_ event: RefreshSessionEvent, preLayout: Bool = false) async {
         let state = signposter.beginInterval(#function, "event: \(event)")
