@@ -1,8 +1,8 @@
 import AppKit
 
-func syncFocusFollowsMouse(_ config: Config) { focusFollowsMouse.sync(enabled: config.focusFollowsMouse.enabled) }
+func syncFocusFollowsMouse(_ config: Config) { mouseMovedMonitor.sync(enabled: config.focusFollowsMouse.enabled) }
 
-private let focusFollowsMouse = FocusFollowsMouseMonitor()
+private let mouseMovedMonitor = FocusFollowsMouseMonitor()
 
 /// The global mouse-moved monitor while focus-follows-mouse is enabled
 private final class FocusFollowsMouseMonitor {
