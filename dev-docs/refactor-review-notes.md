@@ -41,7 +41,7 @@ Branch `restructure` starts from `refactor-cleanup` at `ba6b0d70`. It rewrites t
 - **Partly fixed on `restructure` in `<commit>`:** part of the bug is fixed there. The status says what is still open.
 - **Moot on `restructure`:** the code was deleted or redesigned, so the bug can't happen. The status says why.
 
-The summary table marks an entry that was open until then as "fixed on restructure", "partly fixed on restructure" or "moot on restructure". Entries RB-115 and up were found during the restructure. RB-134 to RB-144 come from its second milestone (M2): RB-136 to RB-139 were bugs in M2's own code that shipped in a deployed stage, RB-141 came with M2 and never shipped, and the others are older. RB-145 to RB-147 come from round 4 and are older than the restructure. RB-115 to RB-121, RB-130 to RB-134 and RB-136 to RB-147 are fixed there, and RB-129 partly. Every open entry was checked against `restructure` at `6fee1079`, and again after M2 at `22228538`. These restructure items got no ID:
+The summary table marks an entry that was open until then as "fixed on restructure", "partly fixed on restructure" or "moot on restructure". Entries RB-115 and up were found during the restructure. RB-134 to RB-144 come from its second milestone (M2): RB-136 to RB-139 were bugs in M2's own code that shipped in a deployed stage, RB-141 came with M2 and never shipped, and the others are older. RB-145 to RB-147 come from round 4 and are older than the restructure. RB-115 to RB-121, RB-125, RB-127, RB-128, RB-130 to RB-134 and RB-136 to RB-147 are fixed there, and RB-129 partly. Every open entry was checked against `restructure` at `6fee1079`, and again after M2 at `22228538`. These restructure items got no ID:
 - `subscribe` in a config binding fails with "subscribe is not supported in the eval", where there is no eval: 858762f5 changed the message to "subscribe is only available from the CLI".
 - A bug study of the restructure's prototype branches also listed RB-04, RB-05, RB-10, RB-13, RB-19, RB-22, RB-23, RB-24, RB-25, RB-38, RB-42, RB-44 and RB-101.
 - The initial `subscribe` events come in random order: RB-114.
@@ -168,7 +168,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 | [RB-121](#rb-121-commands-that-fail-to-focus-exit-2-without-a-message) | low | possible | Commands and CLI | Commands that fail to focus exit 2 without a message | fixed on restructure |
 | [RB-123](#rb-123-moving-into-a-container-of-the-moves-orientation-always-inserts-at-its-start) | low | possible | Commands and CLI | Moving into a container of the move's orientation always inserts at its start | open |
 | [RB-124](#rb-124-concurrent-debug-windows-dumps-can-exceed-the-window-limit) | low | possible | Commands and CLI | Concurrent `debug-windows` dumps can exceed the window limit | open |
-| [RB-127](#rb-127-the-shell-lexer-drops-a-last-word-that-ends-in-a-unicode-prepend-character) | low | possible | Config, shell and UI | The shell lexer drops a last word that ends in a Unicode Prepend character | open |
+| [RB-127](#rb-127-the-shell-lexer-drops-a-last-word-that-ends-in-a-unicode-prepend-character) | low | possible | Config, shell and UI | The shell lexer drops a last word that ends in a Unicode Prepend character | fixed on restructure |
 | [RB-129](#rb-129-a-hidden-workspaces-root-container-gets-the-auto-orientation-of-the-wrong-monitor) | low | possible | Core model | A hidden workspace's root container gets the `auto` orientation of the wrong monitor | partly fixed on restructure |
 | [RB-133](#rb-133---stdin-on-a-terminal-waits-for-typed-input-or-fails-without-saying-why) | low | possible | Commands and CLI | `--stdin` on a terminal waits for typed input, or fails without saying why | fixed on restructure |
 | [RB-135](#rb-135-a-parked-floating-window-of-a-hidden-app-stays-in-the-corner-after-the-app-is-unhidden) | low | possible | Core model | A parked floating window of a hidden app stays in the corner after the app is unhidden | fixed |
@@ -202,11 +202,11 @@ The summary table marks an entry that was open until then as "fixed on restructu
 | [RB-110](#rb-110-debug-windows-can-log-a-window-after-its-session-ended) | low | speculative | Commands and CLI | `debug-windows` can log a window after its session ended | fixed on restructure |
 | [RB-112](#rb-112-the-initial-focused-workspace-changed-event-names-the-current-workspace-as-the-previous-one) | low | speculative | Commands and CLI | The initial `focused-workspace-changed` event names the current workspace as the previous one | open |
 | [RB-122](#rb-122---fail-if-fullscreen-exits-2-without-a-message) | low | speculative | Commands and CLI | `--fail-if-fullscreen` exits 2 without a message | open |
-| [RB-125](#rb-125-subscribe-loses-the-events-sent-before-the-subscriber-is-registered) | low | speculative | Commands and CLI | `subscribe` loses the events sent before the subscriber is registered | open |
+| [RB-125](#rb-125-subscribe-loses-the-events-sent-before-the-subscriber-is-registered) | low | speculative | Commands and CLI | `subscribe` loses the events sent before the subscriber is registered | fixed on restructure |
 | [RB-126](#rb-126-an-exec-table-that-doesnt-set-path-drops-the-homebrew-directories) | low | speculative | Config, shell and UI | An `[exec]` table that doesn't set `PATH` drops the Homebrew directories | open |
-| [RB-128](#rb-128-crlf-line-endings-dont-end-commands-comments-or-line-continuations) | low | speculative | Config, shell and UI | CRLF line endings don't end commands, comments or line continuations | open |
+| [RB-128](#rb-128-crlf-line-endings-dont-end-commands-comments-or-line-continuations) | low | speculative | Config, shell and UI | CRLF line endings don't end commands, comments or line continuations | fixed on restructure |
 | [RB-113](#rb-113-an-app-whose-ax-subscription-fails-is-retried-on-every-refresh) | low | possible | Core model | An app whose AX subscription fails is retried on every refresh | fixed on restructure |
-| [RB-114](#rb-114-subscribe-sends-the-initial-events-in-random-order) | low | possible | Commands and CLI | `subscribe` sends the initial events in random order | open |
+| [RB-114](#rb-114-subscribe-sends-the-initial-events-in-random-order) | low | possible | Commands and CLI | `subscribe` sends the initial events in random order | fixed on restructure |
 | [RB-61](#rb-61-tests-cant-reset-two-private-focus-globals) | low | possible | Tests | Tests can't reset two private focus globals | fixed |
 | [RB-64](#rb-64-all-ax-dumps-run-in-one-test-that-crashes-on-a-malformed-dump) | low | possible | Tests | All AX dumps run in one test that crashes on a malformed dump | fixed |
 | [RB-70](#rb-70-testservereventdecoding-checks-only-the-event-type) | low | possible | Tests | `testServerEventDecoding` checks only the event type | fixed |
@@ -214,7 +214,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 | [RB-94](#rb-94-newscalarornil-reads-json-booleans-as-integers) | low | speculative | Tests | `newScalarOrNil` reads JSON booleans as integers | open |
 | [RB-102](#rb-102-syncfocusfrommacos-crashes-on-test-windows) | low | speculative | Tests | `syncFocusFromMacOs` crashes on test windows | moot on restructure |
 
-**Totals:** 55 entries were open before `fix-review-bugs`: 2 high, 8 medium and 45 low. Of these, 51 fixed and 4 closed. The fixes turned up 22 new entries (RB-71 to RB-92; 1 medium and 21 low): 8 fixed and 14 open (RB-76 was fixed after the user chose a 2 s limit per app). A further 18 entries were resolved by the refactor, and 3 were dropped. The `simplify` stream added 20 entries (RB-93 to RB-112; 1 medium and 19 low), all open. Two more low entries came from the `perf` stream and from merging (RB-113 and RB-114), both open. The `perf` stream's other report, about stale cached window levels, is already covered by RB-35 and RB-85. On `restructure`, 14 of these 36 open entries were fixed, 1 was partly fixed (RB-88) and 8 became moot, so 13 are still open. Twelve entries that were already fixed or closed became moot too (RB-02, RB-05, RB-10, RB-12, RB-16, RB-35, RB-43, RB-44, RB-61, RB-69, RB-71 and RB-76). The restructure added 33 entries (RB-115 to RB-147; 7 medium and 26 low): 25 are fixed there, 1 is partly fixed (RB-129) and 7 are open.
+**Totals:** 55 entries were open before `fix-review-bugs`: 2 high, 8 medium and 45 low. Of these, 51 fixed and 4 closed. The fixes turned up 22 new entries (RB-71 to RB-92; 1 medium and 21 low): 8 fixed and 14 open (RB-76 was fixed after the user chose a 2 s limit per app). A further 18 entries were resolved by the refactor, and 3 were dropped. The `simplify` stream added 20 entries (RB-93 to RB-112; 1 medium and 19 low), all open. Two more low entries came from the `perf` stream and from merging (RB-113 and RB-114), both open. The `perf` stream's other report, about stale cached window levels, is already covered by RB-35 and RB-85. On `restructure`, 15 of these 36 open entries were fixed, 1 was partly fixed (RB-88) and 8 became moot, so 12 are still open. Twelve entries that were already fixed or closed became moot too (RB-02, RB-05, RB-10, RB-12, RB-16, RB-35, RB-43, RB-44, RB-61, RB-69, RB-71 and RB-76). The restructure added 33 entries (RB-115 to RB-147; 7 medium and 26 low): 28 are fixed there, 1 is partly fixed (RB-129) and 4 are open.
 
 ## Core model
 
@@ -876,7 +876,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-114: `subscribe` sends the initial events in random order
 
-- **Status:** Open. Found while merging the round-2 branches.
+- **Status:** Fixed on `restructure` in 82652add: the initial events follow `ServerEventType.allCases`, filtered by the client's events. Regression test: `SubscribeTest.clientsGetTheStateThenTheChanges`. Found while merging the round-2 branches.
 - **Severity:** low · **Confidence:** possible
 - **Location:** `Sources/AppBundle/subscriptions.swift:35` and `:65`
 - **Description:** `SubscribeArgs.events` is a `Set<ServerEventType>`, and the initial events are sent by iterating it. Set iteration order changes from run to run.
@@ -957,7 +957,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-125: `subscribe` loses the events sent before the subscriber is registered
 
-- **Status:** Open. Found on `restructure`.
+- **Status:** Fixed on `restructure` in 82652add: the server registers the client and queues its initial state in one main-actor step, before the answer, and one writer per client sends the queue in order. Regression tests: `SubscribeTest.clientWithoutTheInitialStateGetsTheEventsRightAfterItsAnswer` and `clientsGetTheStateThenTheChanges`. Found on `restructure`.
 - **Severity:** low · **Confidence:** speculative
 - **Location:** `Sources/AppBundle/server.swift:78-80` and `Sources/AppBundle/subscriptions.swift:60-85`
 - **Description:** With protocol version 2, the server first answers a `subscribe` request (`server.swift:79`) and then registers the subscriber (`subscriptions.swift:61`). Events broadcast while the answer is written don't reach the subscriber. Before `restructure`, the subscriber was registered first. A second problem predates `restructure`: the initial events are built from one snapshot of the focus (`:64`) and written with one await each (`:81`). Live events can be written in between, and an initial event written after a live one carries the older state.
@@ -1225,7 +1225,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-127: The shell lexer drops a last word that ends in a Unicode Prepend character
 
-- **Status:** Open. Found in a bug study of the prototype branches. The lexer before `restructure` is the same.
+- **Status:** Fixed on `restructure` in a918ee92: the lexer walks unicode scalars, not Characters, so a Prepend character can't join the space or quote after it. Regression tests: the three "a Prepend character" rows of `ShellLexerTest.lexes`. Found in a bug study of the prototype branches. The lexer before `restructure` is the same.
 - **Severity:** low · **Confidence:** possible
 - **Location:** `Sources/AppBundle/shell/shellLexer.swift:5` (the synthetic trailing space) and `:104`
 - **Description:** The lexer appends a space to the input so that the last word ends at whitespace. A grapheme cluster joins a Prepend character, such as U+0600 ARABIC NUMBER SIGN, with the next character, so a last word that ends in one joins the synthetic space into its last character. The word then reaches the end of the input, and `lexBareWord` drops it (`case nil: return`). Its comment assumes that this happens only to the synthetic space.
@@ -1234,7 +1234,7 @@ The summary table marks an entry that was open until then as "fixed on restructu
 
 ### RB-128: CRLF line endings don't end commands, comments or line continuations
 
-- **Status:** Open. Found in a bug study of the prototype branches. The lexer before `restructure` is the same.
+- **Status:** Fixed on `restructure` in a918ee92: the lexer walks unicode scalars, so CR is whitespace and LF a newline. Regression test: the "a CR LF line break is a newline" row of `ShellLexerTest.lexes`. Found in a bug study of the prototype branches. The lexer before `restructure` is the same.
 - **Severity:** low · **Confidence:** speculative
 - **Location:** `Sources/AppBundle/shell/shellLexer.swift:27`, `:54-56` (`skipComment`), `:59-71` (`skipLineContinuation`) and `:119-131` (`locateChars`)
 - **Description:** Swift treats `\r\n` as one `Character`, which isn't equal to `"\n"`. The lexer checks for `"\n"`, so a CRLF line ending is plain whitespace. Since 9f8d492e a newline separates commands, but a CRLF doesn't. A comment runs to the end of the input, and a backslash before a CRLF reports that it's followed by the next line's first character. Error locations stay on line 1. It is unknown whether TOMLKit passes the CR of a multi-line string through. `eval` can pass CRLF directly.
