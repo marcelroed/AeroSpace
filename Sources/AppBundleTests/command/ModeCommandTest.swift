@@ -4,23 +4,15 @@ import Testing
 
 @Suite(.aeroSpaceGlobalState)
 struct ModeCommandTest {
-    @Test
-    func testParse() {
-        testParseSingleCommandSucc("mode main", ModeCommand(targetMode: "main"))
-        expectEqual(parseCommand("mode").errorOrNil, "Argument '<binding-mode>' is mandatory")
-    }
-
-    @Test
-    func testParseDashDash() {
-        testParseSingleCommandSucc(
-            "mode -- main",
-            ModeCommand(targetMode: "main"),
-        )
-        testParseSingleCommandSucc(
-            "mode -- --foo",
-            ModeCommand(targetMode: "--foo"),
-        )
-        expectEqual(parseCommand("mode --").errorOrNil, "Argument '<binding-mode>' is mandatory")
+    @Test(arguments: [
+        ("mode main", "main", nil),
+        ("mode -- --foo", "--foo", nil),
+        ("mode", nil, "Argument '<binding-mode>' is mandatory"),
+        ("mode --", nil, "Argument '<binding-mode>' is mandatory"),
+    ] as [(String, String?, String?)])
+    func parse(args: String, targetMode: String?, error: String?) {
+        expectEqual(parsedCmd(args, as: ModeCommand.self)?.targetMode, targetMode)
+        expectEqual(parseCommand(args).errorOrNil, error)
     }
 
     @Test

@@ -11,40 +11,24 @@ struct ReloadConfigCommandTest {
         expectEqual(parsedCmd("reload-config --dry-run --warnings-as-errors", as: ReloadConfigCommand.self), ReloadConfigCommand(dryRun: true))
     }
 
-    @Test
-    func testErrors() async throws {
-        let (url, result, message) = try await dryRunReloadConfig("foo = 1\nbar = 2")
-        let errors = "[ERROR] bar: Unknown top-level key\n\n[ERROR] foo: Unknown top-level key"
-        #expect(!result.isOk)
-        expectEqual(result.stdout, errors)
-        expectEqual(message?.body, "Failed to parse '\(url.path)'. 2 error(s)\n\n\(errors)")
-    }
+    /// `CONFIG` in the message is the config's path. The message is "untouched" before the run
+    @Test(arguments: [
+        ("", false, true, "", nil),
+        ("foo = 1\nbar = 2", false, false, unknownFooAndBar, "Failed to parse 'CONFIG'. 2 error(s)\n\n" + unknownFooAndBar),
+        ("foo = 1", true, false, "[ERROR] foo: Unknown top-level key", "untouched"),
+    ] as [(String, Bool, Bool, String, String?)])
+    func dryRun(toml: String, noGui: Bool, isOk: Bool, stdout: String, message: String?) throws {
+        let url = FileManager.default.temporaryDirectory.appending(component: "aerospace-reload-config-test-\(UUID().uuidString).toml")
+        try toml.write(to: url, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: url) }
+        world.ui.messageModel.message = Message(body: "untouched")
+        defer { world.ui.messageModel.message = nil }
 
-    @Test
-    func testCleanConfig() async throws {
-        let (_, result, message) = try await dryRunReloadConfig("")
-        #expect(result.isOk)
-        #expect(result.stdout.isEmpty)
-        expectEqual(message, nil)
-    }
-
-    @Test
-    func testNoGui_keepsTheMessage() async throws {
-        let (_, result, message) = try await dryRunReloadConfig("foo = 1", noGui: true)
-        #expect(!result.isOk)
-        expectEqual(message?.body, "untouched")
+        let result = reloadConfig(args: ReloadConfigCommand(noGui: noGui, dryRun: true), forceConfigUrl: url)
+        expectEqual(result.isOk, isOk)
+        expectEqual(result.stdout, stdout)
+        expectEqual(world.ui.messageModel.message?.body, message?.replacing("CONFIG", with: url.path))
     }
 }
 
-/// Runs reload-config --dry-run on a config with the `toml` contents.
-/// Returns the config URL, the result and the message shown in the GUI (it is "untouched" before the run)
-private func dryRunReloadConfig(_ toml: String, noGui: Bool = false) async throws -> (URL, ReloadConfigResult, Message?) {
-    let url = FileManager.default.temporaryDirectory.appending(component: "aerospace-reload-config-test-\(UUID().uuidString).toml")
-    try toml.write(to: url, atomically: true, encoding: .utf8)
-    defer { try? FileManager.default.removeItem(at: url) }
-    world.ui.messageModel.message = Message(body: "untouched")
-    defer { world.ui.messageModel.message = nil }
-    let args = ReloadConfigCommand(noGui: noGui, dryRun: true)
-    let result = reloadConfig(args: args, forceConfigUrl: url)
-    return (url, result, world.ui.messageModel.message)
-}
+nonisolated private let unknownFooAndBar = "[ERROR] bar: Unknown top-level key\n\n[ERROR] foo: Unknown top-level key"

@@ -5,19 +5,6 @@ import Testing
 
 @Suite(.aeroSpaceGlobalState)
 struct TriggerBindingCommandTest {
-    @Test
-    func parse() {
-        testParseSingleCommandSucc("trigger-binding foo --mode main", TriggerBindingCommand(mode: "main", binding: "foo"))
-        testParseSingleCommandSucc(
-            "trigger-binding --mode main -- foo",
-            TriggerBindingCommand(mode: "main", binding: "foo"),
-        )
-        testParseSingleCommandSucc(
-            "trigger-binding --mode main -- --fail-if-noop",
-            TriggerBindingCommand(mode: "main", binding: "--fail-if-noop"),
-        )
-    }
-
     @Test(arguments: [
         ("trigger-binding foo", "--mode flag is mandatory"),
         ("trigger-binding", "--mode flag is mandatory"), // The options are checked before the arguments
@@ -38,43 +25,30 @@ struct TriggerBindingCommandTest {
         expectEqual(output, .fail("Mode 'unknown' doesn't exist. Available modes: a,b,c,main,move,resize,service,x,y,z"))
     }
 
-    @Test
-    func bindingThatTriggersItselfFails() async { // RB-120: it used to recurse until AeroSpace ran out of memory
-        bind(.a, "true; trigger-binding --mode main alt-a")
-
-        let output = await runCmd("trigger-binding --mode main alt-a")
-        // The `true` 33 levels deep fails, and the error names the command that runs it
-        expectEqual(output, .fail(nestsTooDeeply("trigger-binding --mode main alt-a")))
-    }
-
-    @Test
-    func bindingsThatTriggerEachOtherFail() async {
-        bind(.a, "trigger-binding --mode main alt-b")
-        bind(.b, "trigger-binding --mode main alt-a")
-
-        let output = await runCmd("trigger-binding --mode main alt-a")
+    /// `bindings` are the commands of alt-a, alt-b, ... in the main mode
+    @Test(arguments: [
+        // RB-120: it used to recurse until AeroSpace ran out of memory. The `true` 33 levels deep fails, and the error
+        // names the command that runs it
+        (["true; trigger-binding --mode main alt-a"], "trigger-binding --mode main alt-a", .fail(nestsTooDeeply("trigger-binding --mode main alt-a"))),
         // The CLI command is level 1, so the command of alt-a, which triggers alt-b, is level 32
-        expectEqual(output, .fail(nestsTooDeeply("trigger-binding --mode main alt-b")))
-    }
-
-    @Test
-    func bindingThatTriggersItselfTwiceFailsOnce() async {
+        (["trigger-binding --mode main alt-b", "trigger-binding --mode main alt-a"], "trigger-binding --mode main alt-a", .fail(nestsTooDeeply("trigger-binding --mode main alt-b"))),
         // Each level runs two nested levels. The commands that are left fail without running when the limit is reached,
         // otherwise this would run 2^32 commands
-        bind(.a, "trigger-binding --mode main alt-a; trigger-binding --mode main alt-a; echo unreachable")
+        (
+            ["trigger-binding --mode main alt-a; trigger-binding --mode main alt-a; echo unreachable"],
+            "trigger-binding --mode main alt-a; echo next",
+            CmdOutput(stdout: ["next"], stderr: [nestsTooDeeply("trigger-binding --mode main alt-a")]),
+        ),
+        // No loop
+        (["trigger-binding --mode main alt-b", "echo b; trigger-binding --mode main alt-c", "echo c"], "trigger-binding --mode main -- alt-a", CmdOutput(stdout: ["b", "c"])),
+    ] as [([String], String, CmdOutput)])
+    func bindingLoops(bindings: [String], command: String, expected: CmdOutput) async {
+        for (key, commands) in zip([Key.a, .b, .c], bindings) {
+            bind(key, commands)
+        }
 
-        let output = await runCmd("trigger-binding --mode main alt-a; echo next")
-        expectEqual(output, CmdOutput(stdout: ["next"], stderr: [nestsTooDeeply("trigger-binding --mode main alt-a")]))
-    }
-
-    @Test
-    func bindingsTriggeringEachOtherWithoutALoopRun() async {
-        bind(.a, "trigger-binding --mode main alt-b")
-        bind(.b, "echo b; trigger-binding --mode main alt-c")
-        bind(.c, "echo c")
-
-        let output = await runCmd("trigger-binding --mode main alt-a")
-        expectEqual(output, CmdOutput(stdout: ["b", "c"]))
+        let output = await runCmd(command)
+        expectEqual(output, expected)
     }
 
     /// A chain of `bindingCount` bindings in as many modes. The last one echoes

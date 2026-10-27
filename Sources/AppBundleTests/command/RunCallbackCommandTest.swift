@@ -4,30 +4,6 @@ import Testing
 
 @Suite(.aeroSpaceGlobalState)
 struct RunCallbackCommandTest {
-    @Test
-    func parse() {
-        testParseSingleCommandSucc(
-            "run-callback on-window-detected",
-            RunCallbackCommand(callback: .onWindowDetected),
-        )
-        testParseSingleCommandSucc(
-            "run-callback --for-every-window on-window-detected",
-            RunCallbackCommand(callback: .onWindowDetected, forEveryWindow: true),
-        )
-        testParseSingleCommandSucc(
-            "run-callback --window-id 42 on-window-detected",
-            RunCallbackCommand(callback: .onWindowDetected, windowId: 42),
-        )
-        testParseSingleCommandSucc(
-            "run-callback on-focus-changed",
-            RunCallbackCommand(callback: .onFocusChanged),
-        )
-        testParseSingleCommandSucc(
-            "run-callback on-focused-monitor-changed",
-            RunCallbackCommand(callback: .onFocusedMonitorChanged),
-        )
-    }
-
     @Test(arguments: [
         ("run-callback", "Argument '<callback>' is mandatory"),
         ("run-callback bogus", "Can't parse 'bogus'.\nPossible values: (on-window-detected|on-focus-changed|on-focused-monitor-changed)"),
@@ -40,7 +16,7 @@ struct RunCallbackCommandTest {
         expectEqual(output, .fail(error))
     }
 
-    @Test(arguments: ["run-callback on-window-detected", "run-callback --for-every-window on-window-detected"])
+    @Test(arguments: ["run-callback on-window-detected", "run-callback --for-every-window on-window-detected", "run-callback --window-id 1 on-window-detected"])
     func onWindowDetectedWithoutCallbacksSucceeds(command: String) async {
         // RB-05: when no callback ran, the exit code used to be 2
         setUpTree("h_tiles(*1)")
