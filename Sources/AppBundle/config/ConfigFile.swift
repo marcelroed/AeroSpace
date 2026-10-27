@@ -6,8 +6,9 @@ import ServiceManagement
 let configDotfileName = ".aerospace.toml"
 
 var defaultConfigUrl: URL {
-    // The project's copy is useful for debug builds that are not app bundles
-    (isUnitTest ? nil : Bundle.main.url(forResource: "default-config", withExtension: "toml")) ?? getDefaultConfigUrlFromProject()
+    // The project's copy is for the debug builds that are not app bundles, and for the tests: the test runner's bundle has
+    // no default config
+    Bundle.main.url(forResource: "default-config", withExtension: "toml") ?? getDefaultConfigUrlFromProject()
 }
 
 private func getDefaultConfigUrlFromProject() -> URL {

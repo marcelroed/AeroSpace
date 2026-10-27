@@ -171,10 +171,6 @@ public func check(
     }
 }
 
-// The test target defines this class (AppBundleTests/SwiftTestingSupport.swift).
-// Computed once: code under test runs only after the test bundle, and so the class, is loaded
-public let isUnitTest: Bool = NSClassFromString("AeroSpaceUnitTestMarker") != nil
-
 extension CaseIterable where Self: RawRepresentable, RawValue == String {
     public static var cliArgsCases: [String] { allCases.map(\.rawValue) }
     public static var unionLiteral: String { cliArgsCases.joinedCliArgs }

@@ -119,10 +119,10 @@ nonisolated enum Ax {
 
 nonisolated let kAXAeroSynthetic = "Aero.synthetic"
 
-// `as! AXUIElement` doesn't check anything at runtime (it's a CoreFoundation type). Check the type ID instead
+// `as! AXUIElement` doesn't check anything at runtime (it's a CoreFoundation type). Check the type ID instead. The dumps of
+// the tests give their nested elements without this getter
 nonisolated private func castToAxUiElementMock(_ a: AnyObject) -> (any AxUiElementMock)? {
-    if isUnitTest { return axUiElementMockFromTestDump(a) }
-    return CFGetTypeID(a) == AXUIElementGetTypeID() ? (a as! AXUIElement) : nil
+    CFGetTypeID(a) == AXUIElementGetTypeID() ? (a as! AXUIElement) : nil
 }
 
 typealias WindowIdAndAxUiElement = (windowId: UInt32, ax: AXUIElement)

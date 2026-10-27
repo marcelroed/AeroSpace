@@ -1,10 +1,8 @@
 import AppKit
 import Common
 
-let testEnv: [String: String] = ["PATH": "AEROSPACE_TEST_PATH", "AEROSPACE_INHERITED_TEST_ENV": "inherited"]
-private var env: [String: String] {
-    isUnitTest ? testEnv : ProcessInfo.processInfo.environment
-}
+/// What the `exec` commands inherit: AeroSpace's environment, in the tests too
+private var env: [String: String] { ProcessInfo.processInfo.environment }
 
 private let defaultOverriddenEnvVars: [String: String] = ["PATH": "/opt/homebrew/bin:/opt/homebrew/sbin:\(env["PATH"] ?? "")"]
 

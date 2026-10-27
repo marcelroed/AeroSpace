@@ -1,11 +1,14 @@
 import AppKit
 import Common
 import Foundation
+import Synchronization
 
 /// Called from `AeroSpaceApp.init`, before SwiftUI builds the scenes. Returns the models that the scenes show
 public func initAppBundle() -> Ui {
+    // First: `--help`, `--version` and bad args exit here, and the menu bar model (`world.ui`) reads `--config-path`
+    let args = parseServerArgs(Array(CommandLine.arguments.dropFirst()))
+    parsedServerArgs.withLock { $0 = args }
     installTerminationHandler(AppServerTerminationHandler(platform: world.platform))
-    _ = serverArgs // `--help`, `--version` and bad args exit here. The menu bar model reads `--config-path`
     Task.startUnstructured {
         await waitForAccessibilityPermission_nonCancellable()
         if isDebug {
@@ -74,8 +77,10 @@ nonisolated private let serverHelp = """
                               Useful if you want to use only debug-windows or other query commands.
     """
 
-/// The server's command line args. Parsed at the start of `initAppBundle`. Tests don't pass any
-nonisolated let serverArgs: ServerArgs = isUnitTest ? ServerArgs() : parseServerArgs(Array(CommandLine.arguments.dropFirst()))
+/// The server's command line args, parsed at the start of ``initAppBundle()``. The tests don't call it: they run with the
+/// defaults. Any thread reads them (the AX writes check `isReadOnly`)
+nonisolated var serverArgs: ServerArgs { parsedServerArgs.withLock { $0 } }
+nonisolated private let parsedServerArgs: Mutex<ServerArgs> = Mutex(ServerArgs())
 
 nonisolated private func parseServerArgs(_ args: [String]) -> ServerArgs {
     var result = ServerArgs()

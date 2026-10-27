@@ -26,15 +26,6 @@ struct SwiftTestingSupportSecondSuiteTest {
     }
 }
 
-// No global state trait (it checks isUnitTest itself)
-@Suite
-struct IsUnitTestTest {
-    @Test
-    func testIsUnitTest() {
-        #expect(isUnitTest)
-    }
-}
-
 private func assertGlobalStateIsIsolated(_ workspaceName: String) async throws {
     expectEqual(focus.workspace.name, "setUpWorkspacesForTests")
     #expect(Workspace.get(byName: workspaceName).focusWorkspace())

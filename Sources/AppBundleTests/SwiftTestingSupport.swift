@@ -22,10 +22,7 @@ nonisolated struct AeroSpaceGlobalStateTrait: SuiteTrait, TestTrait, TestScoping
         }
         await globalStateLock.lock()
         defer { globalStateLock.unlock() }
-        await MainActor.run {
-            check(isUnitTest, "isUnitTest must be true, otherwise the tests talk to the real macOS windows and monitors")
-            setUpWorkspacesForTests()
-        }
+        await MainActor.run { setUpWorkspacesForTests() }
         try await GlobalStateLock.$isHeldByCurrentTask.withValue(true) {
             try await function()
         }
@@ -51,11 +48,6 @@ extension Trait where Self == AeroSpaceGlobalStateTrait {
     /// Run every test case of the suite exclusively, with the global state reset. See ``AeroSpaceGlobalStateTrait``
     static var aeroSpaceGlobalState: Self { Self() }
 }
-
-/// `isUnitTest` looks this class up by name: its presence marks the test process
-// periphery:ignore - only referenced by its Objective-C name
-@objc(AeroSpaceUnitTestMarker)
-final class AeroSpaceUnitTestMarker: NSObject {}
 
 nonisolated private let globalStateLock = GlobalStateLock()
 

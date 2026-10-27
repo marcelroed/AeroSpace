@@ -90,12 +90,16 @@ extension OrderedJson.JsonDict: AxUiElementMock {
         guard let value = self[attr.key] else {
             return isSynthetic ? recordIssue("\(self) doesn't contain \(attr.key)") : nil
         }
-        if let value = value.rawValue {
-            return attr.getter(value as AnyObject)
-                ?? recordIssue("Value \(value) (of type \(Swift.type(of: value))) isn't convertible to \(attr.key)")
-        } else {
-            return nil
+        guard let value = value.rawValue else { return nil }
+        // A nested element. AX gives the attribute's getter an AXUIElement, a dump gives a dictionary or a string
+        if let element = axUiElementMockFromTestDump(value as AnyObject) {
+            if let element = element as? Attr.T { return element } // Ax.closeButtonAttr and the like
+            if Attr.T.self == WindowIdAndAxUiElementMock.self { // Ax.focusedWindowAttr
+                return element.containingWindowId().map { (windowId: $0, ax: element) } as? Attr.T
+            }
         }
+        return attr.getter(value as AnyObject)
+            ?? recordIssue("Value \(value) (of type \(Swift.type(of: value))) isn't convertible to \(attr.key)")
     }
 
     private var isSynthetic: Bool { self[kAXAeroSynthetic] != nil }
@@ -121,4 +125,20 @@ nonisolated extension URL {
     var isDirectory: Bool {
         (try? resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
     }
+}
+
+/// AX elements in JSON dumps: either dictionaries or "AXUIElement(AxWindowId=…" strings. nil for any other value (a
+/// malformed dump), so that the test of that dump fails instead of the whole test run
+nonisolated func axUiElementMockFromTestDump(_ a: AnyObject) -> (any AxUiElementMock)? {
+    if let str = a as? String, let commaIndex = str.firstIndex(of: ",") {
+        let windowId = UInt32.init(String(str.prefix(upTo: commaIndex)).removePrefix("AXUIElement(AxWindowId="))
+        if let windowId {
+            let dict: OrderedJson.JsonDict = ["Aero.axWindowId": .int(windowId), kAXAeroSynthetic: .bool(true)]
+            return axUiElementMockFromTestDump(dict as AnyObject)
+        }
+    }
+    if let dict = a as? OrderedJson.JsonDict { // Unbox from __SwiftValue
+        return dict
+    }
+    return nil
 }

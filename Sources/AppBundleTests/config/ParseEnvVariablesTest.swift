@@ -1,5 +1,6 @@
 @testable import AppBundle
 import Common
+import Foundation
 import Testing
 
 @Suite
@@ -44,7 +45,7 @@ struct ParseEnvVariablesTest {
 
         let result2 = parseConfig("exec.inherit-env-vars = true")
         expectEqual(result2.errors, [])
-        expectEqual(result2.config.execConfig.envVariables, testEnv)
+        expectEqual(result2.config.execConfig.envVariables, ProcessInfo.processInfo.environment)
     }
 
     @Test
@@ -56,7 +57,7 @@ struct ParseEnvVariablesTest {
             """,
         )
         expectEqual(result.errors, [])
-        expectEqual(result.config.execConfig.envVariables, testEnv + ["FOO": "BAR"])
+        expectEqual(result.config.execConfig.envVariables, ProcessInfo.processInfo.environment + ["FOO": "BAR"])
     }
 
     @Test
