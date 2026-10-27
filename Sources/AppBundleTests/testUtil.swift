@@ -87,6 +87,15 @@ nonisolated struct CmdOutput: Equatable {
     static func fail(_ stderr: String...) -> CmdOutput { CmdOutput(stderr: stderr, exitCode: 2) }
 }
 
+/// `json` with sorted keys and without whitespace, so that JSON compares by its keys, types and values only
+func compactJson(_ json: String) -> String {
+    let options: JSONSerialization.WritingOptions = [.sortedKeys, .withoutEscapingSlashes, .fragmentsAllowed]
+    guard let value = try? JSONSerialization.jsonObject(with: Data(json.utf8), options: .fragmentsAllowed),
+          let compact = try? JSONSerialization.data(withJSONObject: value, options: options)
+    else { return "Not JSON: \(json)" }
+    return String(decoding: compact, as: UTF8.self)
+}
+
 /// Runs `command` like the server runs a CLI request: `windowIdEnv` and `workspaceEnv` are the client's
 /// AEROSPACE_WINDOW_ID and AEROSPACE_WORKSPACE. A parse error and help come back as output, the way the CLI prints them.
 /// Every command behavior test runs its commands through this function, so that changes to how commands are parsed and

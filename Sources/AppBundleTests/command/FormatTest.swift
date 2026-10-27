@@ -236,12 +236,3 @@ private func windowObj(_ id: WindowId, title: String, for format: [FormatToken])
     fake.windows[id] = FakeWindow(app: testApp, rect: nil, title: title)
     return .window(await .resolveWindow(window, for: format))
 }
-
-/// `json` with sorted keys and without whitespace, so that JSON compares by its keys, types and values only
-func compactJson(_ json: String) -> String {
-    let options: JSONSerialization.WritingOptions = [.sortedKeys, .withoutEscapingSlashes, .fragmentsAllowed]
-    guard let value = try? JSONSerialization.jsonObject(with: Data(json.utf8), options: .fragmentsAllowed),
-          let compact = try? JSONSerialization.data(withJSONObject: value, options: options)
-    else { return "Not JSON: \(json)" }
-    return String(decoding: compact, as: UTF8.self)
-}
