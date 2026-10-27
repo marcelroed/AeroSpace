@@ -15,10 +15,15 @@ private let debugWindowsLimit = 10
 /// `debug-windows` without `--window-id` records the windows that get focused until it runs again
 enum DebugWindowsRecording {
     case off
-    /// The dumps of the focused windows, in focus order
-    case recording(OrderedDictionary<UInt32, String>)
+    case recording(DebugWindowsLog)
     /// More than `debugWindowsLimit` windows got focused
     case aborted
+}
+
+/// The dumps of the windows focused during one recording, in focus order. A class, so that a dump awaited during a
+/// recording goes into that recording's log, and never into a later recording's
+final class DebugWindowsLog {
+    var dumps: OrderedDictionary<UInt32, String> = [:]
 }
 
 struct DebugWindowsCommand: nonisolated Command {
@@ -51,12 +56,12 @@ struct DebugWindowsCommand: nonisolated Command {
         switch world.debugWindows {
             case .recording(let log):
                 world.debugWindows = .off
-                cx.out(log.values.joined(separator: "\n\n"))
+                cx.out(log.dumps.values.joined(separator: "\n\n"))
                 cx.out("\n" + disclaimer + "\n")
                 cx.out("Debug session finished" + "\n")
             case .off:
                 let target = try cx.target()
-                world.debugWindows = .recording([:])
+                world.debugWindows = .recording(DebugWindowsLog())
                 cx.out(
                     """
                     Debug windows session has started
@@ -123,16 +128,18 @@ private func dumpWindowDebugInfo(_ window: Window, _ cm: CancellationMode) async
 }
 
 func debugWindowsIfRecording(_ window: Window, _ cm: CancellationMode) async throws {
-    guard case .recording(let log) = world.debugWindows, !log.keys.contains(window.windowId) else { return }
-    if log.count >= debugWindowsLimit {
+    try await recordDebugWindow(window.windowId) { try await dumpWindowDebugInfo(window, cm) }
+}
+
+/// Adds the window's dump to the running recording, unless the recording has it already
+func recordDebugWindow(_ windowId: UInt32, dump: () async throws -> String) async rethrows {
+    guard case .recording(let log) = world.debugWindows, !log.dumps.keys.contains(windowId) else { return }
+    if log.dumps.count >= debugWindowsLimit {
         world.debugWindows = .aborted
         return
     }
-    let dump = try await dumpWindowDebugInfo(window, cm)
-    if case .recording(var log) = world.debugWindows { // The recording may have finished meanwhile
-        log[window.windowId] = dump
-        world.debugWindows = .recording(log)
-    }
+    // If the recording finishes during the await, the dump goes into its log, which nobody reads anymore
+    log.dumps[windowId] = try await dump()
 }
 
 struct MoveMouseCommand: nonisolated Command {
