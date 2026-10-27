@@ -3,7 +3,7 @@ import Common
 
 /// The model: the workspaces and their trees, the global containers, the monitors and their workspaces, the focus, the
 /// closed-windows cache, the loaded config and active mode, and the window manager's pending state. Tests start each
-/// case from a fresh one: ``reset()``.
+/// case from a fresh one: ``reset(platform:)``.
 ///
 /// A class while the nodes are classes: a copy wouldn't copy the trees. Each property is a separate access, so writing one
 /// property doesn't conflict with reading another
@@ -94,7 +94,7 @@ final class World {
     }
 }
 
-/// A constant: a `var` would cost a dynamic exclusivity check on every access. Tests use ``World/reset()``
+/// A constant: a `var` would cost a dynamic exclusivity check on every access. Tests use ``World/reset(platform:)``
 let world: World = World()
 
 var config: Config { world.config }

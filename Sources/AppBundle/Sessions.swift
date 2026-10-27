@@ -150,9 +150,9 @@ final class Sessions {
     }
 
     func onLeftMouseUp() async throws {
-        // todo reduce number of refreshSession in the callback
-        //  resetManipulatedWithMouseIfPossible might call its own refreshSession
-        //  The end of the callback calls refreshSession
+        // todo reduce number of sessions in the callback
+        //  resetManipulatedWithMouseIfPossible might schedule its own heavy refresh
+        //  The end of the callback runs a light session or schedules a heavy refresh
         guard let token: RunSessionGuard = .isServerEnabled else { return }
         try await resetManipulatedWithMouseIfPossible()
         let mouseLocation = world.platform.mouseLocation

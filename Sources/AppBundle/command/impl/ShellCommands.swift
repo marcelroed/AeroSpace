@@ -284,7 +284,7 @@ struct TriggerBindingCommand: nonisolated Command {
         guard let match = modeBindings.values.first(where: { $0.descriptionWithKeyNotation == binding }) else {
             throw "Binding '\(binding)' is not presented in mode '\(mode)'"
         }
-        // refreshSession is not needed since commands are already run in refreshSession
+        // No session is needed: the commands already run in one
         try CmdFail.passThrough(await match.commands.run(cx.env, cx.io))
     }
 }

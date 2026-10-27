@@ -65,7 +65,7 @@ struct FocusStore {
     }
     private(set) var prevWorkspaceDate: Date = .distantPast
     fileprivate var isRunningOnFocusChangedCallbacks = false
-    /// See ``syncFocusFromMacOs()``
+    /// See ``syncFocusFromMacOs(_:)``
     var lastKnownNativeFocusedWindowId: WindowId? = nil
 }
 
