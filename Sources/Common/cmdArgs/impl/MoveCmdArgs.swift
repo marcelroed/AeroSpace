@@ -19,11 +19,6 @@ public struct MoveCmdArgs: CmdArgs {
     public var failIfFullscreen: Bool = false
     public var failIfMacosNativeFullscreen: Bool = false
 
-    public enum Boundaries: String, CaseIterable, Equatable, Sendable {
-        case workspace
-        case allMonitorsOuterFrame = "all-monitors-outer-frame"
-    }
-
     public enum WhenBoundariesCrossed: String, CaseIterable, Equatable, Sendable {
         case stop = "stop"
         case fail = "fail"
