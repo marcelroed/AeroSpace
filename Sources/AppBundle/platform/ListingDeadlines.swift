@@ -42,15 +42,15 @@ final class ListingDeadlines {
                 listing = Task.startUnstructured { [self] in
                     let answer: T?? = try? await list() // nil: cancelled
                     if case .some(.some) = answer { answerTimes[pid] = start.duration(to: .now) }
-                    if race.resolve(answer.map { .answer($0) } ?? .cancelled) { return }
-                    // Late: the refresh went on without the app
-                    if lateApps.remove(pid) != nil, case .some(.some) = answer {
-                        world.sessions.scheduleHeavy(.lateListing)
-                    }
+                    // Late: the refresh went on without the app. Only a late listing clears the mark: the listing of a
+                    // refresh that was cancelled before the deadline didn't set it, a newer listing did (R2c L1)
+                    guard case .deadline? = race.resolve(answer.map { .answer($0) } ?? .cancelled) else { return }
+                    lateApps.remove(pid)
+                    if case .some(.some) = answer { world.sessions.scheduleHeavy(.lateListing) }
                 }
                 timer = Task.startUnstructured { [self] in
                     try? await Task.sleep(for: deadline)
-                    if race.resolve(.deadline) { lateApps.insert(pid) }
+                    if race.resolve(.deadline) == nil { lateApps.insert(pid) }
                 }
             }
         } onCancel: {
@@ -84,16 +84,16 @@ nonisolated private final class ListingRace<T: Sendable>: Sendable {
         if let early { continuation.resume(returning: early) }
     }
 
-    /// false if the race is over already
+    /// nil if this call resolved the race, else the outcome that did
     @discardableResult
-    func resolve(_ outcome: ListingOutcome<T>) -> Bool {
-        let (isFirst, continuation): (Bool, Continuation?) = state.withLock { state in
-            if state.outcome != nil { return (false, nil) }
+    func resolve(_ outcome: ListingOutcome<T>) -> ListingOutcome<T>? {
+        let (earlier, continuation): (ListingOutcome<T>?, Continuation?) = state.withLock { state in
+            if let earlier = state.outcome { return (earlier, nil) }
             state.outcome = outcome
             defer { state.continuation = nil }
-            return (true, state.continuation)
+            return (nil, state.continuation)
         }
         continuation?.resume(returning: outcome)
-        return isFirst
+        return earlier
     }
 }
