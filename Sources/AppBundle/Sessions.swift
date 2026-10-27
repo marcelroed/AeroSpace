@@ -17,12 +17,12 @@ import Common
 /// | Heavy refresh                 | `heavy`, a ``LatestTaskSlot``                         | A newer heavy refresh, a light session |
 /// | Light session                 | Runs at once in its caller's task, cancels `heavy`    | — (but see the next row)              |
 /// | ffm, mouse move, mouse resize | One ``LatestTaskSlot`` per kind around a light session | A newer event of the same kind       |
-/// | AX read of a heavy refresh    | A `.cancellable` job on the app's AX thread           | Cancellation of the heavy refresh     |
-/// | AX read of a command          | A `.nonCancellable` job on the app's AX thread        | —                                     |
-/// | Frame write                   | One job per window (`MacApp.setFrameJobs`)            | A newer frame write or close of it    |
-/// | Native focus                  | One global job (`MacApp.focusJob`)                    | A newer native focus                  |
-/// | App registration              | One pending registration per pid (`MacApp.wipPids`)   | —                                     |
-/// | Order within an app           | FIFO on its AX thread: the visible workspaces' frames, then hiding in corners, then focus | — |
+/// | AX read of a heavy refresh    | `AxApp.call` (`.cancellable`): abandonable            | Cancellation of the heavy refresh: it returns at once |
+/// | AX read of a command          | `AxApp.run` (`.nonCancellable`): awaited              | —                                     |
+/// | Frame write                   | `AxApp.postWindowWrite`: a generation per window      | A newer frame write, attribute write or close of it |
+/// | Native focus (slow path)      | A post with a global generation (`MacApp.nativeFocusGeneration`) | A newer native focus       |
+/// | App registration              | One pending task per pid (`MacApp.pendingRegistrations`); a failed one backs off 1–60 s | — |
+/// | Order within an app           | FIFO on its actor's thread (posts and awaited calls share one queue): the visible workspaces' frames, then hiding in corners, then focus | — |
 ///
 /// A cancelled heavy refresh stops at its next cancellation check: a `.cancellable` AX read or a layout step. Nothing is
 /// queued for retry: the tree is the desired state, and every heavy refresh lays out every window again.
@@ -241,36 +241,4 @@ nonisolated enum AxEvent: Sendable, Equatable {
     case moved(windowId: UInt32?)
     /// kAXResizedNotification, observed on a window. Same as `moved`
     case resized(windowId: UInt32?)
-}
-
-// The AX observer callbacks that MacApp subscribes. They run on the app's AX thread
-nonisolated func refreshObs(_: AXObserver, _ element: AXUIElement, _ notif: CFString, _: UnsafeMutableRawPointer?) {
-    sendAxEvent(element, notif)
-}
-
-nonisolated func movedObs(_: AXObserver, _ element: AXUIElement, _ notif: CFString, _: UnsafeMutableRawPointer?) {
-    sendAxEvent(element, notif)
-}
-
-nonisolated func resizedObs(_: AXObserver, _ element: AXUIElement, _ notif: CFString, _: UnsafeMutableRawPointer?) {
-    sendAxEvent(element, notif)
-}
-
-nonisolated private func sendAxEvent(_ element: AXUIElement, _ notif: CFString) {
-    let event: AxEvent
-    switch notif as String {
-        case kAXWindowCreatedNotification: event = .windowCreated
-        case kAXFocusedWindowChangedNotification: event = .focusedWindowChanged
-        case kAXUIElementDestroyedNotification: event = .destroyed
-        case kAXWindowMiniaturizedNotification: event = .miniaturized
-        case kAXWindowDeminiaturizedNotification: event = .deminiaturized
-        case kAXMovedNotification: event = .moved(windowId: element.containingWindowId())
-        case kAXResizedNotification: event = .resized(windowId: element.containingWindowId())
-        default: return
-    }
-    var pid: pid_t = 0
-    _ = unsafe AXUIElementGetPid(element, &pid)
-    Task.startUnstructured { @MainActor in
-        await world.sessions.onAxEvent(pid: pid, event)
-    }
 }

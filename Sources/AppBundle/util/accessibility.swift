@@ -143,7 +143,7 @@ nonisolated private func axWindowOrNil(_ any: Any) -> WindowIdAndAxUiElement? {
 
 nonisolated extension AXUIElement: AxUiElementMock {
     func get<Attr: ReadableAttr>(_ attr: Attr) -> Attr.T? {
-        let state = signposter.beginInterval(#function, "attr: \(attr.key) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug ?? "nil")")
+        let state = signposter.beginInterval(#function, "attr: \(attr.key)")
         defer { signposter.endInterval(#function, state) }
         var raw: AnyObject?
         return unsafe AXUIElementCopyAttributeValue(self, attr.key as CFString, &raw) == .success
@@ -153,18 +153,38 @@ nonisolated extension AXUIElement: AxUiElementMock {
 
     @discardableResult func set<Attr: WritableAttr>(_ attr: Attr, _ value: Attr.T) -> Bool {
         if serverArgs.isReadOnly { return false }
-        let state = signposter.beginInterval(#function, "attr: \(attr.key) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug ?? "nil")")
+        let state = signposter.beginInterval(#function, "attr: \(attr.key)")
         defer { signposter.endInterval(#function, state) }
         guard let value = attr.setter(value) else { return false }
         return AXUIElementSetAttributeValue(self, attr.key as CFString, value) == .success
     }
 
     func containingWindowId() -> CGWindowID? {
-        let state = signposter.beginInterval(#function, "axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug ?? "nil")")
+        let state = signposter.beginInterval(#function)
         defer { signposter.endInterval(#function, state) }
         var cgWindowId = CGWindowID()
         return unsafe _AXUIElementGetWindow(self, &cgWindowId) == .success && cgWindowId != kCGNullWindowID
             ? cgWindowId
             : nil
+    }
+}
+
+nonisolated extension AXUIElement {
+    @discardableResult func perform(_ action: String) -> Bool {
+        if serverArgs.isReadOnly { return false }
+        return AXUIElementPerformAction(self, action as CFString) == .success
+    }
+
+    /// One IPC for several attributes. A failed attribute comes back as an AXValue error
+    func getMultiple(_ keys: [String]) -> (AXError, [AnyObject]?) {
+        var raw: CFArray?
+        let error = unsafe AXUIElementCopyMultipleAttributeValues(self, keys as CFArray, [], &raw)
+        return (error, raw as? [AnyObject])
+    }
+}
+
+nonisolated extension NSRunningApplication {
+    func activateForNativeFocus() {
+        activate(options: []) // `.activateIgnoringOtherApps` has no effect since macOS 14
     }
 }

@@ -48,7 +48,6 @@ public func bugPrompt(
         Date: \(Date.now)
         Thread name: \(thread.name.prettyDescription)
         Is main thread: \(thread.isMainThread)
-        axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken.prettyDescription)
         macOS version: \(ProcessInfo.processInfo.operatingSystemVersionString)
         Coordinate: \(file):\(line):\(column) \(function)
         recursionDetectorDuringTermination: \(recursionDetectorDuringTermination)

@@ -167,14 +167,6 @@ struct CommonUtilTest {
         expectEqual(JSONEncoder.aeroSpaceDefault.encodeToString(["b": 1, "a": 2]), "{\n  \"a\" : 2,\n  \"b\" : 1\n}")
         expectEqual(JSONEncoder.aeroSpaceDefault.encodeToString("a/b"), "\"a/b\"")
     }
-
-    @Test
-    func testCompletableFutureBlockingGetTimesOut() {
-        let future = CompletableFuture<Int>()
-        expectEqual(future.blockingGet(deadline: .now() + .milliseconds(10)), nil)
-        future.complete(42)
-        expectEqual(future.blockingGet(deadline: .now() + .seconds(5)), 42)
-    }
 }
 
 nonisolated private class Base {}

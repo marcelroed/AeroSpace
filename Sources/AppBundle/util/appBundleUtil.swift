@@ -23,34 +23,6 @@ func interceptTermination(_ sig: Int32) {
     signalSources.append(source)
 }
 
-struct AppServerTerminationHandler: TerminationHandler {
-    func beforeTermination() {
-        // Make all windows fullscreen before Quit
-        for window in MacWindow.allWindowsMap.values {
-            // makeAllWindowsVisibleAndRestoreSize may be invoked when something went wrong (e.g. some windows are unbound)
-            // that's why it's not allowed to use `.parent` call in here
-            let monitor = window.macApp.getAxRectForTermination(window.windowId)?.center.monitorApproximation ?? mainMonitorInfo
-            let monitorVisibleRect = monitor.visibleRect
-            let windowSize = window.lastFloatingSize ?? CGSize(width: monitorVisibleRect.width, height: monitorVisibleRect.height)
-            let point = CGPoint(
-                x: monitorVisibleRect.topLeftX + (monitorVisibleRect.width - windowSize.width) / 2,
-                y: monitorVisibleRect.topLeftY + (monitorVisibleRect.height - windowSize.height) / 2,
-            )
-            window.macApp.setAxFrameForTermination(window.windowId, point, windowSize)
-        }
-        if isDebug {
-            let semaphore = DispatchSemaphore(value: 0)
-            // Use Task.detached to avoid inheriting @MainActor, and a nonisolated function.
-            // On the main actor, it would cause a deadlock
-            Task.detached {
-                await toggleReleaseServerIfDebug(.on)
-                semaphore.signal()
-            }
-            semaphore.wait()
-        }
-    }
-}
-
 func terminateApp() -> Never {
     NSApplication.shared.terminate(nil)
     die("Unreachable code")
