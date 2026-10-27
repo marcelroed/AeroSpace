@@ -15,6 +15,30 @@ struct WindowDetectedCallback: Equatable {
         return .dict(result)
     }
 
+    func matches(_ window: Window) async -> Bool {
+        switch self.matcher {
+            case .legacy(let matcher):
+                if let startupMatcher = matcher.duringAeroSpaceStartup, startupMatcher != isStartup {
+                    return false
+                }
+                if let regex = matcher.windowTitleRegexSubstring, (try? await window.getTitle(.nonCancellable))?.contains(caseInsensitiveRegex: regex) != true {
+                    return false
+                }
+                if let appId = matcher.appId, appId != window.app.rawAppBundleId {
+                    return false
+                }
+                if let regex = matcher.appNameRegexSubstring, !(window.app.name ?? "").contains(caseInsensitiveRegex: regex) {
+                    return false
+                }
+                if let workspace = matcher.workspace, workspace != window.nodeWorkspace?.name {
+                    return false
+                }
+                return true
+            case .command(let command):
+                return await command.run(.defaultEnv.withWindowId(window.windowId), .emptyStdin).exitCode.rawValue == 0
+        }
+    }
+
     static func == (lhs: WindowDetectedCallback, rhs: WindowDetectedCallback) -> Bool {
         lhs.matcher == rhs.matcher && lhs.checkFurtherCallbacks == rhs.checkFurtherCallbacks && lhs.run.strictEquals(rhs.run)
     }
@@ -50,6 +74,23 @@ enum WindowDetectedCallbackMatcher: Equatable {
             default: false
         }
     }
+}
+
+func onWindowDetected(_ env: CmdEnv, _ io: CmdIo, _ window: Window) async -> Int32ExitCode {
+    broadcastEvent(.windowDetected(
+        windowId: window.windowId,
+        workspace: window.nodeWorkspace?.name,
+        appBundleId: window.app.rawAppBundleId,
+        appName: window.app.name,
+    ))
+    var lastExitCode = Int32ExitCode.succ
+    for callback in config.onWindowDetected where await callback.matches(window) {
+        lastExitCode = await callback.run.run(env.withWindowId(window.windowId), io)
+        if !callback.checkFurtherCallbacks {
+            return lastExitCode
+        }
+    }
+    return lastExitCode
 }
 
 private let callbackFields: [String: Field<WindowDetectedCallback>] = [
