@@ -59,6 +59,26 @@ struct NoScreensTest: AeroSpaceTestSuite {
     }
 
     @Test
+    func disablingWhileThereAreNoScreensFails() async {
+        await $noScreensForTests.withValue(true) {
+            // Disabling lays out the windows of all workspaces, on the fake mainMonitorInfo meanwhile
+            for command in ["enable off", "enable toggle"] {
+                let result = await parseCommand(command).cmdOrDie.run(.defaultEnv, .emptyStdin)
+                #expect(result.exitCode.rawValue != 0, Comment(rawValue: command))
+                #expect(result.stderr == ["Can't disable \(aeroSpaceAppName) while there are no screens"], Comment(rawValue: command))
+                #expect(TrayMenuModel.shared.isEnabled, Comment(rawValue: command))
+            }
+            #expect(activeMode == mainModeId)
+
+            // Enabling still works: the layout does nothing until the screens come back
+            TrayMenuModel.shared.isEnabled = false
+            let result = await parseCommand("enable on").cmdOrDie.run(.defaultEnv, .emptyStdin)
+            #expect(result.exitCode.rawValue == 0)
+            #expect(TrayMenuModel.shared.isEnabled)
+        }
+    }
+
+    @Test
     func windowsOfVisibleWorkspacesCanBeFocusedWhileThereAreNoScreens() {
         let workspace = Workspace.get(byName: name)
         let window1 = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)

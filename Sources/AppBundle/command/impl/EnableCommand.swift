@@ -13,6 +13,9 @@ struct EnableCommand: Command {
                 ? "Already enabled. Tip: use --fail-if-noop to exit with non-zero code"
                 : "Already disabled. Tip: use --fail-if-noop to exit with non-zero code")
         }
+        // No screens (e.g., during display reconfiguration). Disabling unhides the windows of all workspaces and lays
+        // them out on the fake mainMonitorInfo, and nothing lays them out again while AeroSpace is disabled
+        if !newState && !hasScreens { return .fail(io.err("Can't disable \(aeroSpaceAppName) while there are no screens")) }
 
         TrayMenuModel.shared.isEnabled = newState
         if newState {
