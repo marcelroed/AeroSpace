@@ -1,14 +1,6 @@
 import AppKit
 import Common
 
-/// A frame for the platform to apply with ``Placement/frame(_:topLeft:size:)``. Raw: the size may be negative, exactly as the
-/// layout arithmetic produces it
-struct WindowFrame: Equatable {
-    let window: Window
-    let topLeft: CGPoint
-    let size: CGSize
-}
-
 /// The placement batch of P4. Its order is the contract: the visible workspaces' placements, then a park per window of
 /// the invisible workspaces (to reduce flicker). While AeroSpace is disabled, every workspace's placements: every window
 /// unparks
@@ -48,14 +40,13 @@ extension Workspace {
     /// where it was once the app is unhidden
     func layoutPlacements() -> [Placement] {
         if isEffectivelyEmpty { return [] }
-        var placements: [Placement] = layoutTiling().map { .frame($0.window.windowId, topLeft: $0.topLeft, size: $0.size) }
+        var placements = layoutTiling()
         let floatingTarget = FloatingTarget(monitor: workspaceMonitor, monitors: world.monitors.all, isShown: isVisible)
         for window in floatingWindows {
             window.lastAppliedLayoutPhysicalRect = nil
             window.lastAppliedLayoutVirtualRect = nil
             if window.isFullscreen {
-                let frame = window.fullscreenFrame(on: workspaceMonitor)
-                placements.append(.frame(window.windowId, topLeft: frame.topLeft, size: frame.size))
+                placements.append(window.fullscreenFrame(on: workspaceMonitor))
                 window.isFullscreen = false
             } else {
                 placements.append(.floating(window.windowId, floatingTarget))
@@ -68,8 +59,8 @@ extension Workspace {
     }
 
     /// Lays out the tiling tree without AX calls: writes the layout rects and the tiles weights into the tree and returns
-    /// the frames of the tiling windows, depth first. Without a root container there are no tiling windows
-    func layoutTiling() -> [WindowFrame] {
+    /// a ``Placement/frame(_:topLeft:size:)`` per tiling window, depth first. Without a root container there are none
+    func layoutTiling() -> [Placement] {
         let monitor = workspaceMonitor
         let gaps = ResolvedGaps(gaps: config.gaps, monitor: monitor)
         let rect = monitor.visibleRectPadded(by: gaps)
@@ -89,7 +80,7 @@ extension Workspace {
             skippedWindowId: world.mouseManipulatedWindowId,
             fullscreenCandidate: root.mostRecentWindowRecursive,
         )
-        var frames: [WindowFrame] = []
+        var frames: [Placement] = []
         root.layoutTiling(rect.topLeftCorner, width: rect.width, height: height, virtual: rect, params, &frames)
         return frames
     }
@@ -108,7 +99,7 @@ private struct LayoutParams {
 
 extension TreeNode {
     fileprivate func layoutTiling(
-        _ point: CGPoint, width: CGFloat, height: CGFloat, virtual: Rect, _ params: LayoutParams, _ frames: inout [WindowFrame],
+        _ point: CGPoint, width: CGFloat, height: CGFloat, virtual: Rect, _ params: LayoutParams, _ frames: inout [Placement],
     ) {
         let physicalRect = Rect(topLeftX: point.x, topLeftY: point.y, width: width, height: height)
         switch self {
@@ -124,7 +115,7 @@ extension TreeNode {
                         : physicalRect
                     lastAppliedLayoutPhysicalRect = rect
                     window.isFullscreen = false
-                    frames.append(WindowFrame(window: window, topLeft: rect.topLeftCorner, size: rect.size))
+                    frames.append(.frame(window.windowId, topLeft: rect.topLeftCorner, size: rect.size))
                 }
             case let container as TilingContainer:
                 lastAppliedLayoutPhysicalRect = physicalRect
@@ -155,15 +146,15 @@ extension Rect {
 }
 
 extension Window {
-    fileprivate func fullscreenFrame(on monitor: MonitorInfo) -> WindowFrame {
+    fileprivate func fullscreenFrame(on monitor: MonitorInfo) -> Placement {
         let rect = noOuterGapsInFullscreen ? monitor.visibleRect : monitor.visibleRectPaddedByOuterGaps
-        return WindowFrame(window: self, topLeft: rect.topLeftCorner, size: CGSize(width: rect.width, height: rect.height))
+        return .frame(windowId, topLeft: rect.topLeftCorner, size: rect.size)
     }
 }
 
 extension TilingContainer {
     fileprivate func layoutTiles(
-        _ point: CGPoint, width: CGFloat, height: CGFloat, virtual: Rect, _ params: LayoutParams, _ frames: inout [WindowFrame],
+        _ point: CGPoint, width: CGFloat, height: CGFloat, virtual: Rect, _ params: LayoutParams, _ frames: inout [Placement],
     ) {
         var point = point
         var virtualPoint = virtual.topLeftCorner
@@ -202,7 +193,7 @@ extension TilingContainer {
     }
 
     fileprivate func layoutAccordion(
-        _ point: CGPoint, width: CGFloat, height: CGFloat, virtual: Rect, _ params: LayoutParams, _ frames: inout [WindowFrame],
+        _ point: CGPoint, width: CGFloat, height: CGFloat, virtual: Rect, _ params: LayoutParams, _ frames: inout [Placement],
     ) {
         guard let mruIndex = mostRecentChild?.tilingSlot?.index else { return }
         let padding = params.accordionPadding

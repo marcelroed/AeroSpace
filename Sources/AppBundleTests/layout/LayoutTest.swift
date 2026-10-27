@@ -189,9 +189,9 @@ struct LayoutTest {
 
         let frames = workspace.layoutTiling()
 
-        expectEqual(frames.map(\.window.windowId), [1, 2, 3, 4]) // Depth first: the order layoutWorkspace applies them in
-        expectEqual(frames.first, WindowFrame(window: testWindow(1), topLeft: CGPoint(x: 0, y: 0), size: CGSize(width: 640, height: 1079)))
-        expectEqual(frames.last, WindowFrame(window: testWindow(4), topLeft: CGPoint(x: 1280, y: 0), size: CGSize(width: 640, height: 1079)))
+        expectEqual(frames.map(\.windowId), [1, 2, 3, 4]) // Depth first: the order layoutWorkspace applies them in
+        expectEqual(frames.first, Placement.frame(1, topLeft: CGPoint(x: 0, y: 0), size: CGSize(width: 640, height: 1079)))
+        expectEqual(frames.last, Placement.frame(4, topLeft: CGPoint(x: 1280, y: 0), size: CGSize(width: 640, height: 1079)))
         #expect(([1, 2, 3, 4, 5] as [WindowId]).allSatisfy { testWindow($0).setAxFrameHistory.isEmpty })
         expectRects(testWindow(4), physical: rect(1280, 0, 640, 1079), virtual: rect(1280, 0, 640, 1080))
         expectEqual(testWindow(4).hWeight, 640)
