@@ -122,15 +122,56 @@ extension Shell where T == any Command {
     }
 }
 
-/// Runs the command, and turns its failure into stderr and an exit code
+/// Runs the command one level deeper than the command that runs it, and turns its failure into stderr and an exit code
 private func runReportingFailure(_ command: any Command, _ env: CmdEnv, _ io: CmdIo) async -> Int32 {
-    do {
-        try await command.run(CmdContext(env: env, io: io))
-        return EXIT_CODE_ZERO
-    } catch {
-        if let message = error.message { io.stderr.append(message) }
-        return error.exitCode
+    let outer = CommandNesting.current
+    let nesting = CommandNesting(command: command, depth: (outer?.depth ?? 0) + 1, tooDeep: outer?.tooDeep ?? TooDeepFlag())
+    return await CommandNesting.$current.withValue(nesting) {
+        do throws(CmdFail) {
+            try outer?.checkCanRunNestedCommand()
+            try await command.run(CmdContext(env: env, io: io))
+            return EXIT_CODE_ZERO
+        } catch {
+            if let message = error.message { io.stderr.append(message) }
+            return error.exitCode
+        }
     }
+}
+
+/// Generous: configs nest a few levels. A binding or a callback that runs itself would nest without end (RB-120)
+private let maxCommandNestingDepth = 32
+
+/// The running command and how deep it nests. A binding, a callback and `eval` run their commands inside the command
+/// that runs them (`trigger-binding`, `run-callback`, `mode` for on-mode-changed, `eval`), one level deeper. These
+/// commands await the nested ones without an unstructured task in between, so `current` carries over to them
+private struct CommandNesting {
+    /// nil outside of commands
+    @TaskLocal static var current: CommandNesting? = nil
+
+    let command: any Command
+    /// 1 for an outermost command, which no other command runs
+    let depth: Int
+    /// Shared by an outermost command and the commands nested in it
+    let tooDeep: TooDeepFlag
+
+    /// Fails a command that the running command runs, if it nests too deeply
+    func checkCanRunNestedCommand() throws(CmdFail) {
+        if tooDeep.isSet { throw .silent } // The command that nested too deeply has explained
+        if depth < maxCommandNestingDepth { return }
+        tooDeep.isSet = true
+        // Names the command that runs the commands, not the innermost command: in `alt-a = ['focus left',
+        // 'trigger-binding --mode main alt-a']`, that's the trigger-binding
+        throw """
+            Commands nest too deeply (more than \(maxCommandNestingDepth) levels). \
+            A binding or callback probably runs itself: \(command.description)
+            """
+    }
+}
+
+/// Set when a command nests too deeply. Then the other commands nested in the same outermost command fail without
+/// running. Otherwise, a binding that triggers itself twice would run 2^32 commands
+private final class TooDeepFlag {
+    var isSet = false
 }
 
 /// Buffers the entire stdout of `lhs`, joins it with \n and feeds it to `rhs` as stdin. AeroSpace's commands are short and

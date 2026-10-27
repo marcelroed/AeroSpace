@@ -67,4 +67,32 @@ struct RunCallbackCommandTest {
         expectEqual(io.stderr, [])
         expectEqual(exitCode, 1) // `test 1 = 3` of the floating window
     }
+
+    @Test(arguments: RunCallbackCommand.CallbackKind.allCases)
+    func callbackThatRunsItselfFails(callback: RunCallbackCommand.CallbackKind) async { // RB-120
+        setUpTree("h_tiles(*1)")
+        let command = "run-callback \(callback.rawValue)"
+        let shell = parseCommand(command).cmdOrDie
+        switch callback {
+            case .onWindowDetected: world.config.onWindowDetected = [WindowDetectedCallback(run: shell)]
+            case .onFocusChanged: world.config.onFocusChanged = shell
+            case .onFocusedMonitorChanged: world.config.onFocusedMonitorChanged = shell
+        }
+
+        let output = await runCmd(command)
+        expectEqual(output, .fail(nestsTooDeeply(command)))
+    }
+
+    @Test
+    func focusChangeCallbackThatRunsItselfStops() async {
+        setUpTree("h_tiles(*1)")
+        await checkOnFocusChangedCallbacks_nonCancellable() // Remember the focus
+        // The `mode` commands nested in the run-callback fail without running once it nests too deeply. The outermost
+        // one runs. The callback's error goes nowhere, like every error of a callback
+        world.config.onFocusChanged = parseCommand("run-callback on-focus-changed; mode callback-ran").cmdOrDie
+
+        let output = await runCmd("workspace b")
+        expectEqual(output, .ok)
+        expectEqual(world.activeMode, "callback-ran")
+    }
 }
