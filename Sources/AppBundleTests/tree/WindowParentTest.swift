@@ -6,106 +6,87 @@ import Testing
 /// How the tree helpers, commands and callbacks treat a window depending on the kind of its parent
 @MainActor
 @Suite(.aeroSpaceGlobalState)
-struct WindowParentTest: AeroSpaceTestSuite {
+struct WindowParentTest {
     @Test
-    func testIsFloating() {
-        let windows = windowOfEveryParentKind(Workspace.get(byName: name))
-        assertEquals(windows.map(\.isFloating), [false, true, false, false, false, false, false])
+    func isFloating() {
+        let windows = windowOfEveryParentKind()
+        #expect(windows.map(\.isFloating) == [false, true, false, false, false, false, false])
     }
 
     @Test
-    func testNodeWorkspaceAndNodeMonitor() {
-        let workspace = Workspace.get(byName: name)
-        let windows = windowOfEveryParentKind(workspace)
+    func nodeWorkspaceAndNodeMonitor() {
+        let windows = windowOfEveryParentKind()
+        let workspace = focus.workspace
         let workspaceName = workspace.name
-        assertEquals(windows.map { $0.nodeWorkspace?.name }, [workspaceName, workspaceName, workspaceName, workspaceName, nil, nil, nil])
+        #expect(windows.map { $0.nodeWorkspace?.name } == [workspaceName, workspaceName, workspaceName, workspaceName, nil, nil, nil])
         let monitorName = workspace.workspaceMonitor.name
-        assertEquals(windows.map { $0.nodeMonitor?.name }, [monitorName, monitorName, monitorName, monitorName, nil, nil, nil])
-        assertEquals(macosMinimizedWindowsContainer.nodeMonitor?.name, nil)
-        assertEquals(macosPopupWindowsContainer.nodeMonitor?.name, nil)
-        assertEquals(workspace.floatingWindowsContainer.nodeMonitor?.name, monitorName)
+        #expect(windows.map { $0.nodeMonitor?.name } == [monitorName, monitorName, monitorName, monitorName, nil, nil, nil])
+        #expect(macosMinimizedWindowsContainer.nodeMonitor?.name == nil)
+        #expect(macosPopupWindowsContainer.nodeMonitor?.name == nil)
+        #expect(workspace.floatingWindowsContainer.nodeMonitor?.name == monitorName)
     }
 
     @Test
-    func testFocusWindow() {
-        let workspace = Workspace.get(byName: name)
-        let windows = windowOfEveryParentKind(workspace)
-        assertEquals(windows.map { $0.toLiveFocusOrNil()?.workspace.name }, [name, name, name, name, nil, nil, nil])
-        assertEquals(windows.map { $0.focusWindow() }, [true, true, true, true, false, false, false])
-        assertEquals(focus.windowOrNil?.windowId, 4) // The last window that could be focused
+    func focusWindow() {
+        let windows = windowOfEveryParentKind()
+        let name = focus.workspace.name
+        #expect(windows.map { $0.toLiveFocusOrNil()?.workspace.name } == [name, name, name, name, nil, nil, nil])
+        #expect(windows.map { $0.focusWindow() } == [true, true, true, true, false, false, false])
+        #expect(focus.windowOrNil?.windowId == 4) // The last window that could be focused
     }
 
     @Test
-    func testMoveFloatingWindow() async {
-        let workspace = Workspace.get(byName: name)
-        TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
-        assertTrue(TestWindow.new(id: 2, parent: workspace.floatingWindowsContainer).focusWindow())
-        await assertRun("move left", exitCode: 2, stdout: [], stderr: ["moving floating windows isn't yet supported"])
+    func moveFloatingWindow() async {
+        setUpTree("h_tiles(1) floating(*2)")
+        let output = await runCmd("move left")
+        #expect(output == .fail("moving floating windows isn't yet supported"))
+    }
+
+    @Test(arguments: ["macos_fullscreen", "macos_hidden"], [
+        ("move left", .fail("moving macOS fullscreen, minimized windows and windows of hidden apps isn't yet supported. This behavior is subject to change"), "h_tiles(1)"),
+        ("layout tiles", .fail("Can't change layout for macOS minimized, fullscreen windows or windows or hidden apps. This behavior is subject to change"), "h_tiles(1)"),
+        ("layout --root v_accordion", .ok, "v_accordion(1)"), // --root changes the root container instead
+    ] as [(String, CmdOutput, String)])
+    func moveAndLayoutMacosUnconventionalWindow(container: String, step: (command: String, expected: CmdOutput, root: String)) async {
+        setUpTree("h_tiles(1) \(container)(*2)")
+        let output = await runCmd(step.command)
+        #expect(output == step.expected)
+        #expect(describeTree() == "\(step.root) \(container)(*2)")
     }
 
     @Test
-    func testMoveAndLayoutMacosUnconventionalWindows() async {
-        let workspace = Workspace.get(byName: name)
-        TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
-        let fullscreen = TestWindow.new(id: 2, parent: workspace.macOsNativeFullscreenWindowsContainer)
-        let hiddenApp = TestWindow.new(id: 3, parent: workspace.macOsNativeHiddenAppsWindowsContainer)
-        for window in [fullscreen, hiddenApp] {
-            assertTrue(window.focusWindow())
-
-            await assertRun(
-                "move left",
-                exitCode: 2,
-                stdout: [],
-                stderr: ["moving macOS fullscreen, minimized windows and windows of hidden apps isn't yet supported. This behavior is subject to change"],
-            )
-
-            await assertRun(
-                "layout tiles",
-                exitCode: 2,
-                stdout: [],
-                stderr: ["Can't change layout for macOS minimized, fullscreen windows or windows or hidden apps. This behavior is subject to change"],
-            )
-
-            // --root changes the root container instead
-            await assertRun("layout --root v_accordion", exitCode: 0)
-            assertEquals(workspace.rootTilingContainer.layoutDescription, .v_accordion([.window(1)]))
-            workspace.rootTilingContainer.layout = .tiles
-            workspace.rootTilingContainer.changeOrientation(.h)
-        }
-        assertEquals(fullscreen.parent === workspace.macOsNativeFullscreenWindowsContainer, true)
-        assertEquals(hiddenApp.parent === workspace.macOsNativeHiddenAppsWindowsContainer, true)
-    }
-
-    @Test
-    func testLayoutFloatingAndTilingWindows() async {
-        let workspace = Workspace.get(byName: name)
-        TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
-        let floating = TestWindow.new(id: 2, parent: workspace.floatingWindowsContainer)
+    func layoutFloatingAndTilingWindows() async {
+        setUpTree("h_tiles(1) floating(*2)")
+        let floating = testWindow(2)
         floating.lastFloatingSize = CGSize(width: 100, height: 50)
-        assertTrue(floating.focusWindow())
 
         for command in ["layout h_tiles", "layout accordion", "layout vertical"] {
-            await assertRun(command, exitCode: 2, stderr: ["The window is non-tiling"])
+            let output = await runCmd(command)
+            #expect(output == .fail("The window is non-tiling"))
         }
-        await assertRun("layout floating", exitCode: 0, stderr: ["Already in the requested floating mode. Tip: use --fail-if-noop to exit with non-zero code"])
+        var output = await runCmd("layout floating")
+        #expect(output == CmdOutput(stderr: ["Already in the requested floating mode. Tip: use --fail-if-noop to exit with non-zero code"]))
 
-        await assertRun("layout floating tiling", exitCode: 0, stderr: [])
-        assertEquals(workspace.layoutDescription, .workspace([.h_tiles([.window(1), .window(2)]), .floatingWindowsContainer([])]))
-        assertEquals(floating.lastFloatingSize, CGSize(width: 100, height: 50))
+        output = await runCmd("layout floating tiling")
+        #expect(output == .ok)
+        #expect(describeTree() == "h_tiles(1 *2)")
+        #expect(floating.lastFloatingSize == CGSize(width: 100, height: 50))
 
-        await assertRun("layout tiling", exitCode: 0, stderr: ["Already in the requested tiling mode. Tip: use --fail-if-noop to exit with non-zero code"])
-        await assertRun("layout v_accordion", exitCode: 0)
-        assertEquals(workspace.rootTilingContainer.layoutDescription, .v_accordion([.window(1), .window(2)]))
+        output = await runCmd("layout tiling")
+        #expect(output == CmdOutput(stderr: ["Already in the requested tiling mode. Tip: use --fail-if-noop to exit with non-zero code"]))
+        output = await runCmd("layout v_accordion")
+        #expect(output == .ok)
+        #expect(describeTree() == "v_accordion(1 *2)")
 
-        await assertRun("layout tiling floating", exitCode: 0)
-        assertEquals(workspace.layoutDescription, .workspace([.v_accordion([.window(1)]), .floatingWindowsContainer([.window(2)])]))
-        assertEquals(floating.setAxFrameHistory.last, AxFrame(topLeft: nil, size: CGSize(width: 100, height: 50)))
+        output = await runCmd("layout tiling floating")
+        #expect(output == .ok)
+        #expect(describeTree() == "v_accordion(1) floating(*2)")
+        #expect(floating.setAxFrameHistory.last == AxFrame(topLeft: nil, size: CGSize(width: 100, height: 50)))
     }
 
     @Test
-    func testRunOnWindowDetectedSkipsPopupAndUnboundWindows() async {
-        let workspace = Workspace.get(byName: name)
-        assertTrue(workspace.focusWorkspace())
+    func runOnWindowDetectedSkipsPopupAndUnboundWindows() async {
+        let workspace = focus.workspace
         config.onWindowDetected = [
             WindowDetectedCallback(matcher: .command(.empty), run: parseCommand("workspace callback-ran").cmdOrDie),
         ]
@@ -116,35 +97,27 @@ struct WindowParentTest: AeroSpaceTestSuite {
         let unbound = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
         unbound.unbindFromParent()
         await runOnWindowDetected(ifConventional: unbound)
-        assertEquals(global_layoutForNextDetectedWindow, .floating)
-        assertEquals(focus.workspace.name, name)
-        assertEquals(popup.parent === macosPopupWindowsContainer, true)
-        assertNil(unbound.parent)
+        #expect(global_layoutForNextDetectedWindow == .floating)
+        #expect(focus.workspace == workspace)
+        #expect(popup.parent === macosPopupWindowsContainer)
+        #expect(unbound.parent == nil)
 
         let minimized = TestWindow.new(id: 3, parent: macosMinimizedWindowsContainer)
         await runOnWindowDetected(ifConventional: minimized)
-        assertNil(global_layoutForNextDetectedWindow)
+        #expect(global_layoutForNextDetectedWindow == nil)
 
         global_layoutForNextDetectedWindow = .floating
         let tiling = TestWindow.new(id: 4, parent: workspace.rootTilingContainer)
         await runOnWindowDetected(ifConventional: tiling)
-        assertNil(global_layoutForNextDetectedWindow)
-        assertEquals(tiling.isFloating, true)
-        assertEquals(focus.workspace.name, "callback-ran")
+        #expect(global_layoutForNextDetectedWindow == nil)
+        #expect(tiling.isFloating)
+        #expect(focus.workspace.name == "callback-ran")
     }
 
     /// tiling, floating, macOS fullscreen, window of a hidden app, minimized, popup, unbound
-    private func windowOfEveryParentKind(_ workspace: Workspace) -> [Window] {
-        let unbound = TestWindow.new(id: 7, parent: workspace.rootTilingContainer)
-        unbound.unbindFromParent()
-        return [
-            TestWindow.new(id: 1, parent: workspace.rootTilingContainer),
-            TestWindow.new(id: 2, parent: workspace.floatingWindowsContainer),
-            TestWindow.new(id: 3, parent: workspace.macOsNativeFullscreenWindowsContainer),
-            TestWindow.new(id: 4, parent: workspace.macOsNativeHiddenAppsWindowsContainer),
-            TestWindow.new(id: 5, parent: macosMinimizedWindowsContainer),
-            TestWindow.new(id: 6, parent: macosPopupWindowsContainer),
-            unbound,
-        ]
+    private func windowOfEveryParentKind() -> [Window] {
+        setUpTree("h_tiles(1 7) floating(2) macos_fullscreen(3) macos_hidden(4) macos_minimized(5) macos_popup(6)")
+        testWindow(7).unbindFromParent()
+        return (1 ... 7).map(testWindow)
     }
 }
