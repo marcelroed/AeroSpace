@@ -115,16 +115,11 @@ private func dumpWindowDebugInfo(_ window: Window, _ cm: CancellationMode) async
 
 @MainActor
 func debugWindowsIfRecording(_ window: Window, _ cm: CancellationMode) async throws {
-    switch debugWindowsState {
-        case .recording: break
-        case .notRecording, .recordingAborted: return
-    }
+    guard debugWindowsState == .recording else { return }
     if debugWindowsLog.count > debugWindowsLimit {
         debugWindowsState = .recordingAborted
         debugWindowsLog = [:]
     }
-    if debugWindowsLog.keys.contains(window.windowId) {
-        return
-    }
+    if debugWindowsLog.keys.contains(window.windowId) { return }
     debugWindowsLog[window.windowId] = try await dumpWindowDebugInfo(window, cm)
 }
