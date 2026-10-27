@@ -162,10 +162,3 @@ extension AXUIElement: AxUiElementMock {
             : nil
     }
 }
-
-extension AXObserver {
-    static func new(_ pid: pid_t, _ handler: AXObserverCallback) -> AXObserver? {
-        var observer: AXObserver? = nil
-        return unsafe AXObserverCreate(pid, handler, &observer) == .success ? observer : nil
-    }
-}

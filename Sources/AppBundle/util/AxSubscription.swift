@@ -9,19 +9,15 @@ final class AxSubscription {
     private var notifKeys: Set<String> = []
 
     private init(obs: AXObserver, ax: AXUIElement) {
-        axThreadToken.checkEquals(axTaskLocalAppThreadToken)
         self.obs = obs
         self.ax = ax
     }
 
     private func subscribe(_ key: String) -> Bool {
         axThreadToken.checkEquals(axTaskLocalAppThreadToken)
-        if AXObserverAddNotification(obs, ax, key as CFString, nil) == .success {
-            notifKeys.insert(key)
-            return true
-        } else {
-            return false
-        }
+        guard AXObserverAddNotification(obs, ax, key as CFString, nil) == .success else { return false }
+        notifKeys.insert(key)
+        return true
     }
 
     static func bulkSubscribe(
@@ -34,7 +30,8 @@ final class AxSubscription {
         var visitedNotifKeys: Set<String> = []
         for unsafe (handler, notifKeys) in unsafe handlerToNotifKeyMapping {
             try job.checkCancellation()
-            guard let obs = unsafe AXObserver.new(nsApp.processIdentifier, handler) else { return [] }
+            var obs: AXObserver?
+            guard unsafe AXObserverCreate(nsApp.processIdentifier, handler, &obs) == .success, let obs else { return [] }
             let subscription = AxSubscription(obs: obs, ax: ax)
             for key in notifKeys {
                 try job.checkCancellation()
