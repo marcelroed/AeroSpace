@@ -215,6 +215,26 @@ struct AxAppTest {
     }
 
     @Test
+    func theWaitForAnUnparkedTileEndsOnceItLeftItsCornerOrClosed() {
+        let corner = CGPoint(x: 1919, y: 1079)
+        let tile = CGPoint(x: 0, y: 25)
+        // The window server's answers, one per lookup, the last one repeated
+        let rows: [(name: String, shown: [CGPoint?], lookups: Int)] = [
+            ("left its corner", [corner, corner, tile], 3),
+            ("put a bit off its frame by the app", [corner, CGPoint(x: 2, y: 25)], 2),
+            ("closed", [corner, nil], 2),
+        ]
+        for row in rows {
+            var lookups = 0
+            waitUntilOnScreen([UnparkedTile(windowId: 1, shownBefore: corner)]) { _ in
+                defer { lookups += 1 }
+                return row.shown[min(lookups, row.shown.count - 1)]
+            }
+            expectEqual(lookups, row.lookups, "\(row.name)")
+        }
+    }
+
+    @Test
     func aWindowWriteMakesTheEarlierWritesOfTheSameWindowStale() {
         var generations = WindowGenerations()
         let placementOf1 = generations.bump(1)

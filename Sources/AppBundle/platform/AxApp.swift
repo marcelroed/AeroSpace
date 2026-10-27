@@ -221,19 +221,24 @@ actor AxApp {
     /// See ``postPlacements(_:_:)``. The app's animations are off from the job's first write to its end. A shown job ends
     /// once the window server shows the tiles that it unparked
     private func place(_ placements: [Placement], _ generations: [UInt64], _ job: PlacementJob) {
-        var unparkedTiles: [(windowId: UInt32, topLeft: CGPoint)] = []
+        var unparkedTiles: [UnparkedTile] = []
         let beforeFirstWrite: (() -> Void)? = if case .parks(let shownJobs) = job { shownJobs.wait } else { nil }
         let animations = AnimationsOff(element, beforeFirstWrite: beforeFirstWrite)
         for (placement, generation) in zip(placements, generations) {
             let windowId = placement.windowId.raw
-            if let ax = windows[windowId]?.ax {
-                let window = AxPlacementWindow(ax: ax, animations: animations) { @Sendable [self] in
+            if let registered = windows[windowId] {
+                let window = AxPlacementWindow(ax: registered.ax, animations: animations) { @Sendable [self] in
                     self.generations.withLock { $0.isLatest(windowId, generation) } && !isTerminatingNow()
                 }
-                let wasParked = windows[windowId]?.placement.isParked == true
+                // A parked tile: where the window server shows it before the write. Not if it's at its frame already: a
+                // park that turned stale before its write left it there
+                var shownBefore: CGPoint? = nil
+                if case .frame(_, let topLeft, _) = placement, registered.placement.isParked {
+                    shownBefore = windowServerTopLeft(windowId).flatMap { $0.isWithinAPoint(of: topLeft) ? nil : $0 }
+                }
                 windows[windowId]?.placement.apply(placement, to: window)
-                if wasParked, windows[windowId]?.placement.isParked == false, case .frame(_, let topLeft, _) = placement {
-                    unparkedTiles.append((windowId, topLeft))
+                if let shownBefore, window.didWritePosition {
+                    unparkedTiles.append(UnparkedTile(windowId: windowId, shownBefore: shownBefore))
                 }
             }
             self.generations.withLock { $0.finish(windowId, generation) }
@@ -420,16 +425,25 @@ nonisolated private func axRect(_ window: AXUIElement) -> Rect? {
 /// Termination started: the restore job waits behind the app's jobs, so they stop before their next AX call
 nonisolated private func isTerminatingNow() -> Bool { isTerminating.load(ordering: .sequentiallyConsistent) }
 
+/// A tile that a shown job unparked, which the parks wait for (``waitUntilOnScreen(_:windowServerTopLeft:)``)
+nonisolated struct UnparkedTile {
+    let windowId: UInt32
+    /// Where the window server showed the window before the write, usually its corner
+    let shownBefore: CGPoint
+}
+
 /// An app can answer the AX writes of a window before it moves the window on screen: cmux moves it ~25 ms later. The parks
-/// that wait for the job (LivePlatform.apply) would uncover the desktop in between, so the job waits until the window
-/// server shows each tile at its top left corner, at most ``onScreenWaitLimit``
-nonisolated private func waitUntilOnScreen(_ tiles: [(windowId: UInt32, topLeft: CGPoint)]) {
+/// that wait for the shown job (``ShownJobs``) would uncover the desktop in between, so the job waits until the window
+/// server shows each tile it unparked away from where it was, at most ``onScreenWaitLimit``. Away is enough: the app's
+/// animations are off (``AnimationsOff``), so the move is a jump to where the app puts the window, which may be a bit off
+/// the target
+nonisolated func waitUntilOnScreen(_ tiles: [UnparkedTile], windowServerTopLeft: (UInt32) -> CGPoint? = windowServerTopLeft) {
     let deadline: DispatchTime = .now() + onScreenWaitLimit
     var pending = tiles
     while true {
         pending.removeAll { tile in
             guard let shown = windowServerTopLeft(tile.windowId) else { return true } // Closed
-            return abs(shown.x - tile.topLeft.x) < 1 && abs(shown.y - tile.topLeft.y) < 1
+            return shown != tile.shownBefore
         }
         if pending.isEmpty || DispatchTime.now() >= deadline || isTerminatingNow() { return }
         Thread.sleep(forTimeInterval: 0.001)
@@ -447,11 +461,25 @@ nonisolated private func windowServerTopLeft(_ windowId: UInt32) -> CGPoint? {
     return rect.origin
 }
 
+nonisolated extension CGPoint {
+    /// AX and the window server give whole points, and the layout's frames have fractions
+    fileprivate func isWithinAPoint(of other: CGPoint) -> Bool { abs(x - other.x) < 1 && abs(y - other.y) < 1 }
+}
+
 /// A window of the app for ``PlacementState``, on the app's thread
-nonisolated private struct AxPlacementWindow: PlacementWindow {
+nonisolated private final class AxPlacementWindow: PlacementWindow {
     let ax: AXUIElement
     let animations: AnimationsOff
     let isCurrentNow: @Sendable () -> Bool
+    /// Whether the app took the last position write. `setFrame`'s result says only that the write was sent: a window
+    /// that refuses it, an AX timeout and `--read-only` don't move
+    private(set) var didWritePosition = false
+
+    init(ax: AXUIElement, animations: AnimationsOff, isCurrentNow: @escaping @Sendable () -> Bool) {
+        self.ax = ax
+        self.animations = animations
+        self.isCurrentNow = isCurrentNow
+    }
 
     func isCurrent() -> Bool { isCurrentNow() }
     func rect() -> Rect? { axRect(ax) }
@@ -465,7 +493,7 @@ nonisolated private struct AxPlacementWindow: PlacementWindow {
         //                                                        https://github.com/nikitabobko/AeroSpace/issues/335
         if let size { ax.set(Ax.sizeAttr, size) }
         guard isCurrent(), let topLeft else { return false }
-        ax.set(Ax.topLeftCornerAttr, topLeft)
+        didWritePosition = ax.set(Ax.topLeftCornerAttr, topLeft)
         if isCurrent(), let size { ax.set(Ax.sizeAttr, size) }
         return true
     }
