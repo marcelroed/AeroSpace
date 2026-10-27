@@ -1,3 +1,4 @@
+import Common
 import Foundation
 import Synchronization
 
@@ -107,11 +108,4 @@ nonisolated final class AxThreadExecutor: SerialExecutor, @unchecked Sendable {
     func asUnownedSerialExecutor() -> UnownedSerialExecutor {
         unsafe UnownedSerialExecutor(ordinary: self)
     }
-}
-
-/// Kernel id of the calling thread. Cheap, and unlike `Thread.current` usable in async code
-nonisolated private func currentThreadId() -> UInt64 {
-    var id: UInt64 = 0
-    unsafe pthread_threadid_np(nil, &id)
-    return id
 }

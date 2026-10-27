@@ -15,8 +15,13 @@ nonisolated let isTerminating: Atomic<Bool> = Atomic(false)
 nonisolated let axAppsForTermination: Mutex<[pid_t: AxApp]> = Mutex([:])
 
 nonisolated struct AppServerTerminationHandler: TerminationHandler {
-    /// On the dying thread, which can be any thread. It never waits for the main thread
+    /// On the dying thread, which can be any thread, or on main when quitting (the menu, SIGINT, SIGTERM). It never waits
+    /// for the main thread
     func beforeTermination() {
+        // A die already claimed it when it calls this. Quitting claims it here
+        if claimTermination() == .otherThread {
+            parkForever() // Another thread restores the windows and ends the process
+        }
         isTerminating.store(true, ordering: .sequentiallyConsistent)
         if Thread.isMainThread {
             MainActor.assumeIsolated { restoreWindowsOnMainThread() }

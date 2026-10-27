@@ -10,9 +10,42 @@ public let mainModeId = "main"
 @TaskLocal
 public var refreshSessionEvent: RefreshSessionEvent? = nil
 
-/// Set by the first die. A later die (one inside the termination handler, or on another thread meanwhile) doesn't run the
-/// handler again (RB-06, RB-07)
-private let isDying = Mutex(false)
+/// The thread that terminates the process: the first one to die, quit or get SIGINT/SIGTERM. Only it restores the windows
+/// (RB-06, RB-07)
+private let terminatingThreadId: Mutex<UInt64?> = Mutex(nil)
+
+public enum TerminationClaim: Equatable {
+    /// No thread was terminating: the caller is now
+    case first
+    /// The caller was already terminating: a die inside the termination handler, or the handler called from a die
+    case sameThread
+    /// Another thread is terminating: it restores the windows, then ends the process. The caller parks
+    case otherThread
+}
+
+/// The termination handler and every die claim termination for their thread
+public func claimTermination() -> TerminationClaim {
+    let me = currentThreadId()
+    return terminatingThreadId.withLock { owner in
+        if let owner { return owner == me ? .sameThread : .otherThread }
+        owner = me
+        return .first
+    }
+}
+
+/// For a thread that lost ``claimTermination()``: the terminating thread ends the process. That thread waits for an AX
+/// thread at most 2 s and never for main, so a parked thread can't hold it up
+public func parkForever() -> Never {
+    let never = DispatchSemaphore(value: 0)
+    while true { never.wait() }
+}
+
+/// Kernel id of the calling thread. Cheap, and unlike `Thread.current` usable in async code
+public func currentThreadId() -> UInt64 {
+    var id: UInt64 = 0
+    unsafe pthread_threadid_np(nil, &id)
+    return id
+}
 
 public func bugPrompt(
     _ __message: String = "",
@@ -60,18 +93,19 @@ public func dieT<T>(
     function: String = #function,
 ) -> T {
     let message = bugPrompt(__message, isDie: true, file: file, line: line, column: column, function: function)
-    let isFirstDie = isDying.withLock { isDying in
-        defer { isDying = true }
-        return !isDying
-    }
+    let claim = claimTermination()
     if let terminationHandler { // The server, not the CLI or tests
         showMessageInGui(
-            filenameIfConsoleApp: isFirstDie ? "aerospace-runtime-error.txt" : "aerospace-runtime-error-recursion.txt",
+            filenameIfConsoleApp: claim == .first ? "aerospace-runtime-error.txt" : "aerospace-runtime-error-recursion.txt",
             title: "AeroSpace Runtime Error",
             message: message,
         )
-        // On the dying thread, without the main thread: main may be busy or blocked (RB-71)
-        if isFirstDie { terminationHandler.beforeTermination() }
+        switch claim {
+            // On the dying thread, without the main thread: main may be busy or blocked (RB-71)
+            case .first: terminationHandler.beforeTermination()
+            case .sameThread: break // A die inside the termination handler: don't restore again
+            case .otherThread: parkForever() // Let the terminating thread finish its restore and end the process
+        }
     }
     fatalError("\n" + message)
 }
