@@ -36,8 +36,10 @@ final class MacApp: nonisolated AbstractApp { // nonisolated: Hashable compares 
         self.appId = nsApp.bundleIdentifier.flatMap { KnownBundleId.init(rawValue: $0) }
     }
 
+    /// - `isBulkScan`: the refresh's scan of all apps. It skips an app whose registration failed recently (RB-113). A
+    ///   single lookup (the frontmost app) always tries again: a just-launched app's focused window must not read as nil
     @discardableResult
-    static func getOrRegister(_ nsApp: NSRunningApplication, pid: pid_t? = nil) async throws -> MacApp? {
+    static func getOrRegister(_ nsApp: NSRunningApplication, pid: pid_t? = nil, isBulkScan: Bool = false) async throws -> MacApp? {
         let pid = pid ?? nsApp.processIdentifier
         // Look up first (saves a bundleIdentifier XPC): the lock screen and AeroSpace itself are never registered
         if let existing = allAppsMap[pid] { return existing }
@@ -48,15 +50,15 @@ final class MacApp: nonisolated AbstractApp { // nonisolated: Hashable compares 
         if pid == myPid { return nil }
 
         try checkCancellation()
-        guard let registration = pendingRegistrations[pid] ?? startRegistration(nsApp, pid) else { return nil }
+        guard let registration = pendingRegistrations[pid] ?? startRegistration(nsApp, pid, isBulkScan) else { return nil }
         await registration.value // Not abandonable: it waits for the app's subscription
         try checkCancellation()
         return allAppsMap[pid]
     }
 
-    /// nil while a failed registration of the app backs off (RB-113)
-    private static func startRegistration(_ nsApp: NSRunningApplication, _ pid: pid_t) -> Task<Void, Never>? {
-        if let backoff = failedRegistrations[pid], ContinuousClock.now < backoff.retryAt { return nil }
+    /// nil for the bulk scan while a failed registration of the app backs off (RB-113)
+    private static func startRegistration(_ nsApp: NSRunningApplication, _ pid: pid_t, _ isBulkScan: Bool) -> Task<Void, Never>? {
+        if isBulkScan, let backoff = failedRegistrations[pid], ContinuousClock.now < backoff.retryAt { return nil }
         let threadName = "AxAppThread \(nsApp.idForDebug)"
         let registration = Task.startUnstructured { @MainActor in
             let ax = AxApp(pid: pid, threadName: threadName)
@@ -188,7 +190,7 @@ final class MacApp: nonisolated AbstractApp { // nonisolated: Hashable compares 
                 let pid = nsApp.processIdentifier // Free right after activationPolicy, an XPC after a suspension point
                 refreshedPids.insert(pid)
                 group.addTask { @Sendable @MainActor in
-                    guard let app = try await MacApp.getOrRegister(nsApp, pid: pid) else { return (pid, []) }
+                    guard let app = try await MacApp.getOrRegister(nsApp, pid: pid, isBulkScan: true) else { return (pid, []) }
                     return (pid, try await app.refreshAndGetAliveWindowIds(frontmostAppBundleId: frontmostAppBundleId))
                 }
             }
@@ -255,8 +257,8 @@ final class MacApp: nonisolated AbstractApp { // nonisolated: Hashable compares 
     }
 }
 
-/// RB-113: after an app's AX subscription fails, its registration is retried after 1 s, then 2 s, 4 s, … up to 60 s,
-/// instead of on every refresh. Launching, activating or terminating the app forgets the failures
+/// RB-113: after an app's AX subscription fails, the refresh's bulk scan retries its registration after 1 s, then 2 s,
+/// 4 s, … up to 60 s, instead of on every refresh. Launching, activating or terminating the app forgets the failures
 nonisolated struct RegistrationBackoff: Equatable {
     let delay: Duration
     let retryAt: ContinuousClock.Instant
