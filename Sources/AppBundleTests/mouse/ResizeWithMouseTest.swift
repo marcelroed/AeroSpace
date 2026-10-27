@@ -39,6 +39,37 @@ struct ResizeWithMouseTest {
         try await releaseTheMouse()
         expectEqual(testWindow(1).rect, rect(960, 0, 960, 1079))
     }
+
+    /// A tile dragged onto another monitor goes into the workspace there: next to the tile under the mouse, on the mouse's
+    /// side of its center, or into the root of an empty workspace. The mouse up lays it out there
+    @Test(arguments: [
+        ("h_tiles(3 4)", 3500, "h_tiles(3 4 1)", rect(3200, 0, 640, 1079)),
+        ("h_tiles(3 4)", 3000, "h_tiles(3 1 4)", rect(2560, 0, 640, 1079)),
+        ("", 3000, "h_tiles(1)", rect(1920, 0, 1920, 1079)),
+    ] as [(String, CGFloat, String, Rect)])
+    func draggingATileOntoAnotherMonitorMovesItThere(
+        rightBefore: String,
+        mouseX: CGFloat,
+        rightAfter: String,
+        frame: Rect,
+    ) async throws {
+        fake.monitorInfos = [testMonitor, rightTestMonitor]
+        updateMonitors()
+        let right = Workspace.get(byName: "right")
+        #expect(rightTestMonitor.setActiveWorkspace(right))
+        setUpTree(rightBefore, workspace: right.name)
+        let left = setUpTree("h_tiles(*1 2)")
+        fake.focused = 1
+        await Reconcile.heavy(.ax("test"))
+        fake.mouseLocation = CGPoint(x: mouseX, y: 500)
+
+        await drag(1, to: rect(mouseX - 480, 0, 960, 1079), .moved(windowId: 1))
+        expectEqual(describeTree(left.name), "h_tiles(*2)")
+        expectEqual(describeTree(right.name), rightAfter)
+
+        try await releaseTheMouse()
+        expectEqual(testWindow(1).rect, frame)
+    }
 }
 
 /// h_tiles(*1 2) on the 1920x1080 test monitor, laid out
