@@ -16,8 +16,10 @@ private final class FocusFollowsMouseMonitor {
             world.sessions.cancelFocusFollowsMouse()
             return
         }
+        checkIsAeroSpaceApp("focus-follows-mouse's global mouse monitor")
         // Interestingly, this callback seems to not fire when the mouse is down which is good,
         // because this is how I want it to work for windows/tabs/files dragging
+        // swiftlint:disable:next live_effect
         monitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { @MainActor event in
             world.sessions.onMouseMoved(to: event.locationInWindow.withYAxisFlipped)
         }
@@ -59,6 +61,8 @@ func focusWindow(underMouse location: CGPoint) async throws {
 
 @concurrent
 private nonisolated func isAxWindowUnderMouse(_ location: CGPoint) async -> Bool? {
+    // Reached only through the guarded global monitor
+    // swiftlint:disable:next live_effect
     let systemwide = AXUIElementCreateSystemWide()
     var element: AXUIElement?
     if unsafe AXUIElementCopyElementAtPosition(systemwide, Float(location.x), Float(location.y), &element) != .success {

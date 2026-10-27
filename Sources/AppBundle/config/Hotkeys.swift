@@ -20,6 +20,8 @@ private final class Hotkeys {
     func register(for mode: String?) {
         let bindings = mode.flatMap { config.modes[$0] }?.bindings ?? [:]
         for binding in bindings.values where byKeyCode[binding.descriptionWithKeyCode] == nil {
+            checkIsAeroSpaceApp("The global hotkey \(binding.descriptionWithKeyNotation)")
+            // swiftlint:disable:next live_effect
             byKeyCode[binding.descriptionWithKeyCode] = HotKey(key: binding.keyCode, modifiers: binding.modifiers, keyDownHandler: {
                 Task.startUnstructured { try await onHotkeyPressed(binding) }
             })

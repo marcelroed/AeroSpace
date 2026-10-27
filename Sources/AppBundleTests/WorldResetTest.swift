@@ -29,6 +29,16 @@ struct WorldResetTest {
         #expect(world.ui.trayMenuModel.isEnabled)
         expectEqual(world.ui.messageModel.message, nil)
     }
+
+    /// The tests reach macOS only through FakePlatform: a test that reaches the live platform dies, in a child process here
+    @Test
+    func aTestDiesAtTheLivePlatform() async {
+        let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+            await MainActor.run { _ = World().platform }
+        }
+        let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+        #expect(stderr.contains("LivePlatform (a test installs FakePlatform with setUpWorkspacesForTests()) would act on the user's session"))
+    }
 }
 
 /// Changes the properties through the code that changes them in the app, where that's simple

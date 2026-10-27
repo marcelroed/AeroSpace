@@ -53,13 +53,16 @@ final class World {
     let ui: Ui
     /// Every input that reads or changes the model (a hotkey, a CLI request, an AX notification, ...) enters through it
     let sessions: Sessions
-    /// macOS: the only way to the windows, the apps, the screens and the mouse
-    private(set) var platform: any Platform
+    /// macOS: the only way to the windows, the apps, the screens and the mouse. The app creates the live one at its first
+    /// use; a test installs a fake before (``reset(platform:)``)
+    private(set) lazy var platform: any Platform = {
+        checkIsAeroSpaceApp("LivePlatform (a test installs FakePlatform with setUpWorkspacesForTests())")
+        return LivePlatform()
+    }()
 
     init() {
         ui = Ui()
         sessions = Sessions()
-        platform = LivePlatform()
     }
 
     /// The fresh world of ``reset(platform:)``. It shares `ui` and `sessions`, so it doesn't build a menu bar model

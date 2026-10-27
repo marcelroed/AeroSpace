@@ -2,6 +2,7 @@ import AppKit
 
 open class NSPanelHud: NSPanel {
     init() {
+        checkIsAeroSpaceApp("A panel")
         super.init(
             contentRect: .zero,
             styleMask: [.nonactivatingPanel, .borderless, .hudWindow, .utilityWindow],

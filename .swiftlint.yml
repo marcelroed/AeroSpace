@@ -44,9 +44,24 @@ only_rules:
   - unused_enumerated # When the index or the item is not used, .enumerated() can be removed.
   - unused_setter_value
   - weak_delegate # Delegates should be weak to avoid reference cycles
+  - custom_rules
 
 switch_case_alignment:
   indented_cases: true
+
+custom_rules:
+  # The tests run the commands, the callbacks and the sessions against FakePlatform. An effect on the user's session
+  # elsewhere runs for real in every test that reaches it (move-mouse posted a mouse event from every test run). Platform
+  # is the way to macOS; ui/ is AeroSpace's own windows and menu, whose models the tests use; the other excluded files
+  # run only at the app's start. Anything else: guard it with checkIsAeroSpaceApp and disable the rule on its line
+  live_effect:
+    name: "Live effect outside Platform"
+    included: 'Sources/AppBundle/'
+    excluded: 'Sources/AppBundle/(platform/|ui/|initAppBundle\.swift|GlobalObserver\.swift|server\.swift|util/appBundleUtil\.swift)'
+    regex: '\bCGEvent\b|CGWarpMouseCursorPosition|\bProcess\(\)|NSAppleScript|NSWorkspace\.shared|\bNSSound\b|NSBeep|\bSound\.output\b|NSPasteboard|SMAppService|AXUIElementCreate(SystemWide|Application)|\bHotKey\(|addGlobalMonitorForEvents|UserDefaults\.standard\.(set|removeObject)|orderFront|\bNSApp\.|NSApplication\.shared'
+    excluded_match_kinds: [comment, comment.mark, comment.url, doccomment, doccomment.field, string]
+    message: "A live effect runs in the tests too: go through Platform (FakePlatform logs it), or guard it with checkIsAeroSpaceApp"
+    severity: error
 
 strict: true
 # quiet: true

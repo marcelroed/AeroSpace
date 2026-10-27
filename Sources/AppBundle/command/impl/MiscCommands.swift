@@ -238,6 +238,8 @@ struct VolumeCommand: nonisolated Command {
     }
 
     func run(_ cx: CmdContext) throws(CmdFail) {
+        checkIsAeroSpaceApp("volume")
+        // swiftlint:disable live_effect
         switch action {
             case .up:
                 Sound.output.increaseVolume(by: 0.0625, autoMuteUnmute: true)
@@ -260,6 +262,7 @@ struct VolumeCommand: nonisolated Command {
                 throw CmdFail("Can't read the volume: \(error)")
             }
         }
+        // swiftlint:enable live_effect
     }
 }
 

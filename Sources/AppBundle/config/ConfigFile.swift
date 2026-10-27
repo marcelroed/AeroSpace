@@ -101,6 +101,8 @@ private final class ConfigAutoReload {
 }
 
 func syncStartAtLogin() {
+    checkIsAeroSpaceApp("start-at-login")
+    // swiftlint:disable:next live_effect
     let service = SMAppService.mainApp
     switch true {
         case !config.startAtLogin: _ = try? service.unregister()

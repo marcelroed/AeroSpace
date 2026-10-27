@@ -3,8 +3,18 @@ import Common
 import Foundation
 import Synchronization
 
+/// Set first thing by ``initAppBundle()``. A test process never sets it
+private(set) var isAeroSpaceApp = false
+
+/// An effect on the user's session that doesn't go through ``Platform`` (the live platform itself, the hotkeys, the panels,
+/// ...) checks this first: in a test, it dies instead of acting
+func checkIsAeroSpaceApp(_ effect: @autoclosure () -> String) {
+    check(isAeroSpaceApp, "\(effect()) would act on the user's session: the tests reach macOS only through FakePlatform")
+}
+
 /// Called from `AeroSpaceApp.init`, before SwiftUI builds the scenes. Returns the models that the scenes show
 public func initAppBundle() -> Ui {
+    isAeroSpaceApp = true
     // First: `--help`, `--version` and bad args exit here, and the menu bar model (`world.ui`) reads `--config-path`
     let args = parseServerArgs(Array(CommandLine.arguments.dropFirst()))
     parsedServerArgs.withLock { $0 = args }
