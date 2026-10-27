@@ -1,6 +1,7 @@
 import AppKit
 import Common
 import PrivateApi
+import Synchronization
 
 func waitForAccessibilityPermission_nonCancellable() async {
     let options = [axTrustedCheckOptionPrompt: true]
@@ -145,6 +146,7 @@ nonisolated extension AXUIElement: AxUiElementMock {
     func get<Attr: ReadableAttr>(_ attr: Attr) -> Attr.T? {
         let state = signposter.beginInterval(#function, "attr: \(attr.key)")
         defer { signposter.endInterval(#function, state) }
+        countAxCall("get \(attr.key)")
         var raw: AnyObject?
         return unsafe AXUIElementCopyAttributeValue(self, attr.key as CFString, &raw) == .success
             ? raw.flatMap(attr.getter)
@@ -156,12 +158,14 @@ nonisolated extension AXUIElement: AxUiElementMock {
         let state = signposter.beginInterval(#function, "attr: \(attr.key)")
         defer { signposter.endInterval(#function, state) }
         guard let value = attr.setter(value) else { return false }
+        countAxCall("set \(attr.key)")
         return AXUIElementSetAttributeValue(self, attr.key as CFString, value) == .success
     }
 
     func containingWindowId() -> CGWindowID? {
         let state = signposter.beginInterval(#function)
         defer { signposter.endInterval(#function, state) }
+        countAxCall("windowId")
         var cgWindowId = CGWindowID()
         return unsafe _AXUIElementGetWindow(self, &cgWindowId) == .success && cgWindowId != kCGNullWindowID
             ? cgWindowId
@@ -172,11 +176,13 @@ nonisolated extension AXUIElement: AxUiElementMock {
 nonisolated extension AXUIElement {
     @discardableResult func perform(_ action: String) -> Bool {
         if serverArgs.isReadOnly { return false }
+        countAxCall("perform \(action)")
         return AXUIElementPerformAction(self, action as CFString) == .success
     }
 
     /// One IPC for several attributes. A failed attribute comes back as an AXValue error
     func getMultiple(_ keys: [String]) -> (AXError, [AnyObject]?) {
+        countAxCall("getMultiple \(keys.joined(separator: ","))")
         var raw: CFArray?
         let error = unsafe AXUIElementCopyMultipleAttributeValues(self, keys as CFArray, [], &raw)
         return (error, raw as? [AnyObject])
@@ -184,7 +190,17 @@ nonisolated extension AXUIElement {
 }
 
 nonisolated extension NSRunningApplication {
+    /// The write of native focus. Counted with the AX calls
     func activateForNativeFocus() {
+        countAxCall("activate")
         activate(options: []) // `.activateIgnoringOtherApps` has no effect since macOS 14
     }
+}
+
+/// How many AX calls AeroSpace made, per call and attribute (e.g. "set AXPosition"), for dogfooding: to see how many
+/// window moves happen, read it in a debugger. It costs one lock per AX call, which is an IPC
+nonisolated let axCallCounts: Mutex<[String: Int]> = Mutex([:])
+
+nonisolated private func countAxCall(_ call: String) {
+    axCallCounts.withLock { $0[call, default: 0] += 1 }
 }
