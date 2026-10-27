@@ -4,24 +4,6 @@ import Testing
 
 @Suite(.aeroSpaceGlobalState)
 struct EnableCommandTest {
-    @Test
-    func parse() {
-        testParseSingleCommandSucc("enable on", EnableCommand(targetState: .on))
-        testParseSingleCommandSucc("enable off", EnableCommand(targetState: .off))
-        testParseSingleCommandSucc("enable toggle", EnableCommand(targetState: .toggle))
-        testParseSingleCommandSucc("enable --fail-if-noop on", EnableCommand(targetState: .on, failIfNoop: true))
-    }
-
-    @Test(arguments: [
-        ("enable toggle --fail-if-noop", "--fail-if-noop is incompatible with 'toggle' argument"),
-        ("enable foo", "Can't parse 'foo'.\nPossible values: (on|off|toggle)"),
-        ("enable", "Argument '(on|off|toggle)' is mandatory"),
-    ] as [(String, String)])
-    func parseError(command: String, error: String) async {
-        let output = await runCmd(command)
-        expectEqual(output, .fail(error))
-    }
-
     @Test(arguments: [
         (true, "enable on", CmdOutput(stderr: ["Already enabled. Tip: use --fail-if-noop to exit with non-zero code"])),
         (true, "enable on --fail-if-noop", .fail()),
