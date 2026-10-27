@@ -11,11 +11,8 @@ func parseCommand(
     return switch raw.lexAndParseShell() {
         case .success(let it):
             it.flatMap { args in
-                switch parseCommand(args) {
-                    case .cmd(_ as EvalCommand) where !allowEval: .failure("Illegal eval (Tip: nested evals are forbidden)", EXIT_CODE_TWO)
-                    case .cmd(let it): .cmd(it)
-                    case .failure(let it): .failure(it)
-                    case .help(let it): .help(it)
+                parseCommand(args).flatMap { cmd in
+                    cmd is EvalCommand && !allowEval ? .failure("Illegal eval (Tip: nested evals are forbidden)", EXIT_CODE_TWO) : .cmd(cmd)
                 }
             }
         case .failure(let it): ParsedCmd.failure(it, EXIT_CODE_TWO)
