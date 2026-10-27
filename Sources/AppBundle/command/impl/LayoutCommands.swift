@@ -96,8 +96,7 @@ struct LayoutCommand: nonisolated Command {
 
         let targetDescription = toggleBetween.first(where: { !subject.matches($0) }) ?? toggleBetween.first
         if subject.matches(targetDescription) {
-            return try noop(cx, failIfNoop: failIfNoop, "Already in the requested \(targetDescription.rawValue) mode. " +
-                "Tip: use --fail-if-noop to exit with non-zero code")
+            return try noop(cx, failIfNoop: failIfNoop, "Already in the requested \(targetDescription.rawValue) mode.")
         }
         switch targetDescription {
             case .h_accordion, .v_accordion, .h_tiles, .v_tiles, .accordion, .tiles, .horizontal, .vertical:

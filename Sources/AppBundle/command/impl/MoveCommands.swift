@@ -277,7 +277,7 @@ func moveWindowToWorkspace(
     index: Int? = nil,
 ) throws(CmdFail) {
     if window.nodeWorkspace == targetWorkspace {
-        return try noop(cx, failIfNoop: failIfNoop, "Window '\(window.windowId)' already belongs to workspace '\(targetWorkspace.name)'. Tip: use --fail-if-noop to exit with non-zero code")
+        return try noop(cx, failIfNoop: failIfNoop, "Window '\(window.windowId)' already belongs to workspace '\(targetWorkspace.name)'.")
     }
     let targetContainer: Container = window.isFloating
         ? targetWorkspace.containerCreatingIfNeeded(.floating)

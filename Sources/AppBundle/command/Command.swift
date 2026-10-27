@@ -121,7 +121,8 @@ extension Command {
 }
 
 /// The result of `--fail-if-noop` when there is nothing to do: fail silently, or succeed and say why nothing happened
+/// (`msg`, a sentence), followed by the tip about the flag
 func noop(_ cx: CmdContext, failIfNoop: Bool, _ msg: @autoclosure () -> String) throws(CmdFail) {
     if failIfNoop { throw .silent }
-    cx.err(msg())
+    cx.err("\(msg()) Tip: use --fail-if-noop to exit with non-zero code")
 }

@@ -100,9 +100,7 @@ struct FullscreenCommand: nonisolated Command {
         let window = try cx.window(windowId: windowId)
         let newState = toggle.resolve(current: window.isFullscreen)
         if newState == window.isFullscreen {
-            return try noop(cx, failIfNoop: failIfNoop, newState
-                ? "Already fullscreen. Tip: use --fail-if-noop to exit with non-zero code"
-                : "Already not fullscreen. Tip: use --fail-if-noop to exit with non-zero code")
+            return try noop(cx, failIfNoop: failIfNoop, newState ? "Already fullscreen." : "Already not fullscreen.")
         }
         window.isFullscreen = newState
         window.noOuterGapsInFullscreen = noOuterGaps
@@ -145,8 +143,7 @@ struct MacosNativeFullscreenCommand: nonisolated Command {
         guard window.isAlive else { return } // The window closed at the suspension point above
         let newState = toggle.resolve(current: prevState)
         if newState == prevState {
-            return try noop(cx, failIfNoop: failIfNoop, (newState ? "Already fullscreen. " : "Already not fullscreen. ") +
-                "Tip: use --fail-if-noop to exit with non-zero code")
+            return try noop(cx, failIfNoop: failIfNoop, newState ? "Already fullscreen." : "Already not fullscreen.")
         }
         world.platform.setNative(window.windowId, .fullscreen(newState))
         guard let workspace = window.nodeWorkspace else {

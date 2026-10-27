@@ -171,7 +171,7 @@ struct MoveMouseCommand: nonisolated Command {
             case .windowLazyCenter:
                 let rect = try await windowSubjectRect(target)
                 if rect.contains(mouse) {
-                    return try noop(cx, failIfNoop: failIfNoop, "The mouse already belongs to the window. Tip: use --fail-if-noop to exit with non-zero code")
+                    return try noop(cx, failIfNoop: failIfNoop, "The mouse already belongs to the window.")
                 }
                 try moveMouse(rect.center)
             case .windowForceCenter:
@@ -179,7 +179,7 @@ struct MoveMouseCommand: nonisolated Command {
             case .monitorLazyCenter:
                 let rect = target.workspace.workspaceMonitor.rect
                 if rect.contains(mouse) {
-                    return try noop(cx, failIfNoop: failIfNoop, "The mouse already belongs to the monitor. Tip: use --fail-if-noop to exit with non-zero code")
+                    return try noop(cx, failIfNoop: failIfNoop, "The mouse already belongs to the monitor.")
                 }
                 try moveMouse(rect.center)
             case .monitorForceCenter:
@@ -295,9 +295,7 @@ struct EnableCommand: nonisolated Command {
         let prevState = world.isEnabled
         let newState = targetState.resolve(current: prevState)
         if newState == prevState {
-            return try noop(cx, failIfNoop: failIfNoop, newState
-                ? "Already enabled. Tip: use --fail-if-noop to exit with non-zero code"
-                : "Already disabled. Tip: use --fail-if-noop to exit with non-zero code")
+            return try noop(cx, failIfNoop: failIfNoop, newState ? "Already enabled." : "Already disabled.")
         }
         // No screens (e.g., during display reconfiguration). Disabling unhides the windows of all workspaces in the layout,
         // which waits for the screens, and no session lays them out while AeroSpace is disabled

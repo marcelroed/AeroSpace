@@ -86,7 +86,7 @@ struct WorkspaceCommand: nonisolated Command {
                 failIfNoop = whenFocused == .fail
         }
         if focusedWs.name == workspaceName {
-            return try noop(cx, failIfNoop: failIfNoop, "Workspace '\(workspaceName)' is already focused. Tip: use --fail-if-noop to exit with non-zero code")
+            return try noop(cx, failIfNoop: failIfNoop, "Workspace '\(workspaceName)' is already focused.")
         }
         try Workspace.get(byName: workspaceName).focusWorkspaceOrFail()
     }
@@ -166,7 +166,7 @@ struct SummonWorkspaceCommand: nonisolated Command {
         let workspace = Workspace.get(byName: target.raw)
         let monitor = focus.workspace.workspaceMonitor
         if monitor.activeWorkspace == workspace {
-            return try noop(cx, failIfNoop: failIfNoop, "Workspace '\(workspace.name)' is already visible on the focused monitor. Tip: use --fail-if-noop to exit with non-zero code")
+            return try noop(cx, failIfNoop: failIfNoop, "Workspace '\(workspace.name)' is already visible on the focused monitor.")
         }
         try moveWorkspace(workspace, to: monitor)
         try workspace.focusWorkspaceOrFail()
