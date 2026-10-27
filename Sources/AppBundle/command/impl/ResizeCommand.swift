@@ -21,7 +21,16 @@ struct ResizeCommand: Command {
         }
         let node = candidates.first(where: { ($0.parent as? TilingContainer)?.orientation == orientation })
         guard let parent = node?.parent as? TilingContainer else {
-            return .fail(io.err("resize command doesn't support floating windows yet https://github.com/nikitabobko/AeroSpace/issues/9"))
+            guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
+            if window.isFloating {
+                return .fail(io.err("resize command doesn't support floating windows yet https://github.com/nikitabobko/AeroSpace/issues/9"))
+            }
+            let container = switch orientation {
+                case .h: "horizontal tiles container"
+                case .v: "vertical tiles container"
+                case nil: "tiles container"
+            }
+            return .fail(io.err("Can't resize: the window isn't inside a \(container)"))
         }
         // Impossible: parent is non-nil only if node is, and node matched a non-nil orientation
         guard let orientation else { return .fail(io.err(bugPrompt())) }

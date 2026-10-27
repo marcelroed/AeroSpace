@@ -160,6 +160,36 @@ final class ResizeCommandTest: XCTestCase {
 
         let result = await parseCommand("resize height +2").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode.rawValue, 2)
+        assertEquals(result.stderr, ["Can't resize: the window isn't inside a vertical tiles container"]) // Not "floating windows"
+    }
+
+    func testSmart_accordionParent_returnsFail() async {
+        let root = Workspace.get(byName: name).rootTilingContainer
+        root.layout = .accordion
+        assertEquals(TestWindow.new(id: 1, parent: root).focusWindow(), true)
+        TestWindow.new(id: 2, parent: root)
+
+        let result = await parseCommand("resize smart +2").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result.exitCode.rawValue, 2)
+        assertEquals(result.stderr, ["Can't resize: the window isn't inside a tiles container"])
+    }
+
+    func testFloatingWindow_returnsFail() async {
+        let workspace = Workspace.get(byName: name)
+        assertEquals(TestWindow.new(id: 1, parent: workspace.floatingWindowsContainer).focusWindow(), true)
+        TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
+
+        let result = await parseCommand("resize width +2").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result.exitCode.rawValue, 2)
+        assertEquals(result.stderr, ["resize command doesn't support floating windows yet https://github.com/nikitabobko/AeroSpace/issues/9"])
+    }
+
+    func testNoWindow_returnsFail() async {
+        assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
+
+        let result = await parseCommand("resize width +2").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result.exitCode.rawValue, 2)
+        assertEquals(result.stderr, [noWindowIsFocused])
     }
 
     func testSingleChildParent_failsCleanly() async {
