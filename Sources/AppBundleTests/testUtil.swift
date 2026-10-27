@@ -15,7 +15,7 @@ nonisolated let projectRoot: URL = {
 }()
 
 func setUpWorkspacesForTests() {
-    world = World()
+    world.reset()
     world.config.enableNormalizationFlattenContainers = false // Make layout tests more predictable
     world.config.enableNormalizationOppositeOrientationForNestedContainers = false // Make layout tests more predictable
     world.config.defaultRootContainerOrientation = .horizontal // Make default layout predictable

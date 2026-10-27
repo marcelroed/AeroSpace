@@ -3,7 +3,7 @@ import Common
 
 /// The model: the workspaces and their trees, the global containers, the monitor assignment, the focus, the
 /// closed-windows cache, the loaded config and active mode, and the window manager's pending state. Tests start each
-/// case from a fresh one: `world = World()`.
+/// case from a fresh one: ``reset()``.
 ///
 /// A class while the nodes are classes: a copy wouldn't copy the trees. Each property is a separate access, so writing one
 /// property doesn't conflict with reading another
@@ -11,9 +11,9 @@ final class World {
     /// See ``Workspace/get(byName:)`` and ``Workspace/garbageCollectUnusedWorkspaces()``
     var workspacesByName: [String: Workspace] = [:]
     /// The minimized windows. A root, like ``macosPopupWindowsContainer``: they aren't part of any workspace
-    let macosMinimizedWindowsContainer: Container = Container(root: .macosMinimized)
+    private(set) var macosMinimizedWindowsContainer: Container = Container(root: .macosMinimized)
     /// The objects that are windows from the AX perspective, but not even dialogs from the human perspective
-    let macosPopupWindowsContainer: Container = Container(root: .macosPopup)
+    private(set) var macosPopupWindowsContainer: Container = Container(root: .macosPopup)
     /// See ``TreeNode/markAsMostRecentChild()``
     var mruClock: UInt64 = 0
     var assignment: MonitorAssignment = MonitorAssignment()
@@ -35,9 +35,28 @@ final class World {
     /// The window that the user moves or resizes with the mouse. Layout leaves it where the mouse puts it
     var mouseManipulatedWindowId: UInt32? = nil
     var debugWindows: DebugWindowsRecording = .off
+
+    /// Tests only: puts every property back to its initial value. A property that it misses leaks from test to test
+    func reset() {
+        let fresh = World()
+        workspacesByName = fresh.workspacesByName
+        macosMinimizedWindowsContainer = fresh.macosMinimizedWindowsContainer
+        macosPopupWindowsContainer = fresh.macosPopupWindowsContainer
+        mruClock = fresh.mruClock
+        assignment = fresh.assignment
+        focusStore = fresh.focusStore
+        closedWindowsCache = fresh.closedWindowsCache
+        config = fresh.config
+        configUrl = fresh.configUrl
+        activeMode = fresh.activeMode
+        layoutForNextDetectedWindow = fresh.layoutForNextDetectedWindow
+        mouseManipulatedWindowId = fresh.mouseManipulatedWindowId
+        debugWindows = fresh.debugWindows
+    }
 }
 
-var world: World = World()
+/// A constant: a `var` would cost a dynamic exclusivity check on every access. Tests use ``World/reset()``
+let world: World = World()
 
 var config: Config { world.config }
 var macosMinimizedWindowsContainer: Container { world.macosMinimizedWindowsContainer }
