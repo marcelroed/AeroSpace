@@ -10,9 +10,8 @@ let swiftSettings: [SwiftSetting] = [
 
 let package = Package(
     name: "AeroSpacePackage",
-    // Runtime support for parameterized protocol types is only available in macOS 13.0.0 or newer
-    // And it specifies deploymentTarget for CLI
-    platforms: [.macOS(.v13)],
+    // Also the deployment target of the CLI. The app's is in xcode/project.yml
+    platforms: [.macOS("27.0")], // `.v27` needs swift-tools-version 6.4
     // Products define the executables and libraries a package produces, making them visible to other packages.
     products: [
         .executable(name: "aerospace", targets: ["Cli"]),

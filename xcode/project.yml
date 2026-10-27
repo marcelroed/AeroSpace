@@ -27,7 +27,7 @@ targets:
   AeroSpace:
     type: application
     platform: macOS
-    deploymentTarget: "13.0"
+    deploymentTarget: "27.0"
     sources:
       - "../Sources/AeroSpaceApp"
       - "../resources"
