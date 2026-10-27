@@ -67,6 +67,10 @@ struct FocusStore {
     fileprivate var isRunningOnFocusChangedCallbacks = false
     /// See ``syncFocusFromMacOs(_:)``
     var lastKnownNativeFocusedWindowId: WindowId? = nil
+    /// The native focus that a session read last, also when the read changed nothing: it was
+    /// `lastKnownNativeFocusedWindowId` already, or it's a new window that takes the focus after its callbacks. Such a
+    /// window takes the focus only while it's still this one (R2b M1, R2c M1)
+    var lastReadNativeFocusedWindowId: WindowId? = nil
 }
 
 /// The focus, initialized on the first read from the workspace of the main monitor

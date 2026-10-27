@@ -270,6 +270,17 @@ struct ReconcileTest {
 
     @Test
     func aStaleNewFocusedWindowDoesntTakeTheFocusBack() async throws { // R2b M1
+        try await clickWhileANewFocusedWindowRunsItsCallbacks(3)
+    }
+
+    @Test
+    func aStaleNewFocusedWindowDoesntTakeTheFocusBackFromThePreviousWindow() async throws { // R2c M1
+        try await clickWhileANewFocusedWindowRunsItsCallbacks(1)
+    }
+
+    /// 2 opens with the native focus, and its refresh A runs its callbacks. Meanwhile, the user clicks `clicked`, and the
+    /// refresh B that replaces A takes that focus. A's 2 doesn't take it back
+    private func clickWhileANewFocusedWindowRunsItsCallbacks(_ clicked: WindowId) async throws {
         setUpTree("h_tiles(*1 3)")
         fake.focused = 1
         await heavyRefresh()
@@ -279,22 +290,76 @@ struct ReconcileTest {
 
         openWindow(2)
         fake.focused = 2
-        let a = Task.startUnstructured { await Reconcile.heavy(.ax("A")) }
+        world.sessions.scheduleHeavy(.ax("A"))
         await gate2.untilWaiting() // A has registered 2, the new focused window, and runs its callbacks
-        fake.focused = 3 // The user clicks 3
+        fake.focused = clicked
         openWindow(4)
-        a.cancel()
-        let b = Task.startUnstructured { await Reconcile.heavy(.ax("B")) }
-        await gate4.untilWaiting() // B has taken focus 3 from macOS
-        expectEqual(focus.windowOrNil?.windowId, 3)
+        world.sessions.scheduleHeavy(.ax("B")) // Replaces A, whose callbacks go on
+        await gate4.untilWaiting() // B has taken the focus from macOS
+        expectEqual(focus.windowOrNil?.windowId, clicked)
 
         gate2.open()
-        await a.value
+        for _ in 0 ..< 100 { await Task.yield() } // A ends its callbacks
+        expectEqual(focus.windowOrNil?.windowId, clicked)
         gate4.open()
-        await b.value
-        world.sessions.cancelHeavy() // The one that the cancelled A scheduled for its callbacks (R2b L1)
-        expectEqual(focus.windowOrNil?.windowId, 3)
-        expectEqual(fake.focused, 3)
+        for _ in 0 ..< 100 where !world.sessions.isHeavyIdle { await Task.yield() }
+        #expect(world.sessions.isHeavyIdle)
+        expectEqual(focus.windowOrNil?.windowId, clicked)
+        expectEqual(fake.focused, clicked)
+    }
+
+    @Test
+    func aStaleNewFocusedWindowDoesntTakeTheFocusBackAfterALightSession() async throws { // R2c M1
+        setUpTree("h_tiles(*1 3)")
+        fake.focused = 1
+        await heavyRefresh()
+        focusLog = []
+        world.config.onFocusChanged = .cmd(LogFocus(.window))
+        try readTitlesOnWindowDetected()
+        let gate = Gate()
+        fake.beforeTitle = { _ in await gate.wait() }
+
+        openWindow(2)
+        fake.focused = 2
+        world.sessions.scheduleHeavy(.ax("A"))
+        await gate.untilWaiting() // A has registered 2, the new focused window, and runs its callbacks
+        fake.focused = 1 // The user clicks back on 1 and presses a hotkey
+        _ = try await world.sessions.light(.hotkeyBinding, .forceRun) {}
+        world.sessions.cancelHeavy()
+        gate.open()
+        for _ in 0 ..< 100 { await Task.yield() } // A ends its callbacks
+        expectEqual(focus.windowOrNil?.windowId, 1)
+        expectEqual(fake.focused, 1)
+        expectEqual(focusLog, []) // The focus didn't go to 2 and back
+    }
+
+    @Test
+    func aLightSessionsNewFocusedWindowDoesntTakeTheFocusBackFromThePreviousWindow() async throws { // R2c M1
+        setUpTree("h_tiles(*1 3)")
+        fake.focused = 1
+        await heavyRefresh()
+        focusLog = []
+        world.config.onFocusChanged = .cmd(LogFocus(.window))
+        try readTitlesOnWindowDetected()
+        let gate = Gate()
+        fake.beforeTitle = { _ in await gate.wait() }
+
+        openWindow(2)
+        fake.focused = 2
+        var focusedInBody: WindowId? = nil
+        let first = Task.startUnstructured {
+            _ = try? await world.sessions.light(.hotkeyBinding, .forceRun) { focusedInBody = focus.windowOrNil?.windowId }
+        }
+        await gate.untilWaiting() // The session has registered 2, the new focused window, and runs its callbacks
+        fake.focused = 1 // The user clicks back on 1 and presses another hotkey
+        _ = try await world.sessions.light(.hotkeyBinding, .forceRun) {}
+        world.sessions.cancelHeavy()
+        gate.open()
+        await first.value
+        world.sessions.cancelHeavy()
+        expectEqual(focusedInBody, 1)
+        expectEqual(focusLog, []) // The focus didn't go to 2 and back
+        expectEqual(fake.focused, 1)
     }
 
     @Test
@@ -303,7 +368,8 @@ struct ReconcileTest {
         setUpTree("h_tiles(3)", workspace: "b")
         fake.focused = 1
         await heavyRefresh()
-        world.config.onFocusChanged = .cmd(LogFocusedWorkspace())
+        focusLog = []
+        world.config.onFocusChanged = .cmd(LogFocus(.workspace))
         try readTitlesOnWindowDetected()
         let gate = Gate()
         fake.beforeTitle = { _ in await gate.wait() }
@@ -316,7 +382,7 @@ struct ReconcileTest {
         world.sessions.cancelHeavy()
         gate.open()
         await heavy.value
-        expectEqual(focusedWorkspaceLog, ["b", "c"])
+        expectEqual(focusLog, ["b", "c"])
     }
 
     @Test
@@ -365,15 +431,25 @@ struct ReconcileTest {
 private let appA = AppInfo(pid: 1, bundleId: "test.a", name: "A", execPath: nil, bundlePath: nil)
 private let appB = AppInfo(pid: 2, bundleId: "test.b", name: "B", execPath: nil, bundlePath: nil)
 
-/// The on-focus-changed callback of focusCallbacksRunInTheOrderOfTheFocusChanges: the focused workspace it sees
-private var focusedWorkspaceLog: [String] = []
+/// What the on-focus-changed callback ``LogFocus`` saw, in order
+private var focusLog: [String] = []
 
-private struct LogFocusedWorkspace: nonisolated Command {
+/// Logs the focus that it sees: the focused workspace, or the focused window
+private struct LogFocus: nonisolated Command {
+    nonisolated enum Property { case workspace, window }
     static let resetsClosedWindowsCache = false
-    var source: SourceWords = ["log-focused-workspace"]
+    var source: SourceWords = ["log-focus"]
+    let property: Property
+
+    init(_ property: Property) { self.property = property }
 
     func run(_ cx: CmdContext) async throws(CmdFail) {
-        focusedWorkspaceLog.append(try cx.target().workspace.name)
+        let target = try cx.target()
+        let entry = switch property {
+            case .workspace: target.workspace.name
+            case .window: target.windowOrNil.map { "\($0.windowId)" } ?? "nil"
+        }
+        focusLog.append(entry)
     }
 }
 

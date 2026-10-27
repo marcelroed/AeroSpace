@@ -27,7 +27,7 @@ enum Reconcile {
         let isStartup = event.isStartup
         do {
             if preLayout {
-                if let focused = try await world.platform.focusedWindow(), let window = Window.get(byId: focused.windowId) {
+                if let focused = try await readNativeFocus(), let window = Window.get(byId: focused.windowId) {
                     syncFocusFromMacOs(window)
                 }
                 try present(nativeFocusBaseline: focus.windowOrNil, isTrayDeferred: false)
@@ -49,11 +49,11 @@ enum Reconcile {
     /// The light session's observe and commit: takes the native focus from macOS. A new focused window is registered (and
     /// recorded by debug-windows), its on-window-detected callbacks run (as in P3), then it takes the focus
     static func syncFocus(isStartup: Bool) async throws(CancellationError) {
-        guard let focused = try await world.platform.focusedWindow() else { return syncFocusFromMacOs(nil) }
+        guard let focused = try await readNativeFocus() else { return syncFocusFromMacOs(nil) }
         if let window = Window.get(byId: focused.windowId) { return syncFocusFromMacOs(window) }
-        // The read is stale once another session takes a newer native focus at a suspension point below (R2b M1)
-        let nativeFocus = world.focusStore.lastKnownNativeFocusedWindowId
-        func isNativeFocusCurrent() -> Bool { world.focusStore.lastKnownNativeFocusedWindowId == nativeFocus }
+        // The read is stale once another session reads another native focus at a suspension point below (R2b M1), even
+        // the one that the model has already (R2c M1)
+        func isNativeFocusCurrent() -> Bool { world.focusStore.lastReadNativeFocusedWindowId == focused.windowId }
         let detected = try await world.platform.classify([focused.app: [focused.windowId]])[focused.windowId]
         let debugInfos = try await readDebugInfos(focused, [])
         if !isNativeFocusCurrent() { return } // The heavy refresh registers the window
@@ -95,7 +95,7 @@ enum Reconcile {
     static func observe(isStartup: Bool = false) async throws(CancellationError) -> Observation? {
         let platform = world.platform
         let known = Set(world.windows.keys)
-        let focused = try await platform.focusedWindow()
+        let focused = try await readNativeFocus()
         let apps = try await platform.listWindows(waitingForEveryApp: isStartup)
 
         var new: [(id: WindowId, app: AppInfo)] = []
@@ -133,6 +133,13 @@ enum Reconcile {
         )
     }
 
+    /// Every session reads the native focus through this: P3 and ``syncFocus(isStartup:)`` tell a stale read by it
+    private static func readNativeFocus() async throws(CancellationError) -> FocusedWindow? {
+        let focused = try await world.platform.focusedWindow()
+        world.focusStore.lastReadNativeFocusedWindowId = focused?.windowId
+        return focused
+    }
+
     /// Abandonable like the other reads of P1 (R-PLAT L3): a hung app doesn't hold the sessions while debug-windows records
     private static func readDebugInfos(
         _ focused: FocusedWindow?,
@@ -156,10 +163,9 @@ enum Reconcile {
         /// The windows whose on-window-detected callbacks run in P3, in order: the new ones in listing order (those that
         /// the closed-windows cache placed excluded), then the former popups
         let detected: [WindowId]
-        /// The focused window if it's new: it takes the focus in P3, after its callbacks, unless another session took a
-        /// newer native focus meanwhile: `lastKnownNativeFocusedWindowId` isn't `nativeFocusAtCommit` anymore (R2b M1)
+        /// The focused window if it's new: it takes the focus in P3, after its callbacks, unless another session read
+        /// another native focus meanwhile: `lastReadNativeFocusedWindowId` isn't it anymore (R2b M1, R2c M1)
         let newFocusedWindow: WindowId?
-        let nativeFocusAtCommit: WindowId?
         /// The focus change that the focus sync made, recorded before the GC (#1089). Its callbacks run first in P3
         let focusChange: RecordedFocusChange?
         /// The focus as macOS sees it after P2 (the GC's refocus rule gives the native focus itself)
@@ -226,7 +232,6 @@ enum Reconcile {
         return Committed(
             detected: detected,
             newFocusedWindow: newFocusedWindow,
-            nativeFocusAtCommit: world.focusStore.lastKnownNativeFocusedWindowId,
             focusChange: focusChange,
             nativeFocusBaseline: focus.windowOrNil,
             debugInfos: o.debugInfos,
@@ -246,9 +251,7 @@ enum Reconcile {
             await runOnWindowDetected(ifConventional: window, isStartup: isStartup)
         }
         var nativeFocusBaseline = c.nativeFocusBaseline
-        if let id = c.newFocusedWindow, let window = Window.get(byId: id),
-           world.focusStore.lastKnownNativeFocusedWindowId == c.nativeFocusAtCommit
-        {
+        if let id = c.newFocusedWindow, let window = Window.get(byId: id), world.focusStore.lastReadNativeFocusedWindowId == id {
             syncFocusFromMacOs(window)
             nativeFocusBaseline = focus.windowOrNil
         }
