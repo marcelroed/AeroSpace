@@ -128,6 +128,10 @@ func refreshModel_nonCancellable() async {
 private func refresh() async throws {
     // Garbage collect terminated apps and windows before working with all windows
     let mapping = try await MacApp.refreshAllAndGetAliveWindowIds(frontmostAppBundleId: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
+    // The screens may disappear at the suspension point above (e.g. display reconfiguration on wake). Then garbage
+    // collecting a window would save the closed-windows cache with every workspace on the fake mainMonitorInfo, and
+    // restoring it would move them all to the main monitor. Leave the windows to a session that runs with screens
+    if !hasScreens { return }
     let aliveWindowIds = mapping.values.flatMap(id).toSet()
 
     for window in MacWindow.allWindows {
