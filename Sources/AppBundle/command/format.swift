@@ -175,7 +175,7 @@ extension FormatVar {
                     case .appExecPath: .success(.string(a.execPath ?? "NULL-APP-EXEC-PATH"))
                     case .appBundlePath: .success(.string(a.bundlePath ?? "NULL-APP-BUNDLE-PATH"))
                 }
-            default:
+            case (.workspace, _), (.app, _), (.monitor, _):
                 return .failure(.unknownInterpolationVariable(unknownInterpolationVariable(variable: rawValue, obj)))
         }
     }
