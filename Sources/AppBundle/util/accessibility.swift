@@ -63,7 +63,11 @@ nonisolated enum Ax {
     }
 
     private static func readableAxUiElementMock(_ key: String) -> ReadableAttrImpl<any AxUiElementMock> {
-        ReadableAttrImpl(key: key, getter: castToAxUiElementMock)
+        ReadableAttrImpl(key: key, getter: { axUiElementOrNil($0) })
+    }
+
+    private static func readableAxUiElement(_ key: String) -> ReadableAttrImpl<AXUIElement> {
+        ReadableAttrImpl(key: key, getter: axUiElementOrNil)
     }
 
     private static func writableAxValue<V: BitwiseCopyable & Sendable>(_ key: String, _ type: AXValueType, _ zero: V) -> WritableAttrImpl<V> {
@@ -82,10 +86,7 @@ nonisolated enum Ax {
         )
     }
 
-    static let parentWindowRecursive: ReadableAttrImpl<AXUIElement> = ReadableAttrImpl(
-        key: kAXWindowAttribute,
-        getter: { CFGetTypeID($0) == AXUIElementGetTypeID() ? ($0 as! AXUIElement) : nil },
-    )
+    static let parentWindowRecursive = readableAxUiElement(kAXWindowAttribute)
     static let titleAttr = readableString(kAXTitleAttribute)
     static let roleAttr = readableString(kAXRoleAttribute)
     static let subroleAttr = readableString(kAXSubroleAttribute)
@@ -102,12 +103,19 @@ nonisolated enum Ax {
     /// If some windows are located on not active macOS Spaces then they won't be returned
     static let windowsAttr: ReadableAttrImpl<[WindowIdAndAxUiElement]> = ReadableAttrImpl(
         key: kAXWindowsAttribute,
-        getter: { ($0 as? NSArray)?.compactMap(axWindowOrNil) ?? [] },
+        getter: { ($0 as? NSArray)?.compactMap { axWindowOrNil($0 as AnyObject) } ?? [] },
+    )
+    /// ``windowsAttr`` without the window ids: each id is an AX call, see ``AxApp/windowId(of:)``
+    static let windowElementsAttr: ReadableAttrImpl<[AXUIElement]> = ReadableAttrImpl(
+        key: kAXWindowsAttribute,
+        getter: { ($0 as? NSArray)?.compactMap { axUiElementOrNil($0 as AnyObject) } ?? [] },
     )
     static let focusedWindowAttr: ReadableAttrImpl<WindowIdAndAxUiElementMock> = ReadableAttrImpl(
         key: kAXFocusedWindowAttribute,
-        getter: windowOrNil,
+        getter: { axWindowOrNil($0).map { ($0.windowId, $0.ax) } },
     )
+    /// ``focusedWindowAttr`` without the window id
+    static let focusedWindowElementAttr = readableAxUiElement(kAXFocusedWindowAttribute)
     static let closeButtonAttr = readableAxUiElementMock(kAXCloseButtonAttribute)
     // Note! fullscreen is not the same as "zoom" (green plus)
     static let fullscreenButtonAttr = readableAxUiElementMock(kAXFullScreenButtonAttribute)
@@ -120,23 +128,15 @@ nonisolated let kAXAeroSynthetic = "Aero.synthetic"
 
 // `as! AXUIElement` doesn't check anything at runtime (it's a CoreFoundation type). Check the type ID instead. The dumps of
 // the tests give their nested elements without this getter
-nonisolated private func castToAxUiElementMock(_ a: AnyObject) -> (any AxUiElementMock)? {
-    CFGetTypeID(a) == AXUIElementGetTypeID() ? (a as! AXUIElement) : nil
+nonisolated private func axUiElementOrNil(_ object: AnyObject) -> AXUIElement? {
+    CFGetTypeID(object) == AXUIElementGetTypeID() ? (object as! AXUIElement) : nil
 }
 
 typealias WindowIdAndAxUiElement = (windowId: UInt32, ax: AXUIElement)
 typealias WindowIdAndAxUiElementMock = (windowId: UInt32, ax: any AxUiElementMock)
 
-nonisolated private func windowOrNil(_ obj: AnyObject) -> WindowIdAndAxUiElementMock? {
-    guard let potentialWindow = castToAxUiElementMock(obj) else { return nil }
-    // Filter out non-window objects (e.g. Finder's desktop)
-    return potentialWindow.containingWindowId().map { ($0, potentialWindow) }
-}
-
-nonisolated private func axWindowOrNil(_ any: Any) -> WindowIdAndAxUiElement? {
-    let object = any as AnyObject
-    guard CFGetTypeID(object) == AXUIElementGetTypeID() else { return nil }
-    let potentialWindow = object as! AXUIElement
+nonisolated private func axWindowOrNil(_ object: AnyObject) -> WindowIdAndAxUiElement? {
+    guard let potentialWindow = axUiElementOrNil(object) else { return nil }
     // Filter out non-window objects (e.g. Finder's desktop)
     return potentialWindow.containingWindowId().map { ($0, potentialWindow) }
 }

@@ -127,9 +127,9 @@ actor AxApp {
     /// order (then the alive ones it didn't list). nil if the app didn't answer (the AX timeout of a hung app): then nothing
     /// changes. Commits nothing if the caller abandons it (the result is dropped then)
     func refreshWindows(isLockScreen: Bool, _ isAbandoned: () -> Bool) -> [UInt32]? {
-        let (error, value) = element.getWithError(Ax.windowsAttr)
+        let (error, elements) = element.getWithError(Ax.windowElementsAttr)
         if error == .cannotComplete { return nil }
-        let listed = value ?? []
+        let listed: [WindowIdAndAxUiElement] = (elements ?? []).compactMap { ax in windowId(of: ax).map { ($0, ax) } }
         var alive = windows
         // Second line of defence against lock screen (964e5b11). See the first line of defence: closedWindowsCache
         // Second and third lines of defence are technically needed only to avoid potential flickering
@@ -138,7 +138,7 @@ actor AxApp {
             for (id, window) in alive {
                 if isAbandoned() { return [] }
                 // Liveness via _AXUIElementGetWindow, not the unreliable kAXUIElementDestroyedNotification (405dec8b).
-                // A listed (CFEqual) element is alive: the windowsAttr getter has just read its window id
+                // A listed (CFEqual) element is alive: the app has just listed it
                 if isBusy || listed.contains(where: { $0.ax == window.ax }) { continue }
                 let (error, windowId) = window.ax.containingWindowIdWithError()
                 // A timeout is no evidence that the window is gone, and the next call would wait as long
@@ -160,8 +160,15 @@ actor AxApp {
     }
 
     func focusedWindowId() -> UInt32? {
-        guard let focused = element.get(Ax.focusedWindowAttr) else { return nil }
-        return registerWindow(focused.windowId, focused.ax.cast, in: &windows) ? focused.windowId : nil
+        guard let focused = element.get(Ax.focusedWindowElementAttr), let windowId = windowId(of: focused) else { return nil }
+        return registerWindow(windowId, focused, in: &windows) ? windowId : nil
+    }
+
+    /// The id of a window element that the app listed or focused. A registered window's element is CFEqual to it (pid and
+    /// token, compared without IPC), so only a new element costs an `_AXUIElementGetWindow`, which asks the app. nil: not a
+    /// window (e.g. Finder's desktop)
+    private func windowId(of ax: AXUIElement) -> UInt32? {
+        windows.first { $0.value.ax == ax }?.key ?? ax.containingWindowId()
     }
 
     func rect(_ windowId: UInt32) -> Rect? {

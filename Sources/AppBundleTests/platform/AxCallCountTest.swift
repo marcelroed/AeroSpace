@@ -263,13 +263,19 @@ private func heavy(_ name: String, isIdle: Bool = false) async throws -> Phase {
 private func measure(_ name: String, isIdle: Bool = false, _ body: () async throws -> ()) async throws -> Phase {
     let before = MacosState()
     var listings: [Listing] = []
+    var newFocused: [WindowId?] = []
     fake.onRead = { call in
-        if call == .listWindows { listings.append(Listing()) }
+        switch call {
+            case .listWindows: listings.append(Listing())
+            case .focusedWindow: newFocused.append(fake.focused.flatMap { axAppWindows.insert($0).inserted ? $0 : nil })
+            default: break
+        }
     }
     fake.resetCalls()
     try await body()
     fake.onRead = nil
-    return Phase(name: name, isIdle: isIdle, calls: fake.calls, before: before, after: MacosState(), listings: listings)
+    let after = MacosState()
+    return Phase(name: name, isIdle: isIdle, calls: fake.calls, before: before, after: after, listings: listings, newFocused: newFocused)
 }
 
 // MARK: The measurement
@@ -283,8 +289,8 @@ private struct MacosState {
     let appOf: [WindowId: pid_t] = fake.windows.mapValues(\.app.pid)
 }
 
-/// The windows that LivePlatform's AxApp has registered (observed): the world's, then each one that a listing returns,
-/// whether AeroSpace registers it or not
+/// The windows that LivePlatform's AxApp has registered (observed): the world's, then each one that a listing or a focus
+/// read returns, whether AeroSpace registers it or not
 private var axAppWindows: Set<WindowId> = []
 
 /// What one `listWindows` listed: the windows of each app that answered, and those that AxApp registers now
@@ -309,14 +315,17 @@ private struct Phase {
     let before: MacosState
     let after: MacosState
     let listings: [Listing]
+    /// Per focus read, the focused window if it's new to AxApp: the read registers it
+    let newFocused: [WindowId?]
 
-    /// The AX calls that LivePlatform makes for the log. From LivePlatform.swift, AxApp.swift, Placement.swift, and the
-    /// getters of accessibility.swift (`windowsAttr` and `focusedWindowAttr` call `_AXUIElementGetWindow` per element)
-    /// and AxUiElementWindowType.swift (`getWindowType` of a standard window: the close button, the subrole twice, the
+    /// The AX calls that LivePlatform makes for the log. From LivePlatform.swift, AxApp.swift (`windowId(of:)` calls
+    /// `_AXUIElementGetWindow` for an element that AxApp doesn't know), Placement.swift, accessibility.swift (the getter
+    /// of `windowsAttr` calls `_AXUIElementGetWindow` per element) and AxUiElementWindowType.swift (`getWindowType` of a standard window: the close button, the subrole twice, the
     /// fullscreen button and whether it's enabled)
     var cost: AxCost {
         var cost = AxCost()
         var listings = listings.makeIterator()
+        var newFocused = newFocused.makeIterator()
         var appsWithPlacementWrites: Set<pid_t> = []
         // The log entry of the placement whose AX calls come next. A `.frame` placement logs only its read and its write
         var placement: PlatformCall? = nil
@@ -330,13 +339,17 @@ private struct Phase {
                     let listing = listings.next()
                     for ids in listing?.windowsPerApp ?? [] {
                         cost.appRead(1, .listing) // AXWindows
-                        for id in ids {
+                        for id in ids where listing?.new.contains(id) == true {
                             cost.read(id, 1, .listingWindowId) // _AXUIElementGetWindow
-                            // New to AxApp: 5 AXObserverAddNotification and its size (registerWindow)
-                            if listing?.new.contains(id) == true { cost.read(id, 6, .registration) }
+                            cost.read(id, 6, .registration) // 5 AXObserverAddNotification and its size (registerWindow)
                         }
                     }
-                case .focusedWindow: cost.appRead(2, .focusedWindow) // AXFocusedWindow, _AXUIElementGetWindow
+                case .focusedWindow:
+                    cost.appRead(1, .focusedWindow) // AXFocusedWindow
+                    if let id = newFocused.next().flatMap(\.self) {
+                        cost.read(id, 1, .focusedWindow) // _AXUIElementGetWindow
+                        cost.read(id, 6, .registration)
+                    }
                 case .classify(let ids): for id in ids { cost.read(id, 5 + 1, .classify) } // getWindowType, then the position and size
                 case .nativeFacts(let ids): for id in ids { cost.read(id, 1, .nativeFacts) } // AXUIElementCopyMultipleAttributeValues
                 case .observedRect(let id), .rect(let id): cost.read(id, 1, .commandRect) // The position and size in one call
@@ -592,8 +605,9 @@ private func axCallTable(_ results: [(scenario: String, phases: [Phase], converg
         "",
         "## By kind",
         "",
-        "`listing GetWindow`: `_AXUIElementGetWindow` per listed window. `registration`: 5 AXObserverAddNotification and the",
-        "size of a window new to AxApp. `check`: the read of a placement (`remember`: `layout tiling` reads the floating",
+        "`listing GetWindow`: `_AXUIElementGetWindow` per listed window new to AxApp. `focusedWindow`: AXFocusedWindow, and",
+        "`_AXUIElementGetWindow` of a window new to AxApp. `registration`: 5 AXObserverAddNotification and the size of a",
+        "window new to AxApp. `check`: the read of a placement (`remember`: `layout tiling` reads the floating",
         "size). `w park` and `w floating` include the unparks. `other`: a close button, AXPress, a native fullscreen or",
         "minimize.",
         "",
