@@ -105,6 +105,39 @@ struct FullscreenCommandTest {
         expectEqual(describeTree(), "h_tiles(*2) floating(1)")
     }
 
+    nonisolated enum MacosState: Sendable { case fullscreen, minimized }
+
+    /// macOS itself made the window fullscreen or minimized (its green or yellow button), then ended it: the heavy
+    /// refresh that sees the state moves the window into the state's container, and the one that sees it end moves it
+    /// back to the kind of container that it left
+    @Test(arguments: [
+        ("h_tiles(2) floating(1)", MacosState.fullscreen, "h_tiles(*2) macos_fullscreen(1)", "h_tiles(*2) floating(1)"),
+        ("h_tiles(1 2)", .fullscreen, "h_tiles(*2) macos_fullscreen(1)", "h_tiles(*2 1)"),
+        ("h_tiles(2) floating(1)", .minimized, "h_tiles(*2)", "h_tiles(*2) floating(1)"),
+        ("h_tiles(1 2)", .minimized, "h_tiles(*2)", "h_tiles(*2 1)"),
+    ] as [(String, MacosState, String, String)])
+    func aStateThatMacosBeganAndEndedKeepsTheContainerKind(
+        before: String,
+        state: MacosState,
+        during: String,
+        after: String,
+    ) async {
+        setUpTree(before)
+        fake.focused = 2
+        func setState(_ isOn: Bool) {
+            switch state {
+                case .fullscreen: fake.windows[1]?.isFullscreen = isOn
+                case .minimized: fake.windows[1]?.isMinimized = isOn
+            }
+        }
+        setState(true)
+        await Reconcile.heavy(.ax("test"))
+        expectEqual(describeTree(), during)
+        setState(false)
+        await Reconcile.heavy(.ax("test"))
+        expectEqual(describeTree(), after)
+    }
+
     /// An app that doesn't answer in time keeps its window: only a window that AX no longer finds is closed
     @Test(arguments: ["macos-native-fullscreen", "macos-native-minimize"])
     func aBusyAppIsNotAClosedWindow(command: String) async {
