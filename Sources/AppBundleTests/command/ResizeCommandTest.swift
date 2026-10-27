@@ -26,15 +26,7 @@ final class ResizeCommandTest: XCTestCase {
     }
 
     func testWidthAdd_growsTargetShrinksSiblings() async {
-        var window1: Window!
-        var window2: Window!
-        var window3: Window!
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            window1 = TestWindow.new(id: 1, parent: $0, adaptiveWeight: 4)
-            window2 = TestWindow.new(id: 2, parent: $0, adaptiveWeight: 4)
-            window3 = TestWindow.new(id: 3, parent: $0, adaptiveWeight: 4)
-        }
-        _ = window1.focusWindow()
+        let (window1, window2, window3) = setUpThreeWindows()
 
         await parseCommand("resize width +2").cmdOrDie.run(.defaultEnv, .emptyStdin)
         // diff = +2, childDiff = 2 / (3 - 1) = 1
@@ -44,15 +36,7 @@ final class ResizeCommandTest: XCTestCase {
     }
 
     func testWidthSubtract_shrinksTargetGrowsSiblings() async {
-        var window1: Window!
-        var window2: Window!
-        var window3: Window!
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            window1 = TestWindow.new(id: 1, parent: $0, adaptiveWeight: 4)
-            window2 = TestWindow.new(id: 2, parent: $0, adaptiveWeight: 4)
-            window3 = TestWindow.new(id: 3, parent: $0, adaptiveWeight: 4)
-        }
-        _ = window1.focusWindow()
+        let (window1, window2, window3) = setUpThreeWindows()
 
         await parseCommand("resize width -2").cmdOrDie.run(.defaultEnv, .emptyStdin)
         // diff = -2, childDiff = -1
@@ -62,15 +46,7 @@ final class ResizeCommandTest: XCTestCase {
     }
 
     func testWidthSet_diffIsAbsoluteMinusCurrent() async {
-        var window1: Window!
-        var window2: Window!
-        var window3: Window!
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            window1 = TestWindow.new(id: 1, parent: $0, adaptiveWeight: 4)
-            window2 = TestWindow.new(id: 2, parent: $0, adaptiveWeight: 4)
-            window3 = TestWindow.new(id: 3, parent: $0, adaptiveWeight: 4)
-        }
-        _ = window1.focusWindow()
+        let (window1, window2, window3) = setUpThreeWindows()
 
         await parseCommand("resize width 6").cmdOrDie.run(.defaultEnv, .emptyStdin)
         // diff = 6 - 4 = 2, childDiff = 1
@@ -160,5 +136,15 @@ final class ResizeCommandTest: XCTestCase {
 
         await assertRun("resize width +2", exitCode: 2)
         assertEquals(window.hWeight, 4)
+    }
+
+    /// Three windows with weight 4 in the root container, the first one focused
+    private func setUpThreeWindows() -> (Window, Window, Window) {
+        let root = Workspace.get(byName: name).rootTilingContainer
+        let window1 = TestWindow.new(id: 1, parent: root, adaptiveWeight: 4)
+        let window2 = TestWindow.new(id: 2, parent: root, adaptiveWeight: 4)
+        let window3 = TestWindow.new(id: 3, parent: root, adaptiveWeight: 4)
+        _ = window1.focusWindow()
+        return (window1, window2, window3)
     }
 }
