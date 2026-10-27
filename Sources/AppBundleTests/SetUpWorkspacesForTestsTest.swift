@@ -40,4 +40,16 @@ struct SetUpWorkspacesForTestsTest {
         setUpWorkspacesForTests() // What the next test starts with
         expectEqual(world.focusStore.lastKnownNativeFocusedWindowId, nil)
     }
+
+    /// `ui` and `sessions` outlive the reset: the scenes hold them
+    @Test
+    func startsEnabledWithoutAMessage() {
+        world.isEnabled = false
+        world.ui.messageModel.message = Message(body: "From the previous test")
+
+        setUpWorkspacesForTests() // What the next test starts with
+        #expect(world.isEnabled)
+        #expect(world.ui.trayMenuModel.isEnabled)
+        expectEqual(world.ui.messageModel.message, nil)
+    }
 }

@@ -43,13 +43,25 @@ final class World {
     var isEnabled: Bool = true {
         didSet { ui.trayMenuModel.isEnabled = isEnabled } // The menu bar observes the model, not the world
     }
-    let ui: Ui = Ui()
+    /// The models of the menu bar and the message window. The same instance for the app's lifetime: the scenes hold it
+    let ui: Ui
     /// The funnel for every session, see Sessions.swift
-    let sessions: Sessions = Sessions()
+    let sessions: Sessions
+
+    init() {
+        ui = Ui()
+        sessions = Sessions()
+    }
+
+    /// The fresh world of ``reset()``. It shares `ui` and `sessions`, so it doesn't build a menu bar model
+    private init(sharingUiAndSessionsOf other: World) {
+        ui = other.ui
+        sessions = other.sessions
+    }
 
     /// Tests only: puts every property back to its initial value. A property that it misses leaks from test to test
     func reset() {
-        let fresh = World()
+        let fresh = World(sharingUiAndSessionsOf: self)
         workspacesByName = fresh.workspacesByName
         sortedWorkspaces = fresh.sortedWorkspaces
         macosMinimizedWindowsContainer = fresh.macosMinimizedWindowsContainer
@@ -64,6 +76,10 @@ final class World {
         layoutForNextDetectedWindow = fresh.layoutForNextDetectedWindow
         mouseManipulatedWindowId = fresh.mouseManipulatedWindowId
         debugWindows = fresh.debugWindows
+        isEnabled = fresh.isEnabled // The didSet resets the menu bar model's copy
+        // `ui` and `sessions` stay. Their state that a test can leave behind:
+        ui.messageModel.message = nil
+        sessions.cancelHeavy()
     }
 }
 
