@@ -38,17 +38,19 @@ final class Sessions {
 
     /// Runs `body` as a light session: it cancels the scheduled heavy refresh, takes the native focus
     /// (``Reconcile/syncFocus(isStartup:)``), refreshes the model, runs `body`, refreshes the model again, presents
-    /// (``Reconcile/present(nativeFocusBaseline:isLayout:)``) and schedules a heavy refresh
+    /// (``Reconcile/present(nativeFocusBaseline:isLayout:)``) and schedules a heavy refresh. `isStartup`: the light session
+    /// of ``startup(_:)``, which registers a new focused window the startup's way
     func light<T>(
         _ event: RefreshSessionEvent,
         _: RunSessionGuard,
+        isStartup: Bool = false,
         body: () async throws -> T,
     ) async throws -> T {
         let state = signposter.beginInterval(#function, "event: \(String(describing: event))")
         defer { signposter.endInterval(#function, state) }
         cancelHeavy() // Give priority to the light session
         updateMonitors() // While there are no screens, the commands fail with a message or work on the last monitors
-        try await Reconcile.syncFocus(isStartup: event.isStartup)
+        try await Reconcile.syncFocus(isStartup: isStartup)
         let focusBefore = focus.windowOrNil
 
         await refreshModel_nonCancellable()
@@ -56,8 +58,7 @@ final class Sessions {
         await refreshModel_nonCancellable()
 
         try Reconcile.present(nativeFocusBaseline: focusBefore)
-        // Only the startup's own heavy refresh registers windows the startup's way and skips P4 (RB-141)
-        scheduleHeavy(event.isStartup ? .afterStartup : event)
+        scheduleHeavy(event)
         return result
     }
 
@@ -95,11 +96,11 @@ final class Sessions {
     /// The first sessions after the launch. The heavy refresh registers the windows that are already open, each on the
     /// workspace of its monitor, without moving them. Nothing cancels it, so every window that it finds gets the startup's
     /// on-window-detected callbacks. Then a light session lays them out and runs `body`. The focus callbacks start after it.
-    /// The heavy refresh that the light session schedules (`.afterStartup`) is an ordinary one
+    /// The heavy refresh that the light session schedules is an ordinary one (RB-141)
     func startup(_ body: () async throws -> ()) async throws {
         defer { armFocusChangedCallbacks() }
-        await Reconcile.heavy(.startup)
-        try await light(.startup, .forceRun, body: body)
+        await Reconcile.heavy(.startup, isStartup: true)
+        try await light(.startup, .forceRun, isStartup: true, body: body)
     }
 
     // MARK: AX notifications
@@ -203,7 +204,7 @@ struct RunSessionGuard: Sendable {
     private init() {}
 }
 
-/// What started a session. Sessions pass it explicitly; it also names the session in the signposts
+/// What started a session: it names the session in the signposts
 nonisolated enum RefreshSessionEvent: Sendable {
     case configAutoReload
     case globalObserver(String)
@@ -211,17 +212,11 @@ nonisolated enum RefreshSessionEvent: Sendable {
     case menuBarButton
     case hotkeyBinding
     case startup
-    /// The heavy refresh that the startup's light session schedules
-    case afterStartup
     /// An app answered a listing that missed its deadline (``ListingDeadlines``)
     case lateListing
     case socketServer([String])
     case resetManipulatedWithMouse
     case ax(String)
-
-    var isStartup: Bool {
-        if case .startup = self { return true } else { return false }
-    }
 }
 
 /// An AX notification, as an app's AX observer reports it to ``Sessions/onAxEvent(_:)``. It crosses from the app's AX

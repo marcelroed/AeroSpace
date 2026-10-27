@@ -147,7 +147,7 @@ struct ReconcileTest {
 
         var isDone = false
         let startup = Task.startUnstructured {
-            await Reconcile.heavy(.startup)
+            await Reconcile.heavy(.startup, isStartup: true)
             isDone = true
         }
         await slowness.untilWaiting()
