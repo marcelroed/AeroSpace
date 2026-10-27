@@ -1,4 +1,4 @@
-@MainActor private var lastKnownNativeFocusedWindowId: UInt32? = nil
+@MainActor var lastKnownNativeFocusedWindowId: UInt32? = nil // Not private: the tests reset it
 
 /// The data should flow (from nativeFocused to focused) and
 ///                      (from nativeFocused to lastKnownNativeFocusedWindowId)
