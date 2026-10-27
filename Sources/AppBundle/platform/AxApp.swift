@@ -304,8 +304,13 @@ nonisolated func axObserverCallback(
     _ refcon: UnsafeMutableRawPointer?,
 ) {
     guard let refcon = unsafe refcon else { return }
-    let app = unsafe Unmanaged<AxApp>.fromOpaque(refcon).takeUnretainedValue()
-    app.preconditionIsolated() // P1: traps on another thread
+    // No strong reference, not even a temporary one (P8): if it were the last one, the isolated deinit would run inline,
+    // inside this AXObserver callout, and release the observer whose callout is on the stack. Without it, the last
+    // release happens elsewhere, and the deinit runs as a job after the callout
+    let pid = unsafe Unmanaged<AxApp>.fromOpaque(refcon)._withUnsafeGuaranteedRef { app in
+        app.preconditionIsolated() // P1: traps on another thread
+        return app.pid
+    }
     let event: AxEvent
     switch notification as String {
         case kAXWindowCreatedNotification: event = .windowCreated
@@ -317,7 +322,6 @@ nonisolated func axObserverCallback(
         case kAXResizedNotification: event = .resized(windowId: element.containingWindowId())
         default: return
     }
-    let pid = app.pid
     Task.startUnstructured { @MainActor in
         await world.sessions.onAxEvent(pid: pid, event)
     }
