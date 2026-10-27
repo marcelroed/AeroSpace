@@ -28,8 +28,8 @@ final class FakePlatform: Platform {
     var beforeTitle: ((WindowId) async -> ())? = nil
     /// Awaited before an app lists its windows: a ``Gate`` there makes the app miss its listing deadline
     var beforeListing: ((AppInfo) async -> ())? = nil
-    /// LivePlatform's deadlines. A test that holds an app in `beforeListing` shortens them
-    var listingDeadlines = ListingDeadlines(minDeadline: .milliseconds(250))
+    /// LivePlatform's listing deadlines, for the tests that hold an app in `beforeListing`. nil: every listing is awaited
+    var listingDeadlines: ListingDeadlines? = nil
 
     func calls(of kind: PlatformCall.Kind, _ id: WindowId? = nil) -> [PlatformCall] {
         calls.filter { $0.kind == kind && (id == nil || $0.windowId == id) }
@@ -59,10 +59,14 @@ final class FakePlatform: Platform {
         defer { logRead(.listWindows) }
         var result: [AppWindows] = []
         for app in apps {
-            let ids = try await listingDeadlines.list(app.pid, hasDeadline: !waitingForEveryApp) {
-                [self] () async throws(CancellationError) -> [WindowId]? in
+            let list = { [self] () async throws(CancellationError) -> [WindowId]? in
                 await beforeListing?(app)
                 return answers[app.pid] == false ? nil : windows.filter { $0.value.app == app }.keys.sorted()
+            }
+            let ids = if let listingDeadlines {
+                try await listingDeadlines.list(app.pid, hasDeadline: !waitingForEveryApp, list)
+            } else {
+                try await list()
             }
             result.append(ids.map { .listed(app, $0) } ?? .noAnswer(app))
         }

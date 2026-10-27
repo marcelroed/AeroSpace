@@ -92,7 +92,7 @@ enum Reconcile {
 
     /// P1. Abandonable: every read throws once the refresh is cancelled, and a hung app's windows aren't read: its listing
     /// has a deadline, but at startup. nil if the screens disappeared meanwhile
-    static func observe(isStartup: Bool) async throws(CancellationError) -> Observation? {
+    static func observe(isStartup: Bool = false) async throws(CancellationError) -> Observation? {
         let platform = world.platform
         let known = Set(world.windows.keys)
         let focused = try await platform.focusedWindow()
