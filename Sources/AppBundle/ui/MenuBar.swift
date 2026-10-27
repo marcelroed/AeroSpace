@@ -165,7 +165,7 @@ private func reloadConfigFromMenu() {
     Task.startUnstructured {
         guard let token: RunSessionGuard = .isServerEnabled else { return }
         try await world.sessions.light(.menuBarButton, token) {
-            _ = await reloadConfig_nonCancellable()
+            _ = reloadConfig()
         }
     }
 }

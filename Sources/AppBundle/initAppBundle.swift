@@ -20,8 +20,8 @@ public func initAppBundle() -> Ui {
         // Wait for the screens here, before the hotkeys (config), the server and the observers can start a session
         while !world.platform.hasScreens { try? await Task.sleep(for: .milliseconds(100)) }
 
-        await bootstrapConfig_nonCancellable()
-        _ = await reloadConfig_nonCancellable()
+        bootstrapConfig()
+        _ = reloadConfig()
         initWorkspaces() // After the config: it picks the workspaces
 
         startUnixSocketServer()
@@ -34,8 +34,8 @@ public func initAppBundle() -> Ui {
     return world.ui
 }
 
-private func bootstrapConfig_nonCancellable() async {
-    let result = await reloadConfig_nonCancellable(forceConfigUrl: defaultConfigUrl)
+private func bootstrapConfig() {
+    let result = reloadConfig(forceConfigUrl: defaultConfigUrl)
     let msg = """
         Can't load default config. Your installation is probably corrupted.
         Please don't modify \(defaultConfigUrl.description.singleQuoted)

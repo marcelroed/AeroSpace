@@ -92,7 +92,7 @@ private final class ConfigAutoReload {
                 try await Task.sleep(for: debounceDelay)
                 if let token: RunSessionGuard = .isServerEnabled {
                     try await world.sessions.light(.configAutoReload, token) {
-                        _ = await reloadConfig_nonCancellable()
+                        _ = reloadConfig()
                     }
                 }
             }

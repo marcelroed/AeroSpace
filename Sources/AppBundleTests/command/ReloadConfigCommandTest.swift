@@ -45,6 +45,6 @@ private func dryRunReloadConfig(_ toml: String, noGui: Bool = false) async throw
     world.ui.messageModel.message = Message(body: "untouched")
     defer { world.ui.messageModel.message = nil }
     let args = ReloadConfigCommand(noGui: noGui, dryRun: true)
-    let result = await reloadConfig_nonCancellable(args: args, forceConfigUrl: url)
+    let result = reloadConfig(args: args, forceConfigUrl: url)
     return (url, result, world.ui.messageModel.message)
 }

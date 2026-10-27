@@ -129,7 +129,7 @@ struct ReloadConfigCommand: nonisolated Command {
     }
 
     func run(_ cx: CmdContext) async throws(CmdFail) {
-        let result = await reloadConfig_nonCancellable(args: self)
+        let result = reloadConfig(args: self)
         if !result.stdout.isEmpty {
             cx.out(result.stdout)
         }
@@ -142,11 +142,7 @@ struct ReloadConfigResult {
     let stdout: String
 }
 
-/// Stays `async` only so that the call sites don't change. Nothing in it suspends
-func reloadConfig_nonCancellable(
-    args: ReloadConfigCommand = ReloadConfigCommand(),
-    forceConfigUrl: URL? = nil,
-) async -> ReloadConfigResult {
+func reloadConfig(args: ReloadConfigCommand = ReloadConfigCommand(), forceConfigUrl: URL? = nil) -> ReloadConfigResult {
     let (url, parsed) = loadConfig(forceUrl: forceConfigUrl)
     let errors = parsed.errors.map(\.description)
     if !args.noGui {
