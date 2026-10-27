@@ -65,6 +65,8 @@ struct FocusStore {
     }
     private(set) var prevWorkspaceDate: Date = .distantPast
     fileprivate var isRunningOnFocusChangedCallbacks = false
+    /// The changes whose callbacks wait for the running ones, in order. See ``runFocusChangedCallbacks(_:)``
+    fileprivate var pendingFocusChanges: [RecordedFocusChange] = []
     /// See ``syncFocusFromMacOs(_:)``
     var lastKnownNativeFocusedWindowId: WindowId? = nil
     /// The native focus that a session read last, also when the read changed nothing: it was
@@ -181,12 +183,31 @@ func recordFocusChange() -> RecordedFocusChange? {
     )
 }
 
-/// The callbacks half of the focus check: on-focus-changed, exec-on-workspace-change, on-focused-monitor-changed. Not
-/// while they run already: a callback's own session records its changes without running them again
+/// The callbacks half of the focus check: on-focus-changed, exec-on-workspace-change, on-focused-monitor-changed. One
+/// change at a time, in the order of the changes:
+/// - A change that a callback's own commands make records it without running the callbacks again: no recursion.
+/// - Another session's change while the callbacks suspend (e.g. a hotkey while a callback reads AX) runs its callbacks
+///   right after them, in the task that runs them (R2c L2). That session doesn't wait for them
 func runFocusChangedCallbacks(_ change: RecordedFocusChange) async {
-    if world.focusStore.isRunningOnFocusChangedCallbacks { return }
+    if world.focusStore.isRunningOnFocusChangedCallbacks {
+        if !FocusChangedCallbacks.isRunningInThisTask { world.focusStore.pendingFocusChanges.append(change) }
+        return
+    }
     world.focusStore.isRunningOnFocusChangedCallbacks = true
     defer { world.focusStore.isRunningOnFocusChangedCallbacks = false }
+    world.focusStore.pendingFocusChanges = [change]
+    while !world.focusStore.pendingFocusChanges.isEmpty {
+        let change = world.focusStore.pendingFocusChanges.removeFirst()
+        await FocusChangedCallbacks.$isRunningInThisTask.withValue(true) { await runCallbacks(of: change) }
+    }
+}
+
+private enum FocusChangedCallbacks {
+    /// The callbacks' commands run in the task that runs the callbacks: a focus check in it is one of theirs
+    @TaskLocal static var isRunningInThisTask = false
+}
+
+private func runCallbacks(of change: RecordedFocusChange) async {
     let focus = change.focus.live
     _ = await onFocusChanged(.defaultEnv, CmdIo.emptyStdinIgnoringOut, focus)
     if let prevWorkspaceName = change.prevWorkspaceName {

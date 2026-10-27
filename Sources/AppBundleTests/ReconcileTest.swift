@@ -313,8 +313,7 @@ struct ReconcileTest {
         setUpTree("h_tiles(*1 3)")
         fake.focused = 1
         await heavyRefresh()
-        focusLog = []
-        world.config.onFocusChanged = .cmd(LogFocus(.window))
+        logFocusOnFocusChanged(.window)
         try readTitlesOnWindowDetected()
         let gate = Gate()
         fake.beforeTitle = { _ in await gate.wait() }
@@ -338,8 +337,7 @@ struct ReconcileTest {
         setUpTree("h_tiles(*1 3)")
         fake.focused = 1
         await heavyRefresh()
-        focusLog = []
-        world.config.onFocusChanged = .cmd(LogFocus(.window))
+        logFocusOnFocusChanged(.window)
         try readTitlesOnWindowDetected()
         let gate = Gate()
         fake.beforeTitle = { _ in await gate.wait() }
@@ -368,8 +366,7 @@ struct ReconcileTest {
         setUpTree("h_tiles(3)", workspace: "b")
         fake.focused = 1
         await heavyRefresh()
-        focusLog = []
-        world.config.onFocusChanged = .cmd(LogFocus(.workspace))
+        logFocusOnFocusChanged(.workspace)
         try readTitlesOnWindowDetected()
         let gate = Gate()
         fake.beforeTitle = { _ in await gate.wait() }
@@ -383,6 +380,41 @@ struct ReconcileTest {
         gate.open()
         await heavy.value
         expectEqual(focusLog, ["b", "c"])
+    }
+
+    @Test
+    func aFocusChangeDuringSuspendedFocusCallbacksRunsItsCallbacksAfterThem() async throws { // R2c L2
+        setUpTree("h_tiles(*1)", workspace: "a")
+        setUpTree("h_tiles(3)", workspace: "b")
+        fake.focused = 1
+        await heavyRefresh()
+        let gate = Gate()
+        logFocusOnFocusChanged(.workspace, then: gate)
+
+        fake.focused = 3 // The user focuses workspace b
+        let heavy = Task.startUnstructured { await heavyRefresh() }
+        await gate.untilWaiting() // b's callback suspends
+        _ = try await world.sessions.light(.hotkeyBinding, .forceRun) { await runCmd("workspace c") }
+        world.sessions.cancelHeavy()
+        expectEqual(focusLog, ["b"]) // c's callbacks wait for b's
+        gate.open()
+        await heavy.value
+        expectEqual(focusLog, ["b", "c"])
+    }
+
+    @Test
+    func aFocusChangeThatTheFocusCallbacksMakeDoesntRunThemAgain() async throws {
+        setUpTree("h_tiles(*1 2 3)")
+        fake.focused = 1
+        await heavyRefresh()
+        logFocusOnFocusChanged(.window)
+        let focusRight = parseCommand("focus --boundaries-action stop right").cmdOrDie
+        world.config.onFocusChanged = .op(.seq, world.config.onFocusChanged, focusRight)
+
+        _ = try await world.sessions.light(.hotkeyBinding, .forceRun) { await runCmd("focus right") }
+        world.sessions.cancelHeavy()
+        expectEqual(focusLog, ["2"]) // No recursion: the callback's own change to 3 doesn't run it again
+        expectEqual(focus.windowOrNil?.windowId, 3)
     }
 
     @Test
@@ -433,6 +465,15 @@ private let appB = AppInfo(pid: 2, bundleId: "test.b", name: "B", execPath: nil,
 
 /// What the on-focus-changed callback ``LogFocus`` saw, in order
 private var focusLog: [String] = []
+/// Awaited by ``LogFocus`` after each entry: the callback suspends there, as one that reads AX does
+private var focusLogGate: Gate? = nil
+
+/// on-focus-changed logs the focus that it sees into ``focusLog``, then waits for `gate`
+private func logFocusOnFocusChanged(_ property: LogFocus.Property, then gate: Gate? = nil) {
+    focusLog = []
+    focusLogGate = gate
+    world.config.onFocusChanged = .cmd(LogFocus(property: property))
+}
 
 /// Logs the focus that it sees: the focused workspace, or the focused window
 private struct LogFocus: nonisolated Command {
@@ -441,8 +482,6 @@ private struct LogFocus: nonisolated Command {
     var source: SourceWords = ["log-focus"]
     let property: Property
 
-    init(_ property: Property) { self.property = property }
-
     func run(_ cx: CmdContext) async throws(CmdFail) {
         let target = try cx.target()
         let entry = switch property {
@@ -450,6 +489,7 @@ private struct LogFocus: nonisolated Command {
             case .window: target.windowOrNil.map { "\($0.windowId)" } ?? "nil"
         }
         focusLog.append(entry)
+        await focusLogGate?.wait()
     }
 }
 
