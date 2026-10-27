@@ -132,9 +132,9 @@ struct RunCallbackCommand: nonisolated Command {
                 guard let window = target.windowOrNil else { throw CmdFail(noWindowIsFocused) }
                 exitCode = await onWindowDetected(cx.env, cx.io, window, isStartup: false)
             case .onFocusChanged:
-                exitCode = await onFocusChanged(cx.env, cx.io, target)
+                exitCode = await config.onFocusChanged.run(cx.env.withFocus(target), cx.io)
             case .onFocusedMonitorChanged:
-                exitCode = await onFocusedMonitorChanged(cx.env, cx.io, target)
+                exitCode = await config.onFocusedMonitorChanged.run(cx.env.withFocus(target), cx.io)
         }
         try CmdFail.passThrough(exitCode)
     }

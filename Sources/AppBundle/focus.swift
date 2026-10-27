@@ -46,14 +46,27 @@ private struct FrozenFocus: Equatable, Sendable {
             ? workspaceFocus // If window and workspace become separated prefer workspace
             : windowFocus
     }
+
+    /// The events that tell this focus to a `subscribe` client that was told `prev`: the focus, then the monitor and the
+    /// workspace if they changed. nil `prev`: a new client, which is told all three
+    func events(after prev: FrozenFocus?) -> [ServerEvent] {
+        var events: [ServerEvent] = [.focusChanged(windowId: windowId?.raw, workspace: workspaceName)]
+        if monitorId_oneBased != prev?.monitorId_oneBased {
+            events.append(.focusedMonitorChanged(workspace: workspaceName, monitorId_oneBased: monitorId_oneBased))
+        }
+        if workspaceName != prev?.workspaceName {
+            events.append(.workspaceChanged(workspace: workspaceName, prevWorkspace: prev?.workspaceName ?? workspaceName))
+        }
+        return events
+    }
 }
 
 /// The focus and its history. Part of ``World``
 struct FocusStore {
     /// nil until the first read, see `_focus`
     fileprivate var current: FrozenFocus? = nil
-    /// What the last on-focus-changed check saw. nil until the callbacks are armed at the end of the startup: until then,
-    /// no check reports a change
+    /// The focus that the last focus check recorded, and the `subscribe` clients were told. nil until the callbacks are
+    /// armed at the end of the startup: until then, no check records a change
     fileprivate var lastKnown: FrozenFocus? = nil
     /// Used by focus-back-and-forth
     fileprivate var prev: FrozenFocus? = nil
@@ -163,13 +176,13 @@ var prevFocus: LiveFocus? {
     return prev
 }
 
-/// The end of the startup: the focus callbacks report the changes from now on. Tests arm them in
-/// setUpWorkspacesForTests
+/// The end of the startup: from now on, the focus checks record the changes, tell them to the `subscribe` clients and run
+/// their callbacks. Tests arm them in setUpWorkspacesForTests
 func armFocusChangedCallbacks() {
     world.focusStore.lastKnown = _focus
 }
 
-/// Runs the callbacks of a focus change since the last check. Every session runs it in its model refresh
+/// Records the focus change since the last check, then runs its callbacks. Every session runs it in its model refresh
 func checkOnFocusChangedCallbacks_nonCancellable() async {
     if let change = recordFocusChange() { await runFocusChangedCallbacks(change) }
 }
@@ -190,10 +203,12 @@ struct RecordedFocusChange {
 }
 
 /// The bookkeeping half of the focus check: remembers the previous focus (focus-back-and-forth) and the previous
-/// workspace (workspace-back-and-forth, the GC's refocus rule #1089). nil if nothing changed or the callbacks aren't armed
+/// workspace (workspace-back-and-forth, the GC's refocus rule #1089), and tells the change to the `subscribe` clients.
+/// nil if nothing changed or the callbacks aren't armed
 func recordFocusChange() -> RecordedFocusChange? {
-    // No screens (e.g., during display reconfiguration): keep the last known focus and defer the callbacks until the screens
-    // come back. Their commands would mostly fail meanwhile (focus-monitor, summon-workspace, focusing a hidden workspace)
+    // No screens (e.g., during display reconfiguration): keep the last known focus and defer the change (its events and
+    // callbacks) until the screens come back. The callbacks' commands would mostly fail meanwhile (focus-monitor,
+    // summon-workspace, focusing a hidden workspace)
     guard let lastKnownFocus = world.focusStore.lastKnown, world.monitors.hasScreens else { return nil }
     let frozenFocus = focus.frozen
     if frozenFocus == lastKnownFocus { return nil }
@@ -201,15 +216,21 @@ func recordFocusChange() -> RecordedFocusChange? {
     let change = RecordedFocusChange(prev: lastKnownFocus, focus: frozenFocus)
     if let prevWorkspaceName = change.prevWorkspaceName { world.focusStore.prevWorkspaceName = prevWorkspaceName }
     world.focusStore.lastKnown = frozenFocus
+    for event in frozenFocus.events(after: lastKnownFocus) { broadcastEvent(event) }
     return change
 }
+
+/// The focus that the events so far told, for a new `subscribe` client: the last recorded one. Before the callbacks are
+/// armed, no change is recorded or told: the current focus
+var recordedFocusEvents: [ServerEvent] { (world.focusStore.lastKnown ?? focus.frozen).events(after: nil) }
 
 /// The callbacks half of the focus check: on-focus-changed, exec-on-workspace-change, on-focused-monitor-changed. One
 /// change at a time, in the order of the changes:
 /// - A change that a callback's own commands make records it without running the callbacks again: no recursion.
 /// - Other sessions' changes while the callbacks suspend (e.g. hotkeys while a callback reads AX) run the callbacks
 ///   right after them, in the task that runs them. That session doesn't wait for them. Those changes run the
-///   callbacks once, as one change to the latest focus: no callback runs for a focus that the user has left
+///   callbacks once, as one change to the latest focus: no callback runs for a focus that the user has left. Their
+///   events were told one by one, when each was recorded
 func runFocusChangedCallbacks(_ change: RecordedFocusChange) async {
     if world.focusStore.isRunningOnFocusChangedCallbacks {
         if FocusChangedCallbacks.isRunningInThisTask { return }
@@ -237,36 +258,16 @@ private enum FocusChangedCallbacks {
 
 private func runCallbacks(of change: RecordedFocusChange) async {
     let focus = change.focus.live
-    _ = await onFocusChanged(.defaultEnv, CmdIo.emptyStdinIgnoringOut, focus)
+    _ = await config.onFocusChanged.run(.defaultEnv.withFocus(focus), .emptyStdinIgnoringOut)
     if let prevWorkspaceName = change.prevWorkspaceName {
-        onWorkspaceChanged(prevWorkspaceName, change.focus.workspaceName, focus)
+        runExecOnWorkspaceChange(prevWorkspaceName, change.focus.workspaceName, focus)
     }
     if change.isMonitorChanged {
-        _ = await onFocusedMonitorChanged(.defaultEnv, CmdIo.emptyStdinIgnoringOut, focus)
+        _ = await config.onFocusedMonitorChanged.run(.defaultEnv.withFocus(focus), .emptyStdinIgnoringOut)
     }
 }
 
-func onFocusedMonitorChanged(_ env: CmdEnv, _ io: CmdIo, _ focus: LiveFocus) async -> Int32 {
-    broadcastEvent(.focusedMonitorChanged(
-        workspace: focus.workspace.name,
-        monitorId_oneBased: focus.workspace.workspaceMonitor.monitorId_oneBased,
-    ))
-    return await config.onFocusedMonitorChanged.run(env.withFocus(focus), io)
-}
-
-func onFocusChanged(_ env: CmdEnv, _ io: CmdIo, _ focus: LiveFocus) async -> Int32 {
-    broadcastEvent(.focusChanged(
-        windowId: focus.windowOrNil?.windowId.raw,
-        workspace: focus.workspace.name,
-    ))
-    return await config.onFocusChanged.run(env.withFocus(focus), io)
-}
-
-private func onWorkspaceChanged(_ oldWorkspace: String, _ newWorkspace: String, _ focus: LiveFocus) {
-    broadcastEvent(.workspaceChanged(
-        workspace: newWorkspace,
-        prevWorkspace: oldWorkspace,
-    ))
+private func runExecOnWorkspaceChange(_ oldWorkspace: String, _ newWorkspace: String, _ focus: LiveFocus) {
     if let exec = config.execOnWorkspaceChange.first {
         var environment = config.execConfig.envVariables
         environment[AEROSPACE_FOCUSED_WORKSPACE] = newWorkspace

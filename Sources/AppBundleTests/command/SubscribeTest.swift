@@ -23,15 +23,11 @@ struct SubscribeTest {
         expectEqual(Result { () throws(CmdParseError) in try SubscribeArgs.parse(&cursor) }, expected)
     }
 
-    /// A client gets the answer, then the state when it subscribed, then every change of its events, in order
+    /// A client gets the answer, then the state when it subscribed, then every change of its events, in order. The state
+    /// and a focus change tell the focus, then the monitor, then the workspace
     @Test
     func clientsGetTheStateThenTheChanges() async throws {
-        fake.monitorInfos = [testMonitor, rightTestMonitor] // The refresh that detects window 4 reads them
-        updateMonitors(fake.monitorInfos)
-        check(testMonitor.setActiveWorkspace(Workspace.get(byName: "a")) && rightTestMonitor.setActiveWorkspace(Workspace.get(byName: "b")))
-        setUpTree("h_tiles(3)", workspace: "b")
-        setUpTree("h_tiles(*1 2)", workspace: "a")
-        armFocusChangedCallbacks() // The setup isn't a change
+        setUpTwoMonitors()
         let server = try await TestSocketServer.start(.aeroSpace)
         defer { server.stop() }
         let all = try await subscribe(server, ["--all"])
@@ -50,16 +46,16 @@ struct SubscribeTest {
         await runCmd("focus-monitor right")
         await expectEvents(all, [
             #"{"_event":"focus-changed","windowId":3,"workspace":"b"}"#,
-            #"{"_event":"focused-workspace-changed","prevWorkspace":"a","workspace":"b"}"#,
             #"{"_event":"focused-monitor-changed","monitorId":2,"workspace":"b"}"#,
+            #"{"_event":"focused-workspace-changed","prevWorkspace":"a","workspace":"b"}"#,
         ])
         await runCmd("mode resize")
         await expectEvents(all, [#"{"_event":"mode-changed","mode":"resize"}"#])
         await runCmd("workspace c") // A new workspace opens on the main monitor
         await expectEvents(all, [
             #"{"_event":"focus-changed","workspace":"c"}"#,
-            #"{"_event":"focused-workspace-changed","prevWorkspace":"b","workspace":"c"}"#,
             #"{"_event":"focused-monitor-changed","monitorId":1,"workspace":"c"}"#,
+            #"{"_event":"focused-workspace-changed","prevWorkspace":"b","workspace":"c"}"#,
         ])
         fake.windows[4] = FakeWindow(app: testApp, rect: nil, title: "Window 4")
         await Reconcile.heavy(.ax("test")) // The new window takes the focus of its empty workspace
@@ -72,6 +68,52 @@ struct SubscribeTest {
             #"{"_event":"focused-workspace-changed","prevWorkspace":"a","workspace":"b"}"#,
             #"{"_event":"focused-workspace-changed","prevWorkspace":"b","workspace":"c"}"#,
         ], then: .workspace)
+    }
+
+    /// A client that subscribes between a focus change and the focus check that records it (e.g. while the command awaits
+    /// AX) gets the focus before the change, then the change once: the state that the events so far told
+    @Test
+    func clientThatSubscribesBeforeTheFocusCheckGetsTheChangeOnce() async throws {
+        setUpTwoMonitors()
+        check(testWindow(3).focusWindow()) // The model changes now, the focus check that records the change comes later
+        let server = try await TestSocketServer.start(.aeroSpace)
+        defer { server.stop() }
+        let client = try await subscribe(server, ["--all"])
+        defer { client.cancel() }
+
+        await checkOnFocusChangedCallbacks_nonCancellable()
+        await expectEvents(client, [
+            #"{"_event":"focus-changed","windowId":1,"workspace":"a"}"#,
+            #"{"_event":"focused-monitor-changed","monitorId":1,"workspace":"a"}"#,
+            #"{"_event":"focused-workspace-changed","prevWorkspace":"a","workspace":"a"}"#,
+            #"{"_event":"mode-changed","mode":"main"}"#,
+            #"{"_event":"focus-changed","windowId":3,"workspace":"b"}"#,
+            #"{"_event":"focused-monitor-changed","monitorId":2,"workspace":"b"}"#,
+            #"{"_event":"focused-workspace-changed","prevWorkspace":"a","workspace":"b"}"#,
+        ])
+    }
+
+    /// The focus events tell every recorded change, also one that a callback's own commands make. A callback run by hand
+    /// changes nothing, so it tells nothing
+    @Test
+    func focusEventsTellTheRecordedChanges() async throws {
+        setUpTree("h_tiles(*1 2)", workspace: "a")
+        armFocusChangedCallbacks() // The setup isn't a change
+        world.config.onFocusChanged = parseCommand("workspace c").cmdOrDie
+        let server = try await TestSocketServer.start(.aeroSpace)
+        defer { server.stop() }
+        let client = try await subscribe(server, ["--no-send-initial", "--all"])
+        defer { client.cancel() }
+
+        await runCmd("focus right")
+        await expectEvents(client, [
+            #"{"_event":"focus-changed","windowId":2,"workspace":"a"}"#,
+            #"{"_event":"focus-changed","workspace":"c"}"#, // on-focus-changed's `workspace c`
+            #"{"_event":"focused-workspace-changed","prevWorkspace":"a","workspace":"c"}"#,
+        ])
+        await runCmd("run-callback on-focus-changed") // `workspace c` again: no change
+        await runCmd("run-callback on-focused-monitor-changed")
+        await expectEvents(client, [])
     }
 
     /// The client is registered before its answer: nothing between the two is lost
@@ -137,6 +179,16 @@ struct SubscribeTest {
         #expect(stalledFrames < maxQueuedEvents, "\(stalledFrames)")
         await expectEvents(reading, [])
     }
+}
+
+/// Workspace a with windows 1 (focused) and 2 on the main monitor, b with window 3 on the right one
+private func setUpTwoMonitors() {
+    fake.monitorInfos = [testMonitor, rightTestMonitor] // A heavy refresh reads them
+    updateMonitors(fake.monitorInfos)
+    check(testMonitor.setActiveWorkspace(Workspace.get(byName: "a")) && rightTestMonitor.setActiveWorkspace(Workspace.get(byName: "b")))
+    setUpTree("h_tiles(3)", workspace: "b")
+    setUpTree("h_tiles(*1 2)", workspace: "a")
+    armFocusChangedCallbacks() // The setup isn't a change
 }
 
 /// A `subscribe` client that got the success answer

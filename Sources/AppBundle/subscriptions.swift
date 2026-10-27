@@ -56,31 +56,19 @@ struct Subscription {
 /// The clients whose writer hasn't ended
 private(set) var subscriptions: [UUID: Subscription] = [:]
 
-/// Queues the events of `args` from now on, after the current state unless `--no-send-initial`
+/// Queues the events of `args` from now on, after the state that the events so far told unless `--no-send-initial`
 func subscribe(_ args: SubscribeArgs, _ connection: NWConnection) -> Subscription {
     let (frames, queue) = AsyncStream<Data>.makeStream(bufferingPolicy: .bufferingOldest(maxQueuedEvents))
     let subscription = Subscription(events: args.events, connection: connection, frames: frames, queue: queue)
     subscriptions[subscription.id] = subscription
     if args.sendInitial {
-        for event in currentState(ServerEventType.allCases.filter(args.events.contains)) { subscription.send(encode(event)) }
+        for event in initialState where args.events.contains(event.eventType) { subscription.send(encode(event)) }
     }
     return subscription
 }
 
-/// The current state as events of `types`. Detections and key presses have no current state
-private func currentState(_ types: [ServerEventType]) -> [ServerEvent] {
-    let f = focus
-    return types.compactMap { (type: ServerEventType) -> ServerEvent? in
-        switch type {
-            case .focusChanged: .focusChanged(windowId: f.windowOrNil?.windowId.raw, workspace: f.workspace.name)
-            case .focusedMonitorChanged:
-                .focusedMonitorChanged(workspace: f.workspace.name, monitorId_oneBased: f.workspace.workspaceMonitor.monitorId_oneBased)
-            case .workspaceChanged: .workspaceChanged(workspace: f.workspace.name, prevWorkspace: f.workspace.name)
-            case .modeChanged: .modeChanged(mode: world.activeMode)
-            case .windowDetected, .bindingTriggered: nil
-        }
-    }
-}
+/// The state that the events so far told: the recorded focus and the mode. Detections and key presses have no state
+private var initialState: [ServerEvent] { recordedFocusEvents + [.modeChanged(mode: world.activeMode)] }
 
 /// Writes the queued events to the client until it disconnects, a write fails or its queue overflows. It runs on the main
 /// actor, next to `subscriptions`, but a slow client never blocks it: each write suspends until the socket takes it
