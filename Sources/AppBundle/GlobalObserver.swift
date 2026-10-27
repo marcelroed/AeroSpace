@@ -56,7 +56,7 @@ func unhideMacosHiddenAppsIfConfigured() {
         _ = w.focusWindow()
         w.nativeFocus()
     }
-    for app in world.platform.runningApps() {
+    for app in world.platform.runningApps() where world.platform.isHidden(app) {
         world.platform.unhideApp(app)
     }
 }
