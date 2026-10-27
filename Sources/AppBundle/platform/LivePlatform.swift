@@ -130,7 +130,13 @@ final class LivePlatform: Platform {
     func classify(_ windows: [AppInfo: [WindowId]]) async throws(CancellationError) -> [WindowId: DetectedWindow] {
         if windows.isEmpty { return [:] } // An idle heavy refresh classifies nothing: no window server query
         let levels = onScreenWindowLevels()
-        return try await observe(windows) { app in
+        var toClassify: [AppInfo: [WindowId]] = [:]
+        for (app, ids) in windows {
+            // An off-screen window whose kind depends on its level has no kind yet: no AX job for it (R2c L5)
+            let ids = apps[app.pid].map { kindNeedsWindowLevel($0.appId) } == true ? ids.filter { levels[$0.raw] != nil } : ids
+            if !ids.isEmpty { toClassify[app] = ids }
+        }
+        return try await observe(toClassify) { app in
             let classifier = app.classifier
             return { @Sendable axApp, raws, isAbandoned in
                 let activationPolicy = classifier.nsApp.activationPolicy // An XPC: once per app

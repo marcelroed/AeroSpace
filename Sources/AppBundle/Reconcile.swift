@@ -55,7 +55,7 @@ enum Reconcile {
         // the one that the model has already (R2c M1)
         func isNativeFocusCurrent() -> Bool { world.focusStore.lastReadNativeFocusedWindowId == focused.windowId }
         let detected = try await world.platform.classify([focused.app: [focused.windowId]])[focused.windowId]
-        let debugInfos = try await readDebugInfos(focused, [])
+        let debugInfos = detected == nil ? [] : try await readDebugInfos(focused, [])
         if !isNativeFocusCurrent() { return } // The heavy refresh registers the window
         // Another session may have registered the window at the suspension points above
         if let window = Window.get(byId: focused.windowId) { return syncFocusFromMacOs(window) }
@@ -114,15 +114,21 @@ enum Reconcile {
         for case let popup as Window in macosPopupWindowsContainer.children where listed.contains(popup.windowId) {
             toClassify[popup.app, default: []].append(popup.windowId)
         }
-        var toRead: [AppInfo: [WindowId]] = [:]
-        for (id, app) in new { toRead[app, default: []].append(id) }
-        for window in boundNonPopupWindows where listed.contains(window.windowId) {
-            toRead[window.app, default: []].append(window.windowId)
-            if window.layoutReason.hidesKind { toClassify[window.app, default: []].append(window.windowId) }
+        let boundListed = boundNonPopupWindows.filter { listed.contains($0.windowId) }
+        for window in boundListed where window.layoutReason.hidesKind {
+            toClassify[window.app, default: []].append(window.windowId)
         }
         let detected = try await platform.classify(toClassify)
+        // A new window that classify didn't detect (gone, or off-screen with a kind that depends on its level) isn't
+        // registered in P2: its states and its dump would go unused. E.g. a minimized Chrome window stays unregistered
+        // for as long as it's minimized, and every heavy refresh would read them again (R2c L5)
+        let registrable = new.filter { detected[$0.id] != nil }
+        var toRead: [AppInfo: [WindowId]] = [:]
+        for (id, app) in registrable { toRead[app, default: []].append(id) }
+        for window in boundListed { toRead[window.app, default: []].append(window.windowId) }
         let facts = try await platform.nativeFacts(toRead)
-        let debugInfos = try await readDebugInfos(focused, new)
+        let isFocusedRegistrable = focused.map { world.windows[$0.windowId] != nil || detected[$0.windowId] != nil } == true
+        let debugInfos = try await readDebugInfos(isFocusedRegistrable ? focused : nil, registrable)
 
         try checkCancellation()
         // RB-01: the screens may disappear during the reads (e.g. display reconfiguration on wake). Leave the windows to

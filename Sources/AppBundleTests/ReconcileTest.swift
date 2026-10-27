@@ -191,6 +191,25 @@ struct ReconcileTest {
     }
 
     @Test
+    func aNewWindowWhoseKindIsUnknownCostsNoReadsButItsClassification() async throws { // R2c L5
+        openWindow(1)
+        fake.windows[1]?.level = nil // E.g. a minimized Chrome window: it stays unregistered while it's minimized
+        fake.windows[1]?.kind = nil
+        fake.focused = 1
+        _ = await runCmd("debug-windows") // Start recording
+        fake.resetCalls()
+
+        await heavyRefresh()
+        #expect(world.windows.isEmpty)
+        expectEqual(fake.calls(of: .classify), [.classify([1])])
+        expectEqual(fake.calls(of: .nativeFacts), [.nativeFacts([])])
+        expectEqual(fake.calls(of: .debugInfo), [])
+        _ = try await world.sessions.light(.hotkeyBinding, .forceRun) {}
+        world.sessions.cancelHeavy()
+        expectEqual(fake.calls(of: .debugInfo), [])
+    }
+
+    @Test
     func aRefreshPreemptedDuringTheReadsCommitsNothing() async throws {
         openWindow(1)
         try readTitlesOnWindowDetected()

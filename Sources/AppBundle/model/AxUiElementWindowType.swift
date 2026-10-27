@@ -205,13 +205,16 @@ nonisolated extension AxUiElementMock {
         _ activationPolicy: NSApplication.ActivationPolicy,
         _ windowLevel: MacOsWindowLevel?,
     ) -> AxUiElementWindowType? {
-        if windowLevel == nil && (usesWindowLevel(id) || id == ._1password) { return nil }
+        if windowLevel == nil && kindNeedsWindowLevel(id) { return nil }
         return .new(
             isWindow: isWindowHeuristic(axApp: axApp, id, activationPolicy, windowLevel),
             isDialog: { isDialogHeuristic(id, windowLevel) },
         )
     }
 }
+
+/// The apps whose windows' kind depends on the window level, see ``AXUIElement/getWindowType(axApp:_:_:_:)``
+nonisolated func kindNeedsWindowLevel(_ id: KnownBundleId?) -> Bool { usesWindowLevel(id) || id == ._1password }
 
 /// Slowly roll out windowLevel for applications for which we have the appropriate dumps
 nonisolated private func usesWindowLevel(_ id: KnownBundleId?) -> Bool {
