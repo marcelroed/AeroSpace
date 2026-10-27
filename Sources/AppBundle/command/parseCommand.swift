@@ -26,19 +26,17 @@ enum ParsedRequest {
 func parseRequest(_ args: [String]) throws(CmdParseError) -> ParsedRequest {
     var (kind, cursor) = try parseSubcommand(args)
     if kind == .subscribe { return .subscribe(try SubscribeArgs.parse(&cursor)) }
-    return .command(try parseCommand(args))
+    return .command(try parseArgs(kind, &cursor, source: args))
 }
 
 /// Parses the words of one command: the subcommand and its args
 func parseCommand(_ words: [String]) throws(CmdParseError) -> any Command {
-    let (kind, cursor) = try parseSubcommand(words)
-    var args = cursor
-    var command = try parseArgs(kind, &args)
-    command.source = SourceWords(words)
-    return command
+    var (kind, cursor) = try parseSubcommand(words)
+    return try parseArgs(kind, &cursor, source: words)
 }
 
-/// The subcommand of `words` and a cursor over its args
+/// The subcommand of `words` and a cursor over its args. `-h` or `--help` among the options asks for the help, whatever
+/// else the args hold
 func parseSubcommand(_ words: [String]) throws(CmdParseError) -> (CmdKind, ArgCursor) {
     guard let name = words.first, !name.isEmpty else { throw "Can't parse empty string command" }
     guard let kind = CmdKind(rawValue: name), kind != .execAndForget else { throw "Unrecognized subcommand '\(name)'" }
@@ -48,8 +46,8 @@ func parseSubcommand(_ words: [String]) throws(CmdParseError) -> (CmdKind, ArgCu
 }
 
 /// One case per subcommand, so that every help entry has a command
-private func parseArgs(_ kind: CmdKind, _ a: inout ArgCursor) throws(CmdParseError) -> any Command {
-    switch kind {
+private func parseArgs(_ kind: CmdKind, _ a: inout ArgCursor, source: [String]) throws(CmdParseError) -> any Command {
+    var command: any Command = switch kind {
         case .balanceSizes: try BalanceSizesCommand.parse(&a)
         case .close: try CloseCommand.parse(&a)
         case .closeAllWindowsButCurrent: try CloseAllWindowsButCurrentCommand.parse(&a)
@@ -96,6 +94,8 @@ private func parseArgs(_ kind: CmdKind, _ a: inout ArgCursor) throws(CmdParseErr
         case .workspace: try WorkspaceCommand.parse(&a)
         case .workspaceBackAndForth: try WorkspaceBackAndForthCommand.parse(&a)
     }
+    command.source = SourceWords(source)
+    return command
 }
 
 /// The args of a command, after the subcommand name. A command's `parse` takes the options in a loop
