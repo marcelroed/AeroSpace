@@ -45,9 +45,9 @@ struct NWConnectionExTest {
         let connection = NWConnection(to: .unix(path: server.path), using: .tcp)
         defer { connection.cancel() }
 
-        #expect(await connection.initConnection().error == nil)
+        await expectEqual(connection.initConnection().error, nil)
         let request = ClientRequest(args: [], stdin: "", windowId: nil, workspace: nil)
-        #expect(await connection.writeAtomic(request).error == nil)
+        await expectEqual(connection.writeAtomic(request).error, nil)
         // Like `aerospace --version` when the main thread of AeroSpace.app is stuck
         let answer = await withTimeout(seconds: 1) { await connection.readFrame() }
         #expect(answer == nil)

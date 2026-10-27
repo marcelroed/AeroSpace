@@ -66,7 +66,7 @@ struct FocusCommandTest {
     ] as [(String, String)])
     func parseErrorOrder(command: String, error: String) async {
         let output = await runCmd(command)
-        #expect(output == .fail(error))
+        expectEqual(output, .fail(error))
     }
 
     @Test(arguments: [
@@ -168,11 +168,11 @@ struct FocusCommandTest {
         #expect(testWindow(2).focusWindow() && testWindow(3).focusWindow())
         testWindow(3).isFullscreen = true
         let output = await runCmd("focus --window-id 4")
-        #expect(output == .ok)
-        #expect(workspace.rootTilingContainer.mostRecentWindowRecursive?.windowId == 3)
+        expectEqual(output, .ok)
+        expectEqual(workspace.rootTilingContainer.mostRecentWindowRecursive?.windowId, 3)
         try await workspace.layoutWorkspace()
         let fullscreen: AxFrame = AxFrame(topLeft: CGPoint(x: 0, y: 0), size: CGSize(width: 1920, height: 1080))
-        #expect(testWindow(3).setAxFrameHistory.last == fullscreen)
+        expectEqual(testWindow(3).setAxFrameHistory.last, fullscreen)
     }
 
     @Test

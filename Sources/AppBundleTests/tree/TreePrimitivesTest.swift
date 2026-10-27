@@ -196,15 +196,16 @@ struct TreePrimitivesTest {
         world.config.enableNormalizationFlattenContainers = true
         world.config.enableNormalizationOppositeOrientationForNestedContainers = true
         let workspace = setUpTree("h_tiles(1 h_tiles(2 3) v_tiles(h_tiles(4 5)))", workspace: "a")
-        let before = (describeTree("a", weights: true), describeNode(workspace, mru: true))
+        let treeBefore = describeTree("a", weights: true)
+        let workspaceBefore = describeNode(workspace, mru: true)
         world.withTemporaryTreeEdits {
             workspace.normalizeContainers() // Flattens v_tiles(h_tiles(4 5)), and changes the orientation of the nested containers
             workspace.rootTilingContainer.changeOrientation(.v)
             workspace.rootTilingContainer.layout = .accordion
-            let edited: String = "v_accordion(1 v_tiles(2 3) v_tiles(4 5))"
-            #expect(describeTree("a") == edited)
+            expectEqual(describeTree("a"), "v_accordion(1 v_tiles(2 3) v_tiles(4 5))")
         }
-        #expect((describeTree("a", weights: true), describeNode(workspace, mru: true)) == before)
+        expectEqual(describeTree("a", weights: true), treeBefore)
+        expectEqual(describeNode(workspace, mru: true), workspaceBefore)
     }
 
     @Test
@@ -212,14 +213,16 @@ struct TreePrimitivesTest {
         let a = setUpTree("h_tiles(1)", workspace: "a")
         let b = setUpTree("h_tiles(2 3) floating(4)", workspace: "b")
         let empty = TilingContainer(parent: a.rootTilingContainer, .v, .tiles)
-        let before = (describeNode(a, weights: true, mru: true), describeNode(b, weights: true, mru: true))
+        let aBefore = describeNode(a, weights: true, mru: true)
+        let bBefore = describeNode(b, weights: true, mru: true)
         world.withTemporaryTreeEdits {
             empty.move(to: b.rootTilingContainer) // A container moves out of 'a'
             testWindow(3).move(to: a.rootTilingContainer) // A window moves in
             testWindow(4).move(to: macosMinimizedWindowsContainer)
             testWindow(2).move(to: Workspace.get(byName: "c").rootTilingContainer) // Into a workspace that body creates
         }
-        #expect((describeNode(a, weights: true, mru: true), describeNode(b, weights: true, mru: true)) == before)
+        expectEqual(describeNode(a, weights: true, mru: true), aBefore)
+        expectEqual(describeNode(b, weights: true, mru: true), bBefore)
         #expect(empty.parent === a.rootTilingContainer)
         #expect(macosMinimizedWindowsContainer.children.isEmpty)
         #expect(Workspace.get(byName: "c").children.isEmpty)

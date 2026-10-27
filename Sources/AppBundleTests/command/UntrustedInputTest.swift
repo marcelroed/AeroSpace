@@ -110,16 +110,16 @@ struct UntrustedInputTest {
         // 40k commands overflowed the stack of the config load, 20k the stack of `config --get`
         let commands: String = Array(repeating: "'focus left'", count: 50000).joined(separator: ", ")
         let errors: [String] = parseConfig("mode.main.binding.alt-a = [\(commands)]").strErrors
-        #expect(errors == [Self.tooManyOperatorsInArray] as [String])
+        expectEqual(errors, [Self.tooManyOperatorsInArray])
     }
 
     @Test
     func configArrayCountsTheOperatorsOfItsCommands() {
         let chain: String = Array(repeating: "focus left", count: maxShellOperators).joined(separator: " && ") // One below the limit
         let atLimit: [String] = parseConfig("mode.main.binding.alt-a = ['\(chain)', 'focus right']").strErrors
-        #expect(atLimit == [] as [String])
+        expectEqual(atLimit, [])
         let overLimit: [String] = parseConfig("mode.main.binding.alt-a = ['\(chain)', 'focus right', 'focus up']").strErrors
-        #expect(overLimit == [Self.tooManyOperatorsInArray] as [String])
+        expectEqual(overLimit, [Self.tooManyOperatorsInArray])
     }
 
     @Test
@@ -131,7 +131,7 @@ struct UntrustedInputTest {
         let elapsed: Duration = try ContinuousClock().measure {
             tokens = try (literal + "%{\(variable)}").rawInterpolationTokens(interpolationChar: "%")
         }
-        #expect(tokens == [.literal(literal), .interVar(variable)] as [InterToken<String>])
+        expectEqual(tokens, [.literal(literal), .interVar(variable)])
         #expect(elapsed < .seconds(1))
     }
 }

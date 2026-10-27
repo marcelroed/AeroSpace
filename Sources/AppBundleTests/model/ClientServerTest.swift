@@ -46,7 +46,7 @@ struct ClientServerTest {
     func requestOfAnotherProtocolGetsTheProtocolMessage(json: String, client: String?) {
         let fix: String = "Use the CLI of the same AeroSpace version, or restart AeroSpace.app (a restart is required after each update)"
         let expected: String? = client.map { "\($0), and AeroSpace.app speaks version 2.\n\(fix)" }
-        #expect(protocolMismatchMessage(Data(json.utf8)) == expected)
+        expectEqual(protocolMismatchMessage(Data(json.utf8)), expected)
     }
 
     @Test
