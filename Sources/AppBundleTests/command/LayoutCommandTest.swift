@@ -15,6 +15,8 @@ struct LayoutCommandTest {
         ("layout --for-next-detected-window --fail-if-noop floating", "Conflicting options: --fail-if-noop, --for-next-detected-window"),
         ("layout --for-next-detected-window floating tiling", "layout command: --for-next-detected-window allows only one tiling|floating <target-layout> argument"),
         ("layout --for-next-detected-window accordion", "layout command: --for-next-detected-window allows only one tiling|floating <target-layout> argument"),
+        ("layout list", "Can't parse 'list'\nPossible values: \(LayoutCommand.LayoutDescription.unionLiteral)"),
+        ("layout h_list", "Can't parse 'h_list'\nPossible values: \(LayoutCommand.LayoutDescription.unionLiteral)"),
     ] as [(String, String)])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
@@ -96,7 +98,7 @@ struct LayoutCommandTest {
         let startParts = start.split(separator: "_").map { String($0) }
         let expected = "\(description.orientation ?? startParts[0])_\(description.layout ?? startParts[1])"
         let output = await runCmd("layout \(description.name)")
-        expectEqual(output, (expected == start ? alreadyIn(description.aliasOf ?? description.name) : .ok))
+        expectEqual(output, (expected == start ? alreadyIn(description.name) : .ok))
         expectEqual(describeTree(), "\(expected)(*1 2)")
     }
 
@@ -150,8 +152,6 @@ struct LayoutCommandTest {
         let name: String
         let orientation: String?
         let layout: String?
-        /// The description that a deprecated name stands for
-        var aliasOf: String? = nil
 
         var testDescription: String { name }
     }
@@ -166,9 +166,6 @@ nonisolated private let tilingDescriptions: [LayoutCommandTest.TilingDescription
     .init(name: "tiles", orientation: nil, layout: "tiles"),
     .init(name: "horizontal", orientation: "h", layout: nil),
     .init(name: "vertical", orientation: "v", layout: nil),
-    .init(name: "list", orientation: nil, layout: "tiles", aliasOf: "tiles"),
-    .init(name: "h_list", orientation: "h", layout: "tiles", aliasOf: "h_tiles"),
-    .init(name: "v_list", orientation: "v", layout: "tiles", aliasOf: "v_tiles"),
 ]
 
 nonisolated private func alreadyIn(_ mode: String) -> CmdOutput {

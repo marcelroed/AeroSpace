@@ -15,16 +15,9 @@ struct LayoutCommand: nonisolated Command {
             }
         }
 
-        /// The deprecated `list` names are aliases of `tiles`
         fileprivate static func parse(_ raw: String) throws(CmdParseError) -> Self {
-            switch raw {
-                case "list": return .tiles
-                case "h_list": return .h_tiles
-                case "v_list": return .v_tiles
-                default:
-                    guard let it = Self(rawValue: raw) else { throw "Can't parse '\(raw)'\nPossible values: \(unionLiteral)" }
-                    return it
-            }
+            guard let it = Self(rawValue: raw) else { throw "Can't parse '\(raw)'\nPossible values: \(unionLiteral)" }
+            return it
         }
     }
 
