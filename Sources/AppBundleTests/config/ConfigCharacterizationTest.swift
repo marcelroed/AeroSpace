@@ -18,10 +18,10 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
                 '''
             """,
         )
-        assertEquals(result.errors, [])
+        #expect(result.errors == [])
         let bindings = result.config.modes[mainModeId]?.bindings ?? [:]
-        assertEquals(bindings["alt-a"]?.commands.shellOfCommandsDescription, "")
-        assertEquals(bindings["alt-b"]?.commands.shellOfCommandsDescription, "workspace b")
+        #expect(bindings["alt-a"]?.commands.shellOfCommandsDescription.isEmpty == true)
+        #expect(bindings["alt-b"]?.commands.shellOfCommandsDescription == "workspace b")
     }
 
     @Test
@@ -36,7 +36,7 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
                 outer.top = [{ monitor.main = 1 }, '2']
             """,
         )
-        assertEquals(result.strErrors, [
+        #expect(result.strErrors == [
             "[ERROR] gaps.inner.horizontal: Expected types are 'Int' or 'Array'. But actual type is 'String'",
             "[ERROR] gaps.inner.vertical: Expected types are 'Int' or 'Array'. But actual type is 'Bool'",
             "[ERROR] gaps.outer.left[0].monitor.main: Expected type is 'Int'. But actual type is 'Bool'",
@@ -45,7 +45,7 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
         ])
         var expectedGaps = Gaps.zero
         expectedGaps.outer.left = .perMonitor([], default: 1)
-        assertEquals(result.config.gaps, expectedGaps)
+        #expect(result.config.gaps == expectedGaps)
     }
 
     @Test
@@ -61,14 +61,14 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
                 outer.right = [{ monitor.2 = 3 }, { monitor.1 = 7 }, 8]
             """,
         )
-        assertEquals(result.errors, [])
+        #expect(result.errors == [])
         let gaps = ResolvedGaps(gaps: result.config.gaps, monitor: mainMonitorInfo)
-        assertEquals(gaps.inner.horizontal, 2)
-        assertEquals(gaps.inner.vertical, 1)
-        assertEquals(gaps.outer.left, 9)
-        assertEquals(gaps.outer.bottom, 12)
-        assertEquals(gaps.outer.top, 6)
-        assertEquals(gaps.outer.right, 7)
+        #expect(gaps.inner.horizontal == 2)
+        #expect(gaps.inner.vertical == 1)
+        #expect(gaps.outer.left == 9)
+        #expect(gaps.outer.bottom == 12)
+        #expect(gaps.outer.top == 6)
+        #expect(gaps.outer.right == 7)
     }
 
     @Test
@@ -82,7 +82,7 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
                 outer.right = [{ monitor.0 = 1 }, { monitor.main = 2 }, 3]
             """,
         )
-        assertEquals(result.strErrors, [
+        #expect(result.strErrors == [
             "[ERROR] gaps.inner.horizontal: The array must contain at least one monitor pattern",
             "[ERROR] gaps.inner.vertical: The array must not be empty",
             "[ERROR] gaps.outer.left[0]: Expected type is 'Table'. But actual type is 'Int'",
@@ -91,37 +91,31 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
         var expectedGaps = Gaps.zero
         expectedGaps.outer.left = .perMonitor([], default: 2)
         expectedGaps.outer.right = .perMonitor([PerMonitorValue(description: .main, value: 2)], default: 3)
-        assertEquals(result.config.gaps, expectedGaps)
+        #expect(result.config.gaps == expectedGaps)
     }
 
     @Test
     func testNestedTablesOfWrongType() {
-        assertEquals(parseConfig("gaps = 1").strErrors, ["[ERROR] gaps: Expected type is 'Table'. But actual type is 'Int'"])
-        assertEquals(parseConfig("gaps.inner = 1").strErrors, ["[ERROR] gaps.inner: Expected type is 'Table'. But actual type is 'Int'"])
-        assertEquals(parseConfig("gaps.outer = 'a'").strErrors, ["[ERROR] gaps.outer: Expected type is 'Table'. But actual type is 'String'"])
-        assertEquals(parseConfig("gaps.inner.foo = 1").strErrors, ["[ERROR] gaps.inner.foo: Unknown key"])
-        assertEquals(parseConfig("gaps.outer.foo = 1").strErrors, ["[ERROR] gaps.outer.foo: Unknown key"])
-        assertEquals(parseConfig("focus-follows-mouse = 1").strErrors, ["[ERROR] focus-follows-mouse: Expected type is 'Table'. But actual type is 'Int'"])
-        assertEquals(parseConfig("focus-follows-mouse.foo = true").strErrors, ["[ERROR] focus-follows-mouse.foo: Unknown key"])
-        assertEquals(
-            parseConfig("focus-follows-mouse.enabled = 1").strErrors,
-            ["[ERROR] focus-follows-mouse.enabled: Expected type is 'Bool'. But actual type is 'Int'"],
-        )
-        assertEquals(parseConfig("mode = 1").strErrors, ["[ERROR] mode: Expected type is 'Table'. But actual type is 'Int'"])
-        assertEquals(parseConfig("mode.main = 1").strErrors, ["[ERROR] mode.main: Expected type is 'Table'. But actual type is 'Int'"])
-        assertEquals(parseConfig("mode.main.foo = 1").strErrors, ["[ERROR] mode.main.foo: Unknown key"])
-        assertEquals(parseConfig("mode.main.binding = 1").strErrors, ["[ERROR] mode.main.binding: Expected type is 'Table'. But actual type is 'Int'"])
-        assertEquals(parseConfig("key-mapping = 1").strErrors, ["[ERROR] key-mapping: Expected type is 'Table'. But actual type is 'Int'"])
-        assertEquals(parseConfig("key-mapping.foo = 1").strErrors, ["[ERROR] key-mapping.foo: Unknown key"])
-        assertEquals(parseConfig("exec = 1").strErrors, ["[ERROR] exec: Expected type is 'Table'. But actual type is 'Int'"])
-        assertEquals(parseConfig("exec.foo = 1").strErrors, ["[ERROR] exec.foo: Unknown key"])
-        assertEquals(parseConfig("exec.env-vars = 1").strErrors, ["[ERROR] exec.env-vars: Expected type is 'Table'. But actual type is 'Int'"])
-        assertEquals(
-            parseConfig("workspace-to-monitor-force-assignment = 1").strErrors,
-            ["[ERROR] workspace-to-monitor-force-assignment: Expected type is 'Table'. But actual type is 'Int'"],
-        )
-        assertEquals(parseConfig("on-window-detected = 1").strErrors, ["[ERROR] on-window-detected: Expected type is 'Array'. But actual type is 'Int'"])
-        assertEquals(parseConfig("on-window-detected = [1]").strErrors, [
+        #expect(parseConfig("gaps = 1").strErrors == ["[ERROR] gaps: Expected type is 'Table'. But actual type is 'Int'"])
+        #expect(parseConfig("gaps.inner = 1").strErrors == ["[ERROR] gaps.inner: Expected type is 'Table'. But actual type is 'Int'"])
+        #expect(parseConfig("gaps.outer = 'a'").strErrors == ["[ERROR] gaps.outer: Expected type is 'Table'. But actual type is 'String'"])
+        #expect(parseConfig("gaps.inner.foo = 1").strErrors == ["[ERROR] gaps.inner.foo: Unknown key"])
+        #expect(parseConfig("gaps.outer.foo = 1").strErrors == ["[ERROR] gaps.outer.foo: Unknown key"])
+        #expect(parseConfig("focus-follows-mouse = 1").strErrors == ["[ERROR] focus-follows-mouse: Expected type is 'Table'. But actual type is 'Int'"])
+        #expect(parseConfig("focus-follows-mouse.foo = true").strErrors == ["[ERROR] focus-follows-mouse.foo: Unknown key"])
+        #expect(parseConfig("focus-follows-mouse.enabled = 1").strErrors == ["[ERROR] focus-follows-mouse.enabled: Expected type is 'Bool'. But actual type is 'Int'"])
+        #expect(parseConfig("mode = 1").strErrors == ["[ERROR] mode: Expected type is 'Table'. But actual type is 'Int'"])
+        #expect(parseConfig("mode.main = 1").strErrors == ["[ERROR] mode.main: Expected type is 'Table'. But actual type is 'Int'"])
+        #expect(parseConfig("mode.main.foo = 1").strErrors == ["[ERROR] mode.main.foo: Unknown key"])
+        #expect(parseConfig("mode.main.binding = 1").strErrors == ["[ERROR] mode.main.binding: Expected type is 'Table'. But actual type is 'Int'"])
+        #expect(parseConfig("key-mapping = 1").strErrors == ["[ERROR] key-mapping: Expected type is 'Table'. But actual type is 'Int'"])
+        #expect(parseConfig("key-mapping.foo = 1").strErrors == ["[ERROR] key-mapping.foo: Unknown key"])
+        #expect(parseConfig("exec = 1").strErrors == ["[ERROR] exec: Expected type is 'Table'. But actual type is 'Int'"])
+        #expect(parseConfig("exec.foo = 1").strErrors == ["[ERROR] exec.foo: Unknown key"])
+        #expect(parseConfig("exec.env-vars = 1").strErrors == ["[ERROR] exec.env-vars: Expected type is 'Table'. But actual type is 'Int'"])
+        #expect(parseConfig("workspace-to-monitor-force-assignment = 1").strErrors == ["[ERROR] workspace-to-monitor-force-assignment: Expected type is 'Table'. But actual type is 'Int'"])
+        #expect(parseConfig("on-window-detected = 1").strErrors == ["[ERROR] on-window-detected: Expected type is 'Array'. But actual type is 'Int'"])
+        #expect(parseConfig("on-window-detected = [1]").strErrors == [
             "[ERROR] on-window-detected[0]: Expected type is 'Table'. But actual type is 'Int'",
         ])
     }
@@ -129,9 +123,9 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
     @Test
     func testFocusFollowsMouse() {
         let result = parseConfig("focus-follows-mouse.enabled = true")
-        assertEquals(result.errors, [])
-        assertEquals(result.config.focusFollowsMouse.enabled, true)
-        assertEquals(parseConfig("").config.focusFollowsMouse.enabled, false)
+        #expect(result.errors == [])
+        #expect(result.config.focusFollowsMouse.enabled == true)
+        #expect(parseConfig("").config.focusFollowsMouse.enabled == false)
     }
 
     @Test
@@ -146,38 +140,29 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
             enable-normalization-opposite-orientation-for-nested-containers = false
             """,
         )
-        assertEquals(result.errors, [])
-        assertEquals(result.config.afterStartupCommand.flatten().count, 2)
-        assertEquals(result.config.startAtLogin, false)
-        assertEquals(result.config.autoReloadConfig, true)
-        assertEquals(result.config.automaticallyUnhideMacosHiddenApps, true)
-        assertEquals(result.config.accordionPadding, 7)
-        assertEquals(result.config.enableNormalizationOppositeOrientationForNestedContainers, false)
+        #expect(result.errors == [])
+        #expect(result.config.afterStartupCommand.flatten().count == 2)
+        #expect(result.config.startAtLogin == false)
+        #expect(result.config.autoReloadConfig == true)
+        #expect(result.config.automaticallyUnhideMacosHiddenApps == true)
+        #expect(result.config.accordionPadding == 7)
+        #expect(result.config.enableNormalizationOppositeOrientationForNestedContainers == false)
 
-        assertEquals(parseConfig("accordion-padding = true").strErrors, ["[ERROR] accordion-padding: Expected type is 'Int'. But actual type is 'Bool'"])
-        assertEquals(parseConfig("auto-reload-config = 1").strErrors, ["[ERROR] auto-reload-config: Expected type is 'Bool'. But actual type is 'Int'"])
-        assertEquals(
-            parseConfig("after-startup-command = true").strErrors,
-            ["[ERROR] after-startup-command: Expected types are 'String' or 'Array'. But actual type is 'Bool'"],
-        )
+        #expect(parseConfig("accordion-padding = true").strErrors == ["[ERROR] accordion-padding: Expected type is 'Int'. But actual type is 'Bool'"])
+        #expect(parseConfig("auto-reload-config = 1").strErrors == ["[ERROR] auto-reload-config: Expected type is 'Bool'. But actual type is 'Int'"])
+        #expect(parseConfig("after-startup-command = true").strErrors == ["[ERROR] after-startup-command: Expected types are 'String' or 'Array'. But actual type is 'Bool'"])
     }
 
     @Test
     func testOnWindowDetectedMatcherErrors() {
-        assertEquals(
-            parseConfig("on-window-detected = [{ if.foo = 'x', run = 'focus left' }]").strErrors,
-            ["[ERROR] on-window-detected[0].if.foo: Unknown key"],
-        )
-        assertEquals(parseConfig("on-window-detected = [{ if = 1, run = '' }]").strErrors, [
+        #expect(parseConfig("on-window-detected = [{ if.foo = 'x', run = 'focus left' }]").strErrors == ["[ERROR] on-window-detected[0].if.foo: Unknown key"])
+        #expect(parseConfig("on-window-detected = [{ if = 1, run = '' }]").strErrors == [
             "[ERROR] on-window-detected[0].if: Expected type is 'String'. But actual type is 'Int'",
         ])
-        assertEquals(parseConfig("on-window-detected = [{ if = 'foo', run = '' }]").strErrors, [
+        #expect(parseConfig("on-window-detected = [{ if = 'foo', run = '' }]").strErrors == [
             "[ERROR] on-window-detected[0].if: Unrecognized subcommand 'foo'",
         ])
-        assertEquals(
-            parseConfig("on-window-detected = [{ if.during-aerospace-startup = 1, run = '' }]").strErrors,
-            ["[ERROR] on-window-detected[0].if.during-aerospace-startup: Expected type is 'Bool'. But actual type is 'Int'"],
-        )
+        #expect(parseConfig("on-window-detected = [{ if.during-aerospace-startup = 1, run = '' }]").strErrors == ["[ERROR] on-window-detected[0].if.during-aerospace-startup: Expected type is 'Bool'. But actual type is 'Int'"])
     }
 
     @Test
@@ -197,8 +182,8 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
                 run = ['layout floating', 'focus left']
             """,
         )
-        assertEquals(result.errors, [])
-        assertEquals(result.config.onWindowDetected.map(\.debugJson), [
+        #expect(result.errors == [])
+        #expect(result.config.onWindowDetected.map(\.debugJson) == [
             .dict([
                 "matcher": .dict([
                     "app-id": .string("com.foo"),
@@ -227,32 +212,31 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
                 x = [1, false, 'main']
             """,
         )
-        assertEquals(result.strErrors, [
+        #expect(result.strErrors == [
             "[ERROR] workspace-to-monitor-force-assignment.w: Expected types are 'String' or 'Int'. But actual type is 'Bool'",
             "[ERROR] workspace-to-monitor-force-assignment.x[1]: Expected types are 'String' or 'Int'. But actual type is 'Bool'",
         ])
-        assertEquals(result.config.workspaceToMonitorForceAssignment, ["w": [], "x": [.sequenceNumber(1), .main]])
+        #expect(result.config.workspaceToMonitorForceAssignment == ["w": [], "x": [.sequenceNumber(1), .main]])
     }
 
     @Test
     func testUnsupportedTomlTypes() {
-        assertEquals(parseConfig("a = [1.0]").strErrors, ["[ERROR] a[0]: Unsupported TOML type: Double", "[ERROR] a: Unknown top-level key"])
-        assertEquals(
-            parseConfig("b = 1.0\na = [{ c = 1.0 }, [2.0, 3]]").strErrors,
-            [
+        #expect(parseConfig("a = [1.0]").strErrors == ["[ERROR] a[0]: Unsupported TOML type: Double", "[ERROR] a: Unknown top-level key"])
+        #expect(
+            parseConfig("b = 1.0\na = [{ c = 1.0 }, [2.0, 3]]").strErrors == [
                 "[ERROR] a[0].c: Unsupported TOML type: Double",
                 "[ERROR] a[1][0]: Unsupported TOML type: Double",
                 "[ERROR] b: Unsupported TOML type: Double",
                 "[ERROR] a: Unknown top-level key",
             ],
         )
-        assertEquals(parseConfig("a = 07:32:00").strErrors, ["[ERROR] a: Unsupported TOML type: LocalTime"])
-        assertEquals(parseConfig("a = 1979-05-27T07:32:00").strErrors, ["[ERROR] a: Unsupported TOML type: LocalDateTime"])
-        assertEquals(parseConfig("a = 1979-05-27T07:32:00Z").strErrors, ["[ERROR] a: Unsupported TOML type: OffsetDateTime"])
+        #expect(parseConfig("a = 07:32:00").strErrors == ["[ERROR] a: Unsupported TOML type: LocalTime"])
+        #expect(parseConfig("a = 1979-05-27T07:32:00").strErrors == ["[ERROR] a: Unsupported TOML type: LocalDateTime"])
+        #expect(parseConfig("a = 1979-05-27T07:32:00Z").strErrors == ["[ERROR] a: Unsupported TOML type: OffsetDateTime"])
         // The array keeps the supported elements: 'exec-on-workspace-change' gets ['x']
         let result = parseConfig("exec-on-workspace-change = [1.0, 'x']")
-        assertEquals(result.strErrors, ["[ERROR] exec-on-workspace-change[0]: Unsupported TOML type: Double"])
-        assertEquals(result.config.execOnWorkspaceChange, ["x"])
+        #expect(result.strErrors == ["[ERROR] exec-on-workspace-change[0]: Unsupported TOML type: Double"])
+        #expect(result.config.execOnWorkspaceChange == ["x"])
     }
 
     @Test
@@ -264,7 +248,7 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
             z = 1.0
             """,
         )
-        assertEquals(result.strErrors, [
+        #expect(result.strErrors == [
             "[ERROR] z: Unsupported TOML type: Double",
             "[ERROR] a: Unknown top-level key", // Sorted
             "[ERROR] b: Unknown top-level key", // 'z' is dropped
@@ -286,16 +270,13 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
                 alt-l = 'focus foo'
             """,
         )
-        assertEquals(result.strErrors, [
+        #expect(result.strErrors == [
             "[ERROR] mode.main.binding.alt-h: \(focusHelp)",
             "[ERROR] mode.main.binding.alt-j: Unrecognized subcommand 'bogus'",
             "[ERROR] mode.main.binding.alt-l: Can't parse 'foo'.\nPossible values: (left|down|up|right|dfs-next|dfs-prev)",
         ])
         // A binding with an invalid command is dropped
-        assertEquals(result.config.modes[mainModeId]?.bindings.keys.sorted(), ["alt-k"])
-        assertEquals(
-            parseConfig("on-focus-changed = ['bogus', 'focus --help']").strErrors,
-            ["[ERROR] on-focus-changed[0]: Unrecognized subcommand 'bogus'", "[ERROR] on-focus-changed[1]: \(focusHelp)"],
-        )
+        #expect(result.config.modes[mainModeId]?.bindings.keys.sorted() == ["alt-k"])
+        #expect(parseConfig("on-focus-changed = ['bogus', 'focus --help']").strErrors == ["[ERROR] on-focus-changed[0]: Unrecognized subcommand 'bogus'", "[ERROR] on-focus-changed[1]: \(focusHelp)"])
     }
 }
