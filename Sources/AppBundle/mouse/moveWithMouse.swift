@@ -1,13 +1,6 @@
 import AppKit
 import Common
 
-nonisolated private let moveWithMouseTask = LatestTaskSlot()
-
-/// AXObserver callback. Runs on the AX thread
-nonisolated func movedObs(_: AXObserver, ax: AXUIElement, notif: CFString, _: UnsafeMutableRawPointer?) {
-    onMouseManipulationAxNotif(ax: ax, notif: notif, moveWithMouseTask, moveWithMouse)
-}
-
 func moveWithMouse(_ window: Window) async throws { // todo cover with tests
     resetClosedWindowsCache()
     switch window.placement {

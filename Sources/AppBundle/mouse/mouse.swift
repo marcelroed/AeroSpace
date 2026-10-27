@@ -2,36 +2,14 @@ import AppKit
 
 nonisolated var isLeftMouseButtonDown: Bool { NSEvent.pressedMouseButtons == 1 }
 
-func isManipulatedWithMouse(_ window: Window) async throws -> Bool {
+/// Is the user moving or resizing `window` with the mouse right now
+func isManipulatedWithMouse(_ window: Window) async -> Bool {
     guard !window.isHiddenInCorner, // Don't allow to resize/move windows of hidden workspaces
           isLeftMouseButtonDown,
           world.mouseManipulatedWindowId == nil || window.windowId == world.mouseManipulatedWindowId
     else { return false }
-    return try await getNativeFocusedWindow(.cancellable) == window
-}
-
-/// The AX callback for the window moved/resized notifications. Runs on the AX thread
-nonisolated func onMouseManipulationAxNotif(
-    ax: AXUIElement,
-    notif: CFString,
-    _ task: LatestTaskSlot,
-    _ manipulateWithMouse: @escaping @MainActor (Window) async throws -> (),
-) {
-    let windowId = ax.containingWindowId()
-    let notif = notif as String
-    Task.startUnstructured { @MainActor in
-        guard let token: RunSessionGuard = .isServerEnabled else { return }
-        guard let windowId, let window = Window.get(byId: windowId), try await isManipulatedWithMouse(window) else {
-            scheduleCancellableCompleteRefreshSession(.ax(notif))
-            return
-        }
-        task.replace {
-            try checkCancellation()
-            try await runLightSession(.ax(notif), token) {
-                try await manipulateWithMouse(window)
-            }
-        }
-    }
+    // Only a cancelled session throws, and nothing cancels the AX event's task that awaits this
+    return (try? await getNativeFocusedWindow(.cancellable)) == window
 }
 
 /// Same motivation as in monitorFrameNormalized

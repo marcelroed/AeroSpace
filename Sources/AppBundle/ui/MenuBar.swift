@@ -52,7 +52,7 @@ private func workspacesSection(_ viewModel: TrayMenuModel, _ token: RunSessionGu
     ForEach(viewModel.workspaces, id: \.name) { workspace in
         Button {
             Task.startUnstructured {
-                try await runLightSession(.menuBarButton, token) { _ = Workspace.get(byName: workspace.name).focusWorkspace() }
+                try await world.sessions.light(.menuBarButton, token) { _ = Workspace.get(byName: workspace.name).focusWorkspace() }
             }
         } label: {
             Toggle(isOn: .constant(workspace.isFocused)) {
@@ -75,7 +75,7 @@ private func sponsorButton(_ viewModel: TrayMenuModel) -> some View {
 private func enableToggleButton(_ viewModel: TrayMenuModel) -> some View {
     Button(viewModel.isEnabled ? "Disable" : "Enable") {
         Task.startUnstructured {
-            try await runLightSession(.menuBarButton, .forceRun) {
+            try await world.sessions.light(.menuBarButton, .forceRun) {
                 _ = await EnableCommand(targetState: .toggle)
                     .run(.defaultEnv, .emptyStdin)
             }
@@ -160,7 +160,7 @@ func reloadConfigButton(showShortcutGroup: Bool = false) -> some View {
 
 private func reloadConfigFromMenu(_ token: RunSessionGuard) {
     Task.startUnstructured {
-        try await runLightSession(.menuBarButton, token) {
+        try await world.sessions.light(.menuBarButton, token) {
             _ = await reloadConfig_nonCancellable()
         }
     }

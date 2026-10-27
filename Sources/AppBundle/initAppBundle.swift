@@ -24,14 +24,7 @@ public func initAppBundle() {
         GlobalObserver.initObserver()
         Workspace.garbageCollectUnusedWorkspaces() // init workspaces
         _ = Workspace.all.first?.focusWorkspace()
-        await runHeavyCompleteRefreshSession(
-            .startup,
-            // It's important for the first initialization to be non cancellable
-            // to make sure that isStartup propagates to all places
-            assumeCancellable: false,
-            layoutWorkspaces: false,
-        )
-        try await runLightSession(.startup, .forceRun) {
+        try await world.sessions.startup {
             smartLayoutAtStartup()
             _ = await config.afterStartupCommand.run(.defaultEnv, .emptyStdin)
         }

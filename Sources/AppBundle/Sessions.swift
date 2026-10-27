@@ -1,0 +1,275 @@
+import AppKit
+import Common
+
+/// The funnel for every session: each input that reads or changes the model enters through one of these methods.
+/// - Hotkeys, the CLI server, the menu and config auto-reload call ``light(_:_:body:)``.
+/// - GlobalObserver calls ``onWorkspaceNotification(_:)``, ``onAppHidden()`` and ``onLeftMouseUp()``.
+/// - The AX observer callbacks call ``onAxEvent(pid:_:)``, the focus-follows-mouse monitor calls ``onMouseMoved(to:)``.
+///
+/// A light session runs a command-like body between two model refreshes, lays out the workspaces and schedules a heavy
+/// refresh. A heavy refresh also re-reads the windows of all apps from macOS (it registers new windows and garbage
+/// collects closed ones), then lays out the workspaces.
+///
+/// How concurrent work coalesces. The code follows this table:
+///
+/// | Work                          | Mechanism                                             | Preempted by                          |
+/// |-------------------------------|-------------------------------------------------------|---------------------------------------|
+/// | Heavy refresh                 | `heavy`, a ``LatestTaskSlot``                         | A newer heavy refresh, a light session |
+/// | Light session                 | Runs at once in its caller's task, cancels `heavy`    | — (but see the next row)              |
+/// | ffm, mouse move, mouse resize | One ``LatestTaskSlot`` per kind around a light session | A newer event of the same kind       |
+/// | AX read of a heavy refresh    | A `.cancellable` job on the app's AX thread           | Cancellation of the heavy refresh     |
+/// | AX read of a command          | A `.nonCancellable` job on the app's AX thread        | —                                     |
+/// | Frame write                   | One job per window (`MacApp.setFrameJobs`)            | A newer frame write or close of it    |
+/// | Native focus                  | One global job (`MacApp.focusJob`)                    | A newer native focus                  |
+/// | App registration              | One pending registration per pid (`MacApp.wipPids`)   | —                                     |
+/// | Order within an app           | FIFO on its AX thread: the visible workspaces' frames, then hiding in corners, then focus | — |
+///
+/// A cancelled heavy refresh stops at its next cancellation check: a `.cancellable` AX read or a layout step. Nothing is
+/// queued for retry: the tree is the desired state, and every heavy refresh lays out every window again.
+final class Sessions {
+    private let heavy = LatestTaskSlot()
+    private let focusFollowsMouse = LatestTaskSlot()
+    private let mouseMove = LatestTaskSlot()
+    private let mouseResize = LatestTaskSlot()
+
+    // MARK: Light sessions and heavy refreshes
+
+    /// Runs `body` as a light session. It cancels the scheduled heavy refresh, and schedules a new one after the layout
+    /// (except for focus-follows-mouse)
+    func light<T>(
+        _ event: RefreshSessionEvent,
+        _: RunSessionGuard,
+        body: () async throws -> T,
+    ) async throws -> T {
+        let state = signposter.beginInterval(#function, "event: \(event)")
+        defer { signposter.endInterval(#function, state) }
+        cancelHeavy() // Give priority to the light session
+        startWindowLevelCacheSession()
+        return try await $refreshSessionEvent.withValue(event) {
+            try await syncFocusFromMacOs()
+            let focusBefore = focus.windowOrNil
+
+            await refreshModel_nonCancellable()
+            let result = try await body()
+            await refreshModel_nonCancellable()
+
+            let focusAfter = focus.windowOrNil
+
+            // Runs at the next suspension point, so the layout dispatches the frames of the visible windows first
+            // (updateTrayText does launchservicesd IPC), and the tray doesn't wait for the AX calls that the layout awaits
+            Task.startUnstructured {
+                updateTrayText()
+                SecureInputPanel.shared.refresh()
+            }
+            if !event.isFocusFollowsMouse { try await layoutWorkspaces() }
+            if focusBefore != focusAfter {
+                focusAfter?.nativeFocus() // syncFocusToMacOs
+            }
+            if !event.isFocusFollowsMouse { scheduleHeavy(event) }
+            return result
+        }
+    }
+
+    /// Replaces the scheduled heavy refresh with a new one. `preLayout`: lay out the workspaces before the windows are
+    /// re-read too, so that an app activation shows its workspace without waiting for all apps
+    func scheduleHeavy(_ event: RefreshSessionEvent, preLayout: Bool = false) {
+        heavy.replace { [self] in
+            try checkCancellation()
+            await runHeavy(event, isCancellable: true, preLayout: preLayout)
+        }
+    }
+
+    func cancelHeavy() { heavy.cancel() }
+
+    /// The first sessions after the launch. The heavy refresh registers the windows that are already open without
+    /// moving them. It isn't cancellable, so that `isStartup` reaches every on-window-detected callback. Then a light
+    /// session lays them out and runs `body`
+    func startup(_ body: () async throws -> ()) async throws {
+        await runHeavy(.startup, isCancellable: false, layoutWorkspaces: false)
+        try await light(.startup, .forceRun, body: body)
+    }
+
+    private func runHeavy(
+        _ event: RefreshSessionEvent,
+        isCancellable: Bool,
+        layoutWorkspaces shouldLayoutWorkspaces: Bool = true,
+        preLayout: Bool = false,
+    ) async {
+        let state = signposter.beginInterval(#function, "event: \(event)")
+        defer { signposter.endInterval(#function, state) }
+        if !TrayMenuModel.shared.isEnabled { return }
+        // No screens (e.g., during display reconfiguration). Skip the session: the model and the layout would be refreshed
+        // against the fake mainMonitorInfo. The next session catches up when the screens come back
+        if !hasScreens { return }
+        startWindowLevelCacheSession()
+        do {
+            try await $refreshSessionEvent.withValue(event) {
+                try await syncFocusFromMacOs()
+
+                if shouldLayoutWorkspaces && preLayout { try await layoutWorkspaces() }
+
+                await refreshModel_nonCancellable()
+                try await refresh()
+                gcMonitors()
+
+                updateTrayText()
+                SecureInputPanel.shared.refresh()
+                try await normalizeLayoutReason()
+                if shouldLayoutWorkspaces { try await layoutWorkspaces() }
+            }
+        } catch let err as CancellationError {
+            check(isCancellable, "Non cancellable refresh session was canceled: \(err) (\(type(of: err)))")
+        } catch {
+            die("Illegal error: \(error)")
+        }
+    }
+
+    // MARK: AX notifications
+
+    /// The entry point of the AX observers. On the app's AX thread, the observer callback maps the notification to an
+    /// ``AxEvent``, then calls this on the main actor:
+    /// `Task.startUnstructured { @MainActor in await world.sessions.onAxEvent(pid: pid, event) }`.
+    /// - `pid`: the app whose observer fired. Unused for now: every event except a mouse drag refreshes all apps.
+    /// - Ignored while AeroSpace is disabled.
+    /// - `.moved` / `.resized` of the window that the user drags or resizes with the mouse: a light session follows the
+    ///   mouse (one ``LatestTaskSlot`` per kind). Any other event, e.g. a window that the layout moved: a heavy refresh.
+    func onAxEvent(pid _: pid_t, _ event: AxEvent) async {
+        guard let token: RunSessionGuard = .isServerEnabled else { return }
+        let sessionEvent: RefreshSessionEvent = .ax("\(event)")
+        switch event {
+            case .windowCreated, .focusedWindowChanged, .destroyed, .miniaturized, .deminiaturized:
+                scheduleHeavy(sessionEvent)
+            case .moved(let windowId):
+                await onMovedOrResized(windowId, sessionEvent, mouseMove, token, moveWithMouse)
+            case .resized(let windowId):
+                await onMovedOrResized(windowId, sessionEvent, mouseResize, token, resizeWithMouse)
+        }
+    }
+
+    private func onMovedOrResized(
+        _ windowId: UInt32?,
+        _ event: RefreshSessionEvent,
+        _ slot: LatestTaskSlot,
+        _ token: RunSessionGuard,
+        _ manipulateWithMouse: @escaping (Window) async throws -> (),
+    ) async {
+        guard let windowId, let window = Window.get(byId: windowId), await isManipulatedWithMouse(window) else {
+            scheduleHeavy(event)
+            return
+        }
+        slot.replace { [self] in
+            try checkCancellation()
+            try await light(event, token) {
+                try await manipulateWithMouse(window)
+            }
+        }
+    }
+
+    // MARK: NSWorkspace and global mouse events (GlobalObserver), focus-follows-mouse
+
+    /// An app launched, activated, unhid or terminated, or the active space changed
+    func onWorkspaceNotification(_ name: Notification.Name) {
+        if !TrayMenuModel.shared.isEnabled { return }
+        scheduleHeavy(.globalObserver(name.rawValue), preLayout: name == NSWorkspace.didActivateApplicationNotification)
+    }
+
+    /// An app was hidden (cmd-h or cmd-alt-h)
+    func onAppHidden() async throws {
+        guard let token: RunSessionGuard = .isServerEnabled else { return }
+        try await light(.globalObserver(NSWorkspace.didHideApplicationNotification.rawValue), token) {
+            unhideMacosHiddenAppsIfConfigured()
+        }
+    }
+
+    func onLeftMouseUp() async throws {
+        // todo reduce number of refreshSession in the callback
+        //  resetManipulatedWithMouseIfPossible might call its own refreshSession
+        //  The end of the callback calls refreshSession
+        guard let token: RunSessionGuard = .isServerEnabled else { return }
+        try await resetManipulatedWithMouseIfPossible()
+        let mouseLocation = mouseLocation
+        let clickedMonitor = mouseLocation.monitorApproximation
+        switch true {
+            // Detect clicks on desktop of different monitors
+            case clickedMonitor.visibleRect.contains(mouseLocation) && clickedMonitor.activeWorkspace != focus.workspace:
+                _ = try await light(.globalObserverLeftMouseUp, token) {
+                    clickedMonitor.activeWorkspace.focusWorkspace()
+                }
+            // Detect close button clicks for unfocused windows. Yes, kAXUIElementDestroyedNotification is that unreliable
+            //  And trigger new window detection that could be delayed due to mouseDown event
+            default:
+                scheduleHeavy(.globalObserverLeftMouseUp)
+        }
+    }
+
+    /// The mouse moved while focus-follows-mouse is on
+    func onMouseMoved(to location: CGPoint) {
+        focusFollowsMouse.replace { try await focusWindow(underMouse: location) }
+    }
+
+    /// Focus-follows-mouse was turned off: drop the pending focus change
+    func cancelFocusFollowsMouse() { focusFollowsMouse.cancel() }
+}
+
+/// Proof that AeroSpace is enabled, or that the session may run anyway (`enable`, the startup, the menu's Enable button).
+/// A light session takes one, so that no entry point forgets the check
+struct RunSessionGuard: Sendable {
+    static var isServerEnabled: RunSessionGuard? { TrayMenuModel.shared.isEnabled ? forceRun : nil }
+    static func isServerEnabled(orIsEnableCommand command: (any Command)?) -> RunSessionGuard? {
+        command is EnableCommand ? .forceRun : .isServerEnabled
+    }
+    static let forceRun = RunSessionGuard()
+    private init() {}
+}
+
+/// An AX notification, as an app's AX observer reports it to ``Sessions/onAxEvent(pid:_:)``. It crosses from the app's AX
+/// thread to the main actor
+nonisolated enum AxEvent: Sendable, Equatable {
+    /// kAXWindowCreatedNotification, observed on the app
+    case windowCreated
+    /// kAXFocusedWindowChangedNotification, observed on the app
+    case focusedWindowChanged
+    /// kAXUIElementDestroyedNotification, observed on a window
+    case destroyed
+    /// kAXWindowMiniaturizedNotification, observed on a window
+    case miniaturized
+    /// kAXWindowDeminiaturizedNotification, observed on a window
+    case deminiaturized
+    /// kAXMovedNotification, observed on a window: by the user's mouse, by AeroSpace's layout or by the app itself.
+    /// The window's id, nil if AX can't tell it (e.g. the window is being destroyed)
+    case moved(windowId: UInt32?)
+    /// kAXResizedNotification, observed on a window. Same as `moved`
+    case resized(windowId: UInt32?)
+}
+
+// The AX observer callbacks that MacApp subscribes. They run on the app's AX thread
+nonisolated func refreshObs(_: AXObserver, _ element: AXUIElement, _ notif: CFString, _: UnsafeMutableRawPointer?) {
+    sendAxEvent(element, notif)
+}
+
+nonisolated func movedObs(_: AXObserver, _ element: AXUIElement, _ notif: CFString, _: UnsafeMutableRawPointer?) {
+    sendAxEvent(element, notif)
+}
+
+nonisolated func resizedObs(_: AXObserver, _ element: AXUIElement, _ notif: CFString, _: UnsafeMutableRawPointer?) {
+    sendAxEvent(element, notif)
+}
+
+nonisolated private func sendAxEvent(_ element: AXUIElement, _ notif: CFString) {
+    let event: AxEvent
+    switch notif as String {
+        case kAXWindowCreatedNotification: event = .windowCreated
+        case kAXFocusedWindowChangedNotification: event = .focusedWindowChanged
+        case kAXUIElementDestroyedNotification: event = .destroyed
+        case kAXWindowMiniaturizedNotification: event = .miniaturized
+        case kAXWindowDeminiaturizedNotification: event = .deminiaturized
+        case kAXMovedNotification: event = .moved(windowId: element.containingWindowId())
+        case kAXResizedNotification: event = .resized(windowId: element.containingWindowId())
+        default: return
+    }
+    var pid: pid_t = 0
+    _ = unsafe AXUIElementGetPid(element, &pid)
+    Task.startUnstructured { @MainActor in
+        await world.sessions.onAxEvent(pid: pid, event)
+    }
+}

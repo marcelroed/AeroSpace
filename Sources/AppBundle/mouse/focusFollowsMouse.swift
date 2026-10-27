@@ -4,29 +4,28 @@ func syncFocusFollowsMouse(_ config: Config) { focusFollowsMouse.sync(enabled: c
 
 private let focusFollowsMouse = FocusFollowsMouseMonitor()
 
-/// The global mouse-moved monitor while focus-follows-mouse is enabled, and the focus change it started last
+/// The global mouse-moved monitor while focus-follows-mouse is enabled
 private final class FocusFollowsMouseMonitor {
     private var monitor: Any? = nil
-    private let task = LatestTaskSlot()
 
     func sync(enabled: Bool) {
         if enabled == (monitor != nil) { return }
         if let monitor {
             NSEvent.removeMonitor(monitor)
             self.monitor = nil
-            task.cancel()
+            world.sessions.cancelFocusFollowsMouse()
             return
         }
         // Interestingly, this callback seems to not fire when the mouse is down which is good,
         // because this is how I want it to work for windows/tabs/files dragging
-        monitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { @MainActor [task] event in
-            let location = event.locationInWindow.withYAxisFlipped
-            task.replace { try await focusWindow(under: location) }
+        monitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { @MainActor event in
+            world.sessions.onMouseMoved(to: event.locationInWindow.withYAxisFlipped)
         }
     }
 }
 
-private func focusWindow(under location: CGPoint) async throws {
+/// Focuses the window under the mouse. The task of ``Sessions/onMouseMoved(to:)``
+func focusWindow(underMouse location: CGPoint) async throws {
     guard let token: RunSessionGuard = .isServerEnabled else { return }
     try checkCancellation()
     // Ignores macOS menubar dropdown, but, unfortunately, it doesn't ignore non-native menu-like fake windows.
@@ -50,7 +49,7 @@ private func focusWindow(under location: CGPoint) async throws {
         window = root?.mostRecentWindowRecursive.flatMap { $0.isFullscreen ? $0 : nil } ?? root?.window(at: location, virtual: false)
     }
     if let window {
-        try await runLightSession(.focusFollowsMouse, token) {
+        try await world.sessions.light(.focusFollowsMouse, token) {
             guard window.isAlive else { return } // The window closed at a suspension point
             _ = window.focusWindow()
             window.nativeFocus()

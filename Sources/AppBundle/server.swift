@@ -124,7 +124,7 @@ private func handle(_ request: ClientRequest) async -> RequestOutcome {
         )
     }
     do {
-        return try await runLightSession(.socketServer(request.args), token) { () throws in
+        return try await world.sessions.light(.socketServer(request.args), token) { () throws in
             let env = CmdEnv(windowId: request.windowId, workspaceName: request.workspace)
             let result = await command.run(env, CmdStdin(request.stdin))
             return .answer(

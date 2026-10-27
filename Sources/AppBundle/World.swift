@@ -39,6 +39,8 @@ final class World {
     /// The window that the user moves or resizes with the mouse. Layout leaves it where the mouse puts it
     var mouseManipulatedWindowId: UInt32? = nil
     var debugWindows: DebugWindowsRecording = .off
+    /// The funnel for every session, see Sessions.swift
+    let sessions: Sessions = Sessions()
 
     /// Tests only: puts every property back to its initial value. A property that it misses leaks from test to test
     func reset() {

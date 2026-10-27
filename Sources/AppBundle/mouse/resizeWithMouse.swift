@@ -1,24 +1,17 @@
 import AppKit
 import Common
 
-nonisolated private let resizeWithMouseTask = LatestTaskSlot()
-
-/// AXObserver callback. Runs on the AX thread
-nonisolated func resizedObs(_: AXObserver, ax: AXUIElement, notif: CFString, _: UnsafeMutableRawPointer?) {
-    onMouseManipulationAxNotif(ax: ax, notif: notif, resizeWithMouseTask, resizeWithMouse)
-}
-
 func resetManipulatedWithMouseIfPossible() async throws {
     if world.mouseManipulatedWindowId != nil {
         world.mouseManipulatedWindowId = nil
         for workspace in Workspace.all {
             workspace.resetResizeWeightBeforeResizeRecursive()
         }
-        scheduleCancellableCompleteRefreshSession(.resetManipulatedWithMouse, optimisticallyPreLayoutWorkspaces: true)
+        world.sessions.scheduleHeavy(.resetManipulatedWithMouse, preLayout: true)
     }
 }
 
-private func resizeWithMouse(_ window: Window) async throws { // todo cover with tests
+func resizeWithMouse(_ window: Window) async throws { // todo cover with tests
     resetClosedWindowsCache()
     guard case .tiling(let parent) = window.placement else { return } // Nothing to do for floating, or unconventional windows
     guard let rect = try await window.getAxRect(.cancellable) else { return }

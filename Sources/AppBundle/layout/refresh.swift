@@ -1,101 +1,6 @@
 import AppKit
 import Common
 
-/// The scheduled complete refresh session. A new one, or a light session, cancels it
-private let scheduledRefresh = LatestTaskSlot()
-
-func scheduleCancellableCompleteRefreshSession(
-    _ event: RefreshSessionEvent,
-    optimisticallyPreLayoutWorkspaces: Bool = false,
-) {
-    scheduledRefresh.replace {
-        try checkCancellation()
-        await runHeavyCompleteRefreshSession(
-            event,
-            assumeCancellable: true,
-            optimisticallyPreLayoutWorkspaces: optimisticallyPreLayoutWorkspaces,
-        )
-    }
-}
-
-func runHeavyCompleteRefreshSession(
-    _ event: RefreshSessionEvent,
-    assumeCancellable: Bool,
-    layoutWorkspaces shouldLayoutWorkspaces: Bool = true,
-    optimisticallyPreLayoutWorkspaces: Bool = false,
-) async {
-    let state = signposter.beginInterval(#function, "event: \(event) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug ?? "nil")")
-    defer { signposter.endInterval(#function, state) }
-    if !TrayMenuModel.shared.isEnabled { return }
-    // No screens (e.g., during display reconfiguration). Skip the session: the model and the layout would be refreshed
-    // against the fake mainMonitorInfo. The next session catches up when the screens come back
-    if !hasScreens { return }
-    startWindowLevelCacheSession()
-    do {
-        try await $refreshSessionEvent.withValue(event) {
-            try await syncFocusFromMacOs()
-
-            if shouldLayoutWorkspaces && optimisticallyPreLayoutWorkspaces { try await layoutWorkspaces() }
-
-            await refreshModel_nonCancellable()
-            try await refresh()
-            gcMonitors()
-
-            updateTrayText()
-            SecureInputPanel.shared.refresh()
-            try await normalizeLayoutReason()
-            if shouldLayoutWorkspaces { try await layoutWorkspaces() }
-        }
-    } catch let err as CancellationError {
-        check(assumeCancellable, "Non cancellable refresh session was canceled: \(err) (\(type(of: err)))")
-    } catch {
-        die("Illegal error: \(error)")
-    }
-}
-
-func runLightSession<T>(
-    _ event: RefreshSessionEvent,
-    _: RunSessionGuard,
-    body: @MainActor () async throws -> T,
-) async throws -> T {
-    let state = signposter.beginInterval(#function, "event: \(event) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug ?? "nil")")
-    defer { signposter.endInterval(#function, state) }
-    scheduledRefresh.cancel() // Give priority to runSession
-    startWindowLevelCacheSession()
-    return try await $refreshSessionEvent.withValue(event) {
-        try await syncFocusFromMacOs()
-        let focusBefore = focus.windowOrNil
-
-        await refreshModel_nonCancellable()
-        let result = try await body()
-        await refreshModel_nonCancellable()
-
-        let focusAfter = focus.windowOrNil
-
-        // Runs at the next suspension point, so the layout dispatches the frames of the visible windows first
-        // (updateTrayText does launchservicesd IPC), and the tray doesn't wait for the AX calls that the layout awaits
-        Task.startUnstructured {
-            updateTrayText()
-            SecureInputPanel.shared.refresh()
-        }
-        if !event.isFocusFollowsMouse { try await layoutWorkspaces() }
-        if focusBefore != focusAfter {
-            focusAfter?.nativeFocus() // syncFocusToMacOs
-        }
-        if !event.isFocusFollowsMouse { scheduleCancellableCompleteRefreshSession(event) }
-        return result
-    }
-}
-
-struct RunSessionGuard: Sendable {
-    static var isServerEnabled: RunSessionGuard? { TrayMenuModel.shared.isEnabled ? forceRun : nil }
-    static func isServerEnabled(orIsEnableCommand command: (any Command)?) -> RunSessionGuard? {
-        command is EnableCommand ? .forceRun : .isServerEnabled
-    }
-    static let forceRun = RunSessionGuard()
-    private init() {}
-}
-
 func refreshModel_nonCancellable() async {
     if refreshSessionEvent?.isFocusFollowsMouse == true {
         await checkOnFocusChangedCallbacks_nonCancellable()
@@ -109,7 +14,8 @@ func refreshModel_nonCancellable() async {
     }
 }
 
-private func refresh() async throws {
+/// Garbage collects the windows of terminated apps and closed windows, then registers the new ones
+func refresh() async throws {
     // Garbage collect terminated apps and windows before working with all windows
     let mapping = try await MacApp.refreshAllAndGetAliveWindowIds(frontmostAppBundleId: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
     // The screens may disappear at the suspension point above (e.g. display reconfiguration on wake). Then garbage
@@ -133,20 +39,11 @@ private func refresh() async throws {
     Workspace.garbageCollectUnusedWorkspaces()
 }
 
-/// AXObserver callback. Runs on the AX thread
-nonisolated func refreshObs(_: AXObserver, _: AXUIElement, notif: CFString, _: UnsafeMutableRawPointer?) {
-    let notif = notif as String
-    Task.startUnstructured { @MainActor in
-        if !TrayMenuModel.shared.isEnabled { return }
-        scheduleCancellableCompleteRefreshSession(.ax(notif))
-    }
-}
-
 enum OptimalHideCorner {
     case bottomLeftCorner, bottomRightCorner
 }
 
-private func layoutWorkspaces() async throws {
+func layoutWorkspaces() async throws {
     if !TrayMenuModel.shared.isEnabled {
         for workspace in Workspace.all {
             // No screens: don't lay the windows out against the fake mainMonitorInfo. AeroSpace can't be disabled while there
