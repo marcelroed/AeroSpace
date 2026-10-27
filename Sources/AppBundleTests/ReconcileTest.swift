@@ -109,7 +109,7 @@ struct ReconcileTest {
     }
 
     @Test
-    func aHungAppDoesntHoldTheRefreshAndItsWindowsComeWhenItAnswers() async { // R2b L3
+    func aHungAppDoesntHoldTheRefreshAndItsWindowsComeWhenItAnswers() async { // RB-144
         fake.apps = [appA, appB]
         openWindow(1, appA)
         await heavyRefresh()
@@ -137,7 +137,7 @@ struct ReconcileTest {
     }
 
     @Test
-    func theStartupWaitsForEveryApp() async { // R2b L3, R2c L6
+    func theStartupWaitsForEveryApp() async { // RB-144
         fake.apps = [appA, appB]
         openWindow(1, appA)
         openWindow(2, appB)
@@ -160,7 +160,7 @@ struct ReconcileTest {
     }
 
     @Test
-    func twoLateAppsGetTheirWindowsEachWhenItAnswers() async { // R2c L6
+    func twoLateAppsGetTheirWindowsEachWhenItAnswers() async {
         fake.apps = [appA, appB]
         await heavyRefresh()
         var deadline = Gate()
@@ -197,7 +197,7 @@ struct ReconcileTest {
     }
 
     @Test
-    func twoAppsSlowerThanTheCapGetTheirWindows() async { // R2d M1
+    func twoAppsSlowerThanTheCapGetTheirWindows() async {
         fake.apps = [appA, appB]
         await heavyRefresh()
         // Both apps answer slower than the cap: a deadline up to the cap passes at once. A longer deadline (after a late
@@ -248,7 +248,7 @@ struct ReconcileTest {
     }
 
     @Test
-    func anOffScreenPopupStaysAPopup() async { // R2a M1
+    func anOffScreenPopupStaysAPopup() async {
         openWindow(1)
         openWindow(2)
         fake.windows[2]?.kind = .popup // E.g. a picture-in-picture window
@@ -264,7 +264,7 @@ struct ReconcileTest {
     }
 
     @Test
-    func aNewWindowWhoseKindIsUnknownWaitsUntilItIsOnScreen() async throws { // R2a M1
+    func aNewWindowWhoseKindIsUnknownWaitsUntilItIsOnScreen() async throws {
         openWindow(1)
         fake.windows[1]?.level = nil // E.g. a Chrome window of a hidden app: only its level tells whether it's a popup
         fake.windows[1]?.kind = nil
@@ -280,7 +280,7 @@ struct ReconcileTest {
     }
 
     @Test
-    func aNewWindowWhoseKindIsUnknownCostsNoReadsButItsClassification() async throws { // R2c L5
+    func aNewWindowWhoseKindIsUnknownCostsNoReadsButItsClassification() async throws {
         openWindow(1)
         fake.windows[1]?.level = nil // E.g. a minimized Chrome window: it stays unregistered while it's minimized
         fake.windows[1]?.kind = nil
@@ -335,12 +335,12 @@ struct ReconcileTest {
         expectEqual(fake.calls(of: .title), [.title(1), .title(2)])
         expectEqual(isCancelledInCallbacks, [false, false]) // Shielded: the callbacks' commands don't see the cancellation
         expectEqual(framesOfTheRefresh, [])
-        #expect(isAnotherRefreshScheduled) // It presents what the callbacks did (R2b L1)
+        #expect(isAnotherRefreshScheduled) // It presents what the callbacks did
         expectEqual(describeTree(), "h_tiles(1 *2)")
     }
 
     @Test
-    func aCallbackThatMovesAWindowAfterThePreemptionIsPresented() async throws { // R2b L1
+    func aCallbackThatMovesAWindowAfterThePreemptionIsPresented() async throws {
         setUpTree("h_tiles(*1)")
         fake.focused = 1
         await heavyRefresh()
@@ -377,12 +377,12 @@ struct ReconcileTest {
     }
 
     @Test
-    func aStaleNewFocusedWindowDoesntTakeTheFocusBack() async throws { // R2b M1
+    func aStaleNewFocusedWindowDoesntTakeTheFocusBack() async throws {
         try await clickWhileANewFocusedWindowRunsItsCallbacks(3)
     }
 
     @Test
-    func aStaleNewFocusedWindowDoesntTakeTheFocusBackFromThePreviousWindow() async throws { // R2c M1
+    func aStaleNewFocusedWindowDoesntTakeTheFocusBackFromThePreviousWindow() async throws {
         try await clickWhileANewFocusedWindowRunsItsCallbacks(1)
     }
 
@@ -417,7 +417,7 @@ struct ReconcileTest {
     }
 
     @Test
-    func aStaleNewFocusedWindowDoesntTakeTheFocusBackAfterALightSession() async throws { // R2c M1
+    func aStaleNewFocusedWindowDoesntTakeTheFocusBackAfterALightSession() async throws {
         setUpTree("h_tiles(*1 3)")
         fake.focused = 1
         await heavyRefresh()
@@ -441,7 +441,7 @@ struct ReconcileTest {
     }
 
     @Test
-    func aLightSessionsNewFocusedWindowDoesntTakeTheFocusBackFromThePreviousWindow() async throws { // R2c M1
+    func aLightSessionsNewFocusedWindowDoesntTakeTheFocusBackFromThePreviousWindow() async throws {
         setUpTree("h_tiles(*1 3)")
         fake.focused = 1
         await heavyRefresh()
@@ -469,7 +469,7 @@ struct ReconcileTest {
     }
 
     @Test
-    func focusCallbacksRunInTheOrderOfTheFocusChanges() async throws { // R2b M2
+    func focusCallbacksRunInTheOrderOfTheFocusChanges() async throws {
         setUpTree("h_tiles(*1)", workspace: "a")
         setUpTree("h_tiles(3)", workspace: "b")
         fake.focused = 1
@@ -491,7 +491,7 @@ struct ReconcileTest {
     }
 
     @Test
-    func aFocusChangeDuringSuspendedFocusCallbacksRunsItsCallbacksAfterThem() async throws { // R2c L2
+    func aFocusChangeDuringSuspendedFocusCallbacksRunsItsCallbacksAfterThem() async throws {
         setUpTree("h_tiles(*1)", workspace: "a")
         setUpTree("h_tiles(3)", workspace: "b")
         fake.focused = 1
@@ -511,7 +511,7 @@ struct ReconcileTest {
     }
 
     @Test
-    func focusChangesDuringSuspendedFocusCallbacksRunThemOnceForTheLatestFocus() async throws { // R2d L1
+    func focusChangesDuringSuspendedFocusCallbacksRunThemOnceForTheLatestFocus() async throws {
         setUpTree("h_tiles(*1)", workspace: "a")
         setUpTree("h_tiles(3)", workspace: "b")
         fake.focused = 1
@@ -532,7 +532,7 @@ struct ReconcileTest {
     }
 
     @Test
-    func focusChangesDuringSuspendedFocusCallbacksThatEndWhereTheyStartedRunNothing() async throws { // R2d L1
+    func focusChangesDuringSuspendedFocusCallbacksThatEndWhereTheyStartedRunNothing() async throws {
         setUpTree("h_tiles(*1)", workspace: "a")
         setUpTree("h_tiles(3)", workspace: "b")
         fake.focused = 1
@@ -552,8 +552,8 @@ struct ReconcileTest {
         expectEqual(focusLog, ["b"])
     }
 
-    /// Passes on the code before R2c L2 too, which dropped every change during the callbacks, the callbacks' own included.
-    /// It fails if the callbacks queue their own changes too
+    /// Other sessions' focus changes while the callbacks suspend are queued for after them. The callbacks' own changes
+    /// aren't: queued, they would run the callbacks again
     @Test
     func aFocusChangeThatTheFocusCallbacksMakeDoesntRunThemAgain() async throws {
         setUpTree("h_tiles(*1 2 3)")
@@ -570,7 +570,7 @@ struct ReconcileTest {
     }
 
     @Test
-    func debugWindowsRecordsTheWindowThatALightSessionRegistered() async throws { // R2b L2
+    func debugWindowsRecordsTheWindowThatALightSessionRegistered() async throws {
         setUpTree("h_tiles(*1)")
         fake.focused = 1
         _ = await runCmd("debug-windows") // Start recording
@@ -623,7 +623,7 @@ struct ReconcileTest {
     }
 
     @Test
-    func minimizingAWindowThatMacosMinimizedBeforeTheRefreshKeepsItMinimized() async throws {
+    func minimizingAWindowThatMacosMinimizedBeforeTheRefreshKeepsItMinimized() async {
         openWindow(1)
         openWindow(2)
         fake.focused = 1
