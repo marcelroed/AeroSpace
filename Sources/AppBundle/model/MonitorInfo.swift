@@ -118,6 +118,12 @@ func liveMonitorInfos() -> [MonitorInfo] {
     }
 }
 
+/// Same as `!liveMonitorInfos().isEmpty`, but cheap (`liveMonitorInfos` reads `NSScreen.visibleFrame`, which is slow). For
+/// the re-checks after the awaits of a session: the screens can disappear while it runs, its snapshot doesn't show that
+func liveHasScreens() -> Bool {
+    isUnitTest ? world.monitors.hasScreens : !NSScreen.screens.isEmpty
+}
+
 // Note to myself: Don't use NSScreen.main, it's garbage
 // 1. The name is misleading, it's supposed to be called "focusedScreen"
 // 2. It's inaccurate because NSScreen.main doesn't work correctly from NSWorkspace.didActivateApplicationNotification &

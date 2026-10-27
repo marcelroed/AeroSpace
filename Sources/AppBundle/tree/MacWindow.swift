@@ -96,7 +96,7 @@ final class MacWindow: Window {
         if !isHiddenInCorner {
             guard let windowRect = try await getAxRect(.cancellable) else { return }
             // The screens may disappear at the suspension point above. Leave the window to a session that runs with screens
-            if !world.monitors.hasScreens { return }
+            if !liveHasScreens() { return }
             // Check for isHiddenInCorner for the second time because of the suspension point above
             if !isHiddenInCorner {
                 let topLeftCorner = windowRect.topLeftCorner

@@ -56,7 +56,7 @@ extension Workspace {
             // The window may have closed or moved at the suspension point above. A dead workspace can't be compared by name
             if !isAlive || window.placement != .floating(self) { continue }
             // The screens may disappear at the suspension point above. The layout waits for them
-            if !world.monitors.hasScreens { continue }
+            if !liveHasScreens() { continue }
             if let windowRect, let topLeft = floatingTopLeft(windowRect) {
                 window.setAxFrame(topLeft, nil)
             }

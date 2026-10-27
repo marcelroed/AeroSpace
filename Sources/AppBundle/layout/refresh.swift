@@ -19,8 +19,8 @@ func refresh() async throws {
     // Garbage collect terminated apps and windows before working with all windows
     let mapping = try await MacApp.refreshAllAndGetAliveWindowIds(frontmostAppBundleId: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
     // The screens may disappear at the suspension point above (e.g. display reconfiguration on wake). Leave the windows to a
-    // session that runs with screens
-    if !world.monitors.hasScreens { return }
+    // session that runs with screens. todo M2-REC: P1's re-check of `platform.monitors()` replaces this (RB-01)
+    if !liveHasScreens() { return }
     let aliveWindowIds = mapping.values.flatMap { $0 }.toSet()
 
     for window in MacWindow.allWindows {
@@ -44,7 +44,7 @@ func layoutWorkspaces() async throws {
             // No screens: wait for them. AeroSpace can't be disabled while there are no screens (EnableCommand), so the
             // windows were unhidden when it was disabled, unless the screens vanished during that session. Then the next
             // `enable off` with screens unhides them. Checked per workspace, because the screens can vanish during an await
-            if !world.monitors.hasScreens { return }
+            if !liveHasScreens() { return }
             workspace.allLeafWindowsRecursive.forEach { ($0 as! MacWindow).unhideFromCorner() } // todo as!
             try await workspace.layoutWorkspace() // Unhide tiling windows from corner
         }
@@ -53,12 +53,12 @@ func layoutWorkspaces() async throws {
     let monitors = world.monitors
     // No screens (e.g., the screens disappeared in the middle of the refresh session). Don't hide windows in the corners of
     // a monitor that doesn't exist
-    if !monitors.hasScreens { return }
+    if !liveHasScreens() { return }
 
     // to reduce flicker, first unhide visible workspaces, then hide invisible ones
     for monitor in monitors.all {
         // The screens may also disappear at the suspension points below
-        if !world.monitors.hasScreens { return }
+        if !liveHasScreens() { return }
         let workspace = monitor.activeWorkspace
         workspace.allLeafWindowsRecursive.forEach { ($0 as! MacWindow).unhideFromCorner() } // todo as!
         try await workspace.layoutWorkspace()
@@ -67,7 +67,7 @@ func layoutWorkspaces() async throws {
         let corner = world.monitors.hideCorner(of: workspace.workspaceMonitor)
         for window in workspace.allLeafWindowsRecursive {
             // Same
-            if !world.monitors.hasScreens { return }
+            if !liveHasScreens() { return }
             try await (window as! MacWindow).hideInCorner(corner) // todo as!
         }
     }
