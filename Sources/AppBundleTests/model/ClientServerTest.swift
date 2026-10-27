@@ -22,7 +22,7 @@ struct ClientServerTest {
         #"{ "protocolVersion": 2, "args": ["foo"], "stdin": "", "windowId": -1 }"#,
         #"{ "protocolVersion": 2, "args": ["foo"], "stdin": "", "windowId": 1.5 }"#,
         #"{ "protocolVersion": 2, "args": ["foo"], "stdin": "", "workspace": 1 }"#,
-        #"{ "protocolVersion": 2, "args": ["foo"], "windowId": "x" }"#,
+        #"{ "protocolVersion": 2, "args": ["foo"] }"#,
         #"{ "protocolVersion": 2, "stdin": "" }"#,
         #"{ "protocolVersion": 2, "args": null, "stdin": "" }"#,
         #"{ "protocolVersion": 2, "args": [1], "stdin": "" }"#,
