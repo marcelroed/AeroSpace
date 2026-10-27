@@ -14,10 +14,10 @@ import Common
 ///
 /// | Work                          | Mechanism                                             | Preempted by                          |
 /// |-------------------------------|-------------------------------------------------------|---------------------------------------|
-/// | Heavy refresh                 | `heavy`, a ``LatestTaskSlot``                         | A newer heavy refresh, a light session (but ffm): P1 stops, P3 runs to the end, P4 is skipped |
+/// | Heavy refresh                 | `heavy`, a ``LatestTaskSlot``                         | A newer heavy refresh, a light session: P1 stops, P3 runs to the end, P4 is skipped |
 /// | Startup heavy refresh         | Awaited in ``startup(_:)``, outside the slot; it skips P4 | Nothing                           |
-/// | Light session                 | Runs at once in its caller's task, cancels `heavy` (not ffm's) | — (but see the next row)     |
-/// | ffm, mouse move, mouse resize | One ``LatestTaskSlot`` per kind around a light session | A newer event of the same kind       |
+/// | Light session                 | Runs at once in its caller's task, cancels `heavy`    | — (but see the next row)              |
+/// | ffm, mouse move, mouse resize | One ``LatestTaskSlot`` per kind around its session    | A newer event of the same kind        |
 /// | AX read of a heavy refresh    | An observe read of ``Platform`` (`AxApp.call`): abandonable | Cancellation of the heavy refresh: it returns at once |
 /// | Listing of a heavy refresh    | A deadline per app (``ListingDeadlines``): an app that misses it doesn't answer, and isn't asked again until its listing returns | Cancellation of the heavy refresh before the deadline |
 /// | AX read of a command          | A single read of ``Platform`` (`AxApp.run`): awaited  | —                                     |
@@ -30,7 +30,7 @@ import Common
 /// retry: the tree is the desired state, and every heavy refresh lays out every window again.
 final class Sessions {
     private let heavy = LatestTaskSlot()
-    private let focusFollowsMouse = LatestTaskSlot()
+    private let mouseFocus = LatestTaskSlot()
     private let mouseMove = LatestTaskSlot()
     private let mouseResize = LatestTaskSlot()
 
@@ -38,10 +38,7 @@ final class Sessions {
 
     /// Runs `body` as a light session: it cancels the scheduled heavy refresh, takes the native focus
     /// (``Reconcile/syncFocus(isStartup:)``), refreshes the model, runs `body`, refreshes the model again, presents
-    /// (``Reconcile/present(nativeFocusBaseline:isLayout:)``) and schedules a heavy refresh.
-    ///
-    /// Focus follows mouse changes only the focus: it doesn't lay out, and it keeps the scheduled heavy refresh instead of
-    /// replacing it. It runs on every mouse move, so cancelling would starve the heavy refresh while the mouse moves
+    /// (``Reconcile/present(nativeFocusBaseline:isLayout:)``) and schedules a heavy refresh
     func light<T>(
         _ event: RefreshSessionEvent,
         _: RunSessionGuard,
@@ -49,29 +46,36 @@ final class Sessions {
     ) async throws -> T {
         let state = signposter.beginInterval(#function, "event: \(String(describing: event))")
         defer { signposter.endInterval(#function, state) }
-        let isFocusFollowsMouse = event.isFocusFollowsMouse
-        if !isFocusFollowsMouse { cancelHeavy() } // Give priority to the light session
+        cancelHeavy() // Give priority to the light session
         updateMonitors() // While there are no screens, the commands fail with a message or work on the last monitors
         try await Reconcile.syncFocus(isStartup: event.isStartup)
         let focusBefore = focus.windowOrNil
 
-        await refreshModel(isFocusFollowsMouse)
+        await refreshModel_nonCancellable()
         let result = try await body()
-        await refreshModel(isFocusFollowsMouse)
+        await refreshModel_nonCancellable()
 
-        try Reconcile.present(nativeFocusBaseline: focusBefore, isLayout: !isFocusFollowsMouse)
+        try Reconcile.present(nativeFocusBaseline: focusBefore)
         // Only the startup's own heavy refresh registers windows the startup's way and skips P4 (RB-141)
-        if !isFocusFollowsMouse { scheduleHeavy(event.isStartup ? .afterStartup : event) }
+        scheduleHeavy(event.isStartup ? .afterStartup : event)
         return result
     }
 
-    /// Focus follows mouse only runs the focus callbacks: it changes nothing else
-    private func refreshModel(_ isFocusFollowsMouse: Bool) async {
-        if isFocusFollowsMouse {
-            await checkOnFocusChangedCallbacks_nonCancellable()
-        } else {
-            await refreshModel_nonCancellable()
-        }
+    /// Focus follows mouse: focuses `window` and changes nothing else. Unlike a light session, it keeps the scheduled heavy
+    /// refresh and schedules none (it runs on every mouse move: cancelling would starve the heavy refresh), runs only the
+    /// focus callbacks, and doesn't lay out
+    func focusFollowsMouse(_ window: Window, _: RunSessionGuard) async throws {
+        let state = signposter.beginInterval(#function)
+        defer { signposter.endInterval(#function, state) }
+        updateMonitors()
+        try await Reconcile.syncFocus(isStartup: false)
+        // macOS's focus. The model's may differ (e.g. after a click on the desktop): the window gets the native focus
+        // unless macOS focuses it already
+        let nativeFocus = world.focusStore.lastReadNativeFocusedWindowId.flatMap { Window.get(byId: $0) }
+        await checkOnFocusChangedCallbacks_nonCancellable()
+        if window.isAlive { _ = window.focusWindow() } // The window may have closed at a suspension point
+        await checkOnFocusChangedCallbacks_nonCancellable()
+        try Reconcile.present(nativeFocusBaseline: nativeFocus, isLayout: false)
     }
 
     /// Replaces the scheduled heavy refresh with a new one. `preLayout`: lay out the workspaces before the windows are
@@ -178,11 +182,14 @@ final class Sessions {
 
     /// The mouse moved while focus-follows-mouse is on
     func onMouseMoved(to location: CGPoint) {
-        focusFollowsMouse.replace { try await focusWindow(underMouse: location) }
+        mouseFocus.replace { [self] in
+            guard let token: RunSessionGuard = .isServerEnabled, let window = try await window(underMouse: location) else { return }
+            try await focusFollowsMouse(window, token)
+        }
     }
 
     /// Focus-follows-mouse was turned off: drop the pending focus change
-    func cancelFocusFollowsMouse() { focusFollowsMouse.cancel() }
+    func cancelFocusFollowsMouse() { mouseFocus.cancel() }
 }
 
 /// Proof that AeroSpace is enabled, or that the session may run anyway (`enable`, the startup, the menu's Enable button).
@@ -211,14 +218,9 @@ nonisolated enum RefreshSessionEvent: Sendable {
     case socketServer([String])
     case resetManipulatedWithMouse
     case ax(String)
-    case focusFollowsMouse
 
     var isStartup: Bool {
         if case .startup = self { return true } else { return false }
-    }
-
-    var isFocusFollowsMouse: Bool {
-        if case .focusFollowsMouse = self { return true } else { return false }
     }
 }
 

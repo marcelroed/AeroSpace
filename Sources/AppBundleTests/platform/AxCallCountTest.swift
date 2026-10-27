@@ -127,7 +127,7 @@ private let allScenarios: [Scenario] = [
     },
     Scenario(name: "Focus follows mouse, nothing changed") {
         try await settled {
-            [try await measure("ffm light session", isIdle: true) { try await world.sessions.light(.focusFollowsMouse, .forceRun) {} }]
+            [try await measure("ffm session", isIdle: true) { try await world.sessions.focusFollowsMouse(testWindow(4), .forceRun) }]
         }
     },
     Scenario(name: "`workspace 2` (visible on the right monitor)") { try await settled { try await command("workspace 2") } },

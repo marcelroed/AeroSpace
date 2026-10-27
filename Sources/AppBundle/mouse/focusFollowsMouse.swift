@@ -26,37 +26,23 @@ private final class FocusFollowsMouseMonitor {
     }
 }
 
-/// Focuses the window under the mouse. The task of ``Sessions/onMouseMoved(to:)``
-func focusWindow(underMouse location: CGPoint) async throws {
-    guard let token: RunSessionGuard = .isServerEnabled else { return }
+/// The window under the mouse on the active workspace of the monitor there: the most recent floating window that contains
+/// `location`, else the fullscreen window, else the tiling window there. nil over a menu bar dropdown
+func window(underMouse location: CGPoint) async throws -> Window? {
     try checkCancellation()
     // Ignores macOS menubar dropdown, but, unfortunately, it doesn't ignore non-native menu-like fake windows.
     // todo: It would be cool to somehow reuse isWindowHeuristic logic here
-    if await isAxWindowUnderMouse(location) == false { return }
+    if await isAxWindowUnderMouse(location) == false { return nil }
     try checkCancellation()
     let workspace = world.monitors.approximation(location).activeWorkspace
-    var window: Window? = nil
     for child in workspace.existingContainer(.floating)?.mruChildren ?? [] {
         try checkCancellation()
         guard let child = child as? Window else { continue }
-        guard let rect = try await world.platform.observedRect(child.windowId) else { continue }
-        if rect.contains(location) {
-            window = child
-            break
-        }
+        if try await world.platform.observedRect(child.windowId)?.contains(location) == true { return child }
     }
-    if window == nil {
-        // A fullscreen window covers the whole workspace
-        let root = workspace.existingRootTilingContainer
-        window = root?.mostRecentWindowRecursive.flatMap { $0.isFullscreen ? $0 : nil } ?? root?.window(at: location, virtual: false)
-    }
-    if let window {
-        try await world.sessions.light(.focusFollowsMouse, token) {
-            guard window.isAlive else { return } // The window closed at a suspension point
-            _ = window.focusWindow()
-            window.nativeFocus()
-        }
-    }
+    // A fullscreen window covers the whole workspace
+    let root = workspace.existingRootTilingContainer
+    return root?.mostRecentWindowRecursive.flatMap { $0.isFullscreen ? $0 : nil } ?? root?.window(at: location, virtual: false)
 }
 
 @concurrent

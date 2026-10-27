@@ -638,14 +638,18 @@ struct ReconcileTest {
     }
 
     @Test
-    func focusFollowsMouseKeepsTheScheduledHeavyRefresh() async throws {
-        setUpTree("h_tiles(*1)")
-        openWindow(2)
+    func focusFollowsMouseFocusesOnceAndKeepsTheScheduledHeavyRefresh() async throws {
+        setUpTree("h_tiles(*1 2)")
+        fake.focused = 1
+        openWindow(3)
 
         world.sessions.scheduleHeavy(.ax("test"))
-        try await world.sessions.light(.focusFollowsMouse, .forceRun) {}
-        for _ in 0 ..< 100 where Window.get(byId: 2) == nil { await Task.yield() } // Let the heavy refresh run
-        expectEqual(describeTree(), "h_tiles(*1 2)")
+        try await world.sessions.focusFollowsMouse(testWindow(2), .forceRun)
+        expectEqual(fake.calls(of: .focus), [.focus(2)])
+        try await world.sessions.focusFollowsMouse(testWindow(2), .forceRun) // macOS focuses 2 already
+        expectEqual(fake.calls(of: .focus), [.focus(2)])
+        for _ in 0 ..< 100 where Window.get(byId: 3) == nil { await Task.yield() } // Let the heavy refresh run
+        expectEqual(describeTree(), "h_tiles(1 *2 3)")
     }
 }
 
