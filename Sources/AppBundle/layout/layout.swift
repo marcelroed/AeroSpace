@@ -36,7 +36,7 @@ extension Workspace {
             monitor: monitor,
             gaps: gaps,
             accordionPadding: CGFloat(config.accordionPadding),
-            skippedWindowId: currentlyManipulatedWithMouseWindowId,
+            skippedWindowId: world.mouseManipulatedWindowId,
             fullscreenCandidate: root.mostRecentWindowRecursive,
         )
         var frames: [WindowFrame] = []

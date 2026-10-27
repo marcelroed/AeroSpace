@@ -98,26 +98,26 @@ struct WindowParentTest {
         config.onWindowDetected = [
             WindowDetectedCallback(matcher: .command(.empty), run: parseCommand("workspace callback-ran").cmdOrDie),
         ]
-        global_layoutForNextDetectedWindow = .floating
+        world.layoutForNextDetectedWindow = .floating
 
         let popup = TestWindow.new(id: 1, parent: macosPopupWindowsContainer)
         await runOnWindowDetected(ifConventional: popup)
         let unbound = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
         unbound.unbindFromParent()
         await runOnWindowDetected(ifConventional: unbound)
-        #expect(global_layoutForNextDetectedWindow == .floating)
+        #expect(world.layoutForNextDetectedWindow == .floating)
         #expect(focus.workspace == workspace)
         #expect(popup.parent === macosPopupWindowsContainer)
         #expect(unbound.parent == nil)
 
         let minimized = TestWindow.new(id: 3, parent: macosMinimizedWindowsContainer)
         await runOnWindowDetected(ifConventional: minimized)
-        #expect(global_layoutForNextDetectedWindow == nil)
+        #expect(world.layoutForNextDetectedWindow == nil)
 
-        global_layoutForNextDetectedWindow = .floating
+        world.layoutForNextDetectedWindow = .floating
         let tiling = TestWindow.new(id: 4, parent: workspace.rootTilingContainer)
         await runOnWindowDetected(ifConventional: tiling)
-        #expect(global_layoutForNextDetectedWindow == nil)
+        #expect(world.layoutForNextDetectedWindow == nil)
         #expect(tiling.isFloating)
         #expect(focus.workspace.name == "callback-ran")
     }

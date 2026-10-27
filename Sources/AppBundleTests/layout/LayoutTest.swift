@@ -217,8 +217,8 @@ struct LayoutTest {
     func windowManipulatedWithMouseIsSkipped() async throws {
         let workspace = setUpTree("h_tiles(1 2)", workspace: "a")
         let (w1, w2) = (testWindow(1), testWindow(2))
-        currentlyManipulatedWithMouseWindowId = w1.windowId
-        defer { currentlyManipulatedWithMouseWindowId = nil }
+        world.mouseManipulatedWindowId = w1.windowId
+        defer { world.mouseManipulatedWindowId = nil }
 
         try await workspace.layoutWorkspace()
 

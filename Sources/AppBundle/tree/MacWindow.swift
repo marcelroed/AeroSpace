@@ -207,8 +207,8 @@ private func unbindAndGetSlotForNewTilingWindow(_ workspace: Workspace, window: 
 
 func runOnWindowDetected(ifConventional window: Window) async {
     guard window.shouldRunOnWindowDetected else { return }
-    let layout = global_layoutForNextDetectedWindow
-    global_layoutForNextDetectedWindow = nil
+    let layout = world.layoutForNextDetectedWindow
+    world.layoutForNextDetectedWindow = nil
     func applyLayoutForNextDetectedWindow() async {
         if let layout {
             await LayoutCommand(toggleBetween: [layout])

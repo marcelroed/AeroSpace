@@ -7,7 +7,28 @@ private struct Subscriber {
     let events: Set<ServerEventType>
 }
 
-private var subscribers: [UUID: Subscriber] = [:]
+/// The `subscribe` clients. A client stays until it disconnects or an event can't be written to it
+private final class Subscribers {
+    private var byId: [UUID: Subscriber] = [:]
+
+    func add(_ subscriber: Subscriber) -> UUID {
+        let id = UUID()
+        byId[id] = subscriber
+        return id
+    }
+
+    func remove(_ id: UUID) { byId.removeValue(forKey: id) }
+
+    func broadcast(_ event: ServerEvent) async {
+        for (id, subscriber) in byId where subscriber.events.contains(event.eventType) {
+            if await subscriber.connection.writeAtomic(event, jsonEncoder).error != nil {
+                remove(id)
+            }
+        }
+    }
+}
+
+private let subscribers = Subscribers()
 
 /// The args of `subscribe`. It's not a `Command`: it holds the connection open, and only the CLI can run it
 struct SubscribeArgs: Equatable, Sendable {
@@ -37,9 +58,8 @@ struct SubscribeArgs: Equatable, Sendable {
 }
 
 func handleSubscribeAndWaitTillError(_ connection: NWConnection, _ args: SubscribeArgs) async {
-    let id = UUID()
-    subscribers[id] = Subscriber(connection: connection, events: args.events)
-    defer { subscribers.removeValue(forKey: id) }
+    let id = subscribers.add(Subscriber(connection: connection, events: args.events))
+    defer { subscribers.remove(id) }
     if args.sendInitial {
         let f = focus
         for eventType in args.events {
@@ -75,12 +95,5 @@ private let jsonEncoder: JSONEncoder = {
 }()
 
 func broadcastEvent(_ event: ServerEvent) {
-    Task.startUnstructured {
-        for (id, subscriber) in subscribers {
-            guard subscriber.events.contains(event.eventType) else { continue }
-            if await subscriber.connection.writeAtomic(event, jsonEncoder).error != nil {
-                _ = subscribers.removeValue(forKey: id)
-            }
-        }
-    }
+    Task.startUnstructured { await subscribers.broadcast(event) }
 }

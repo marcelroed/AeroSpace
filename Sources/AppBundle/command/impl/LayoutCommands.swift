@@ -80,7 +80,7 @@ struct LayoutCommand: nonisolated Command {
     func run(_ cx: CmdContext) async throws(CmdFail) {
         if forNextDetectedWindow {
             guard let it = toggleBetween.singleOrNil() else { throw CmdFail(bugPrompt()) }
-            global_layoutForNextDetectedWindow = it
+            world.layoutForNextDetectedWindow = it
             return
         }
         let target = try cx.target(windowId: windowId, workspace: workspace)
@@ -135,8 +135,6 @@ struct LayoutCommand: nonisolated Command {
         }
     }
 }
-
-var global_layoutForNextDetectedWindow: LayoutCommand.LayoutDescription? = nil
 
 /// What the layout command changes
 private enum LayoutSubject {

@@ -1,14 +1,14 @@
 import AppKit
 import Common
 
-private var activeRefreshTask: Task<(), any Error>? = nil
+/// The scheduled complete refresh session. A new one, or a light session, cancels it
+private let scheduledRefresh = LatestTaskSlot()
 
 func scheduleCancellableCompleteRefreshSession(
     _ event: RefreshSessionEvent,
     optimisticallyPreLayoutWorkspaces: Bool = false,
 ) {
-    activeRefreshTask?.cancel()
-    activeRefreshTask = Task.startUnstructured {
+    scheduledRefresh.replace {
         try checkCancellation()
         await runHeavyCompleteRefreshSession(
             event,
@@ -60,8 +60,7 @@ func runLightSession<T>(
 ) async throws -> T {
     let state = signposter.beginInterval(#function, "event: \(event) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug ?? "nil")")
     defer { signposter.endInterval(#function, state) }
-    activeRefreshTask?.cancel() // Give priority to runSession
-    activeRefreshTask = nil
+    scheduledRefresh.cancel() // Give priority to runSession
     startWindowLevelCacheSession()
     return try await $refreshSessionEvent.withValue(event) {
         try await syncFocusFromMacOs()

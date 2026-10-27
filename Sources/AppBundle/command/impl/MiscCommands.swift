@@ -10,14 +10,15 @@ private let disclaimer =
     !!! The only intended use case is to report bugs about incorrect windows handling !!!
     """
 
-private var debugWindowsState: DebugWindowsState = .notRecording
-private var debugWindowsLog: OrderedDictionary<UInt32, String> = [:]
 private let debugWindowsLimit = 10
 
-enum DebugWindowsState {
-    case recording
-    case notRecording
-    case recordingAborted
+/// `debug-windows` without `--window-id` records the windows that get focused until it runs again
+enum DebugWindowsRecording {
+    case off
+    /// The dumps of the focused windows, in focus order
+    case recording(OrderedDictionary<UInt32, String>)
+    /// More than `debugWindowsLimit` windows got focused
+    case aborted
 }
 
 struct DebugWindowsCommand: nonisolated Command {
@@ -47,17 +48,15 @@ struct DebugWindowsCommand: nonisolated Command {
             cx.out(disclaimer)
             return
         }
-        switch debugWindowsState {
-            case .recording:
-                debugWindowsState = .notRecording
-                cx.out(debugWindowsLog.values.joined(separator: "\n\n"))
+        switch world.debugWindows {
+            case .recording(let log):
+                world.debugWindows = .off
+                cx.out(log.values.joined(separator: "\n\n"))
                 cx.out("\n" + disclaimer + "\n")
                 cx.out("Debug session finished" + "\n")
-                debugWindowsLog = [:]
-            case .notRecording:
+            case .off:
                 let target = try cx.target()
-                debugWindowsState = .recording
-                debugWindowsLog = [:]
+                world.debugWindows = .recording([:])
                 cx.out(
                     """
                     Debug windows session has started
@@ -73,15 +72,14 @@ struct DebugWindowsCommand: nonisolated Command {
                         throw CmdFail(bugPrompt(String(describing: error)))
                     }
                 }
-            case .recordingAborted:
+            case .aborted:
                 cx.out(
                     """
                     Recording of the previous session was aborted after \(debugWindowsLimit) windows has been focused
                     Run the command one more time to start new debug session
                     """,
                 )
-                debugWindowsState = .notRecording
-                debugWindowsLog = [:]
+                world.debugWindows = .off
                 throw .silent
         }
     }
@@ -125,14 +123,16 @@ private func dumpWindowDebugInfo(_ window: Window, _ cm: CancellationMode) async
 }
 
 func debugWindowsIfRecording(_ window: Window, _ cm: CancellationMode) async throws {
-    guard debugWindowsState == .recording else { return }
-    if debugWindowsLog.keys.contains(window.windowId) { return }
-    if debugWindowsLog.count >= debugWindowsLimit {
-        debugWindowsState = .recordingAborted
-        debugWindowsLog = [:]
+    guard case .recording(let log) = world.debugWindows, !log.keys.contains(window.windowId) else { return }
+    if log.count >= debugWindowsLimit {
+        world.debugWindows = .aborted
         return
     }
-    debugWindowsLog[window.windowId] = try await dumpWindowDebugInfo(window, cm)
+    let dump = try await dumpWindowDebugInfo(window, cm)
+    if case .recording(var log) = world.debugWindows { // The recording may have finished meanwhile
+        log[window.windowId] = dump
+        world.debugWindows = .recording(log)
+    }
 }
 
 struct MoveMouseCommand: nonisolated Command {

@@ -37,10 +37,8 @@ func setUpWorkspacesForTests() {
     TestApp.shared.windows = []
     appForTests = nil
 
-    global_layoutForNextDetectedWindow = nil
     activeMode = mainModeId
     TrayMenuModel.shared.isEnabled = true
-    currentlyManipulatedWithMouseWindowId = nil
 }
 
 /// Parses `raw` like the config and `eval` do

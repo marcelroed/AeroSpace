@@ -27,7 +27,7 @@ private func moveFloatingWindow(_ window: Window) async throws {
 }
 
 private func moveTilingWindow(_ window: Window) {
-    currentlyManipulatedWithMouseWindowId = window.windowId
+    world.mouseManipulatedWindowId = window.windowId
     window.lastAppliedLayoutPhysicalRect = nil
     let mouseLocation = mouseLocation
     let targetWorkspace = mouseLocation.monitorApproximation.activeWorkspace
