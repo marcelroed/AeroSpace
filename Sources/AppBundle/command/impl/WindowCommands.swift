@@ -153,7 +153,7 @@ struct MacosNativeFullscreenCommand: nonisolated Command {
             throw CmdFail(windowIsntPartOfTree(window))
         }
         if newState { // Enter fullscreen
-            window.move(to: workspace.containerCreatingIfNeeded(.macosFullscreen), weight: .value(1))
+            enterMacOsNativeUnconventionalState(window: window, container: workspace.containerCreatingIfNeeded(.macosFullscreen))
         } else { // Exit fullscreen
             if case .macos(let prevParentKind) = window.layoutReason {
                 await exitMacOsNativeUnconventionalState(window: window, prevParentKind: prevParentKind, workspace: workspace)
@@ -189,6 +189,6 @@ struct MacosNativeMinimizeCommand: nonisolated Command {
         let isMinimized = try await nativeFacts(of: window).isMinimized
         guard window.isAlive else { return } // The window closed at the suspension point above
         if !isMinimized { world.platform.setNative(window.windowId, .minimized(true)) }
-        window.move(to: macosMinimizedWindowsContainer, weight: .value(1))
+        enterMacOsNativeUnconventionalState(window: window, container: macosMinimizedWindowsContainer)
     }
 }

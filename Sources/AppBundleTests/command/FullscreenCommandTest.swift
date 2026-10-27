@@ -52,11 +52,12 @@ struct FullscreenCommandTest {
         expectEqual(testWindow(1)[keyPath: isFullscreen], row.isFullscreen)
     }
 
-    /// On moves the window to the fullscreen windows of its workspace. Off moves it where a new window goes, or, if a refresh
-    /// saw that macOS made it fullscreen, back to the kind of container that it was in then
+    /// On moves the window to the fullscreen windows of its workspace. Off moves it back to the kind of container that it
+    /// was in when the fullscreen began, or, if AeroSpace didn't see it begin (macOS made it fullscreen, and no refresh saw
+    /// it yet), where a new window goes
     @Test(arguments: [
         ("h_tiles(*1 2)", LayoutReason.standard, "on", "h_tiles(2) macos_fullscreen(*1)"),
-        ("h_tiles(2) macos_fullscreen(*1)", .standard, "off", "h_tiles(2 *1)"),
+        ("h_tiles(*1 2)", .standard, "off", "h_tiles(2 *1)"),
         ("h_tiles(2) macos_fullscreen(*1)", .macos(prevParentKind: .floating), "off", "h_tiles(2) floating(*1)"),
     ] as [(String, LayoutReason, String, String)])
     func macosNativeFullscreen(before: String, layoutReason: LayoutReason, onOff: String, after: String) async {
@@ -69,14 +70,39 @@ struct FullscreenCommandTest {
         expectEqual(describeTree(), after)
     }
 
-    @Test
-    func macosNativeMinimizeMovesTheWindowOutOfTheWorkspace() async {
-        setUpTree("h_tiles(*1 2)")
+    /// On, then off: the window goes back to the kind of container that it left, also if a heavy refresh saw it fullscreen
+    /// in between (RB-148: a floating window became a tile)
+    @Test(arguments: [
+        ("h_tiles(2) floating(*1)", false, "h_tiles(2) floating(*1)"),
+        ("h_tiles(2) floating(*1)", true, "h_tiles(2) floating(*1)"),
+        ("h_tiles(*1 2)", false, "h_tiles(2 *1)"),
+    ] as [(String, Bool, String)])
+    func macosNativeFullscreenOnThenOff(before: String, isRefreshedBetween: Bool, after: String) async {
+        setUpTree(before)
+        fake.focused = 1
+        expectEqual(await runCmd("macos-native-fullscreen on"), .ok)
+        if isRefreshedBetween { await Reconcile.heavy(.ax("test")) }
+        expectEqual(await runCmd("macos-native-fullscreen off"), .ok)
+        expectEqual(describeTree(), after)
+    }
+
+    /// When macOS deminimizes the window, it goes back to the kind of container that it left, also if a heavy refresh saw
+    /// it minimized in between
+    @Test(arguments: [false, true] as [Bool])
+    func macosNativeMinimizeMovesTheWindowOutOfTheWorkspaceUntilItsDeminimized(isRefreshedBetween: Bool) async {
+        setUpTree("h_tiles(2) floating(*1)")
+        fake.focused = 1
         let output = await runCmd("macos-native-minimize")
         expectEqual(output, .ok)
         expectEqual(fake.calls(of: .setNative), [.setNative(1, .minimized(true))])
         #expect(testWindow(1).parent === macosMinimizedWindowsContainer)
         expectEqual(describeTree(), "h_tiles(*2)")
+        fake.focused = 2
+        if isRefreshedBetween { await Reconcile.heavy(.ax("test")) }
+
+        fake.windows[1]?.isMinimized = false // The user clicks it in the Dock
+        await Reconcile.heavy(.ax("test"))
+        expectEqual(describeTree(), "h_tiles(*2) floating(1)")
     }
 
     /// An app that doesn't answer in time keeps its window: only a window that AX no longer finds is closed

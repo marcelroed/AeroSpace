@@ -19,21 +19,18 @@ private func normalizeLayoutReason(
     _ facts: [WindowId: NativeFacts],
     _ kinds: [WindowId: DetectedWindow],
 ) {
-    guard let parent = window.parent as? Container, let facts = facts[window.windowId] else { return }
+    guard let facts = facts[window.windowId] else { return }
     let isMacosWindowOfHiddenApp = !facts.isFullscreen && !facts.isMinimized &&
         !config.automaticallyUnhideMacosHiddenApps && world.platform.isHidden(window.app)
     switch window.layoutReason {
         case .standard:
             switch true {
                 case facts.isFullscreen:
-                    window.layoutReason = .macos(prevParentKind: parent.kind)
-                    window.move(to: workspace.containerCreatingIfNeeded(.macosFullscreen))
+                    enterMacOsNativeUnconventionalState(window: window, container: workspace.containerCreatingIfNeeded(.macosFullscreen))
                 case facts.isMinimized:
-                    window.layoutReason = .macos(prevParentKind: parent.kind)
-                    window.move(to: macosMinimizedWindowsContainer, weight: .value(1))
+                    enterMacOsNativeUnconventionalState(window: window, container: macosMinimizedWindowsContainer)
                 case isMacosWindowOfHiddenApp:
-                    window.layoutReason = .macos(prevParentKind: parent.kind)
-                    window.move(to: workspace.containerCreatingIfNeeded(.macosHiddenApp))
+                    enterMacOsNativeUnconventionalState(window: window, container: workspace.containerCreatingIfNeeded(.macosHiddenApp))
                 default: break
             }
         case .macos(let prevParentKind):
@@ -63,6 +60,15 @@ extension ContainerKind {
             case .macosPopup, .macosMinimized, .macosFullscreen, .macosHiddenApp: true
         }
     }
+}
+
+/// Moves the window into the container of a macOS state. When the state ends, the window goes back to a container of the
+/// kind that it leaves now (RB-148), or, if it's in a macOS state already, of the kind that it left for that one
+func enterMacOsNativeUnconventionalState(window: Window, container: Container) {
+    if window.layoutReason == .standard, let parent = window.parent as? Container {
+        window.layoutReason = .macos(prevParentKind: parent.kind)
+    }
+    window.move(to: container)
 }
 
 /// The commands' variant: reads the kind if the macOS state hid it
