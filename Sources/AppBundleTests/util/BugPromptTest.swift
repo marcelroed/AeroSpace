@@ -10,12 +10,12 @@ struct BugPromptTest {
         let prompt = await withCheckedContinuation { (cont: CheckedContinuation<String, Never>) in
             Thread { cont.resume(returning: bugPrompt()) }.start()
         }
-        assertTrue(prompt.contains("Monitor count: n/a (not main thread)\n"))
-        assertTrue(prompt.contains("Displays have separate spaces: n/a (not main thread)\n"))
+        #expect(prompt.contains("Monitor count: n/a (not main thread)\n"))
+        #expect(prompt.contains("Displays have separate spaces: n/a (not main thread)\n"))
     }
 
     @Test
     func testBugPromptReadsScreensOnMainThread() {
-        assertFalse(bugPrompt().contains("n/a (not main thread)"))
+        #expect(!bugPrompt().contains("n/a (not main thread)"))
     }
 }

@@ -4,7 +4,7 @@ import HotKey
 import Testing
 
 @Suite
-struct KeysMapTest: AeroSpaceTestSuite {
+struct KeysMapTest {
     @Test
     func testKeyToStringIsTheInverseOfKeyNotationToKeyCode() {
         for (name, key) in keyNotationToKeyCode.sorted(by: { $0.key < $1.key }) {

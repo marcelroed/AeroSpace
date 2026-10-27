@@ -3,21 +3,10 @@ import Foundation
 import Synchronization
 import Testing
 
-// Migrating an XCTest class to Swift Testing:
-// - `import XCTest` -> `import Testing` (plus `import AppKit` if the file used AppKit types that XCTest re-exported)
-// - `final class FooTest: XCTestCase` -> `@Suite(.aeroSpaceGlobalState) struct FooTest` (keep `@MainActor`; drop
-//   `.aeroSpaceGlobalState` only if the suite can't touch the global state at all). `AeroSpaceTestSuite` provides
-//   XCTest's `name` for the tests that use it as a workspace name
-// - drop `override func setUp() async throws { setUpWorkspacesForTests() }`
-// - add `@Test` on its own line above every test function, `@Test(arguments:)` for the cases of a table
-// - `XCTAssert*`/`XCTFail` and the helpers in assert.swift -> `#expect` or `#require`
-// - run commands with `runCmd` (testUtil.swift), build and check trees with the tree DSL (treeDsl.swift)
-
-/// Swift Testing counterpart of XCTest's `override func setUp() async throws { setUpWorkspacesForTests() }`.
-///
 /// AeroSpace keeps its model in `@MainActor` globals. Swift Testing runs tests in parallel, and `@MainActor` async tests
 /// of different suites interleave at suspension points (`.serialized` only serializes the tests of one suite).
-/// The trait gives every test case exclusive access to the global state and resets the state before it runs.
+/// The trait gives every test case exclusive access to the global state and resets it (`setUpWorkspacesForTests`)
+/// before the test runs.
 nonisolated struct AeroSpaceGlobalStateTrait: SuiteTrait, TestTrait, TestScoping {
     var isRecursive: Bool { true } // Provide the scope for every test case of the suite, including nested suites
 
@@ -48,22 +37,10 @@ extension Trait where Self == AeroSpaceGlobalStateTrait {
     static var aeroSpaceGlobalState: Self { Self() }
 }
 
-/// `isUnitTest` looks this class up by name: it marks the test process for both XCTest and Swift Testing runs
+/// `isUnitTest` looks this class up by name: its presence marks the test process
 // periphery:ignore - only referenced by its Objective-C name
 @objc(AeroSpaceUnitTestMarker)
 final class AeroSpaceUnitTestMarker: NSObject {}
-
-/// Provides `name` for suites migrated from XCTest
-protocol AeroSpaceTestSuite {}
-
-extension AeroSpaceTestSuite {
-    /// Same format as `XCTestCase.name` (`-[AppBundleTests.FooTest testBar]`), so a migrated test uses the same
-    /// workspace names as before (the tests use it as a unique workspace name)
-    var name: String {
-        let testName = Test.current.orDie("'name' is only available while a test is running").name
-        return "-[AppBundleTests.\(Self.self) \(testName.hasSuffix("()") ? String(testName.dropLast(2)) : testName)]"
-    }
-}
 
 nonisolated private let globalStateLock = GlobalStateLock()
 

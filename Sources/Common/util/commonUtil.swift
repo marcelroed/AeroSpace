@@ -161,8 +161,8 @@ public func check(
     }
 }
 
-// The test target defines this class (AppBundleTests/SwiftTestingSupport.swift). Whether XCTest is loaded depends on
-// the test runner. Computed once: code under test runs only after the test bundle, and so the class, is loaded
+// The test target defines this class (AppBundleTests/SwiftTestingSupport.swift).
+// Computed once: code under test runs only after the test bundle, and so the class, is loaded
 public let isUnitTest: Bool = NSClassFromString("AeroSpaceUnitTestMarker") != nil
 
 extension CaseIterable where Self: RawRepresentable, RawValue == String {

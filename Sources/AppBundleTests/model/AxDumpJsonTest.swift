@@ -5,7 +5,7 @@ import Testing
 
 /// Pins the JSON that `debug-windows` prints, and how unit tests read the committed `axDumps` back
 @Suite
-struct AxDumpJsonTest: AeroSpaceTestSuite {
+struct AxDumpJsonTest {
     /// Encoded the same way as in `dumpWindowDebugInfo`
     @Test
     func testEncode() {
@@ -16,9 +16,8 @@ struct AxDumpJsonTest: AeroSpaceTestSuite {
         result["Aero.AxUiElementWindowType_isDialogHeuristic"] = .bool(false)
         result["Aero.axWindowId"] = .int(42)
         result["Aero.App.nsApp.appBundlePath"] = .string("file:///Applications/Foo%20Bar.app/ \"é\" 🙂")
-        assertEquals(
-            JSONEncoder.aeroSpaceDefault.encodeToString(OrderedJson.dict(result)),
-            #"""
+        #expect(
+            JSONEncoder.aeroSpaceDefault.encodeToString(OrderedJson.dict(result)) == #"""
             {
               "Aero.AXApp" : {
                 "AXEmpty" : {
@@ -48,12 +47,12 @@ struct AxDumpJsonTest: AeroSpaceTestSuite {
     @Test
     func testDumpRendersAxBooleansAsInts() {
         func pretty(_ raw: AnyObject?) -> OrderedJson { prettyValue(raw as Any?, recursionDepth: 1) }
-        assertEquals(pretty(kCFBooleanTrue), .int(1))
-        assertEquals(pretty(kCFBooleanFalse), .int(0))
-        assertEquals(pretty(NSNumber(value: true)), .int(1))
-        assertEquals(pretty(NSNumber(value: UInt32.max)), .int(Int64(UInt32.max)))
-        assertEquals(pretty(NSArray(array: [kCFBooleanTrue.orDie(), NSNumber(value: 7)])), .array([.int(1), .int(7)]))
-        assertEquals(pretty(nil), .null)
+        #expect(pretty(kCFBooleanTrue) == .int(1))
+        #expect(pretty(kCFBooleanFalse) == .int(0))
+        #expect(pretty(NSNumber(value: true)) == .int(1))
+        #expect(pretty(NSNumber(value: UInt32.max)) == .int(Int64(UInt32.max)))
+        #expect(pretty(NSArray(array: [kCFBooleanTrue.orDie(), NSNumber(value: 7)])) == .array([.int(1), .int(7)]))
+        #expect(pretty(nil) == .null)
     }
 
     /// JSON booleans are NSNumbers too, so the test dump reader reads them as ints, the same way the dump wrote them
@@ -77,21 +76,21 @@ struct AxDumpJsonTest: AeroSpaceTestSuite {
             options: [.json5Allowed],
         )
         let dump = try #require(OrderedJson.newOrNilRecursive(raw)?.asDictOrNil)
-        assertEquals(dump["AXEnabled"], .int(1))
-        assertEquals(dump["AXFocused"], .int(0))
-        assertEquals(dump["AXTitle"], .string("a/b"))
-        assertEquals(dump["AXIdentifier"], .null)
-        assertEquals(dump["AXSections"], .array([.int(0), .dict(["k": .string("v")])]))
+        #expect(dump["AXEnabled"] == .int(1))
+        #expect(dump["AXFocused"] == .int(0))
+        #expect(dump["AXTitle"] == .string("a/b"))
+        #expect(dump["AXIdentifier"] == .null)
+        #expect(dump["AXSections"] == .array([.int(0), .dict(["k": .string("v")])]))
 
-        assertEquals(dump.get(Ax.enabledAttr), true)
-        assertEquals(dump.get(Ax.isFocused), false)
-        assertEquals(dump.get(Ax.titleAttr), "a/b")
-        assertNil(dump.get(Ax.identifierAttr))
-        assertNil(dump.get(Ax.subroleAttr)) // Missing keys are nil, unless the dump is synthetic
-        assertEquals(dump.containingWindowId(), 5)
-        assertEquals(dump.get(Ax.closeButtonAttr)?.get(Ax.roleAttr), "AXButton")
-        assertEquals(dump.get(Ax.closeButtonAttr)?.get(Ax.enabledAttr), true)
-        assertEquals(dump.get(Ax.focusedWindowAttr)?.windowId, 7)
-        assertEquals(dump.get(Ax.focusedWindowAttr)?.ax.containingWindowId(), 7)
+        #expect(dump.get(Ax.enabledAttr) == true)
+        #expect(dump.get(Ax.isFocused) == false)
+        #expect(dump.get(Ax.titleAttr) == "a/b")
+        #expect(dump.get(Ax.identifierAttr) == nil)
+        #expect(dump.get(Ax.subroleAttr) == nil) // Missing keys are nil, unless the dump is synthetic
+        #expect(dump.containingWindowId() == 5)
+        #expect(dump.get(Ax.closeButtonAttr)?.get(Ax.roleAttr) == "AXButton")
+        #expect(dump.get(Ax.closeButtonAttr)?.get(Ax.enabledAttr) == true)
+        #expect(dump.get(Ax.focusedWindowAttr)?.windowId == 7)
+        #expect(dump.get(Ax.focusedWindowAttr)?.ax.containingWindowId() == 7)
     }
 }

@@ -2,7 +2,7 @@
 import Testing
 
 @Suite
-struct LatestTaskSlotTest: AeroSpaceTestSuite {
+struct LatestTaskSlotTest {
     @Test
     func testReplaceCancelsThePreviousTask() async {
         let slot = LatestTaskSlot()
@@ -11,7 +11,7 @@ struct LatestTaskSlotTest: AeroSpaceTestSuite {
         slot.replace { continuation.yield("second isCancelled: \(Task.isCancelled)") }
         var result: [String] = []
         for await event in events.prefix(2) { result.append(event) }
-        assertEquals(result.sorted(), ["first isCancelled: true", "second isCancelled: false"])
+        #expect(result.sorted() == ["first isCancelled: true", "second isCancelled: false"])
     }
 
     @Test
@@ -22,6 +22,6 @@ struct LatestTaskSlotTest: AeroSpaceTestSuite {
         slot.cancel()
         var result: [String] = []
         for await event in events.prefix(1) { result.append(event) }
-        assertEquals(result, ["isCancelled: true"])
+        #expect(result == ["isCancelled: true"])
     }
 }

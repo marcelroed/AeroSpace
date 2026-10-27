@@ -3,23 +3,21 @@ import Common
 import Testing
 
 @Suite(.aeroSpaceGlobalState)
-struct MoveMouseCommandTest: AeroSpaceTestSuite {
+struct MoveMouseCommandTest {
     @Test
     func testParse() {
-        assertEquals(parseMouseTarget("move-mouse window-lazy-center"), .windowLazyCenter)
-        assertEquals(parseMouseTarget("move-mouse window-force-center"), .windowForceCenter)
-        assertEquals(parseMouseTarget("move-mouse monitor-lazy-center"), .monitorLazyCenter)
-        assertEquals(parseMouseTarget("move-mouse --fail-if-noop monitor-lazy-center"), .monitorLazyCenter)
-        assertEquals(parseMouseTarget("move-mouse monitor-force-center"), .monitorForceCenter)
+        #expect(parseMouseTarget("move-mouse window-lazy-center") == .windowLazyCenter)
+        #expect(parseMouseTarget("move-mouse window-force-center") == .windowForceCenter)
+        #expect(parseMouseTarget("move-mouse monitor-lazy-center") == .monitorLazyCenter)
+        #expect(parseMouseTarget("move-mouse --fail-if-noop monitor-lazy-center") == .monitorLazyCenter)
+        #expect(parseMouseTarget("move-mouse monitor-force-center") == .monitorForceCenter)
 
-        assertEquals(parseCommand("move-mouse").errorOrNil, "Argument '<mouse-position>' is mandatory")
-        assertEquals(
-            parseCommand("move-mouse foo").errorOrNil,
-            "Can't parse 'foo'.\nPossible values: (monitor-lazy-center|monitor-force-center|window-lazy-center|window-force-center)",
+        #expect(parseCommand("move-mouse").errorOrNil == "Argument '<mouse-position>' is mandatory")
+        #expect(
+            parseCommand("move-mouse foo").errorOrNil == "Can't parse 'foo'.\nPossible values: (monitor-lazy-center|monitor-force-center|window-lazy-center|window-force-center)",
         )
-        assertEquals(
-            parseCommand("move-mouse --fail-if-noop window-force-center").errorOrNil,
-            "--fail-if-noop is only compatible with window-lazy-center or monitor-lazy-center",
+        #expect(
+            parseCommand("move-mouse --fail-if-noop window-force-center").errorOrNil == "--fail-if-noop is only compatible with window-lazy-center or monitor-lazy-center",
         )
     }
 }

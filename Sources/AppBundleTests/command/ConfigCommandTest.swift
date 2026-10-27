@@ -5,7 +5,7 @@ import HotKey
 import Testing
 
 @Suite(.aeroSpaceGlobalState)
-struct ConfigCommandTest: AeroSpaceTestSuite {
+struct ConfigCommandTest {
     @Test
     func testParse() {
         #expect(parseCommand("config --major-keys").errorOrNil == nil)

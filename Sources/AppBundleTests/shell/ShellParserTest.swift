@@ -3,7 +3,7 @@ import Common
 import Testing
 
 @Suite
-struct ShellParserTest: AeroSpaceTestSuite {
+struct ShellParserTest {
     @Test
     func testParser() {
         assertSucc("echo foo && bar".lexAndParseShell(), .and(.cmd("echo", "foo"), "bar"))
@@ -152,19 +152,19 @@ struct ShellParserTest: AeroSpaceTestSuite {
     func testBuildDescription() {
         func render(_ shell: Shell<[String]>) -> String { shell.buildDescription { $0.joined(separator: " ") } }
 
-        assertEquals(render(.or(.and("a", "b"), "c")), "a && b || c")
-        assertEquals(render(.seq(.or("a", "b"), .and("c", "d"))), "a || b; c && d")
-        assertEquals(render(.and(.pipe("a", "b"), "c")), "a | b && c")
+        #expect(render(.or(.and("a", "b"), "c")) == "a && b || c")
+        #expect(render(.seq(.or("a", "b"), .and("c", "d"))) == "a || b; c && d")
+        #expect(render(.and(.pipe("a", "b"), "c")) == "a | b && c")
 
-        assertEquals(render(.and(.or("a", "b"), "c")), "(a || b) && c")
-        assertEquals(render(.and("a", .or("b", "c"))), "a && (b || c)")
-        assertEquals(render(.pipe(.seq("a", "b"), "c")), "(a; b) | c")
-        assertEquals(render(.or(.seq("a", "b"), "c")), "(a; b) || c")
-        assertEquals(render(.and(.or("a", "b"), .or("c", "d"))), "(a || b) && (c || d)")
+        #expect(render(.and(.or("a", "b"), "c")) == "(a || b) && c")
+        #expect(render(.and("a", .or("b", "c"))) == "a && (b || c)")
+        #expect(render(.pipe(.seq("a", "b"), "c")) == "(a; b) | c")
+        #expect(render(.or(.seq("a", "b"), "c")) == "(a; b) || c")
+        #expect(render(.and(.or("a", "b"), .or("c", "d"))) == "(a || b) && (c || d)")
 
-        assertEquals(render("foo"), "foo")
-        assertEquals(render(.and(["a", "b", "c"])), "a && b && c")
-        assertEquals(render(.empty), "")
+        #expect(render("foo") == "foo")
+        #expect(render(.and(["a", "b", "c"])) == "a && b && c")
+        #expect(render(.empty).isEmpty)
     }
 }
 

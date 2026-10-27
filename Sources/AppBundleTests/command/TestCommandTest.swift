@@ -13,17 +13,17 @@ struct TestCommandTest {
         testParseSingleCommandSucc("test %{app-bundle-id} = foo", TestCommand(negated: false, lhs: .appBundleId, infixOperator: .equals, rhs: "foo"))
         testParseSingleCommandSucc("test-not %{app-bundle-id} ~= foo", TestCommand(negated: true, lhs: .appBundleId, infixOperator: .matchesRegex, rhs: "foo"))
 
-        testParseCommandFail("test %{foo} = foo", msg: "Can't parse 'foo'.\nPossible values: \(possibleLhsValues)")
-        testParseCommandFail("test foo = foo", msg: "Left hand side must be a single interpolation variable")
-        testParseCommandFail("test foo%{app-bundle-id} = foo", msg: "Left hand side must be a single interpolation variable")
-        testParseCommandFail("test", msg: "Argument '<lhs>' is mandatory")
-        testParseCommandFail("test %{app-bundle-id}", msg: "Argument '<operator>' is mandatory")
-        testParseCommandFail("test %{app-bundle-id} =", msg: "Argument '<rhs>' is mandatory")
-        testParseCommandFail("test foo = %{app-bundle-id}", msg: "Left hand side must be a single interpolation variable")
-        testParseCommandFail("test %{app-bundle-id} = %{app-bundle-id}", msg: "Right hand side doesn't allow interpolation variables")
-        testParseCommandFail("test %{newline} = foo", msg: "Can't parse 'newline'.\nPossible values: \(possibleLhsValues)")
-        testParseCommandFail("test %{window-id} = %{invalid}", msg: "Right hand side doesn't allow interpolation variables")
-        testParseCommandFail("test %{window-id} '!=' 1", msg: "Can't parse '!='.\nPossible values: (=|~=)")
+        #expect(parseCommand("test %{foo} = foo").errorOrNil == "Can't parse 'foo'.\nPossible values: \(possibleLhsValues)")
+        #expect(parseCommand("test foo = foo").errorOrNil == "Left hand side must be a single interpolation variable")
+        #expect(parseCommand("test foo%{app-bundle-id} = foo").errorOrNil == "Left hand side must be a single interpolation variable")
+        #expect(parseCommand("test").errorOrNil == "Argument '<lhs>' is mandatory")
+        #expect(parseCommand("test %{app-bundle-id}").errorOrNil == "Argument '<operator>' is mandatory")
+        #expect(parseCommand("test %{app-bundle-id} =").errorOrNil == "Argument '<rhs>' is mandatory")
+        #expect(parseCommand("test foo = %{app-bundle-id}").errorOrNil == "Left hand side must be a single interpolation variable")
+        #expect(parseCommand("test %{app-bundle-id} = %{app-bundle-id}").errorOrNil == "Right hand side doesn't allow interpolation variables")
+        #expect(parseCommand("test %{newline} = foo").errorOrNil == "Can't parse 'newline'.\nPossible values: \(possibleLhsValues)")
+        #expect(parseCommand("test %{window-id} = %{invalid}").errorOrNil == "Right hand side doesn't allow interpolation variables")
+        #expect(parseCommand("test %{window-id} '!=' 1").errorOrNil == "Can't parse '!='.\nPossible values: (=|~=)")
     }
 
     @Test

@@ -4,7 +4,7 @@ import Foundation
 import Testing
 
 @Suite
-struct ClientServerTest: AeroSpaceTestSuite {
+struct ClientServerTest {
     @Test
     func testClientRequestJsonV1_decoding() {
         let data = #"{ "command": "deprecated", "args": ["foo", "bar"], "stdin": "stdin" }"#.data(using: .utf8)!
@@ -83,7 +83,7 @@ struct ClientServerTest: AeroSpaceTestSuite {
             } catch {
                 kind = "\(error)"
             }
-            assertEquals(kind, expectedKind, additionalMsg: json)
+            #expect(kind == expectedKind, "\(json)")
         }
     }
 
@@ -98,7 +98,7 @@ struct ClientServerTest: AeroSpaceTestSuite {
         for (req, expectedJson) in testData {
             let data = try! encoder.encode(req)
             let str = String.init(data: data, encoding: .utf8)!
-            assertEquals(str, expectedJson)
+            #expect(str == expectedJson)
         }
     }
 
@@ -128,7 +128,7 @@ struct ClientServerTest: AeroSpaceTestSuite {
         for (event, expectedJson) in testData {
             let data = try! encoder.encode(event)
             let str = String(data: data, encoding: .utf8)!
-            assertEquals(str, expectedJson)
+            #expect(str == expectedJson)
         }
     }
 
@@ -154,7 +154,7 @@ struct ClientServerTest: AeroSpaceTestSuite {
             let data = json.data(using: .utf8)!
             let event = try! JSONDecoder().decode(ServerEvent.self, from: data)
             // ServerEvent isn't Equatable. Its description lists every stored property, so this compares all fields
-            assertEquals(String(describing: event), String(describing: expected))
+            #expect(String(describing: event) == String(describing: expected))
         }
     }
 }

@@ -4,7 +4,7 @@ import Foundation
 import Testing
 
 @Suite
-struct SubcommandHelpTest: AeroSpaceTestSuite {
+struct SubcommandHelpTest {
     /// CmdKind is the source of the help; the docs repeat its synopsis and purpose
     @Test(arguments: CmdKind.allCases)
     func testDocsMatchHelp(kind: CmdKind) throws {
@@ -33,41 +33,39 @@ struct SubcommandHelpTest: AeroSpaceTestSuite {
     @Test
     func testEverySubcommandIsCovered() {
         let expected = Set(CmdKind.allCases.map(\.rawValue)).subtracting(["exec-and-forget"])
-        assertEquals(Set(expectedHelp.map(\.subcommand)), expected)
+        #expect(Set(expectedHelp.map(\.subcommand)) == expected)
     }
 
     @Test(arguments: expectedHelp)
     func testHelp(subcommand: String, help: String) {
         for flag in ["--help", "-h"] {
-            assertEquals(parseCommand("\(subcommand) \(flag)").helpOrNil, help)
+            #expect(parseCommand("\(subcommand) \(flag)").helpOrNil == help)
             // The CLI answers the help itself, the server parses the args without the shell
-            assertEquals(Result { () throws(CmdParseError) in try parseSubcommand([subcommand, flag]) }.failureOrNil?.message, help)
+            #expect(Result { () throws(CmdParseError) in try parseSubcommand([subcommand, flag]) }.failureOrNil?.message == help)
         }
     }
 
     @Test
     func testExecAndForgetHelp() {
         // The server shell treats everything after exec-and-forget as a bash script, the CLI doesn't know the subcommand
-        assertEquals(parsedCmd("exec-and-forget --help", as: ExecAndForgetCommand.self)?.description, "exec-and-forget --help")
-        assertEquals(parsedCmd("exec-and-forget -h", as: ExecAndForgetCommand.self)?.description, "exec-and-forget -h")
-        assertEquals(
-            Result { () throws(CmdParseError) in try parseSubcommand(["exec-and-forget", "--help"]) }.failureOrNil,
-            .invalid("Unrecognized subcommand 'exec-and-forget'"),
+        #expect(parsedCmd("exec-and-forget --help", as: ExecAndForgetCommand.self)?.description == "exec-and-forget --help")
+        #expect(parsedCmd("exec-and-forget -h", as: ExecAndForgetCommand.self)?.description == "exec-and-forget -h")
+        #expect(
+            Result { () throws(CmdParseError) in try parseSubcommand(["exec-and-forget", "--help"]) }.failureOrNil == .invalid("Unrecognized subcommand 'exec-and-forget'"),
         )
-        assertEquals(
-            Result { () throws(CmdParseError) in try parseShell("exec-and-forget --help", allowExecAndForget: false, allowEval: true) }.failureOrNil,
-            .invalid("Unrecognized subcommand 'exec-and-forget'"),
+        #expect(
+            Result { () throws(CmdParseError) in try parseShell("exec-and-forget --help", allowExecAndForget: false, allowEval: true) }.failureOrNil == .invalid("Unrecognized subcommand 'exec-and-forget'"),
         )
     }
 
     @Test
     func testMoveWorkspaceToMonitorChecksWrapAround() {
-        assertEquals(parseCommand("move-workspace-to-monitor --wrap-around main").errorOrNil, "--wrap-around is incompatible with <monitor-pattern> argument")
+        #expect(parseCommand("move-workspace-to-monitor --wrap-around main").errorOrNil == "--wrap-around is incompatible with <monitor-pattern> argument")
     }
 
     @Test(arguments: ["move-through", "move-workspace-to-display"])
     func testDeprecatedAliasesAreGone(alias: String) {
-        assertEquals(parseCommand("\(alias) --help").errorOrNil, "Unrecognized subcommand '\(alias)'")
+        #expect(parseCommand("\(alias) --help").errorOrNil == "Unrecognized subcommand '\(alias)'")
     }
 }
 

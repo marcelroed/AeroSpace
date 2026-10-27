@@ -1,154 +1,28 @@
 @testable import AppBundle
 import Common
 import Testing
-import XCTest
 
-// The helpers work in both test frameworks: inside a `@Test` they report with `Issue.record`,
-// and inside an `XCTestCase` method with `XCTFail`.
-// (`XCTFail` inside a `@Test` would be only a warning, and the test would pass. `Issue.record` inside an `XCTestCase`
-// reaches XCTest only if XCTest installs Swift Testing's fallback event handler, which older Xcode versions don't.)
-// Every helper takes the caller's source location, so failures point at the call site rather than at this file.
-// `#_sourceLocation` can't be used as the default argument: it would require `import Testing` in every caller.
+// todo: goes away with `ResOrStr`
 
-nonisolated func assertTrue(_ actual: Bool, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
-    assertEquals(actual, true, fileID: fileID, filePath: filePath, line: line, column: column)
-}
-
-nonisolated func assertFalse(_ actual: Bool, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
-    assertEquals(actual, false, fileID: fileID, filePath: filePath, line: line, column: column)
-}
-
-// Because assertEquals default messages are unreadable!
-nonisolated func assertNotEquals<T>(_ actual: T, _ expected: T, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) where T: Equatable {
-    if actual == expected {
-        failExpectedActual("not \(expected)", actual, fileID: fileID, filePath: filePath, line: line, column: column)
+nonisolated func assertSucc<T>(_ actual: Result<T, some Any>, sourceLocation: SourceLocation = #_sourceLocation) {
+    if case .failure = actual {
+        Issue.record(Comment(rawValue: "Expected success, got \(actual)"), sourceLocation: sourceLocation)
     }
 }
 
-nonisolated func assertNil(_ actual: Any?, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
-    if let actual {
-        failExpectedActual("nil", actual, fileID: fileID, filePath: filePath, line: line, column: column)
-    }
-}
-
-nonisolated func assertNotNil(_ actual: Any?, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
-    if actual == nil {
-        failExpectedActual("not nil", "nil", fileID: fileID, filePath: filePath, line: line, column: column)
-    }
-}
-
-nonisolated func assertEquals<T>(
-    _ actual: T,
-    _ expected: T,
-    additionalMsg: String? = nil,
-    fileID: String = #fileID,
-    filePath: StaticString = #filePath,
-    line: Int = #line,
-    column: Int = #column,
-) where T: Equatable {
-    if actual != expected {
-        failExpectedActual(expected, actual, additionalMsg: additionalMsg, fileID: fileID, filePath: filePath, line: line, column: column)
-    }
-}
-
-nonisolated func assertSucc<T>(_ actual: Result<T, some Any>, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
+nonisolated func assertSucc<T: Equatable>(_ actual: Result<T, some Any>, _ expected: T, sourceLocation: SourceLocation = #_sourceLocation) {
     switch actual {
-        case .failure: failExpectedActual("Result.success", actual, fileID: fileID, filePath: filePath, line: line, column: column)
-        case .success: break
+        case .failure: Issue.record(Comment(rawValue: "Expected success, got \(actual)"), sourceLocation: sourceLocation)
+        case .success(let actual): #expect(actual == expected, sourceLocation: sourceLocation)
     }
 }
 
-nonisolated func assertSucc<T>(
-    _ actual: Result<T, some Any>,
-    _ expected: T,
-    fileID: String = #fileID,
-    filePath: StaticString = #filePath,
-    line: Int = #line,
-    column: Int = #column,
-) where T: Equatable {
+nonisolated func assertFail<F: Equatable>(_ actual: Result<some Any, F>, _ expected: F? = nil, sourceLocation: SourceLocation = #_sourceLocation) {
     switch actual {
-        case .failure: failExpectedActual("Result.success", actual, fileID: fileID, filePath: filePath, line: line, column: column)
-        case .success(let actual): assertEquals(actual, expected, fileID: fileID, filePath: filePath, line: line, column: column)
-    }
-}
-
-nonisolated func assertFail<F>(
-    _ actual: Result<some Any, F>,
-    _ expected: F? = nil,
-    fileID: String = #fileID,
-    filePath: StaticString = #filePath,
-    line: Int = #line,
-    column: Int = #column,
-) where F: Equatable {
-    switch actual {
-        case .success: failExpectedActual("Result.failure", actual, fileID: fileID, filePath: filePath, line: line, column: column)
+        case .success: Issue.record(Comment(rawValue: "Expected failure, got \(actual)"), sourceLocation: sourceLocation)
         case .failure(let actual):
             if let expected {
-                assertEquals(actual, expected, fileID: fileID, filePath: filePath, line: line, column: column)
+                #expect(actual == expected, sourceLocation: sourceLocation)
             }
-    }
-}
-
-func testParseSingleCommandSucc(
-    _ command: String,
-    _ expected: any Command,
-    fileID: String = #fileID,
-    filePath: StaticString = #filePath,
-    line: Int = #line,
-    column: Int = #column,
-) {
-    let failure: (expected: Any, actual: Any)? = switch parseCommand(command) {
-        case .success(.cmd(let command)): command.equals(expected) ? nil : (expected, command)
-        case .success(let shell): ("Parsed as single Command", "Parsed as shell: \(shell.shellOfCommandsDescription)")
-        case .failure(.help): ("Parsed successfully", "Parsed as help")
-        case .failure(.invalid(let msg)): ("Parsed successfully", "Failed to parse: \(msg)")
-    }
-    if let failure {
-        failExpectedActual(failure.expected, failure.actual, fileID: fileID, filePath: filePath, line: line, column: column)
-    }
-}
-
-func testParseCommandHelp(_ command: String, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
-    switch parseCommand(command) {
-        case .failure(.help): break
-        case let parsed: failExpectedActual("Parsed as help", parsed, fileID: fileID, filePath: filePath, line: line, column: column)
-    }
-}
-
-nonisolated func failExpectedActual(
-    _ expected: Any?,
-    _ actual: Any?,
-    additionalMsg: String? = nil,
-    fileID: String = #fileID,
-    filePath: StaticString = #filePath,
-    line: Int = #line,
-    column: Int = #column,
-) {
-    let additionalMsg = additionalMsg.map { "\n    Additional Message:\n        \($0)" } ?? ""
-    fail(
-        """
-        Assertion failed\(additionalMsg)
-            Expected:
-                \(expected.prettyDescription)
-            Actual:
-                \(actual.prettyDescription)
-        """,
-        fileID: fileID,
-        filePath: filePath,
-        line: line,
-        column: column,
-    )
-}
-
-/// Framework-agnostic replacement for `XCTFail`
-nonisolated func fail(_ msg: String, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
-    if Test.current == nil {
-        XCTFail(msg, file: filePath, line: UInt(line))
-    } else {
-        // `Comment` and not a plain string: `String: LocalizedError` (StringEx.swift) would pick the `Issue.record(Error)` overload
-        Issue.record(
-            Comment(rawValue: msg),
-            sourceLocation: SourceLocation(fileID: fileID, filePath: "\(filePath)", line: line, column: column),
-        )
     }
 }

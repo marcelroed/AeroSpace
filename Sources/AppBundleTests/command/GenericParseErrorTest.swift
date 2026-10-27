@@ -4,23 +4,23 @@ import Testing
 
 /// The errors that `parseCommand` and `ArgCursor` report for every subcommand. Parsing stops at the first error
 @Suite
-struct GenericParseErrorTest: AeroSpaceTestSuite {
+struct GenericParseErrorTest {
     @Test(arguments: parseFailures)
     func testParseFailure(command: String, msg: String) {
-        testParseCommandFail(command, msg: msg)
+        #expect(parseCommand(command).errorOrNil == msg)
     }
 
     @Test
     func testEmptyCommand() {
         #expect(parseWords([]) == .invalid("Can't parse empty string command"))
         #expect(parseWords([""]) == .invalid("Can't parse empty string command"))
-        testParseCommandFail("''", msg: "Can't parse empty string command")
+        #expect(parseCommand("''").errorOrNil == "Can't parse empty string command")
     }
 
     @Test
     func testUnrecognizedSubcommand() {
-        testParseCommandFail("bogus", msg: "Unrecognized subcommand 'bogus'")
-        testParseCommandFail("--help", msg: "Unrecognized subcommand '--help'")
+        #expect(parseCommand("bogus").errorOrNil == "Unrecognized subcommand 'bogus'")
+        #expect(parseCommand("--help").errorOrNil == "Unrecognized subcommand '--help'")
         #expect(parseWords(["bogus", "--help"]) == .invalid("Unrecognized subcommand 'bogus'"))
     }
 

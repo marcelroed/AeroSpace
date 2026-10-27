@@ -4,7 +4,7 @@ import os
 import Testing
 
 @Suite
-struct AwaitableOneTimeBroadcastLatchTest: AeroSpaceTestSuite {
+struct AwaitableOneTimeBroadcastLatchTest {
     @Test
     func testAwaitAfterSignalReturnsImmediately() async throws {
         let latch = AwaitableOneTimeBroadcastLatch()
@@ -21,10 +21,10 @@ struct AwaitableOneTimeBroadcastLatchTest: AeroSpaceTestSuite {
             returnedCount.withLock { $0 += 1 }
         }
         try await Task.sleep(for: .milliseconds(50))
-        assertEquals(returnedCount.withLock { $0 }, 0)
+        #expect(returnedCount.withLock { $0 } == 0)
         await latch.signalToAll()
         try await task.value
-        assertEquals(returnedCount.withLock { $0 }, 1)
+        #expect(returnedCount.withLock { $0 } == 1)
     }
 
     @Test
@@ -39,10 +39,10 @@ struct AwaitableOneTimeBroadcastLatchTest: AeroSpaceTestSuite {
             }
         }
         try await Task.sleep(for: .milliseconds(50))
-        assertEquals(returnedCount.withLock { $0 }, 0)
+        #expect(returnedCount.withLock { $0 } == 0)
         await latch.signalToAll()
         for task in tasks { try await task.value }
-        assertEquals(returnedCount.withLock { $0 }, count)
+        #expect(returnedCount.withLock { $0 } == count)
     }
 
     @Test
@@ -68,7 +68,7 @@ struct AwaitableOneTimeBroadcastLatchTest: AeroSpaceTestSuite {
         let task = Task.startUnstructured { try await latch.await() }
         try await Task.sleep(for: .milliseconds(50))
         task.cancel()
-        await assertThrowsCancellation(task)
+        await #expect(throws: CancellationError.self) { try await task.value }
     }
 
     @Test
@@ -78,7 +78,7 @@ struct AwaitableOneTimeBroadcastLatchTest: AeroSpaceTestSuite {
         let survivors = (0 ..< 5).map { _ in Task.startUnstructured { try await latch.await() } }
         try await Task.sleep(for: .milliseconds(50))
         cancelled.cancel()
-        await assertThrowsCancellation(cancelled)
+        await #expect(throws: CancellationError.self) { try await cancelled.value }
         await latch.signalToAll()
         for task in survivors { try await task.value }
     }
@@ -91,7 +91,7 @@ struct AwaitableOneTimeBroadcastLatchTest: AeroSpaceTestSuite {
             try await latch.await()
         }
         task.cancel()
-        await assertThrowsCancellation(task)
+        await #expect(throws: CancellationError.self) { try await task.value }
     }
 
     @Test
@@ -101,21 +101,10 @@ struct AwaitableOneTimeBroadcastLatchTest: AeroSpaceTestSuite {
         let lateJoiner = Task.startUnstructured { try await latch.await() }
         try await Task.sleep(for: .milliseconds(50))
         cancelled.cancel()
-        await assertThrowsCancellation(cancelled)
+        await #expect(throws: CancellationError.self) { try await cancelled.value }
         await latch.signalToAll()
         try await lateJoiner.value
         // New await arriving after the signal still returns immediately.
         try await latch.await()
-    }
-
-    private func assertThrowsCancellation<T: Sendable>(_ task: Task<T, any Error>, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) async {
-        do {
-            _ = try await task.value
-            failExpectedActual("CancellationError", "no error thrown", fileID: fileID, filePath: filePath, line: line, column: column)
-        } catch is CancellationError {
-            // expected
-        } catch {
-            failExpectedActual("CancellationError", error, fileID: fileID, filePath: filePath, line: line, column: column)
-        }
     }
 }

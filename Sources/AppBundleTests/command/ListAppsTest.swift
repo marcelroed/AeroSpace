@@ -3,13 +3,13 @@ import Common
 import Testing
 
 @Suite
-struct ListAppsTest: AeroSpaceTestSuite {
+struct ListAppsTest {
     @Test
     func testParse() {
-        assertNotNil(parseCommand("list-apps --macos-native-hidden").cmdOrNil)
-        assertNotNil(parseCommand("list-apps --macos-native-hidden no").cmdOrNil)
-        assertNotNil(parseCommand("list-apps --format %{app-bundle-id}").cmdOrNil)
-        assertNotNil(parseCommand("list-apps --count").cmdOrNil)
-        assertEquals(parseCommand("list-apps --format %{app-bundle-id} --count").errorOrNil, "Conflicting options: --count, --format")
+        #expect(parseCommand("list-apps --macos-native-hidden").cmdOrNil != nil)
+        #expect(parseCommand("list-apps --macos-native-hidden no").cmdOrNil != nil)
+        #expect(parseCommand("list-apps --format %{app-bundle-id}").cmdOrNil != nil)
+        #expect(parseCommand("list-apps --count").cmdOrNil != nil)
+        #expect(parseCommand("list-apps --format %{app-bundle-id} --count").errorOrNil == "Conflicting options: --count, --format")
     }
 }

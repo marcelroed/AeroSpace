@@ -3,7 +3,7 @@ import Common
 import Testing
 
 @Suite
-struct ParseEnvVariablesTest: AeroSpaceTestSuite {
+struct ParseEnvVariablesTest {
     @Test
     func testInterpolation() {
         #expect("echo ${foo}".interpolate(with: ["foo": "bar"]) == .success("echo bar"))

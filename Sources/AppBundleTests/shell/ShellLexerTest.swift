@@ -3,7 +3,7 @@ import Common
 import Testing
 
 @Suite
-struct ShellLexerTest: AeroSpaceTestSuite {
+struct ShellLexerTest {
     @Test
     func testLexer() {
         assertSucc("echo foo".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 6, "foo"), .end(l: 1, c: 9)])

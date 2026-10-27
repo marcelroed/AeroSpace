@@ -4,7 +4,7 @@ import Foundation
 import Testing
 
 @Suite(.aeroSpaceGlobalState)
-struct ReloadConfigCommandTest: AeroSpaceTestSuite {
+struct ReloadConfigCommandTest {
     @Test
     func warningsAsErrorsIsAcceptedWithoutEffect() {
         // The Raycast extension runs `reload-config --dry-run --warnings-as-errors`

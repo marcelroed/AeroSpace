@@ -3,7 +3,7 @@ import Common
 import Testing
 
 @Suite(.aeroSpaceGlobalState)
-struct ShellRunTest: AeroSpaceTestSuite {
+struct ShellRunTest {
     @Test
     func testOrFirstSucceeds_shortCircuits() async {
         #expect(Workspace.get(byName: "a").focusWorkspace())

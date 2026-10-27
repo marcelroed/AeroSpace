@@ -3,10 +3,10 @@ import Common
 import Testing
 
 @Suite(.aeroSpaceGlobalState)
-struct MoveWithMouseTest: AeroSpaceTestSuite {
+struct MoveWithMouseTest {
     @Test
     func draggingFloatingWindowWithinItsWorkspaceKeepsItsPlace() async throws {
-        let workspace = Workspace.get(byName: name)
+        let workspace = Workspace.get(byName: "a")
         #expect(workspace.focusWorkspace())
         let floating = workspace.floatingWindowsContainer
         let dragged = TestWindow.new(id: 1, parent: floating, rect: Rect(topLeftX: 100, topLeftY: 100, width: 300, height: 200))
@@ -22,7 +22,7 @@ struct MoveWithMouseTest: AeroSpaceTestSuite {
     func draggingFloatingWindowOntoAnotherWorkspaceMovesItThere() async throws {
         // There is only one test monitor. A window of an invisible workspace stands in for a window that was dragged
         // onto a monitor that shows another workspace
-        let visible = Workspace.get(byName: name)
+        let visible = Workspace.get(byName: "a")
         #expect(visible.focusWorkspace())
         let window = TestWindow.new(
             id: 1,

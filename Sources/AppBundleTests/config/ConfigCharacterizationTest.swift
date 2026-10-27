@@ -3,7 +3,7 @@ import Common
 import Testing
 
 @Suite
-struct ConfigCharacterizationTest: AeroSpaceTestSuite {
+struct ConfigCharacterizationTest {
     @Test
     func testBindingWithCommentedOutCommands() {
         let result = parseConfig(

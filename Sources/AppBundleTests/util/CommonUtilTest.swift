@@ -4,42 +4,41 @@ import Foundation
 import Testing
 
 @Suite
-struct CommonUtilTest: AeroSpaceTestSuite {
+struct CommonUtilTest {
     @Test
     func testToLogicalSegments() {
-        assertEquals("".toLogicalSegments(), [])
-        assertEquals("abc".toLogicalSegments(), [.string("abc")])
-        assertEquals("123".toLogicalSegments(), [.number(123)])
-        assertEquals("007".toLogicalSegments(), [.number(7)])
-        assertEquals("a1b22c".toLogicalSegments(), [.string("a"), .number(1), .string("b"), .number(22), .string("c")])
-        assertEquals("10abc".toLogicalSegments(), [.number(10), .string("abc")])
-        assertEquals("1.5".toLogicalSegments(), [.number(1), .string("."), .number(5)])
-        assertEquals("-5".toLogicalSegments(), [.string("-"), .number(5)])
-        assertEquals("99999999999999999999".toLogicalSegments(), [.string("99999999999999999999")]) // Int overflow
+        #expect("".toLogicalSegments() == [])
+        #expect("abc".toLogicalSegments() == [.string("abc")])
+        #expect("123".toLogicalSegments() == [.number(123)])
+        #expect("007".toLogicalSegments() == [.number(7)])
+        #expect("a1b22c".toLogicalSegments() == [.string("a"), .number(1), .string("b"), .number(22), .string("c")])
+        #expect("10abc".toLogicalSegments() == [.number(10), .string("abc")])
+        #expect("1.5".toLogicalSegments() == [.number(1), .string("."), .number(5)])
+        #expect("-5".toLogicalSegments() == [.string("-"), .number(5)])
+        #expect("99999999999999999999".toLogicalSegments() == [.string("99999999999999999999")]) // Int overflow
         // Only ASCII digits are numbers
-        assertEquals("١٢".toLogicalSegments(), [.string("١٢")]) // Arabic-Indic
-        assertEquals("１２".toLogicalSegments(), [.string("１２")]) // Fullwidth
-        assertEquals("x²".toLogicalSegments(), [.string("x²")])
-        assertEquals("1\u{20E3}2".toLogicalSegments(), [.string("1\u{20E3}"), .number(2)]) // Keycap grapheme isn't a digit
+        #expect("١٢".toLogicalSegments() == [.string("١٢")]) // Arabic-Indic
+        #expect("１２".toLogicalSegments() == [.string("１２")]) // Fullwidth
+        #expect("x²".toLogicalSegments() == [.string("x²")])
+        #expect("1\u{20E3}2".toLogicalSegments() == [.string("1\u{20E3}"), .number(2)]) // Keycap grapheme isn't a digit
     }
 
     @Test
     func testLogicalSegmentsOrder() {
         func less(_ a: String, _ b: String) -> Bool { a.toLogicalSegments() < b.toLogicalSegments() }
-        assertTrue(less("a2", "a10"))
-        assertFalse(less("a10", "a2"))
-        assertTrue(less("a", "a1"))
-        assertFalse(less("a1", "a"))
-        assertFalse(less("a1", "a1"))
-        assertFalse(less("", ""))
-        assertTrue(less("", "a"))
-        assertTrue(less("1", "a"))
-        assertFalse(less("a", "1"))
-        assertTrue(less("a", "b"))
-        assertFalse(less("b", "a1"))
-        assertEquals(
-            ["10", "9", "a", "1", "b2", "b10", "b", "", "a1b"].sorted(by: less),
-            ["", "1", "9", "10", "a", "a1b", "b", "b2", "b10"],
+        #expect(less("a2", "a10"))
+        #expect(!less("a10", "a2"))
+        #expect(less("a", "a1"))
+        #expect(!less("a1", "a"))
+        #expect(!less("a1", "a1"))
+        #expect(!less("", ""))
+        #expect(less("", "a"))
+        #expect(less("1", "a"))
+        #expect(!less("a", "1"))
+        #expect(less("a", "b"))
+        #expect(!less("b", "a1"))
+        #expect(
+            ["10", "9", "a", "1", "b2", "b10", "b", "", "a1b"].sorted(by: less) == ["", "1", "9", "10", "a", "a1b", "b", "b2", "b10"],
         )
     }
 
@@ -48,10 +47,9 @@ struct CommonUtilTest: AeroSpaceTestSuite {
         func tokens(_ str: String) -> Result<[FormatToken], CmdParseError> {
             Result { () throws(CmdParseError) in try parseFormat(str) }
         }
-        assertEquals(tokens(""), .success([]))
-        assertEquals(
-            tokens("id: %{window-id}%{newline}%%{app-name}%"),
-            .success([
+        #expect(tokens("") == .success([]))
+        #expect(
+            tokens("id: %{window-id}%{newline}%%{app-name}%") == .success([
                 .literal("id: "),
                 .interVar(.windowId),
                 .interVar(.newline),
@@ -60,128 +58,125 @@ struct CommonUtilTest: AeroSpaceTestSuite {
                 .literal("%"),
             ]),
         )
-        assertEquals(tokens("%{foo} %{bar}"), .failure("Can't parse 'foo'.\nPossible values: \(FormatVar.unionLiteral)"))
-        assertEquals(tokens("%{window-id} %{foo"), .failure("Unbalanced curly braces"))
+        #expect(tokens("%{foo} %{bar}") == .failure("Can't parse 'foo'.\nPossible values: \(FormatVar.unionLiteral)"))
+        #expect(tokens("%{window-id} %{foo") == .failure("Unbalanced curly braces"))
     }
 
     @Test
     func testTransposed() {
-        assertEquals([[Int]]().transposed(), [])
-        assertEquals([[1]].transposed(), [[1]])
-        assertEquals([[1, 2, 3], [4, 5, 6]].transposed(), [[1, 4], [2, 5], [3, 6]])
-        assertEquals([[Int]]([[], []]).transposed(), [])
+        #expect([[Int]]().transposed() == [])
+        #expect([[1]].transposed() == [[1]])
+        #expect([[1, 2, 3], [4, 5, 6]].transposed() == [[1, 4], [2, 5], [3, 6]])
+        #expect([[Int]]([[], []]).transposed() == [])
     }
 
     @Test
     func testToPaddingTable() {
-        assertEquals([[String]]().toPaddingTable(), [])
-        assertEquals(
-            [["a", "bb", "c"], ["ddd", "e", "ff"]].toPaddingTable(),
-            ["a   | bb | c", "ddd | e  | ff"],
+        #expect([[String]]().toPaddingTable() == [])
+        #expect(
+            [["a", "bb", "c"], ["ddd", "e", "ff"]].toPaddingTable() == ["a   | bb | c", "ddd | e  | ff"],
         )
-        assertEquals(
-            [["a", "b"], ["cc", "d"]].toPaddingTable(columnSeparator: "   "),
-            ["a    b", "cc   d"],
+        #expect(
+            [["a", "b"], ["cc", "d"]].toPaddingTable(columnSeparator: "   ") == ["a    b", "cc   d"],
         )
         // Characters made of several UTF-16 code units (a combining accent, emoji) are padded by Character count
-        assertEquals(
-            [["e\u{301}", "x"], ["🙂🙂", "y"], ["abc", "z"]].toPaddingTable(),
-            ["e\u{301}   | x", "🙂🙂  | y", "abc | z"],
+        #expect(
+            [["e\u{301}", "x"], ["🙂🙂", "y"], ["abc", "z"]].toPaddingTable() == ["e\u{301}   | x", "🙂🙂  | y", "abc | z"],
         )
     }
 
     @Test
     func testJoinTruncating() {
         let arr = ["aaa", "bbb", "ccc"] // "aaa, bbb, ccc" is 13 characters long
-        assertEquals([String]().joinTruncating(separator: ", ", length: 0), "")
-        assertEquals(["a"].joinTruncating(separator: ", ", length: 1), "a")
-        assertEquals(["abc"].joinTruncating(separator: ", ", length: 2), "ab…") // The first element counts too
-        assertEquals(arr.joinTruncating(separator: ", ", length: 100), "aaa, bbb, ccc")
-        assertEquals(arr.joinTruncating(separator: ", ", length: 13), "aaa, bbb, ccc") // Fits exactly: no ellipsis
-        assertEquals(arr.joinTruncating(separator: ", ", length: 12), "aaa, bbb, cc…")
-        assertEquals(arr.joinTruncating(separator: ", ", length: 10), "aaa, bbb, …")
-        assertEquals(arr.joinTruncating(separator: ", ", length: 8), "aaa, bbb, …")
-        assertEquals(arr.joinTruncating(separator: ", ", length: 6), "aaa, b…")
-        assertEquals(arr.joinTruncating(separator: ", ", length: 5), "aaa, …")
-        assertEquals(arr.joinTruncating(separator: ", ", length: 4), "aaa, …")
-        assertEquals(arr.joinTruncating(separator: ", ", length: 1), "a…")
-        assertEquals(["aaa", "bbb"].joinTruncating(separator: ", ", length: 8), "aaa, bbb") // Fits exactly: no ellipsis
-        assertEquals(["x", "yyyy"].joinTruncating(separator: "|", length: 2, trailing: "..."), "x|...")
-        assertEquals(["x", "yyyy"].joinTruncating(separator: "|", length: 4, trailing: "..."), "x|yy...")
+        #expect([String]().joinTruncating(separator: ", ", length: 0).isEmpty)
+        #expect(["a"].joinTruncating(separator: ", ", length: 1) == "a")
+        #expect(["abc"].joinTruncating(separator: ", ", length: 2) == "ab…") // The first element counts too
+        #expect(arr.joinTruncating(separator: ", ", length: 100) == "aaa, bbb, ccc")
+        #expect(arr.joinTruncating(separator: ", ", length: 13) == "aaa, bbb, ccc") // Fits exactly: no ellipsis
+        #expect(arr.joinTruncating(separator: ", ", length: 12) == "aaa, bbb, cc…")
+        #expect(arr.joinTruncating(separator: ", ", length: 10) == "aaa, bbb, …")
+        #expect(arr.joinTruncating(separator: ", ", length: 8) == "aaa, bbb, …")
+        #expect(arr.joinTruncating(separator: ", ", length: 6) == "aaa, b…")
+        #expect(arr.joinTruncating(separator: ", ", length: 5) == "aaa, …")
+        #expect(arr.joinTruncating(separator: ", ", length: 4) == "aaa, …")
+        #expect(arr.joinTruncating(separator: ", ", length: 1) == "a…")
+        #expect(["aaa", "bbb"].joinTruncating(separator: ", ", length: 8) == "aaa, bbb") // Fits exactly: no ellipsis
+        #expect(["x", "yyyy"].joinTruncating(separator: "|", length: 2, trailing: "...") == "x|...")
+        #expect(["x", "yyyy"].joinTruncating(separator: "|", length: 4, trailing: "...") == "x|yy...")
     }
 
     @Test
     func testPrefixLines() {
-        assertEquals("a\n\nb".prefixLines(with: "> "), "> a\n> \n> b")
-        assertEquals("a\n".prefixLines(with: "> "), "> a\n> ")
-        assertEquals("".prefixLines(with: "> "), "> ")
+        #expect("a\n\nb".prefixLines(with: "> ") == "> a\n> \n> b")
+        #expect("a\n".prefixLines(with: "> ") == "> a\n> ")
+        #expect("".prefixLines(with: "> ") == "> ")
     }
 
     @Test
     func testArrSlice() {
         let arr = [10, 20, 30, 40]
-        assertEquals(arr.slice.toArray(), arr)
-        assertEquals(arr.slice(1...)?.toArray(), [20, 30, 40])
-        assertEquals(arr.slice(1 ..< 3)?.toArray(), [20, 30])
-        assertEquals(arr.slice(4...)?.toArray(), [])
-        assertNil(arr.slice(0 ..< 5))
+        #expect(arr.slice.toArray() == arr)
+        #expect(arr.slice(1...)?.toArray() == [20, 30, 40])
+        #expect(arr.slice(1 ..< 3)?.toArray() == [20, 30])
+        #expect(arr.slice(4...)?.toArray() == [])
+        #expect(arr.slice(0 ..< 5) == nil)
 
         let slice = arr.slice(1...).orDie()
-        assertEquals(slice.count, 3)
-        assertEquals(slice[0], 20)
-        assertEquals(slice[2], 40)
-        assertEquals(slice.first, 20)
-        assertEquals(slice.getOrNil(atIndex: 2), 40)
-        assertNil(slice.getOrNil(atIndex: 3))
-        assertNil(slice.getOrNil(atIndex: -1))
-        assertEquals(slice.map { $0 / 10 }, [2, 3, 4])
+        #expect(slice.count == 3)
+        #expect(slice[0] == 20)
+        #expect(slice[2] == 40)
+        #expect(slice.first == 20)
+        #expect(slice.getOrNil(atIndex: 2) == 40)
+        #expect(slice.getOrNil(atIndex: 3) == nil)
+        #expect(slice.getOrNil(atIndex: -1) == nil)
+        #expect(slice.map { $0 / 10 } == [2, 3, 4])
         var iterated: [Int] = []
         for elem in slice { iterated.append(elem) }
-        assertEquals(iterated, [20, 30, 40])
-        assertEquals(Array(slice.reversed()), [40, 30, 20])
+        #expect(iterated == [20, 30, 40])
+        #expect(Array(slice.reversed()) == [40, 30, 20])
 
         // Nested slices are zero-based relative to the outer slice
-        assertEquals(slice.slice(1...)?.toArray(), [30, 40])
-        assertEquals(slice.slice(1 ..< 2)?.toArray(), [30])
-        assertEquals(slice.slice(1 ..< 2)?[0], 30)
-        assertNil(slice.slice(1 ..< 4))
+        #expect(slice.slice(1...)?.toArray() == [30, 40])
+        #expect(slice.slice(1 ..< 2)?.toArray() == [30])
+        #expect(slice.slice(1 ..< 2)?[0] == 30)
+        #expect(slice.slice(1 ..< 4) == nil)
 
         let literal: ArrSlice<Int> = [1, 2]
-        assertEquals(literal.toArray(), [1, 2])
+        #expect(literal.toArray() == [1, 2])
     }
 
     @Test
     func testArrSliceEquality() {
-        assertEquals([1, 2, 3].slice(1...), [9, 2, 3].slice(1...))
-        assertEquals([1, 2, 3].slice(1...).orDie(), [2, 3])
-        assertNotEquals([1, 2].slice, [1, 2, 3].slice)
-        assertNotEquals([1, 2].slice, [1, 3].slice)
-        assertEquals([1].slice(1...).orDie(), [Int]().slice)
-        assertEquals([1].slice(1...).orDie(), [5, 6].slice(2...).orDie())
+        #expect([1, 2, 3].slice(1...) == [9, 2, 3].slice(1...))
+        #expect([1, 2, 3].slice(1...).orDie() == [2, 3])
+        #expect([1, 2].slice != [1, 2, 3].slice)
+        #expect([1, 2].slice != [1, 3].slice)
+        #expect([1].slice(1...).orDie() == [Int]().slice)
+        #expect([1].slice(1...).orDie() == [5, 6].slice(2...).orDie())
     }
 
     @Test
     func testSortedEntries() {
         let entries = ["b": 2, "a": 1, "c": 3].sortedEntries
-        assertEquals(entries.map(\.key), ["a", "b", "c"])
-        assertEquals(entries.map(\.value), [1, 2, 3])
-        assertEquals([String: Int]().sortedEntries.map(\.key), [])
+        #expect(entries.map(\.key) == ["a", "b", "c"])
+        #expect(entries.map(\.value) == [1, 2, 3])
+        #expect([String: Int]().sortedEntries.map(\.key) == [])
     }
 
     @Test
     func testWithIndex() {
-        assertEquals(["a", "b", "c"].withIndex.map { "\($0.index)\($0.value)" }, ["0a", "1b", "2c"])
-        assertEquals([String]().withIndex.count, 0)
+        #expect(["a", "b", "c"].withIndex.map { "\($0.index)\($0.value)" } == ["0a", "1b", "2c"])
+        #expect([String]().withIndex.count == 0)
     }
 
     @Test
     func testFilterIsInstance() {
         let mixed: [Any] = [1, "a", 2.0, "b", 3]
-        assertEquals(mixed.filterIsInstance(of: String.self), ["a", "b"])
-        assertEquals(mixed.filterIsInstance(of: Int.self), [1, 3])
+        #expect(mixed.filterIsInstance(of: String.self) == ["a", "b"])
+        #expect(mixed.filterIsInstance(of: Int.self) == [1, 3])
         let objects: [AnyObject] = [Base(), Derived(), Base()]
-        assertEquals(objects.filterIsInstance(of: Base.self).count, 3)
-        assertEquals(objects.filterIsInstance(of: Derived.self).count, 1)
+        #expect(objects.filterIsInstance(of: Base.self).count == 3)
+        #expect(objects.filterIsInstance(of: Derived.self).count == 1)
     }
 
     @Test
@@ -189,33 +184,33 @@ struct CommonUtilTest: AeroSpaceTestSuite {
         let some: Int?? = .some(.some(1))
         let someNil: Int?? = .some(nil)
         let none: Int?? = nil
-        assertEquals(some.flattenOptional(), 1)
-        assertNil(someNil.flattenOptional())
-        assertNil(none.flattenOptional())
+        #expect(some.flattenOptional() == 1)
+        #expect(someNil.flattenOptional() == nil)
+        #expect(none.flattenOptional() == nil)
     }
 
     @Test
     func testSequenceHelpers() {
-        assertEquals([1.5, 2.5].sum { $0 * 2 }, 8.0)
-        assertEquals([Double]().sum { $0 }, 0.0)
-        assertEquals([1, 2, 3].sum { $0 * 10 }, 60)
-        assertEquals([1, 2, 3].singleOrNil(where: { $0 > 2 }), 3)
-        assertNil([1, 2, 3].singleOrNil(where: { $0 > 1 }))
-        assertNil([1, 2, 3].singleOrNil(where: { $0 > 3 }))
+        #expect([1.5, 2.5].sum { $0 * 2 } == 8.0)
+        #expect([Double]().sum { $0 } == 0.0)
+        #expect([1, 2, 3].sum { $0 * 10 } == 60)
+        #expect([1, 2, 3].singleOrNil(where: { $0 > 2 }) == 3)
+        #expect([1, 2, 3].singleOrNil(where: { $0 > 1 }) == nil)
+        #expect([1, 2, 3].singleOrNil(where: { $0 > 3 }) == nil)
     }
 
     @Test
     func testEncodeToString() {
-        assertEquals(JSONEncoder.aeroSpaceDefault.encodeToString(["b": 1, "a": 2]), "{\n  \"a\" : 2,\n  \"b\" : 1\n}")
-        assertEquals(JSONEncoder.aeroSpaceDefault.encodeToString("a/b"), "\"a/b\"")
+        #expect(JSONEncoder.aeroSpaceDefault.encodeToString(["b": 1, "a": 2]) == "{\n  \"a\" : 2,\n  \"b\" : 1\n}")
+        #expect(JSONEncoder.aeroSpaceDefault.encodeToString("a/b") == "\"a/b\"")
     }
 
     @Test
     func testCompletableFutureBlockingGetTimesOut() {
         let future = CompletableFuture<Int>()
-        assertNil(future.blockingGet(deadline: .now() + .milliseconds(10)))
+        #expect(future.blockingGet(deadline: .now() + .milliseconds(10)) == nil)
         future.complete(42)
-        assertEquals(future.blockingGet(deadline: .now() + .seconds(5)), 42)
+        #expect(future.blockingGet(deadline: .now() + .seconds(5)) == 42)
     }
 }
 

@@ -2,6 +2,7 @@
 import AppKit
 import Common
 import HotKey
+import Testing
 
 nonisolated let projectRoot: URL = {
     var url = URL(filePath: #filePath).absoluteURL
@@ -76,25 +77,27 @@ extension Result {
     }
 }
 
+/// Records an issue unless `command` parses as the single command `expected`
+func testParseSingleCommandSucc(_ command: String, _ expected: any Command, sourceLocation: SourceLocation = #_sourceLocation) {
+    let failure: String? = switch parseCommand(command) {
+        case .success(.cmd(let actual)): actual.equals(expected) ? nil : "Expected \(expected), parsed \(actual)"
+        case .success(let shell): "Expected a single command, parsed the shell \(shell.shellOfCommandsDescription)"
+        case .failure(.help): "Expected \(expected), parsed help"
+        case .failure(.invalid(let msg)): "Expected \(expected), failed to parse: \(msg)"
+    }
+    if let failure { Issue.record(Comment(rawValue: failure), sourceLocation: sourceLocation) }
+}
+
+/// Records an issue unless `command` parses as help
+func testParseCommandHelp(_ command: String, sourceLocation: SourceLocation = #_sourceLocation) {
+    if case .failure(.help) = parseCommand(command) { return }
+    Issue.record(Comment(rawValue: "Expected help, parsed \(parseCommand(command))"), sourceLocation: sourceLocation)
+}
+
 /// The command of `raw` if it parses as a single command of type `T`, nil otherwise
 func parsedCmd<T: Command>(_ raw: String, as _: T.Type) -> T? {
     guard case .success(.cmd(let command)) = parseCommand(raw) else { return nil }
     return command as? T
-}
-
-func testParseCommandFail(
-    _ command: String,
-    msg expectedMsg: String,
-    fileID: String = #fileID,
-    filePath: StaticString = #filePath,
-    line: Int = #line,
-    column: Int = #column,
-) {
-    switch parseCommand(command) {
-        case .success(let command): fail("\(command) isn't supposed to be parcelable", fileID: fileID, filePath: filePath, line: line, column: column)
-        case .failure(.help): fail("'\(command)' isn't supposed to be parsed as help", fileID: fileID, filePath: filePath, line: line, column: column)
-        case .failure(.invalid(let msg)): assertEquals(msg, expectedMsg, fileID: fileID, filePath: filePath, line: line, column: column)
-    }
 }
 
 /// What a command printed, and its exit code

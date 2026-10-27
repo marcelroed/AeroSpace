@@ -3,11 +3,11 @@ import Common
 import Testing
 
 @Suite(.aeroSpaceGlobalState)
-struct ModeCommandTest: AeroSpaceTestSuite {
+struct ModeCommandTest {
     @Test
     func testParse() {
         testParseSingleCommandSucc("mode main", ModeCommand(targetMode: "main"))
-        assertEquals(parseCommand("mode").errorOrNil, "Argument '<binding-mode>' is mandatory")
+        #expect(parseCommand("mode").errorOrNil == "Argument '<binding-mode>' is mandatory")
     }
 
     @Test
@@ -20,6 +20,6 @@ struct ModeCommandTest: AeroSpaceTestSuite {
             "mode -- --foo",
             ModeCommand(targetMode: "--foo"),
         )
-        assertEquals(parseCommand("mode --").errorOrNil, "Argument '<binding-mode>' is mandatory")
+        #expect(parseCommand("mode --").errorOrNil == "Argument '<binding-mode>' is mandatory")
     }
 }

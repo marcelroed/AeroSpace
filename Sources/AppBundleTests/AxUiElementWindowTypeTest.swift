@@ -4,10 +4,10 @@ import Common
 import Testing
 
 @Suite
-struct AxUiElementWindowTypeTest: AeroSpaceTestSuite {
+struct AxUiElementWindowTypeTest {
     @Test
     func testAxDumpsExist() throws {
-        assertTrue(try axDumpPaths().count > 0)
+        #expect(try axDumpPaths().count > 0)
     }
 
     // Each dump is its own test case: a malformed dump fails its case instead of crashing the whole test run
@@ -32,7 +32,7 @@ struct AxUiElementWindowTypeTest: AeroSpaceTestSuite {
     func testActivationPolicyRoundTrip() {
         for policy: NSApplication.ActivationPolicy in [.regular, .accessory, .prohibited] {
             let string = policy.prettyDescription
-            assertEquals(NSApplication.ActivationPolicy.from(string: string), policy, additionalMsg: string.singleQuoted)
+            #expect(NSApplication.ActivationPolicy.from(string: string) == policy, "\(string.singleQuoted)")
         }
     }
 }
@@ -67,15 +67,13 @@ private func checkAxDump(_ file: URL) throws {
         rawJson["Aero.AxUiElementWindowType_isDialogHeuristic"] as? Bool,
         "Aero.AxUiElementWindowType_isDialogHeuristic is missing",
     )
-    assertEquals(
-        json.getWindowType(axApp: app, appBundleId, activationPolicy, windowLevel),
-        expectedWindowType,
-        additionalMsg: "\(file.path()):0:0: AxUiElementWindowType doesn't match",
+    #expect(
+        json.getWindowType(axApp: app, appBundleId, activationPolicy, windowLevel) == expectedWindowType,
+        "\(file.path()):0:0: AxUiElementWindowType doesn't match",
     )
-    assertEquals(
-        json.isDialogHeuristic(appBundleId, windowLevel),
-        expectedIsDialogHeuristic,
-        additionalMsg: "\(file.path()):0:0: AxUiElementWindowType_isDialogHeuristic doesn't match",
+    #expect(
+        json.isDialogHeuristic(appBundleId, windowLevel) == expectedIsDialogHeuristic,
+        "\(file.path()):0:0: AxUiElementWindowType_isDialogHeuristic doesn't match",
     )
 }
 
