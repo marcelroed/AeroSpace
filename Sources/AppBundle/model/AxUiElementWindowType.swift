@@ -24,8 +24,7 @@ nonisolated extension AxUiElementMock {
     ) -> Bool {
         // Note: a lot of windows don't have title on startup. So please don't rely on the title
 
-        // An unknown level (an off-screen window) tells nothing (RB-85)
-        if id == ._1password, let windowLevel, windowLevel != .normalWindow {
+        if id == ._1password && windowLevel != .normalWindow {
             return true
         }
 
@@ -105,15 +104,7 @@ nonisolated extension AxUiElementMock {
         _ activationPolicy: NSApplication.ActivationPolicy,
         _ windowLevel: MacOsWindowLevel?,
     ) -> Bool {
-        // Slowly roll out windowLevel for applications for which we have the appropriate dumps
-        let usesWindowLevel: Bool = switch id {
-            case .slack, .chrome, .braveBrowser, .screenstudio, .cleanshotx, .iterm2, .outlook, .codex, .wisprFlow: true
-            case let id?: id.isFirefox
-            case nil: false
-        }
-        // An unknown level (an off-screen window, see onScreenWindowLevels) tells nothing: such a window isn't a popup for
-        // it (RB-85)
-        if usesWindowLevel, let windowLevel, windowLevel != .normalWindow {
+        if usesWindowLevel(id) && windowLevel != .normalWindow {
             return false
         }
 
@@ -205,16 +196,29 @@ nonisolated extension AxUiElementMock {
             id == .finder && subrole == "Quick Look" // Finder preview (hit space) is a floating window
     }
 
+    /// nil if the kind depends on the window's level and the level is unknown: the window server tells the levels of the
+    /// on-screen windows only. A window that is minimized, of a hidden app or on another Space has none. Guessing would
+    /// demote a picture-in-picture window to a window or a dialog, or make a window a popup (R2a M1, RB-85)
     func getWindowType(
         axApp: AxUiElementMock,
         _ id: KnownBundleId?,
         _ activationPolicy: NSApplication.ActivationPolicy,
         _ windowLevel: MacOsWindowLevel?,
-    ) -> AxUiElementWindowType {
-        .new(
+    ) -> AxUiElementWindowType? {
+        if windowLevel == nil && (usesWindowLevel(id) || id == ._1password) { return nil }
+        return .new(
             isWindow: isWindowHeuristic(axApp: axApp, id, activationPolicy, windowLevel),
             isDialog: { isDialogHeuristic(id, windowLevel) },
         )
+    }
+}
+
+/// Slowly roll out windowLevel for applications for which we have the appropriate dumps
+nonisolated private func usesWindowLevel(_ id: KnownBundleId?) -> Bool {
+    switch id {
+        case .slack, .chrome, .braveBrowser, .screenstudio, .cleanshotx, .iterm2, .outlook, .codex, .wisprFlow: true
+        case let id?: id.isFirefox
+        case nil: false
     }
 }
 

@@ -109,6 +109,38 @@ struct ReconcileTest {
     }
 
     @Test
+    func anOffScreenPopupStaysAPopup() async { // R2a M1
+        openWindow(1)
+        openWindow(2)
+        fake.windows[2]?.kind = .popup // E.g. a picture-in-picture window
+        await heavyRefresh()
+        expectEqual(macosPopupWindowsContainer.children.map { ($0 as? Window)?.windowId }, [2])
+
+        // Its app is hidden: no level, and AX gives the window the AXDialog subrole
+        fake.windows[2]?.level = nil
+        fake.windows[2]?.kind = .dialog
+        await heavyRefresh()
+        expectEqual(macosPopupWindowsContainer.children.map { ($0 as? Window)?.windowId }, [2])
+        expectEqual(describeTree(), "h_tiles(*1)")
+    }
+
+    @Test
+    func aNewWindowWhoseKindIsUnknownWaitsUntilItIsOnScreen() async throws { // R2a M1
+        openWindow(1)
+        fake.windows[1]?.level = nil // E.g. a Chrome window of a hidden app: only its level tells whether it's a popup
+        fake.windows[1]?.kind = nil
+        try readTitlesOnWindowDetected()
+        await heavyRefresh()
+        #expect(world.windows.isEmpty)
+
+        fake.windows[1]?.level = .normalWindow
+        fake.windows[1]?.kind = .window
+        await heavyRefresh()
+        expectEqual(describeTree(), "h_tiles(*1)")
+        expectEqual(fake.calls(of: .title), [.title(1)]) // on-window-detected once, with the kind known
+    }
+
+    @Test
     func aRefreshPreemptedDuringTheReadsCommitsNothing() async throws {
         openWindow(1)
         try readTitlesOnWindowDetected()

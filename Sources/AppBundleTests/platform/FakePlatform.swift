@@ -64,7 +64,9 @@ final class FakePlatform: Platform {
         let ids = windows.values.flatMap(\.self).sorted()
         defer { logRead(.classify(ids)) }
         return ids.reduce(into: [:]) { result, id in
-            if let window = answering(id) { result[id] = DetectedWindow(kind: window.kind, rect: window.rect) }
+            if let window = answering(id), let kind = window.kind {
+                result[id] = DetectedWindow(kind: kind, rect: window.rect, level: window.level)
+            }
         }
     }
 
@@ -218,7 +220,10 @@ final class FakeWindow {
     let app: AppInfo
     /// What AX reports as the window's frame. The frame writes change it
     var rect: Rect?
-    var kind: AxUiElementWindowType = .window
+    /// nil: AX can't tell, as for an off-screen window whose kind depends on its level
+    var kind: AxUiElementWindowType? = .window
+    /// nil: the window is off-screen
+    var level: MacOsWindowLevel? = .normalWindow
     var isFullscreen = false
     var isMinimized = false
     let title: String

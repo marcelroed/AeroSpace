@@ -34,7 +34,8 @@ protocol Platform: AnyObject, Sendable {
     /// The windows of every registered app; registers the new apps. An app that is missing terminated
     func listWindows() async throws(CancellationError) -> [AppWindows]
     /// The kind and the frame of each window, keyed by its app: the app of a new window is known only from the listing. A
-    /// window that is gone is missing
+    /// window that is gone is missing, and so is an off-screen window whose kind depends on its level (see
+    /// ``AxUiElementMock/getWindowType(axApp:_:_:_:)``): a later refresh classifies it
     func classify(_ windows: [AppInfo: [WindowId]]) async throws(CancellationError) -> [WindowId: DetectedWindow]
     /// A window that is gone is missing
     func nativeFacts(_ windows: [AppInfo: [WindowId]]) async throws(CancellationError) -> [WindowId: NativeFacts]
@@ -108,6 +109,13 @@ nonisolated struct DetectedWindow: Equatable, Sendable {
     let kind: AxUiElementWindowType
     /// nil if AX doesn't tell
     let rect: Rect?
+    /// nil while the window is off-screen (minimized, of a hidden app, on another Space): the window server tells the
+    /// levels of the on-screen windows only
+    let level: MacOsWindowLevel?
+
+    /// The kind, if it may change a window's classification: an off-screen window's kind is a guess. Its level is unknown,
+    /// and macOS gives minimized windows and the windows of hidden apps the AXDialog subrole (R2a M1)
+    var kindOnScreen: AxUiElementWindowType? { level == nil ? nil : kind }
 }
 
 /// The macOS native states of a window that the model mirrors in its containers

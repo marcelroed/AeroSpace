@@ -51,7 +51,7 @@ enum Reconcile {
         let detected = try await world.platform.classify([focused.app: [focused.windowId]])[focused.windowId]
         // Another session may have registered the window at the suspension point above
         if let window = Window.get(byId: focused.windowId) { return syncFocusFromMacOs(window) }
-        guard let detected else { return } // The window closed
+        guard let detected else { return } // The window closed, or its kind is unknown: the heavy refresh tries again
         let window = registerWindow(focused.windowId, focused.app, detected, isStartup: isStartup)
         if restoreClosedWindowsCacheIfNeeded(newWindows: [window]).isEmpty {
             await runOnWindowDetected(ifConventional: window, isStartup: isStartup)
@@ -72,7 +72,7 @@ enum Reconcile {
         /// The new windows (listed, or focused, and not registered), in listing order, with their apps
         let new: [(id: WindowId, app: AppInfo)]
         /// The kind and the frame of each new window, of each popup and of each window whose macOS state hid its kind.
-        /// A window that is missing is gone
+        /// A window that is missing is gone, or its kind is unknown while it's off-screen
         let detected: [WindowId: DetectedWindow]
         /// The native states of the bound windows that their apps listed, new ones included. A window that is missing
         /// keeps its state
@@ -180,8 +180,9 @@ enum Reconcile {
             window.garbageCollect(skipClosedWindowsCache: false)
         }
 
-        // 3. Register the new windows in listing order. A window that is gone (unclassified) or that another session
-        // registered meanwhile is skipped
+        // 3. Register the new windows in listing order. A window that is unclassified (gone, or off-screen with a kind
+        // that depends on its level: R2a M1) or that another session registered meanwhile is skipped. The next refresh
+        // tries again
         var newWindows: [Window] = []
         for (id, app) in o.new {
             guard let detected = o.detected[id], Window.get(byId: id) == nil else { continue }
@@ -195,9 +196,10 @@ enum Reconcile {
         // 5. The macOS states: fullscreen, minimized, hidden app
         normalizeLayoutReason(o.facts, o.detected)
 
-        // 6. A popup that isn't one anymore (e.g. it was minimized when it was registered) goes where its kind goes
+        // 6. A popup that isn't one anymore (e.g. a tab dragged out of a browser window) goes where its kind goes. Only an
+        // on-screen read can tell that: an off-screen popup (e.g. picture in picture while its app is hidden) stays one
         for case let popup as Window in macosPopupWindowsContainer.children {
-            guard let kind = o.detected[popup.windowId]?.kind, kind != .popup else { continue }
+            guard let kind = o.detected[popup.windowId]?.kindOnScreen, kind != .popup else { continue }
             popup.relayoutWindow(on: focus.workspace, as: kind)
             detected.append(popup.windowId)
         }

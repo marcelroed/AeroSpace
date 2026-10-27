@@ -130,9 +130,11 @@ final class LivePlatform: Platform {
             return { @Sendable axApp, raws, isAbandoned in
                 let activationPolicy = classifier.nsApp.activationPolicy // An XPC: once per app
                 return eachUntilAbandoned(raws, isAbandoned) { raw in
-                    guard let window = axApp.window(raw) else { return nil }
-                    let kind = window.getWindowType(axApp: axApp.element, classifier.appId, activationPolicy, levels[raw])
-                    return DetectedWindow(kind: kind, rect: axApp.rect(raw))
+                    let level = levels[raw]
+                    guard let window = axApp.window(raw),
+                          let kind = window.getWindowType(axApp: axApp.element, classifier.appId, activationPolicy, level)
+                    else { return nil }
+                    return DetectedWindow(kind: kind, rect: axApp.rect(raw), level: level)
                 }
             }
         }

@@ -27,21 +27,6 @@ struct AxUiElementWindowTypeTest {
         #expect(axUiElementMockFromTestDump("garbage, not an element" as NSString) == nil)
     }
 
-    /// RB-85: the level comes from the on-screen windows only. A Chrome window first seen off-screen (minimized, of a hidden
-    /// app) has no level, which must not make it a popup. A level other than normal still does
-    @Test
-    func testUnknownWindowLevelIsNotAPopup() throws {
-        let file = axDumpsDir.appending(path: "chrome.json5")
-        let rawJson = try #require(
-            try JSONSerialization.jsonObject(with: Data(contentsOf: file), options: [.json5Allowed]) as? [String: Any],
-        )
-        let json = try #require(OrderedJson.newOrNilRecursive(rawJson)?.asDictOrNil)
-        let app = try #require(json["Aero.AXApp"]?.asDictOrNil)
-        expectEqual(json.getWindowType(axApp: app, .chrome, .regular, .normalWindow), .window)
-        expectEqual(json.getWindowType(axApp: app, .chrome, .regular, nil), .window)
-        expectEqual(json.getWindowType(axApp: app, .chrome, .regular, .alwaysOnTopWindow), .popup)
-    }
-
     // debug-windows writes the activation policy with prettyDescription, and the dumps are read back with from(string:)
     @Test
     func testActivationPolicyRoundTrip() {
@@ -69,7 +54,9 @@ private func checkAxDump(_ file: URL) throws {
     let json = try #require(OrderedJson.newOrNilRecursive(rawJson)?.asDictOrNil, "The dump contains a value that OrderedJson can't represent")
     let app = try #require(json["Aero.AXApp"]?.asDictOrNil, "Aero.AXApp is missing or isn't an object")
     let appBundleId = (rawJson["Aero.App.appBundleId"] as? String).flatMap { KnownBundleId.init(rawValue: $0) }
+    // A dump without a level predates the level in debug-windows. Its window was on screen: the window server knew a level
     let windowLevel = try json["Aero.windowLevel"].map { try #require(MacOsWindowLevel.fromJson($0), "Invalid Aero.windowLevel") }
+        ?? .normalWindow
     let activationPolicy = try #require(
         (rawJson["Aero.App.nsApp.activationPolicy"] as? String).flatMap(NSApplication.ActivationPolicy.from(string:)),
         "Aero.App.nsApp.activationPolicy is missing or unknown",
@@ -92,6 +79,11 @@ private func checkAxDump(_ file: URL) throws {
         expectedIsDialogHeuristic,
         "\(file.path()):0:0: AxUiElementWindowType_isDialogHeuristic doesn't match",
     )
+    // Off-screen, the window server tells no level. Then the kind is unknown or right, never a guess: e.g. the browsers'
+    // picture-in-picture windows, Slack's huddle popups and Outlook's reminder are popups only by their levels (R2a M1)
+    if let kind = json.getWindowType(axApp: app, appBundleId, activationPolicy, nil) {
+        expectEqual(kind, expectedWindowType, "\(file.path()):0:0: AxUiElementWindowType doesn't match without the window level")
+    }
 }
 
 /// Reports a malformed dump as an issue of the current test case. `dieT` would crash all tests
