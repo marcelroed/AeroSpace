@@ -36,16 +36,16 @@ struct ReloadConfigResult {
     let containsWarnings = !parseResult.warnings.isEmpty
 
     if !args.noGui {
-        let lines = errors + warnings
-        switch true {
-            case !errors.isEmpty:
-                let msg = failedToParseMsg(configUrl: result.configUrl, errorsCount: parseResult.errors.count, warningsCount: parseResult.warnings.count, lines: lines)
-                MessageModel.shared.message = Message(body: msg, containsWarnings: containsWarnings)
-            case warningsAsErrors && !warnings.isEmpty:
-                let msg = parsedWithWarningsMsg(configUrl: result.configUrl, warningsCount: parseResult.warnings.count, lines: lines)
-                MessageModel.shared.message = Message(body: msg, containsWarnings: containsWarnings)
-            default:
-                MessageModel.shared.message = nil
+        let path = result.configUrl.absoluteURL.path.singleQuoted
+        let header: String? = if !errors.isEmpty {
+            "Failed to parse \(path). \(errors.count) error(s). \(warnings.count) warning(s)"
+        } else if warningsAsErrors && !warnings.isEmpty {
+            "Parsed \(path) with \(warnings.count) warning(s). Feel free to close this window."
+        } else {
+            nil
+        }
+        MessageModel.shared.message = header.map {
+            Message(body: "\($0)\n\n\((errors + warnings).joined(separator: "\n\n"))", containsWarnings: containsWarnings)
         }
     }
     if parseResult.allowReloadConfig && !args.dryRun {
@@ -69,16 +69,4 @@ struct ReloadConfigResult {
         stdout: errors.joined(separator: "\n\n"),
         stderr: warnings.joined(separator: "\n\n"),
     )
-}
-
-private func failedToParseMsg(configUrl: URL, errorsCount: Int, warningsCount: Int, lines: [String]) -> String {
-    let path = configUrl.absoluteURL.path.singleQuoted
-    let header = "Failed to parse \(path). \(errorsCount) error(s). \(warningsCount) warning(s)"
-    return "\(header)\n\n\(lines.joined(separator: "\n\n"))"
-}
-
-private func parsedWithWarningsMsg(configUrl: URL, warningsCount: Int, lines: [String]) -> String {
-    let path = configUrl.absoluteURL.path.singleQuoted
-    let header = "Parsed \(path) with \(warningsCount) warning(s). Feel free to close this window."
-    return "\(header)\n\n\(lines.joined(separator: "\n\n"))"
 }
