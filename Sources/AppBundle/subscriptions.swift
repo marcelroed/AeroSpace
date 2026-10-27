@@ -29,24 +29,39 @@ struct SubscribeArgs: Equatable, Sendable {
     }
 }
 
-/// The queue of a `subscribe` client's events. The events are queued on the main actor as they happen, and written to
-/// the client by one loop (``sendEvents(of:to:)``), so the client gets them in order: the state when it subscribed, then
-/// every change after it
+/// A client's events wait in its queue until its writer sends them. A client that stays connected but stops reading would
+/// make its queue grow without end: past this many events, it's disconnected instead. Its `subscribe` exits, and a new
+/// one starts from the current state. No event is dropped silently
+let maxQueuedEvents = 10000
+
+/// A `subscribe` client: its events, encoded, queue up on the main actor as they happen, and one loop
+/// (``sendEvents(of:)``) writes them, so the client gets them in order: the state when it subscribed, then every change
+/// after it
 struct Subscription {
     fileprivate let id = UUID()
-    fileprivate let events: AsyncStream<ServerEvent>
-    fileprivate let queue: AsyncStream<ServerEvent>.Continuation
+    fileprivate let events: Set<ServerEventType>
+    fileprivate let connection: NWConnection
+    fileprivate let frames: AsyncStream<Data>
+    fileprivate let queue: AsyncStream<Data>.Continuation
+
+    fileprivate func send(_ frame: Data) {
+        if case .dropped = queue.yield(frame) {
+            queue.finish()
+            connection.cancel() // Fails the pending write, which ends the writer
+        }
+    }
 }
 
-private var subscribers: [UUID: (events: Set<ServerEventType>, queue: AsyncStream<ServerEvent>.Continuation)] = [:]
+/// The clients whose writer hasn't ended
+private(set) var subscriptions: [UUID: Subscription] = [:]
 
 /// Queues the events of `args` from now on, after the current state unless `--no-send-initial`
-func subscribe(_ args: SubscribeArgs) -> Subscription {
-    let (events, queue) = AsyncStream<ServerEvent>.makeStream()
-    let subscription = Subscription(events: events, queue: queue)
-    subscribers[subscription.id] = (args.events, queue)
+func subscribe(_ args: SubscribeArgs, _ connection: NWConnection) -> Subscription {
+    let (frames, queue) = AsyncStream<Data>.makeStream(bufferingPolicy: .bufferingOldest(maxQueuedEvents))
+    let subscription = Subscription(events: args.events, connection: connection, frames: frames, queue: queue)
+    subscriptions[subscription.id] = subscription
     if args.sendInitial {
-        for event in currentState(ServerEventType.allCases.filter(args.events.contains)) { queue.yield(event) }
+        for event in currentState(ServerEventType.allCases.filter(args.events.contains)) { subscription.send(encode(event)) }
     }
     return subscription
 }
@@ -66,17 +81,18 @@ private func currentState(_ types: [ServerEventType]) -> [ServerEvent] {
     }
 }
 
-/// Writes the queued events to the client until it disconnects or a write fails
-func sendEvents(of subscription: Subscription, to connection: NWConnection) async {
-    defer { subscribers[subscription.id] = nil }
-    let queue = subscription.queue
+/// Writes the queued events to the client until it disconnects, a write fails or its queue overflows. It runs on the main
+/// actor, next to `subscriptions`, but a slow client never blocks it: each write suspends until the socket takes it
+func sendEvents(of subscription: Subscription) async {
+    defer { subscriptions[subscription.id] = nil }
+    let (connection, queue) = (subscription.connection, subscription.queue)
     await withDiscardingTaskGroup { group in
         group.addTask { @Sendable in
             await connection.readTillError() // The client sends nothing: the end of its input means it disconnected
             queue.finish()
         }
-        for await event in subscription.events {
-            if await connection.writeAtomic(event, jsonEncoder).error != nil {
+        for await frame in subscription.frames {
+            if await connection.writeFrame(frame).error != nil {
                 connection.cancel() // Ends readTillError
                 break
             }
@@ -90,8 +106,12 @@ private let jsonEncoder: JSONEncoder = {
     return e
 }()
 
+private func encode(_ event: ServerEvent) -> Data { Result { try jsonEncoder.encode(event) }.getOrDie() }
+
+/// Encodes the event once for all its clients
 func broadcastEvent(_ event: ServerEvent) {
-    for subscriber in subscribers.values where subscriber.events.contains(event.eventType) {
-        subscriber.queue.yield(event)
-    }
+    let receivers = subscriptions.values.filter { $0.events.contains(event.eventType) }
+    if receivers.isEmpty { return }
+    let frame = encode(event)
+    for subscription in receivers { subscription.send(frame) }
 }

@@ -62,15 +62,44 @@ struct SubscribeTest {
             #"{"_event":"focused-monitor-changed","monitorId":1,"workspace":"c"}"#,
         ])
         fake.windows[4] = FakeWindow(app: testApp, rect: nil, title: "Window 4")
-        await Reconcile.heavy(.ax("test"))
+        await Reconcile.heavy(.ax("test")) // The new window takes the focus of its empty workspace
         await expectEvents(all, [
             #"{"_event":"window-detected","appBundleId":"bobko.AeroSpace.test-app","appName":"bobko.AeroSpace.test-app","windowId":4,"workspace":"c"}"#,
+            #"{"_event":"focus-changed","windowId":4,"workspace":"c"}"#,
         ])
 
         await expectEvents(workspaces, [
             #"{"_event":"focused-workspace-changed","prevWorkspace":"a","workspace":"b"}"#,
             #"{"_event":"focused-workspace-changed","prevWorkspace":"b","workspace":"c"}"#,
-        ])
+        ], then: .workspace)
+    }
+
+    /// A client that stays connected but stops reading is disconnected once its queue overflows, instead of making
+    /// AeroSpace hold every event for it. A client that reads gets every event
+    @Test
+    func clientThatStopsReadingIsDisconnected() async throws {
+        await expectSubscriptions(0)
+        let server = try await TestSocketServer.start(.aeroSpace)
+        defer { server.stop() }
+        let stalled = try await subscribe(server, ["--no-send-initial", "mode-changed"])
+        defer { stalled.cancel() }
+        let reading = try await subscribe(server, ["--no-send-initial", "mode-changed"])
+        defer { reading.cancel() }
+
+        // In rounds, so that the reading client's writer keeps up. The stalled client's socket takes a few events, and the
+        // rest pile up in its queue, which overflows in one of the last two rounds
+        let roundSize = 1000
+        let mode = String(repeating: "m", count: 200)
+        for round in 0 ..< maxQueuedEvents / roundSize + 2 {
+            for _ in 0 ..< roundSize { broadcastEvent(.modeChanged(mode: mode)) }
+            let received = await readFrames(reading, count: roundSize)
+            expectEqual(received, Array(repeating: #"{"_event":"mode-changed","mode":"\#(mode)"}"#, count: roundSize), "round \(round)")
+        }
+        await expectSubscriptions(1)
+        var stalledFrames = 0
+        while case .success = await withTimeout(seconds: 5, { await stalled.readFrame() }) { stalledFrames += 1 }
+        #expect(stalledFrames < maxQueuedEvents, "\(stalledFrames)")
+        await expectEvents(reading, [])
     }
 }
 
@@ -81,16 +110,53 @@ private func subscribe(_ server: TestSocketServer, _ args: [String]) async throw
     return connection
 }
 
-/// Reads the next events of `client`, as many as expected
-private func expectEvents(_ client: NWConnection, _ expected: [String], sourceLocation: SourceLocation = #_sourceLocation) async {
-    var events: [String] = []
-    for _ in expected {
+/// An event that a test broadcasts after the events it expects: if it comes next, no other event came
+private enum Sentinel {
+    case mode, workspace
+
+    var event: ServerEvent {
+        switch self {
+            case .mode: .modeChanged(mode: "sentinel")
+            case .workspace: .workspaceChanged(workspace: "sentinel", prevWorkspace: "sentinel")
+        }
+    }
+
+    var json: String {
+        switch self {
+            case .mode: #"{"_event":"mode-changed","mode":"sentinel"}"#
+            case .workspace: #"{"_event":"focused-workspace-changed","prevWorkspace":"sentinel","workspace":"sentinel"}"#
+        }
+    }
+}
+
+/// Reads the next events of `client`: `expected`, and nothing else
+private func expectEvents(
+    _ client: NWConnection,
+    _ expected: [String],
+    then sentinel: Sentinel = .mode,
+    sourceLocation: SourceLocation = #_sourceLocation,
+) async {
+    broadcastEvent(sentinel.event)
+    expectEqual(await readFrames(client, count: expected.count + 1), expected + [sentinel.json], sourceLocation: sourceLocation)
+}
+
+/// The next `count` frames of `client`, or fewer and why the read stopped
+private func readFrames(_ client: NWConnection, count: Int) async -> [String] {
+    var frames: [String] = []
+    for _ in 0 ..< count {
         let frame = await withTimeout(seconds: 5) { await client.readFrame() } // A missing event fails, rather than hangs
         guard case .success(let data) = frame else {
-            events.append("no event: \(frame.map { "\($0)" } ?? "a timeout")")
+            frames.append("no event: \(frame.map { "\($0)" } ?? "a timeout")")
             break
         }
-        events.append(String(decoding: data, as: UTF8.self))
+        frames.append(String(decoding: data, as: UTF8.self))
     }
-    expectEqual(events, expected, sourceLocation: sourceLocation)
+    return frames
+}
+
+/// Waits until `count` clients are subscribed: a client's writer ends a moment after it disconnects
+private func expectSubscriptions(_ count: Int, sourceLocation: SourceLocation = #_sourceLocation) async {
+    let deadline = ContinuousClock.now + .seconds(5)
+    while subscriptions.count != count, ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(10)) }
+    expectEqual(subscriptions.count, count, sourceLocation: sourceLocation)
 }

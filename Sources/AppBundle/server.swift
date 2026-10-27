@@ -45,7 +45,8 @@ nonisolated func toggleReleaseServerIfDebug(_ state: ToggleEnum) async {
 nonisolated private let serverVersionAndHash: String = "\(aeroSpaceAppVersion) \(gitHash)"
 
 /// Answers the one request of the connection, and after a `subscribe` answer sends the events until the client
-/// disconnects. Runs off the main actor: the connection I/O doesn't wait for the main thread
+/// disconnects. Reading and decoding the request don't wait for the main thread. Only `handle` and the events' writer
+/// (``sendEvents(of:)``) run on it
 nonisolated func serve(_ connection: NWConnection) async {
     func answer(exitCode: Int32, stdout: String = "", stderr: String = "") async {
         let answer = ServerAnswer(exitCode: exitCode, stdout: stdout, stderr: stderr, serverVersionAndHash: serverVersionAndHash)
@@ -76,12 +77,12 @@ nonisolated func serve(_ connection: NWConnection) async {
     if request.protocolVersion != socketProtocolVersion, let message = protocolMismatchMessage(rawRequest) {
         return await answer(exitCode: EXIT_CODE_TWO, stderr: message)
     }
-    switch await handle(request) {
+    switch await handle(request, connection) {
         case .answer(let exitCode, let stdout, let stderr):
             await answer(exitCode: exitCode, stdout: stdout, stderr: stderr)
         case .subscribe(let subscription):
             await answer(exitCode: EXIT_CODE_ZERO)
-            await sendEvents(of: subscription, to: connection)
+            await sendEvents(of: subscription)
     }
 }
 
@@ -103,13 +104,14 @@ private enum RequestOutcome {
     case subscribe(Subscription)
 }
 
-/// Parses the request, then runs the command. Help and parse errors are answered even if the server is disabled
-private func handle(_ request: ClientRequest) async -> RequestOutcome {
+/// Parses the request, then runs the command, or registers the `subscribe` client of `connection`. Help and parse errors
+/// are answered even if the server is disabled
+private func handle(_ request: ClientRequest, _ connection: NWConnection) async -> RequestOutcome {
     let command: any Command
     do throws(CmdParseError) {
         switch try parseRequest(request.args) {
             case .command(let it): command = it
-            case .subscribe(let args): return .subscribe(subscribe(args))
+            case .subscribe(let args): return .subscribe(subscribe(args, connection))
         }
     } catch {
         return switch error {
