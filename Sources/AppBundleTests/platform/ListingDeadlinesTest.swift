@@ -7,7 +7,8 @@ import Testing
 struct ListingDeadlinesTest {
     @Test
     func aCancelledListingDoesntClearTheLateMarkOfANewerOne() async throws { // R2c L1
-        let deadlines = ListingDeadlines(minDeadline: .milliseconds(20), maxDeadline: .seconds(1))
+        let deadline = Gate()
+        let deadlines = ListingDeadlines(minDeadline: .milliseconds(1), maxDeadline: .seconds(1)) { _ in await deadline.wait() }
         let (first, second) = (Gate(), Gate())
         var calls = 0
         let list = { () async throws(CancellationError) -> [Int]? in
@@ -22,6 +23,7 @@ struct ListingDeadlinesTest {
         await first.untilWaiting()
         cancelled.cancel() // The refresh is cancelled before the deadline. Its listing goes on
         await cancelled.value
+        deadline.open()
         let late = try await deadlines.list(7, hasDeadline: true, list) // A newer refresh's listing misses the deadline
         expectEqual(late, nil)
         first.open() // The cancelled listing returns

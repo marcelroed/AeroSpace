@@ -137,11 +137,11 @@ struct ReconcileTest {
     }
 
     @Test
-    func theStartupWaitsForEveryApp() async { // R2b L3
+    func theStartupWaitsForEveryApp() async { // R2b L3, R2c L6
         fake.apps = [appA, appB]
         openWindow(1, appA)
         openWindow(2, appB)
-        fake.listingDeadlines = ListingDeadlines(minDeadline: .milliseconds(1), maxDeadline: .seconds(1))
+        fake.listingDeadlines = ListingDeadlines(minDeadline: .milliseconds(1), maxDeadline: .seconds(1)) { _ in } // Passed at once
         let slowness = Gate()
         fake.beforeListing = { app in if app == appA { await slowness.wait() } }
 
@@ -151,11 +151,49 @@ struct ReconcileTest {
             isDone = true
         }
         await slowness.untilWaiting()
-        try? await Task.sleep(for: .milliseconds(20)) // Past the deadline
+        for _ in 0 ..< 100 { await Task.yield() }
         #expect(!isDone)
+        expectEqual(fake.calls(of: .listWindows), [])
         slowness.open()
         await startup.value
         expectEqual(Set(world.windows.keys), [1, 2])
+    }
+
+    @Test
+    func twoLateAppsGetTheirWindowsEachWhenItAnswers() async { // R2c L6
+        fake.apps = [appA, appB]
+        await heavyRefresh()
+        var deadline = Gate()
+        fake.listingDeadlines = ListingDeadlines(minDeadline: .milliseconds(1), maxDeadline: .seconds(1)) { _ in
+            await deadline.wait()
+        }
+        let (hangA, hangB) = (Gate(), Gate())
+        var listings: [String] = []
+        fake.beforeListing = { app in
+            listings.append(app == appA ? "A" : "B")
+            await (app == appA ? hangA : hangB).wait()
+        }
+        openWindow(1, appA)
+        openWindow(2, appB)
+
+        let refresh = Task.startUnstructured { await heavyRefresh() }
+        await hangA.untilWaiting()
+        await hangB.untilWaiting() // Both apps are listed at once
+        deadline.open() // Both miss it
+        await refresh.value
+        expectEqual(Set(world.windows.keys), [])
+        deadline = Gate()
+
+        hangB.open() // B answers late: a heavy refresh lists it again, and doesn't ask A, whose listing still runs
+        for _ in 0 ..< 100 where Window.get(byId: 2) == nil { await Task.yield() }
+        expectEqual(Set(world.windows.keys), [2])
+        expectEqual(listings, ["A", "B", "B"])
+
+        hangA.open() // A answers late: a heavy refresh lists both apps
+        for _ in 0 ..< 100 where Window.get(byId: 1) == nil { await Task.yield() }
+        expectEqual(Set(world.windows.keys), [1, 2])
+        expectEqual(listings, ["A", "B", "B", "A", "B"])
+        deadline.open() // The deadlines of the listings that answered in time
     }
 
     @Test

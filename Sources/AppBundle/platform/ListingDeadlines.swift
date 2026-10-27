@@ -23,10 +23,17 @@ final class ListingDeadlines {
     private var lateApps: Set<pid_t> = []
     /// How long each app's late answer took, until the app's next listing with a deadline
     private var lateAnswerTimes: [pid_t: Duration] = [:]
+    /// Waits until a deadline passes: `Task.sleep`, or a test's gate
+    private let sleep: (Duration) async -> ()
 
-    init(minDeadline: Duration, maxDeadline: Duration) {
+    init(
+        minDeadline: Duration,
+        maxDeadline: Duration,
+        sleep: @escaping (Duration) async -> () = { try? await Task.sleep(for: $0) },
+    ) {
         self.minDeadline = minDeadline
         self.maxDeadline = maxDeadline
+        self.sleep = sleep
     }
 
     /// The deadline of the app's next listing
@@ -78,7 +85,7 @@ final class ListingDeadlines {
                     }
                 }
                 timer = Task.startUnstructured { [self] in
-                    try? await Task.sleep(for: deadline)
+                    await sleep(deadline)
                     if race.resolve(.deadline) == nil { lateApps.insert(pid) }
                 }
             }

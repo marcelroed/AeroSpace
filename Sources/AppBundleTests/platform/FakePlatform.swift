@@ -28,7 +28,8 @@ final class FakePlatform: Platform {
     var beforeTitle: ((WindowId) async -> ())? = nil
     /// Awaited before an app lists its windows: a ``Gate`` there makes the app miss its listing deadline
     var beforeListing: ((AppInfo) async -> ())? = nil
-    /// LivePlatform's listing deadlines, for the tests that hold an app in `beforeListing`. nil: every listing is awaited
+    /// LivePlatform's listing deadlines, for the tests that hold an app in `beforeListing`: the apps are then listed at
+    /// once, as LivePlatform lists them. nil: every listing is awaited, one app after another
     var listingDeadlines: ListingDeadlines? = nil
 
     func calls(of kind: PlatformCall.Kind, _ id: WindowId? = nil) -> [PlatformCall] {
@@ -57,20 +58,35 @@ final class FakePlatform: Platform {
     /// Each app lists its windows in the order of their ids
     func listWindows(waitingForEveryApp: Bool) async throws(CancellationError) -> [AppWindows] {
         defer { logRead(.listWindows) }
-        var result: [AppWindows] = []
-        for app in apps {
-            let list = { [self] () async throws(CancellationError) -> [WindowId]? in
-                await beforeListing?(app)
-                return answers[app.pid] == false ? nil : windows.filter { $0.value.app == app }.keys.sorted()
-            }
-            let ids = if let listingDeadlines {
-                try await listingDeadlines.list(app.pid, hasDeadline: !waitingForEveryApp, list)
-            } else {
-                try await list()
-            }
-            result.append(ids.map { .listed(app, $0) } ?? .noAnswer(app))
+        func list(_ app: AppInfo) async throws(CancellationError) -> [WindowId]? {
+            await beforeListing?(app)
+            return answers[app.pid] == false ? nil : windows.filter { $0.value.app == app }.keys.sorted()
         }
-        return result
+        var listed: [pid_t: [WindowId]?] = [:]
+        if let listingDeadlines {
+            do {
+                listed = try await withThrowingTaskGroup(of: (pid_t, [WindowId]?).self) { group in
+                    for app in apps {
+                        group.addTask { @Sendable @MainActor in
+                            let ids = try await listingDeadlines.list(app.pid, hasDeadline: !waitingForEveryApp) {
+                                () async throws(CancellationError) -> [WindowId]? in try await list(app)
+                            }
+                            return (app.pid, ids)
+                        }
+                    }
+                    var result: [pid_t: [WindowId]?] = [:]
+                    for try await (pid, ids) in group {
+                        result[pid] = ids
+                    }
+                    return result
+                }
+            } catch {
+                throw CancellationError()
+            }
+        } else {
+            for app in apps { listed[app.pid] = try await list(app) }
+        }
+        return apps.map { app in listed[app.pid].flatMap(\.self).map { .listed(app, $0) } ?? .noAnswer(app) }
     }
 
     func focusedWindow() -> FocusedWindow? {
