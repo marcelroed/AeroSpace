@@ -1,29 +1,6 @@
-import AppKit
 import Common
-import HotKey
 import OrderedCollections
 
-func getDefaultConfigUrlFromProject() -> URL {
-    var url = URL(filePath: #filePath)
-    check(FileManager.default.fileExists(atPath: url.path))
-    // Not .git: a tarball or a copy of the sources has no .git, or the .git of an enclosing repo. Like projectRoot in the tests
-    while !FileManager.default.fileExists(atPath: url.appending(component: "Package.swift").path) {
-        check(url.path != "/", "Can't find the project root: no parent directory of \(#filePath) contains Package.swift")
-        url.deleteLastPathComponent()
-    }
-    let projectRoot: URL = url
-    return projectRoot.appending(component: "docs/config-examples/default-config.toml")
-}
-
-var defaultConfigUrl: URL {
-    if isUnitTest {
-        return getDefaultConfigUrlFromProject()
-    } else {
-        return Bundle.main.url(forResource: "default-config", withExtension: "toml")
-            // Useful for debug builds that are not app bundles
-            ?? getDefaultConfigUrlFromProject()
-    }
-}
 let defaultConfig: Config = {
     let parsedConfig = parseConfig(Result { try String(contentsOf: defaultConfigUrl, encoding: .utf8) }.getOrDie())
     if !parsedConfig.errors.isEmpty {
@@ -32,7 +9,6 @@ let defaultConfig: Config = {
     return parsedConfig.config
 }()
 var config: Config = defaultConfig // todo move to Ctx?
-var configUrl: URL = defaultConfigUrl
 
 struct Config {
     var configVersion: ConfigVersion = ._1

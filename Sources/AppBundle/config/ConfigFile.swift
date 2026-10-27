@@ -1,7 +1,27 @@
+import AppKit
 import Common
 import Foundation
+import ServiceManagement
 
 let configDotfileName = ".aerospace.toml"
+var configUrl: URL = defaultConfigUrl
+
+var defaultConfigUrl: URL {
+    // The project's copy is useful for debug builds that are not app bundles
+    (isUnitTest ? nil : Bundle.main.url(forResource: "default-config", withExtension: "toml")) ?? getDefaultConfigUrlFromProject()
+}
+
+private func getDefaultConfigUrlFromProject() -> URL {
+    var url = URL(filePath: #filePath)
+    check(FileManager.default.fileExists(atPath: url.path))
+    // Not .git: a tarball or a copy of the sources has no .git, or the .git of an enclosing repo. Like projectRoot in the tests
+    while !FileManager.default.fileExists(atPath: url.appending(component: "Package.swift").path) {
+        check(url.path != "/", "Can't find the project root: no parent directory of \(#filePath) contains Package.swift")
+        url.deleteLastPathComponent()
+    }
+    return url.appending(component: "docs/config-examples/default-config.toml")
+}
+
 func findCustomConfigUrl(configLocation: String? = serverArgs.configLocation) -> ConfigFile {
     // Use --config-path even if the file was deleted after the startup. Reading it then reports the missing file
     if let configLocation { return .file(URL(filePath: configLocation)) }
@@ -28,4 +48,64 @@ enum ConfigFile {
             case .ambiguousConfigError, .noCustomConfigExists: nil
         }
     }
+}
+
+private struct ConfigFileWatcher: ~Copyable {
+    private let source: DispatchSourceFileSystemObject
+    private let fd: Int32
+
+    init?(url: URL, onChange: @escaping @MainActor () -> Void) {
+        fd = unsafe open(url.path, O_EVTONLY)
+        if fd < 0 { return nil }
+        source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd,
+            eventMask: [.write, .delete, .rename, .revoke],
+            queue: .main,
+        )
+        source.setEventHandler { onChange() } // On the main queue, so the closure is main actor isolated
+        source.setCancelHandler { [fd] in close(fd) }
+        source.activate()
+    }
+
+    deinit {
+        source.cancel()
+    }
+}
+
+// periphery:ignore - assign-only: the value keeps the watcher alive
+private var currentWatcher: ConfigFileWatcher? = nil
+private var debounceTask: Task<Void, any Error>? = nil
+
+private let debounceDelay: Duration = .milliseconds(200)
+
+func syncConfigFileWatcher() {
+    currentWatcher = nil
+    if !config.autoReloadConfig { return }
+    currentWatcher = ConfigFileWatcher(url: configUrl) {
+        debounceTask?.cancel()
+        debounceTask = Task.startUnstructured {
+            try await Task.sleep(for: debounceDelay)
+            if let token: RunSessionGuard = .isServerEnabled {
+                try await runLightSession(.configAutoReload, token) {
+                    _ = await reloadConfig_nonCancellable()
+                }
+            }
+        }
+    }
+}
+
+func syncStartAtLogin() {
+    cleanupPlistFromPrevVersions()
+    let service = SMAppService.mainApp
+    switch true {
+        case !config.startAtLogin: _ = try? service.unregister()
+        case isDebug: print("'start-at-login = true' has no effect in debug builds")
+        default: _ = try? service.register()
+    }
+}
+
+private func cleanupPlistFromPrevVersions() { // todo Drop after a couple of versions
+    let launchAgentsDir = FileManager.default.homeDirectoryForCurrentUser.appending(component: "Library/LaunchAgents/")
+    let url: URL = launchAgentsDir.appending(path: "bobko.aerospace.plist")
+    try? FileManager.default.removeItem(at: url)
 }

@@ -27,33 +27,36 @@ extension HotKey {
 
 var activeMode: String? = mainModeId
 func activateMode_nonCancellable(_ targetMode: String?) async {
-    let targetBindings = targetMode.flatMap { config.modes[$0] }?.bindings ?? [:]
-    for binding in targetBindings.values where hotkeys[binding.descriptionWithKeyCode] == nil {
-        hotkeys[binding.descriptionWithKeyCode] = HotKey(key: binding.keyCode, modifiers: binding.modifiers, keyDownHandler: {
-            Task.startUnstructured {
-                if let activeMode {
-                    // The HotKey is registered by the first mode that binds the key code. Another mode can bind the same
-                    // key code with another notation (e.g. 'shift-alt-a' and 'alt-shift-a')
-                    let activeBinding = config.modes[activeMode]?.bindings[binding.descriptionWithKeyCode] ?? binding
-                    broadcastEvent(.bindingTriggered(
-                        mode: activeMode,
-                        binding: activeBinding.descriptionWithKeyNotation,
-                    ))
-                    try await runLightSession(.hotkeyBinding, .isServerEnabled ?? dieT("server is disabled")) { () throws in
-                        _ = await config.modes[activeMode]?.bindings[binding.descriptionWithKeyCode]?.commands
-                            .run(.defaultEnv, .emptyStdin)
-                    }
-                }
-            }
-        })
-    }
-    for (binding, key) in hotkeys {
-        key.isEnabled = targetBindings.keys.contains(binding)
-    }
+    registerHotkeys(for: targetMode)
     let oldMode = activeMode
     activeMode = targetMode
     if oldMode != targetMode {
         broadcastEvent(.modeChanged(mode: targetMode))
         _ = await config.onModeChanged.run(.defaultEnv, .emptyStdin)
+    }
+}
+
+/// Registers the missing hotkeys of `mode` and pauses all others. Never suspends
+func registerHotkeys(for mode: String?) {
+    let bindings = mode.flatMap { config.modes[$0] }?.bindings ?? [:]
+    for binding in bindings.values where hotkeys[binding.descriptionWithKeyCode] == nil {
+        hotkeys[binding.descriptionWithKeyCode] = HotKey(key: binding.keyCode, modifiers: binding.modifiers, keyDownHandler: {
+            Task.startUnstructured { try await onHotkeyPressed(binding) }
+        })
+    }
+    for (keyCode, hotkey) in hotkeys {
+        hotkey.isEnabled = bindings.keys.contains(keyCode)
+    }
+}
+
+/// Runs the binding of the *current* config and mode with the pressed key
+private func onHotkeyPressed(_ binding: HotkeyBinding) async throws {
+    guard let activeMode else { return }
+    // The HotKey is registered by the first mode that binds the key code. Another mode can bind the same
+    // key code with another notation (e.g. 'shift-alt-a' and 'alt-shift-a')
+    let activeBinding = config.modes[activeMode]?.bindings[binding.descriptionWithKeyCode]
+    broadcastEvent(.bindingTriggered(mode: activeMode, binding: (activeBinding ?? binding).descriptionWithKeyNotation))
+    try await runLightSession(.hotkeyBinding, .isServerEnabled ?? dieT("server is disabled")) { () throws in
+        _ = await config.modes[activeMode]?.bindings[binding.descriptionWithKeyCode]?.commands.run(.defaultEnv, .emptyStdin)
     }
 }
