@@ -44,6 +44,14 @@ struct SubcommandHelpTest {
         }
     }
 
+    /// The subscribe page describes every event: its arguments are `<event>:: <description>`, the options start with `-`
+    @Test
+    func testSubscribeDocsListEveryEvent() throws {
+        let adoc = try String(contentsOf: projectRoot.appending(path: "docs/aerospace-subscribe.adoc"), encoding: .utf8)
+        let events = adoc.matches(of: /^([a-z][a-z-]*)::\s/.anchorsMatchLineEndings()).map { String($0.output.1) }
+        expectEqual(events, ServerEventType.cliArgsCases)
+    }
+
     /// `-h` and `--help` ask for the help of their own subcommand (RB-11: `test -h` printed the help of another one), in
     /// the shell of the config and in a CLI request. testDocsMatchHelp pins the text
     @Test(arguments: CmdKind.allCases.filter { $0 != .execAndForget })
