@@ -63,16 +63,9 @@ private struct ShellParser {
     private mutating func parseSeq() throws(String) -> Shell<[String]> {
         var elems = [try parse(.or)]
         while peek.payload.isSeqSeparator {
-            var sawASemicolon = false
-            while peek.payload.isSeqSeparator {
-                sawASemicolon = sawASemicolon || peek.payload == .semicolon
-                index += 1
-            }
+            while peek.payload.isSeqSeparator { index += 1 }
             // FIRST(Or) = FIRST(And) = FIRST(Pipe) = { "(" } ∪ FIRST(Cmd) = { "(", Word }
             if peek.payload.isWord || peek.payload == .lParen {
-                if !sawASemicolon { // todo: [compatibility] remove this diagnostic after a while
-                    throw "\(peek.location): Please use explicit semicolon in place of a newline"
-                }
                 elems.append(try parse(.or))
             }
         }

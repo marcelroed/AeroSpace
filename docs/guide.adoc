@@ -166,6 +166,7 @@ For the list of available commands see: xref:commands.adoc[]
 
 AeroSpace reimplements a small subset of Shell syntax.
 Namely, the well-known operators: `;`, `||`, `&&`, `|`, and parenthesis to specify the precedence (listed in the precedence order).
+Like in traditional Shell, a newline separates commands the same way as `;`.
 
 That is what allows you to combine commands and run them in sequence or pipe one into another:
 

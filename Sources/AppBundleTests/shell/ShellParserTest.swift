@@ -113,9 +113,11 @@ struct ShellParserTest: AeroSpaceTestSuite {
     }
 
     @Test
-    func testParserFailNewlineWithoutSemicolon() {
-        assertFail("foo\nbar".lexAndParseShell(), "Line 2 Column 1: Please use explicit semicolon in place of a newline")
+    func testParserNewlineSeparatesCommands() {
+        assertSucc("foo\nbar".lexAndParseShell(), .seq("foo", "bar"))
         assertSucc("foo bar;\nbaz".lexAndParseShell(), .seq(.cmd("foo", "bar"), "baz"))
+        assertSucc("a && b\n\n(c\nd) # comment\ne".lexAndParseShell(), .seq([.and("a", "b"), .seq("c", "d"), "e"]))
+        assertFail("a\n&& b".lexAndParseShell(), "Line 1 Column 2: Please escape newline with backslash character.")
     }
 
     @Test
