@@ -330,6 +330,7 @@ extension FormatVar {
 
             case .newline: .string("\n")
             case .tab: .string("\t")
+            // The formats pad instead, and `test` doesn't take it
             case .rightPadding: throw .other("'\(rawValue)' interpolation variable cannot be expanded")
         }
         guard let value else { throw .unavailable(self, obj.subject) }
@@ -347,7 +348,8 @@ extension AeroObj {
         }
     }
 
-    /// "NULL-WORKSPACE" for a window without a workspace: a minimized or popup window
+    /// "NULL-WORKSPACE" for a window without a workspace: one that closed while its title was read. The commands don't list
+    /// or target minimized and popup windows
     fileprivate func ofWorkspace(_ value: (Workspace) -> Primitive) -> Primitive? {
         switch self {
             case .window(let w): w.window.nodeWorkspace.map(value) ?? .string("NULL-WORKSPACE")
