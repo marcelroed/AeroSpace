@@ -76,19 +76,23 @@ extension [[String]] {
 
 extension String {
     public func interpolate(with variables: [String: String]) -> Result<String, [String]> {
-        rawInterpolationTokens(interpolationChar: "$")
-            .mapError { [$0] }
-            .flatMap { tokens in
-                tokens.mapAllOrFailures { token in
-                    switch token {
-                        case .literal(let literal): .success(literal)
-                        case .interVar(let value):
-                            variables[value].toResult("Env variable '\(value)' isn't presented in AeroSpace.app env vars, "
+        rawInterpolationTokens(interpolationChar: "$").mapError { [$0] }.flatMap { tokens in
+            var result = ""
+            var errors: [String] = []
+            for token in tokens {
+                switch token {
+                    case .literal(let literal): result += literal
+                    case .interVar(let name):
+                        if let value = variables[name] {
+                            result += value
+                        } else {
+                            errors.append("Env variable '\(name)' isn't presented in AeroSpace.app env vars, "
                                 + "or not available for interpolation (because it's mutated)")
-                    }
+                        }
                 }
             }
-            .map { $0.joined(separator: "") }
+            return errors.isEmpty ? .success(result) : .failure(errors)
+        }
     }
 
     public func interpolationTokens<T>(
@@ -96,25 +100,18 @@ extension String {
         ofInterVarType type: T.Type,
     ) -> Result<[InterToken<T>], String> where T: Sendable, T: Equatable, T: CaseIterable, T: RawRepresentable, T.RawValue == String {
         rawInterpolationTokens(interpolationChar: interpolationChar).flatMap { rawTokens in
-            var result: [InterToken<T>] = []
-            for token in rawTokens {
+            rawTokens.mapAllOrFailure { token in
                 switch token {
-                    case .literal(let literal):
-                        result.append(.literal(literal))
-                    case .interVar(let value):
-                        switch parseEnum(value, type) {
-                            case .success(let interVar): result.append(.interVar(interVar))
-                            case .failure(let err): return .failure(err)
-                        }
+                    case .literal(let literal): .success(.literal(literal))
+                    case .interVar(let value): parseEnum(value, type).map { .interVar($0) }
                 }
             }
-            return .success(result)
         }
     }
 
-    func rawInterpolationTokens(interpolationChar: Character) -> Result<[RawStringInterToken], String> {
+    func rawInterpolationTokens(interpolationChar: Character) -> Result<[InterToken<String>], String> {
         var mode: InterpolationParserState = .stringLiteral(currLiteral: "")
-        var result: [RawStringInterToken] = []
+        var result: [InterToken<String>] = []
         for char: Character? in (Array(self) + [nil]) {
             switch (mode, char) { // State machine
                 case (.stringLiteral(let literal), interpolationChar):
@@ -153,8 +150,6 @@ public enum InterToken<T>: Equatable, Sendable where T: Equatable, T: Sendable {
     case literal(String)
     case interVar(T) // "interpolation variable"
 }
-
-typealias RawStringInterToken = InterToken<String>
 
 private enum InterpolationParserState {
     case stringLiteral(currLiteral: String)

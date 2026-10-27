@@ -29,18 +29,6 @@ extension Sequence {
         return .cmd(result)
     }
 
-    public func mapAllOrFailures<T, E>(_ transform: (Self.Element) -> Result<T, E>) -> Result<[T], [E]> {
-        var result: [T] = []
-        var errors: [E] = []
-        for element in self {
-            switch transform(element) {
-                case .success(let element): result.append(element)
-                case .failure(let error): errors.append(error)
-            }
-        }
-        return errors.isEmpty ? .success(result) : .failure(errors)
-    }
-
     @inlinable public func minByOrDie(_ selector: (Self.Element) -> some Comparable) -> Self.Element {
         minBy(selector) ?? dieT("Empty sequence")
     }
