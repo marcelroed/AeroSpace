@@ -94,6 +94,7 @@ private func setUpRealisticWorld() {
     check(testWindow(4).focusWindow())
     fake.focused = 4
     Workspace.garbageCollectUnusedWorkspaces()
+    axAppWindows = Set(fake.windows.keys)
 }
 
 /// A window that macOS shows and AeroSpace has registered
@@ -144,6 +145,16 @@ private let allScenarios: [Scenario] = [
             fake.windows[13] = FakeWindow(app: browser, rect: Rect(topLeftX: 200, topLeftY: 150, width: 1000, height: 700), title: "Window 13")
             fake.focused = 13
             return [try await heavy("heavy refresh (AX windowCreated)"), try await heavy("heavy refresh (AX moved/resized)")]
+        }
+    },
+    Scenario(name: "A minimized window of unknown kind appears (13, browser)") {
+        try await settled {
+            let window = FakeWindow(app: browser, rect: Rect(topLeftX: 200, topLeftY: 150, width: 1000, height: 700), title: "Window 13")
+            window.kind = nil // Off-screen, with a kind that depends on its level (R2a M1): AeroSpace doesn't register it
+            window.level = nil
+            window.isMinimized = true
+            fake.windows[13] = window
+            return [try await heavy("heavy refresh (AX windowCreated)"), try await heavy("next heavy refresh", isIdle: true)]
         }
     },
     Scenario(name: "Close focused window 4 (macOS focuses 5)") {
@@ -247,12 +258,22 @@ private struct MacosState {
     let appOf: [WindowId: pid_t] = fake.windows.mapValues(\.app.pid)
 }
 
-/// What one `listWindows` listed: the windows of each app that answered, and those that AeroSpace doesn't know yet
+/// The windows that LivePlatform's AxApp has registered (observed): the world's, then each one that a listing returns,
+/// whether AeroSpace registers it or not
+private var axAppWindows: Set<WindowId> = []
+
+/// What one `listWindows` listed: the windows of each app that answered, and those that AxApp registers now
 private struct Listing {
-    let windowsPerApp: [[WindowId]] = fake.apps.compactMap { app in
-        fake.answers[app.pid] == false ? nil : fake.windows.filter { $0.value.app == app }.keys.sorted()
+    let windowsPerApp: [[WindowId]]
+    let new: Set<WindowId>
+
+    init() {
+        windowsPerApp = fake.apps.compactMap { app in
+            fake.answers[app.pid] == false ? nil : fake.windows.filter { $0.value.app == app }.keys.sorted()
+        }
+        new = Set(windowsPerApp.flatMap(\.self)).subtracting(axAppWindows)
+        axAppWindows.formUnion(new)
     }
-    let new: Set<WindowId> = Set(fake.windows.keys.filter { world.windows[$0] == nil })
 }
 
 private struct Phase {
@@ -281,7 +302,7 @@ private struct Phase {
                     for ids in listing?.windowsPerApp ?? [] {
                         cost.appReads += 1 // AXWindows
                         for id in ids {
-                            // _AXUIElementGetWindow. A new window: 5 AXObserverAddNotification and its size (registerWindow)
+                            // _AXUIElementGetWindow. New to AxApp: 5 AXObserverAddNotification and its size (registerWindow)
                             cost.read(id, listing?.new.contains(id) == true ? 7 : 1)
                         }
                     }
