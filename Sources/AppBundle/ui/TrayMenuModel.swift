@@ -1,31 +1,38 @@
 import AppKit
 import Common
+import Observation
 
-@MainActor
-public final class TrayMenuModel: ObservableObject {
+/// The views re-render when a property that their body reads changes.
+/// Assigning an equal value doesn't notify them
+@Observable
+public final class TrayMenuModel {
     public static let shared = TrayMenuModel()
 
     private init() {}
 
-    @Published var trayText: String = ""
-    @Published var trayItems: [TrayItem] = []
+    var trayText: String = ""
+    var trayItems: [TrayItem] = []
     /// Is "layouting" enabled
-    @Published var isEnabled: Bool = true
-    @Published var workspaces: [WorkspaceViewModel] = []
-    @Published var sponsorshipMessage: String = sponsorshipPrompts.randomElement().orDie()
-    @Published var lastReloadConfigContainedWarnings: Bool = false
-    @Published var axPermissionStatus: AxPermissionStatus = .waitingWithPrompt
+    var isEnabled: Bool = true
+    var workspaces: [WorkspaceViewModel] = []
+    var sponsorshipMessage: String = sponsorshipPrompts.randomElement().orDie()
+    var lastReloadConfigContainedWarnings: Bool = false
+    var axPermissionStatus: AxPermissionStatus = .waitingWithPrompt
     // Polled by updateTrayText, since nothing notifies us when these change
-    @Published var appearanceTheme: AppearanceTheme = .current
-    @Published var textEditorToOpenConfig: URL = getTextEditorToOpenConfig()
+    var appearanceTheme: AppearanceTheme = .current
+    var textEditorToOpenConfig: URL = getTextEditorToOpenConfig()
 
     /// Stored in UserDefaults
     var menuBarStyle: MenuBarStyle {
-        get { UserDefaults.standard.string(forKey: menuBarStyleKey).flatMap(MenuBarStyle.init(rawValue:)) ?? .monospacedText }
+        get {
+            access(keyPath: \.menuBarStyle)
+            return UserDefaults.standard.string(forKey: menuBarStyleKey).flatMap(MenuBarStyle.init(rawValue:)) ?? .monospacedText
+        }
         set {
-            UserDefaults.standard.set(newValue.rawValue, forKey: menuBarStyleKey)
-            UserDefaults.standard.synchronize()
-            objectWillChange.send() // Notify the views, like a @Published property
+            withMutation(keyPath: \.menuBarStyle) {
+                UserDefaults.standard.set(newValue.rawValue, forKey: menuBarStyleKey)
+                UserDefaults.standard.synchronize()
+            }
         }
     }
 }
@@ -38,7 +45,7 @@ enum AxPermissionStatus: Equatable {
     case waitingWithPrompt
 }
 
-@MainActor func updateTrayText() {
+func updateTrayText() {
     let sortedMonitors = sortedMonitorInfos
     let focusedWorkspace = focus.workspace
     // activeWorkspace may rearrange workspaces on monitors. Evaluate it once per monitor, before Workspace.all
@@ -80,22 +87,20 @@ enum AxPermissionStatus: Equatable {
         trayItems.insert(TrayItem(type: .mode, name: modeLetter, isActive: true, hasFullscreenWindows: false), at: 0)
     }
 
-    // Every @Published assignment invalidates SwiftUI views (and re-renders the menu bar image) even if the value
-    // didn't change. updateTrayText runs on every refresh session, so only assign the values that changed
+    // updateTrayText runs on every refresh session. Only the changed values re-render the views
+    // (and the menu bar image): assigning an equal value doesn't notify them
     let model = TrayMenuModel.shared
-    if model.trayText != trayText { model.trayText = trayText }
-    if model.workspaces != workspaces { model.workspaces = workspaces }
-    if model.trayItems != trayItems { model.trayItems = trayItems }
+    model.trayText = trayText
+    model.workspaces = workspaces
+    model.trayItems = trayItems
     // The menu also shows values that nothing notifies us about. Poll them here, so that the first refresh after they
     // change still rebuilds the menu
-    let appearanceTheme = AppearanceTheme.current
-    if model.appearanceTheme != appearanceTheme { model.appearanceTheme = appearanceTheme }
-    let textEditorToOpenConfig = getTextEditorToOpenConfig()
-    if model.textEditorToOpenConfig != textEditorToOpenConfig { model.textEditorToOpenConfig = textEditorToOpenConfig }
+    model.appearanceTheme = AppearanceTheme.current
+    model.textEditorToOpenConfig = getTextEditorToOpenConfig()
 }
 
 extension [Window] {
-    @MainActor fileprivate var hasFullscreenWindows: Bool { contains { $0.isFullscreen } }
+    fileprivate var hasFullscreenWindows: Bool { contains { $0.isFullscreen } }
 }
 
 struct WorkspaceViewModel: Hashable {

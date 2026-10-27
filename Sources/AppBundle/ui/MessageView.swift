@@ -1,7 +1,7 @@
 import Common
+import Observation
 import SwiftUI
 
-@MainActor
 public func getMessageWindow(messageModel: MessageModel) -> some Scene {
     // Using SwiftUI.Window because another class in AeroSpace is already called Window
     SwiftUI.Window(aeroSpaceAppName, id: messageWindowId) {
@@ -19,7 +19,7 @@ public func getMessageWindow(messageModel: MessageModel) -> some Scene {
 public let messageWindowId = "\(aeroSpaceAppName).messageView"
 
 struct MessageView: View {
-    @ObservedObject private var model: MessageModel
+    private let model: MessageModel
     @Environment(\.dismiss) private var dismiss: DismissAction
     @FocusState private var focus: Bool
 
@@ -89,10 +89,10 @@ struct MessageView: View {
     }
 }
 
-@MainActor
-public final class MessageModel: ObservableObject {
+@Observable
+public final class MessageModel {
     public static let shared = MessageModel()
-    @Published public var message: Message? = nil
+    public var message: Message? = nil
 
     private init() {}
 }

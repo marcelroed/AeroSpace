@@ -7,10 +7,9 @@ private let itemSize = CGFloat(40)
 private let itemBorderSize = CGFloat(3)
 private let itemCornerRadius = CGFloat(6)
 
-@MainActor
 struct MenuBarLabel: View {
     @Environment(\.colorScheme) var menuColorScheme: ColorScheme
-    @EnvironmentObject var viewModel: TrayMenuModel
+    let viewModel: TrayMenuModel
     var style: MenuBarStyle? = nil
     var color: Color? = nil
 

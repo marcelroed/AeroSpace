@@ -2,9 +2,20 @@ import Common
 import Foundation
 import SwiftUI
 
-@MainActor
-public func menuBar(viewModel: TrayMenuModel) -> some Scene { // todo should it be converted to "SwiftUI struct"?
+public func menuBar(viewModel: TrayMenuModel) -> some Scene {
     MenuBarExtra {
+        MenuBarMenu(viewModel: viewModel)
+    } label: {
+        MenuBarIcon(viewModel: viewModel)
+    }
+}
+
+// The views that show the model's state are View structs whose body reads it. Then a change re-renders them.
+// Re-evaluating the scene doesn't update the menu (see MenuBarStyleButton)
+private struct MenuBarMenu: View {
+    let viewModel: TrayMenuModel
+
+    var body: some View {
         let shortIdentification = "\(aeroSpaceAppName) v\(aeroSpaceAppVersion) \(gitShortHash)"
         let identification      = "\(aeroSpaceAppName) v\(aeroSpaceAppVersion) \(gitHash)"
         Text(shortIdentification)
@@ -36,12 +47,9 @@ public func menuBar(viewModel: TrayMenuModel) -> some Scene { // todo should it 
             }
         }
         quitButton()
-    } label: {
-        menuBarIcon(viewModel)
     }
 }
 
-@MainActor
 private func configWarningsButton(_ token: RunSessionGuard) -> some View {
     Button {
         reloadConfigFromMenu(token, warningsAsErrors: true)
@@ -50,7 +58,7 @@ private func configWarningsButton(_ token: RunSessionGuard) -> some View {
     }
 }
 
-@MainActor @ViewBuilder
+@ViewBuilder
 private func workspacesSection(_ viewModel: TrayMenuModel, _ token: RunSessionGuard) -> some View {
     Text("Workspaces:")
     ForEach(viewModel.workspaces, id: \.name) { workspace in
@@ -66,7 +74,6 @@ private func workspacesSection(_ viewModel: TrayMenuModel, _ token: RunSessionGu
     }
 }
 
-@MainActor
 private func sponsorButton(_ viewModel: TrayMenuModel) -> some View {
     Button {
         NSWorkspace.shared.open(URL(string: "https://github.com/sponsors/nikitabobko").orDie())
@@ -77,7 +84,6 @@ private func sponsorButton(_ viewModel: TrayMenuModel) -> some View {
     }
 }
 
-@MainActor
 private func enableToggleButton(_ viewModel: TrayMenuModel) -> some View {
     Button(viewModel.isEnabled ? "Disable" : "Enable") {
         Task.startUnstructured {
@@ -89,7 +95,6 @@ private func enableToggleButton(_ viewModel: TrayMenuModel) -> some View {
     }.keyboardShortcut("E", modifiers: .command)
 }
 
-@MainActor
 private func quitButton() -> some View {
     Button("Quit \(aeroSpaceAppName)") {
         Task.startUnstructured {
@@ -99,19 +104,22 @@ private func quitButton() -> some View {
     }.keyboardShortcut("Q", modifiers: .command)
 }
 
-@MainActor @ViewBuilder
-private func menuBarIcon(_ viewModel: TrayMenuModel) -> some View {
-    let granted = viewModel.axPermissionStatus == .granted
-    if granted && viewModel.isEnabled {
-        MenuBarLabel().environmentObject(viewModel)
-    } else {
-        Image(systemName: granted ? "pause.circle.fill" : "exclamationmark.triangle.fill")
-            .resizable()
-            .aspectRatio(contentMode: .fit)
+private struct MenuBarIcon: View {
+    let viewModel: TrayMenuModel
+
+    var body: some View {
+        let granted = viewModel.axPermissionStatus == .granted
+        if granted && viewModel.isEnabled {
+            MenuBarLabel(viewModel: viewModel)
+        } else {
+            Image(systemName: granted ? "pause.circle.fill" : "exclamationmark.triangle.fill")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+        }
     }
 }
 
-@MainActor @ViewBuilder
+@ViewBuilder
 func openConfigButton(editor: URL = getTextEditorToOpenConfig(), showShortcutGroup: Bool = false) -> some View {
     let button = Button("Open config in '\(editor.lastPathComponent)'") {
         let fallbackConfig: URL = FileManager.default.homeDirectoryForCurrentUser.appending(path: configDotfileName)
@@ -134,7 +142,7 @@ func openConfigButton(editor: URL = getTextEditorToOpenConfig(), showShortcutGro
     }
 }
 
-@MainActor @ViewBuilder
+@ViewBuilder
 func reloadConfigButton(showShortcutGroup: Bool = false, warningsAsErrors: Bool) -> some View {
     if let token: RunSessionGuard = .isServerEnabled {
         let button = Button("Reload config") {
@@ -147,7 +155,6 @@ func reloadConfigButton(showShortcutGroup: Bool = false, warningsAsErrors: Bool)
     }
 }
 
-@MainActor
 private func reloadConfigFromMenu(_ token: RunSessionGuard, warningsAsErrors: Bool) {
     Task.startUnstructured {
         try await runLightSession(.menuBarButton, token) {

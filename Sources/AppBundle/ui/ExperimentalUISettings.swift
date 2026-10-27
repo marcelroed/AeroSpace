@@ -18,23 +18,22 @@ enum MenuBarStyle: String, CaseIterable, Identifiable {
     }
 }
 
-@MainActor
 func getExperimentalUISettingsMenu(viewModel: TrayMenuModel) -> some View {
     let color = viewModel.appearanceTheme == .dark ? Color.white : Color.black
     return Menu {
-        Text("Menu bar style (macOS 14 or later):")
+        Text("Menu bar style:")
         ForEach(MenuBarStyle.allCases) { style in
-            MenuBarStyleButton(style: style, color: color).environmentObject(viewModel)
+            MenuBarStyleButton(viewModel: viewModel, style: style, color: color)
         }
     } label: {
         Text("Experimental UI Settings (No stability guarantees)")
     }
 }
 
-// Keep this a separate View: its @EnvironmentObject subscription is what redraws the checkmark after a selection
-@MainActor
+// Keep this a separate View whose body reads viewModel.menuBarStyle: that is what redraws the checkmark after a selection.
+// Inlined into the menu, the checkmark stayed on the old style (f26736bf)
 struct MenuBarStyleButton: View {
-    @EnvironmentObject var viewModel: TrayMenuModel
+    let viewModel: TrayMenuModel
     let style: MenuBarStyle
     let color: Color
 
@@ -43,8 +42,7 @@ struct MenuBarStyleButton: View {
             viewModel.menuBarStyle = style
         } label: {
             Toggle(isOn: .constant(viewModel.menuBarStyle == style)) {
-                MenuBarLabel(style: style, color: color)
-                    .environmentObject(viewModel)
+                MenuBarLabel(viewModel: viewModel, style: style, color: color)
                 Text(" -  " + style.title)
             }
         }
