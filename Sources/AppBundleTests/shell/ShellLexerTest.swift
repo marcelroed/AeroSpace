@@ -27,6 +27,7 @@ struct ShellLexerTest {
         ("a backslash escapes the newline", "echo \\\nfoo", [.word(l: 1, c: 1, "echo"), .word(l: 2, c: 1, "foo"), .end(l: 2, c: 4)]),
         ("whitespace and a comment may follow the backslash", "echo \\ # hi\nfoo", [.word(l: 1, c: 1, "echo"), .word(l: 2, c: 1, "foo"), .end(l: 2, c: 4)]),
         ("an escaped newline may come before an operator", "echo \\\n&& foo", [.word(l: 1, c: 1, "echo"), .and(l: 2, c: 1), .word(l: 2, c: 4, "foo"), .end(l: 2, c: 7)]),
+        ("a backslash may end the input", "echo \\", [.word(l: 1, c: 1, "echo"), .end(l: 1, c: 7)]),
         // A Unicode Prepend character (U+0600) and the next character are one Character, but whitespace or a quote after it
         // still ends the word
         ("a Prepend character ends the input", "echo \u{0600}", [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 6, "\u{0600}"), .end(l: 1, c: 7)]),
