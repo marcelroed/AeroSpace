@@ -23,11 +23,9 @@ fi
 
 ./script/install-dep.sh --periphery
 # Disable superfluous comments detection because it's buggy. todo: report to periphery maintainer
-# Args after -- go to periphery's `swift build --build-tests`
 ./periphery/.build/out/Products/Debug/periphery scan --quiet \
     --strict \
     --disable-redundant-public-analysis \
     --retain-codable-properties \
     --no-superfluous-ignore-comments \
-    "${periphery_args[@]}" \
-    -- "${swift_build_system_args[@]}"
+    "${periphery_args[@]}"

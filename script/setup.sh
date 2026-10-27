@@ -57,15 +57,6 @@ if /bin/test -z "${NUKE_PATH:-}"; then
     export NUKE_PATH=1
 fi
 
-# Build system for debug builds (build-debug.sh, swift-test.sh, lint.sh). Empty means SwiftPM's default (swiftbuild).
-# Opt-in: AEROSPACE_SWIFT_BUILD_SYSTEM=native ./test.sh
-# SwiftPM's native build system is deprecated, but its incremental builds are ~1s faster
-# Usage: swift build "${swift_build_system_args[@]}" ...
-swift_build_system_args=()
-if /bin/test -n "${AEROSPACE_SWIFT_BUILD_SYSTEM:-}"; then
-    swift_build_system_args=(--build-system "$AEROSPACE_SWIFT_BUILD_SYSTEM")
-fi
-
 # Usage: generate-content | write-if-changed file
 # Rewriting a source file with the same content bumps its mtime, and SwiftPM recompiles the module
 write-if-changed() {

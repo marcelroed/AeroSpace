@@ -10,7 +10,7 @@ while test $# -gt 0; do
 done
 
 ./generate.sh --ignore-xcodeproj
-swift build "${swift_build_system_args[@]}" --build-tests "${args[@]}"
+swift build --build-tests "${args[@]}"
 
 rm -rf .debug && mkdir .debug
 cp -r .build/debug/aerospace .debug
