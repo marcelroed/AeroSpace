@@ -27,7 +27,7 @@ func runHeavyCompleteRefreshSession(
     layoutWorkspaces shouldLayoutWorkspaces: Bool = true,
     optimisticallyPreLayoutWorkspaces: Bool = false,
 ) async {
-    let state = signposter.beginInterval(#function, "event: \(event) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug)")
+    let state = signposter.beginInterval(#function, "event: \(event) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug ?? "nil")")
     defer { signposter.endInterval(#function, state) }
     if !TrayMenuModel.shared.isEnabled { return }
     do {
@@ -58,7 +58,7 @@ func runLightSession<T>(
     _: RunSessionGuard,
     body: @MainActor () async throws -> T,
 ) async throws -> T {
-    let state = signposter.beginInterval(#function, "event: \(event) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug)")
+    let state = signposter.beginInterval(#function, "event: \(event) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug ?? "nil")")
     defer { signposter.endInterval(#function, state) }
     activeRefreshTask?.cancel() // Give priority to runSession
     activeRefreshTask = nil
@@ -72,8 +72,12 @@ func runLightSession<T>(
 
         let focusAfter = focus.windowOrNil
 
-        updateTrayText()
-        SecureInputPanel.shared.refresh()
+        // Runs at the next suspension point, so the layout dispatches the frames of the visible windows first
+        // (updateTrayText does launchservicesd IPC), and the tray doesn't wait for the AX calls that the layout awaits
+        Task.startUnstructured { @MainActor in
+            updateTrayText()
+            SecureInputPanel.shared.refresh()
+        }
         if !event.isFocusFollowsMouse { try await layoutWorkspaces() }
         if focusBefore != focusAfter {
             focusAfter?.nativeFocus() // syncFocusToMacOs

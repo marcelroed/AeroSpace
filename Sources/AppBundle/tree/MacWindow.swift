@@ -81,6 +81,9 @@ final class MacWindow: Window {
     override func getTitle(_ cm: CancellationMode) async throws -> String { try await macApp.getAxAttr(windowId, Ax.titleAttr, cm) ?? "" }
     override func isMacosFullscreen(_ cm: CancellationMode) async throws -> Bool { try await macApp.getAxAttr(windowId, Ax.isFullscreenAttr, cm) == true }
     override func isMacosMinimized(_ cm: CancellationMode) async throws -> Bool { try await macApp.getAxAttr(windowId, Ax.minimizedAttr, cm) == true }
+    override func getMacosFullscreenAndMinimized(_ cm: CancellationMode) async throws -> (isFullscreen: Bool, isMinimized: Bool) {
+        try await macApp.getMacosFullscreenAndMinimized(windowId, cm) ?? (false, false)
+    }
 
     override func nativeFocus() {
         macApp.nativeFocus(windowId)
