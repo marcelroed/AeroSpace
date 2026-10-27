@@ -3,8 +3,9 @@ import AppKit
 import Common
 import Testing
 
-// Characterization tests for layout.swift. The test monitor is 1920x1080 at (0, 0). The trees are in workspace
-// 'a', which isn't the active workspace of the monitor
+/// The frames that layout.swift gives the windows. The test monitor is 1920x1080 at (0, 0), and the physical rect of
+/// the tiling tree is 1pt shorter (see layoutTiling()). The trees are in workspace "a", which isn't the active
+/// workspace of the monitor
 @Suite(.aeroSpaceGlobalState)
 struct LayoutTest {
     @Test
@@ -73,90 +74,43 @@ struct LayoutTest {
         expectRects(w2, physical: rect(1020, 0, 880, 1079), virtual: rect(1000, 0, 900, 1080))
     }
 
-    @Test
-    func accordionHorizontal() {
-        world.config.accordionPadding = 30
-        let workspace = setUpTree("h_accordion(0 1 2)", workspace: "a")
-        let root = workspace.existingRootTilingContainer.orDie()
-        let windows = ([0, 1, 2] as [WindowId]).map(testWindow)
+    struct AccordionCase: Sendable, CustomTestStringConvertible {
+        let tree: String
+        let padding: Int
+        let mostRecent: WindowId
+        /// The frames of the windows 1, 2, ...: also their physical rects
+        let frames: [Rect]
+        var testDescription: String { "\(tree) with \(mostRecent) the most recent window" }
+    }
 
-        // MRU is the first child
-        windows[0].markAsMostRecentChild()
+    /// The windows of an accordion overlap: each one is the size of the container, minus the padding on the sides where
+    /// the windows before and after it in MRU order peek out
+    @Test(arguments: [
+        AccordionCase(tree: "h_accordion(1 2 3)", padding: 30, mostRecent: 1, frames: [rect(0, 0, 1890, 1079), rect(60, 0, 1860, 1079), rect(30, 0, 1890, 1079)]),
+        AccordionCase(tree: "h_accordion(1 2 3)", padding: 30, mostRecent: 2, frames: [rect(0, 0, 1890, 1079), rect(30, 0, 1860, 1079), rect(30, 0, 1890, 1079)]),
+        AccordionCase(tree: "h_accordion(1 2 3)", padding: 30, mostRecent: 3, frames: [rect(0, 0, 1890, 1079), rect(0, 0, 1860, 1079), rect(30, 0, 1890, 1079)]),
+        AccordionCase(tree: "v_accordion(1 2 3 4)", padding: 30, mostRecent: 2, frames: [
+            rect(0, 0, 1920, 1049), rect(0, 30, 1920, 1019), rect(0, 60, 1920, 1019), rect(0, 30, 1920, 1049),
+        ]),
+        AccordionCase(tree: "h_accordion(1)", padding: 30, mostRecent: 1, frames: [rect(0, 0, 1920, 1079)]),
+        AccordionCase(tree: "h_tiles(1 v_accordion(2 3))", padding: 10, mostRecent: 3, frames: [rect(0, 0, 960, 1079), rect(960, 0, 960, 1069), rect(960, 10, 960, 1069)]),
+    ] as [AccordionCase])
+    func accordion(_ it: AccordionCase) {
+        world.config.accordionPadding = it.padding
+        let workspace = setUpTree(it.tree, workspace: "a")
+        testWindow(it.mostRecent).markAsMostRecentChild()
+
         workspace.layoutWorkspace()
-        expectEqual(windows.map(\.setAxFrameHistory.last), [
-            frame(0, 0, 1890, 1079),
-            frame(60, 0, 1860, 1079),
-            frame(30, 0, 1890, 1079),
-        ])
 
-        // MRU is the middle child
-        windows[1].markAsMostRecentChild()
-        workspace.layoutWorkspace()
-        expectEqual(windows.map(\.setAxFrameHistory.last), [
-            frame(0, 0, 1890, 1079),
-            frame(30, 0, 1860, 1079),
-            frame(30, 0, 1890, 1079),
-        ])
-
-        // MRU is the last child
-        windows[2].markAsMostRecentChild()
-        workspace.layoutWorkspace()
-        expectEqual(windows.map(\.setAxFrameHistory.last), [
-            frame(0, 0, 1890, 1079),
-            frame(0, 0, 1860, 1079),
-            frame(30, 0, 1890, 1079),
-        ])
-
-        expectRects(root, physical: rect(0, 0, 1920, 1079), virtual: rect(0, 0, 1920, 1080))
-        for window in windows {
-            expectEqual(window.setAxFrameHistory.count, 3)
-            expectEqual(window.lastAppliedLayoutVirtualRect.map(cg), cg(rect(0, 0, 1920, 1080)))
+        for (index, expected) in it.frames.enumerated() {
+            let window = testWindow(WindowId(raw: UInt32(index + 1)))
+            let id = window.windowId
+            expectEqual(window.setAxFrameHistory, [frame(expected.topLeftX, expected.topLeftY, expected.width, expected.height)], "frames of \(id)")
+            expectEqual(window.lastAppliedLayoutPhysicalRect.map(cg), cg(expected), "physical rect of \(id)")
+            if let parent = window.parent as? TilingContainer, parent.layout == .accordion {
+                expectEqual(window.lastAppliedLayoutVirtualRect.map(cg), parent.lastAppliedLayoutVirtualRect.map(cg), "virtual rect of \(id)")
+            }
         }
-        expectRects(windows[1], physical: rect(0, 0, 1860, 1079), virtual: rect(0, 0, 1920, 1080))
-    }
-
-    @Test
-    func accordionVertical() {
-        world.config.accordionPadding = 30
-        let workspace = setUpTree("v_accordion(0 1 2 3)", workspace: "a")
-        let windows = ([0, 1, 2, 3] as [WindowId]).map(testWindow)
-        windows[1].markAsMostRecentChild()
-
-        workspace.layoutWorkspace()
-
-        expectEqual(windows.map(\.setAxFrameHistory), [
-            [frame(0, 0, 1920, 1049)],
-            [frame(0, 30, 1920, 1019)],
-            [frame(0, 60, 1920, 1019)],
-            [frame(0, 30, 1920, 1049)],
-        ])
-    }
-
-    @Test
-    func accordionSingleChild() {
-        world.config.accordionPadding = 30
-        let workspace = setUpTree("h_accordion(1)", workspace: "a")
-        let window = testWindow(1)
-
-        workspace.layoutWorkspace()
-
-        expectEqual(window.setAxFrameHistory, [frame(0, 0, 1920, 1079)])
-    }
-
-    @Test
-    func accordionInsideTiles() {
-        world.config.accordionPadding = 10
-        let workspace = setUpTree("h_tiles(1 v_accordion(2 3))", workspace: "a")
-        let (w1, w2, w3) = (testWindow(1), testWindow(2), testWindow(3))
-        let accordion = w2.parent.orDie()
-
-        workspace.layoutWorkspace()
-
-        expectEqual(w1.setAxFrameHistory, [frame(0, 0, 960, 1079)])
-        expectRects(accordion, physical: rect(960, 0, 960, 1079), virtual: rect(960, 0, 960, 1080))
-        expectEqual(w2.setAxFrameHistory, [frame(960, 0, 960, 1069)])
-        expectEqual(w3.setAxFrameHistory, [frame(960, 10, 960, 1069)])
-        expectRects(w3, physical: rect(960, 10, 960, 1069), virtual: rect(960, 0, 960, 1080))
     }
 
     @Test

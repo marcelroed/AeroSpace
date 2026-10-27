@@ -75,7 +75,7 @@ struct PlacementTest {
     }
 
     /// A hidden app's window parked with its workspace stays parked while the workspace is shown, so that it goes back
-    /// where it was once the app is unhidden (R2a L3)
+    /// where it was once the app is unhidden
     @Test
     func aHiddenAppsWindowGoesBackWhereItWasOnceTheAppIsUnhidden() {
         let workspace = setUpTree("h_tiles() floating(1)", workspace: "a")
@@ -113,7 +113,7 @@ struct PlacementTest {
     }
 
     /// A placement made stale by a newer write of the window stops before its next AX call. An unpark that didn't write the
-    /// position leaves the window parked, so the next placement unparks it. Termination stops them the same way (R-PLAT L4)
+    /// position leaves the window parked, so the next placement unparks it. Termination stops them the same way
     @Test
     func aStalePlacementStopsBeforeItsNextAxCallAndAStaleUnparkKeepsTheWindowParked() {
         var state = PlacementState(lastFloatingSize: nil)

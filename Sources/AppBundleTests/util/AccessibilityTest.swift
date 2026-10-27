@@ -29,8 +29,5 @@ struct AccessibilityTest {
     @Test
     func testAxElementGettersSkipValuesThatAreNotAxElements() {
         expectEqual(Ax.parentWindowRecursive.getter("not an AX element" as NSString), nil)
-        // Only documents the behavior: it passes without the type check too, because _AXUIElementGetWindow rejects a
-        // value that isn't an AX element, so the value is dropped anyway. The assertion above is the regression check
-        expectEqual(Ax.windowsAttr.getter(["not an AX element" as NSString, NSNumber(value: 1)] as NSArray)?.count, 0)
     }
 }

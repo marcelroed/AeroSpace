@@ -149,7 +149,7 @@ func runCliArgs(_ args: [String], stdin: String = "") async -> CmdOutput {
 
 extension MonitorDescription {
     /// `.pattern` of a valid regex
-    static func pattern(_ raw: String) -> MonitorDescription { .pattern((try? CaseInsensitiveRegex(raw)).orDie()) }
+    nonisolated static func pattern(_ raw: String) -> MonitorDescription { .pattern((try? CaseInsensitiveRegex(raw)).orDie()) }
 }
 
 extension HotkeyBinding {

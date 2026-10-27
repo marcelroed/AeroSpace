@@ -102,7 +102,7 @@ func testWindow(_ id: WindowId) -> Window {
     Window.get(byId: id).orDie("No test window with id \(id)")
 }
 
-func rect(_ x: CGFloat, _ y: CGFloat, _ width: CGFloat, _ height: CGFloat) -> Rect {
+nonisolated func rect(_ x: CGFloat, _ y: CGFloat, _ width: CGFloat, _ height: CGFloat) -> Rect {
     Rect(topLeftX: x, topLeftY: y, width: width, height: height)
 }
 

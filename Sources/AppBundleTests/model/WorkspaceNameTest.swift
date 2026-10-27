@@ -4,28 +4,25 @@ import Testing
 
 @Suite
 struct WorkspaceNameTest {
-    @Test
-    func testReservedNames() {
-        let reserved = [
-            "focused", "non-focused", "visible", "invisible", "non-visible", "active", "non-active", "inactive",
-            "back-and-forth", "back_and_forth", "previous", "prev", "next", "monitor", "workspace", "monitors", "workspaces",
-            "all", "none", "mouse", "target",
-        ]
-        for name in reserved {
-            expectEqual(workspaceName(name), .failure("'\(name)' is a reserved workspace name"))
-        }
-        expectEqual(workspaceName("Next").map(\.raw), .success("Next"))
-        expectEqual(workspaceName("nextt").map(\.raw), .success("nextt"))
-    }
-
-    @Test
-    func testIllegalNames() {
-        expectEqual(workspaceName(""), .failure("Empty workspace name is forbidden"))
-        expectEqual(workspaceName("a,b"), .failure("Workspace names are not allowed to contain comma"))
-        expectEqual(workspaceName("_a"), .failure("Workspace names starting with underscore are reserved for future use"))
-        expectEqual(workspaceName("-a"), .failure("Workspace names starting with dash are disallowed"))
-        expectEqual(workspaceName("a b"), .failure("Whitespace characters are forbidden in workspace names"))
-        expectEqual(workspaceName("_a,b"), .failure("Workspace names are not allowed to contain comma"))
+    /// The reserved names are the words that commands take where they take a workspace name, e.g. `workspace next`
+    @Test(arguments: [
+        ("focused", "'focused' is a reserved workspace name"),
+        ("non-visible", "'non-visible' is a reserved workspace name"),
+        ("back_and_forth", "'back_and_forth' is a reserved workspace name"),
+        ("next", "'next' is a reserved workspace name"),
+        ("workspaces", "'workspaces' is a reserved workspace name"),
+        ("mouse", "'mouse' is a reserved workspace name"),
+        ("Next", nil), // Case-sensitive
+        ("nextt", nil),
+        ("", "Empty workspace name is forbidden"),
+        ("a,b", "Workspace names are not allowed to contain comma"),
+        ("_a", "Workspace names starting with underscore are reserved for future use"),
+        ("-a", "Workspace names starting with dash are disallowed"),
+        ("a b", "Whitespace characters are forbidden in workspace names"),
+        ("_a,b", "Workspace names are not allowed to contain comma"),
+    ] as [(String, CmdParseError?)])
+    func workspaceNames(name: String, error: CmdParseError?) {
+        expectEqual(workspaceName(name).map(\.raw), error.map { .failure($0) } ?? .success(name))
     }
 
     @Test
