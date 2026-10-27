@@ -2,122 +2,112 @@ import Common
 
 extension String {
     func shellLexerTokens() -> ResOrStr<[LexerToken]> {
-        Result { () throws(String) in try _shellLexerTokens(self) }
+        var lexer = ShellLexer(chars: locateChars(self + " ")) // synthetic trailing space to flush the last word
+        return Result { () throws(String) in try lexer.lex() }
     }
 }
 
-private func _shellLexerTokens(_ str: String) throws(String) -> [LexerToken] {
-    var result: [LexerToken] = []
-    var word: String = ""
-    var state: State = .skipWhitespaces
+private let reservedChars: Set<Character> = ["(", ")", "$", "~", "&", "?", "*", "!", "\\", "|", "<", ">", "`", "'", "\"", "#", "\n"]
 
+/// Besides whitespace and "&&", these characters end a bare word
+private let wordTerminators: Set<Character> = ["|", "\\", "#", ";", "(", ")", "'", "\""]
+
+private struct ShellLexer {
+    let chars: [LocatedChar]
     var index = 0
-    var wordLocation = Location(line: 1, column: 1)
-    let array = locateChars(str + " ") // synthetic trailing space to flush the last word
+    var tokens: [LexerToken] = []
 
-    func flushWord(quoted: Bool = false) throws(String) {
-        if !quoted, word != "~=", let reservedChar = word.first(where: { reservedChars.contains($0) }) {
-            throw "\(wordLocation): Bare word '\(word)' contains reserved character: \(reservedChar). Please quote the bare word if you want to use the character."
+    var char: Character? { chars.getOrNil(atIndex: index)?.value }
+    var next: Character? { chars.getOrNil(atIndex: index + 1)?.value }
+    var location: Location { chars[index].location }
+
+    mutating func lex() throws(String) -> [LexerToken] {
+        while let char {
+            switch char {
+                case "\n": emit(.newline)
+                case "&" where next == "&": emit(.and, length: 2)
+                case "|" where next == "|": emit(.or, length: 2)
+                case "|": emit(.pipe)
+                case ";": emit(.semicolon)
+                case "(": emit(.lParen)
+                case ")": emit(.rParen)
+                case "\\" where next == "#": throw "\(location): Please put a space between backslash and a comment start"
+                case "\\": try skipLineContinuation()
+                case "#": skipComment()
+                case "'", "\"": try lexQuotedWord()
+                case _ where char.isWhitespace: index += 1
+                default: try lexBareWord()
+            }
         }
-        if quoted || !word.isEmpty {
-            result.append(.init(wordLocation, .word(word)))
-            word = ""
+        tokens.append(.init(chars.last.orDie().location, .end))
+        for (token, next) in zip(tokens, tokens.dropFirst()) where token.payload == .newline && [.and, .or, .pipe].contains(next.payload) {
+            throw "\(token.location): Please escape newline with backslash character."
         }
-        state = .skipWhitespaces
+        return tokens
     }
 
-    while let char = array.getOrNil(atIndex: index) {
+    private mutating func emit(_ payload: LexerToken.Payload, length: Int = 1) {
+        tokens.append(.init(location, payload))
+        index += length
+    }
+
+    private mutating func skipComment() {
+        while let char, char != "\n" { index += 1 }
+    }
+
+    /// A backslash escapes the next newline. Only whitespace and a comment may come in between
+    private mutating func skipLineContinuation() throws(String) {
         index += 1
-        switch (state, char.value) { // State machine
-            case (.comment, "\n"): // End comment
-                result.append(.init(char.location, .newline))
-                state = .skipWhitespaces
-            case (.comment, _): break // Skip comment
-
-            case (.quotedWord(quoteChar: char.value), _): // Close quotes
-                try flushWord(quoted: true)
-                state = .rightAfterQuotedWord
-            case (.quotedWord, _): // Yet another character of a quoted word
-                word.append(char.value)
-
-            case (.backslash, "#"): // Skip comments after backslash
-                while let next = array.getOrNil(atIndex: index), next.value != "\n" { index += 1 }
-            case (.backslash, "\n"): state = .skipWhitespaces
-            case (.backslash, _) where char.value.isWhitespace: break
-            case (.backslash, _): throw "\(char.location): backslash can be followed only by whitespaces, newlines and comments, but it is followed by \(char.value.description.singleQuoted)."
-
-            // All the remaining states below: .skipWhitespaces, .bareWord, or .rightAfterQuotedWord
-
-            case (_, "\n"):
-                try flushWord()
-                result.append(.init(char.location, .newline))
-            case (.rightAfterQuotedWord, _) where char.value.isWhitespace:
-                state = .skipWhitespaces
-
-            case (_, "&") where array.getOrNil(atIndex: index)?.value == "&":
-                try flushWord()
-                result.append(.init(char.location, .and))
+        while let char, char != "\n" {
+            if char == "#" {
+                skipComment()
+            } else if char.isWhitespace {
                 index += 1
-            case (_, "|") where array.getOrNil(atIndex: index)?.value == "|":
-                try flushWord()
-                result.append(.init(char.location, .or))
-                index += 1
-            case (_, "|"):
-                try flushWord()
-                result.append(.init(char.location, .pipe))
-            case (_, "\\") where array.getOrNil(atIndex: index)?.value == "#":
-                throw "\(char.location): Please put a space between backslash and a comment start"
-            case (_, "\\"):
-                try flushWord()
-                state = .backslash
-            case (_, "#"): // Start comment
-                try flushWord()
-                state = .comment
-            case (_, ";"):
-                try flushWord()
-                result.append(.init(char.location, .semicolon))
-            case (_, "("):
-                try flushWord()
-                result.append(.init(char.location, .lParen))
-            case (_, ")"):
-                try flushWord()
-                result.append(.init(char.location, .rParen))
+            } else {
+                throw "\(location): backslash can be followed only by whitespaces, newlines and comments, but it is followed by \(char.description.singleQuoted)."
+            }
+        }
+        index += 1
+    }
 
-            case (.skipWhitespaces, _) where char.value.isQuote: // Open quotes
-                state = .quotedWord(quoteChar: char.value)
-                wordLocation = char.location
-            case _ where char.value.isQuote:
-                throw "\(char.location): Please put a space in front of the quote character."
-            case (.rightAfterQuotedWord, _):
-                throw "\(char.location): Please put a space after closing quote."
-
-            case (.skipWhitespaces, _) where !char.value.isWhitespace: // Start bare word
-                state = .bareWord
-                wordLocation = char.location
-                word.append(char.value)
-            case (.skipWhitespaces, _): break // Skip whitespaces
-
-            case (.bareWord, _) where char.value.isWhitespace: // End bare word
-                try flushWord()
-            case (.bareWord, _): // Yet another character of a bare word
-                word.append(char.value)
+    private mutating func lexQuotedWord() throws(String) {
+        let quote = chars[index]
+        index += 1
+        var word = ""
+        while let char, char != quote.value {
+            word.append(char)
+            index += 1
+        }
+        if char == nil {
+            throw "\(chars.last.orDie().location): Last quote \(quote.value) isn't closed."
+        }
+        index += 1
+        tokens.append(.init(quote.location, .word(word)))
+        switch char {
+            case "'", "\"": throw "\(location): Please put a space in front of the quote character."
+            case let char? where !char.isWhitespace && !wordTerminators.contains(char) && !(char == "&" && next == "&"):
+                throw "\(location): Please put a space after closing quote."
+            default: break
         }
     }
-    let endLocation = array.last.orDie().location
-    switch state {
-        case .comment, .skipWhitespaces, .rightAfterQuotedWord, .backslash, .bareWord: break
-        case .quotedWord(let quoteChar):
-            throw "\(endLocation): Last quote \(quoteChar) isn't closed."
-    }
-    result.append(.init(endLocation, .end))
-    try checkNoNewlineBeforeBinaryOperator(result)
-    return result
-}
 
-private func checkNoNewlineBeforeBinaryOperator(_ tokens: [LexerToken]) throws(String) {
-    let binaryOperators: [LexerToken.Payload] = [.and, .or, .pipe]
-    for (token, next) in zip(tokens, tokens.dropFirst()) where token.payload == .newline && binaryOperators.contains(next.payload) {
-        throw "\(token.location): Please escape newline with backslash character."
+    private mutating func lexBareWord() throws(String) {
+        let start = location
+        var word = ""
+        while let char, !char.isWhitespace, !wordTerminators.contains(char), !(char == "&" && next == "&") {
+            word.append(char)
+            index += 1
+        }
+        switch char {
+            case "'", "\"": throw "\(location): Please put a space in front of the quote character."
+            case "\\" where next == "#": throw "\(location): Please put a space between backslash and a comment start"
+            case nil: return // The word is dropped. Happens only if the synthetic trailing space joined the last character
+            default: break
+        }
+        if word != "~=", let reservedChar = word.first(where: { reservedChars.contains($0) }) {
+            throw "\(start): Bare word '\(word)' contains reserved character: \(reservedChar). Please quote the bare word if you want to use the character."
+        }
+        tokens.append(.init(start, .word(word)))
     }
 }
 
@@ -139,8 +129,6 @@ private func locateChars(_ str: String) -> [LocatedChar] {
     }
     return result
 }
-
-private let reservedChars: Set<Character> = ["(", ")", "$", "~", "&", "?", "*", "!", "\\", "|", "<", ">", "`", "'", "\"", "#", "\n"]
 
 struct LexerToken: Equatable {
     let location: Location
@@ -187,19 +175,4 @@ struct Location: CustomStringConvertible, Equatable {
     var column: Int
 
     var description: String { "Line \(line) Column \(column)" }
-}
-
-extension Character {
-    fileprivate var isQuote: Bool { self == "'" || self == "\"" }
-}
-
-private enum State {
-    case comment
-    case quotedWord(quoteChar: Character)
-
-    case backslash
-
-    case bareWord
-    case skipWhitespaces
-    case rightAfterQuotedWord
 }
