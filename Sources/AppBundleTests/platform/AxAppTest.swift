@@ -215,23 +215,32 @@ struct AxAppTest {
     }
 
     @Test
-    func theWaitForAnUnparkedTileEndsOnceItLeftItsCornerOrClosed() {
+    func theWaitForAnUnparkedTileEndsOnceItLeftItsCornerClosedOrWasWrittenAgain() {
         let corner = CGPoint(x: 1919, y: 1079)
         let tile = CGPoint(x: 0, y: 25)
         // The window server's answers, one per lookup, the last one repeated
-        let rows: [(name: String, shown: [CGPoint?], lookups: Int)] = [
-            ("left its corner", [corner, corner, tile], 3),
-            ("put a bit off its frame by the app", [corner, CGPoint(x: 2, y: 25)], 2),
-            ("closed", [corner, nil], 2),
+        let rows: [(name: String, shown: [CGPoint?], isCurrent: Bool, lookups: Int)] = [
+            ("left its corner", [corner, corner, tile], true, 3),
+            ("put a bit off its frame by the app", [corner, CGPoint(x: 2, y: 25)], true, 2),
+            ("closed", [corner, nil], true, 2),
+            ("written again, or termination started", [corner], false, 0),
         ]
         for row in rows {
             var lookups = 0
-            waitUntilOnScreen([UnparkedTile(windowId: 1, shownBefore: corner)]) { _ in
+            let start: DispatchTime = .now()
+            let unparked = UnparkedTile(windowId: 1, shownBefore: corner, isCurrent: { row.isCurrent })
+            waitUntilOnScreen([unparked], until: .now() + .seconds(10)) { _ in
                 defer { lookups += 1 }
                 return row.shown[min(lookups, row.shown.count - 1)]
             }
             expectEqual(lookups, row.lookups, "\(row.name)")
+            #expect(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds < 5_000_000_000, "\(row.name)")
         }
+
+        let start: DispatchTime = .now()
+        let neverMoves = UnparkedTile(windowId: 1, shownBefore: corner, isCurrent: { true })
+        waitUntilOnScreen([neverMoves], until: start + .milliseconds(50)) { _ in corner }
+        #expect(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds >= 50_000_000, "gives up at the deadline")
     }
 
     @Test

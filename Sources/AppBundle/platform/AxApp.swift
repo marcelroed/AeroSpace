@@ -226,27 +226,32 @@ actor AxApp {
         let animations = AnimationsOff(element, beforeFirstWrite: beforeFirstWrite)
         for (placement, generation) in zip(placements, generations) {
             let windowId = placement.windowId.raw
-            if let registered = windows[windowId] {
-                let window = AxPlacementWindow(ax: registered.ax, animations: animations) { @Sendable [self] in
-                    self.generations.withLock { $0.isLatest(windowId, generation) } && !isTerminatingNow()
-                }
-                // A parked tile: where the window server shows it before the write. Not if it's at its frame already: a
-                // park that turned stale before its write left it there
-                var shownBefore: CGPoint? = nil
-                if case .frame(_, let topLeft, _) = placement, registered.placement.isParked {
-                    shownBefore = windowServerTopLeft(windowId).flatMap { $0.isWithinAPoint(of: topLeft) ? nil : $0 }
-                }
-                windows[windowId]?.placement.apply(placement, to: window)
-                if let shownBefore, window.didWritePosition {
-                    unparkedTiles.append(UnparkedTile(windowId: windowId, shownBefore: shownBefore))
-                }
+            guard let registered = windows[windowId] else { continue }
+            let isCurrent = { @Sendable [self] in
+                self.generations.withLock { $0.isLatest(windowId, generation) } && !isTerminatingNow()
             }
-            self.generations.withLock { $0.finish(windowId, generation) }
+            let window = AxPlacementWindow(ax: registered.ax, animations: animations, isCurrentNow: isCurrent)
+            // A parked tile: where the window server shows it before the write. Not if it's at its frame already: a park
+            // that turned stale before its write left it there
+            var shownBefore: CGPoint? = nil
+            if case .frame(_, let topLeft, _) = placement, registered.placement.isParked {
+                shownBefore = windowServerTopLeft(windowId).flatMap { $0.isWithinAPoint(of: topLeft) ? nil : $0 }
+            }
+            windows[windowId]?.placement.apply(placement, to: window)
+            if let shownBefore, window.didWritePosition {
+                unparkedTiles.append(UnparkedTile(windowId: windowId, shownBefore: shownBefore, isCurrent: isCurrent))
+            }
         }
         animations.restore()
-        waitUntilOnScreen(unparkedTiles)
         if case .shown(let shownJobs) = job {
+            waitUntilOnScreen(unparkedTiles, until: min(.now() + onScreenWaitLimit, shownJobs.deadline))
             shownJobs.ended()
+        }
+        // Only now: the wait drops a tile once its write isn't the latest
+        self.generations.withLock { windowGenerations in
+            for (placement, generation) in zip(placements, generations) {
+                windowGenerations.finish(placement.windowId.raw, generation)
+            }
         }
     }
 
@@ -425,31 +430,36 @@ nonisolated private func axRect(_ window: AXUIElement) -> Rect? {
 /// Termination started: the restore job waits behind the app's jobs, so they stop before their next AX call
 nonisolated private func isTerminatingNow() -> Bool { isTerminating.load(ordering: .sequentiallyConsistent) }
 
-/// A tile that a shown job unparked, which the parks wait for (``waitUntilOnScreen(_:windowServerTopLeft:)``)
+/// A tile that a shown job unparked, which the parks wait for (``waitUntilOnScreen(_:until:windowServerTopLeft:)``)
 nonisolated struct UnparkedTile {
     let windowId: UInt32
     /// Where the window server showed the window before the write, usually its corner
     let shownBefore: CGPoint
+    /// false once a newer write of the window is posted or termination started: nobody waits for this write then
+    let isCurrent: () -> Bool
 }
 
 /// An app can answer the AX writes of a window before it moves the window on screen: cmux moves it ~25 ms later. The parks
 /// that wait for the shown job (``ShownJobs``) would uncover the desktop in between, so the job waits until the window
-/// server shows each tile it unparked away from where it was, at most ``onScreenWaitLimit``. Away is enough: the app's
-/// animations are off (``AnimationsOff``), so the move is a jump to where the app puts the window, which may be a bit off
-/// the target
-nonisolated func waitUntilOnScreen(_ tiles: [UnparkedTile], windowServerTopLeft: (UInt32) -> CGPoint? = windowServerTopLeft) {
-    let deadline: DispatchTime = .now() + onScreenWaitLimit
+/// server shows each tile it unparked away from where it was, until `deadline`. Away is enough: the app's animations are
+/// off (``AnimationsOff``), so the move is a jump to where the app puts the window, which may be a bit off the target
+nonisolated func waitUntilOnScreen(
+    _ tiles: [UnparkedTile],
+    until deadline: DispatchTime,
+    windowServerTopLeft: (UInt32) -> CGPoint? = windowServerTopLeft,
+) {
     var pending = tiles
     while true {
         pending.removeAll { tile in
-            guard let shown = windowServerTopLeft(tile.windowId) else { return true } // Closed
+            guard tile.isCurrent(), let shown = windowServerTopLeft(tile.windowId) else { return true } // Or it closed
             return shown != tile.shownBefore
         }
-        if pending.isEmpty || DispatchTime.now() >= deadline || isTerminatingNow() { return }
+        if pending.isEmpty || DispatchTime.now() >= deadline { return }
         Thread.sleep(forTimeInterval: 0.001)
     }
 }
 
+/// From the shown job's last write. The parks' deadline cuts it short (see ``LivePlatform``'s `parkWaitLimit`)
 nonisolated private let onScreenWaitLimit: DispatchTimeInterval = .milliseconds(100)
 
 /// The window's top left corner as the window server shows it. nil once the window is gone
