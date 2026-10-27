@@ -218,12 +218,13 @@ actor AxApp {
         return .facts(NativeFacts(isFullscreen: isFullscreen, isMinimized: !isFullscreen && isMinimized))
     }
 
-    /// See ``postPlacements(_:_:)``. The app's animations are off from the job's first write to its end. A shown job ends
-    /// once the window server shows the tiles that it unparked
+    /// See ``postPlacements(_:_:)``. A shown job writes, waits until the window server shows the tiles it unparked, lets
+    /// the parks go, and only then turns the animations back on: the parks don't wait for that, and a move that the app
+    /// makes late is still a jump
     private func place(_ placements: [Placement], _ generations: [UInt64], _ job: PlacementJob) {
-        var unparkedTiles: [UnparkedTile] = []
         let beforeFirstWrite: (() -> Void)? = if case .parks(let shownJobs) = job { shownJobs.wait } else { nil }
         let animations = AnimationsOff(element, beforeFirstWrite: beforeFirstWrite)
+        var unparkedTiles: [UnparkedTile] = []
         for (placement, generation) in zip(placements, generations) {
             let windowId = placement.windowId.raw
             guard let registered = windows[windowId] else { continue }
@@ -242,11 +243,11 @@ actor AxApp {
                 unparkedTiles.append(UnparkedTile(windowId: windowId, shownBefore: shownBefore, isCurrent: isCurrent))
             }
         }
-        animations.restore()
         if case .shown(let shownJobs) = job {
             waitUntilOnScreen(unparkedTiles, until: min(.now() + onScreenWaitLimit, shownJobs.deadline))
             shownJobs.ended()
         }
+        animations.restore()
         // Only now: the wait drops a tile once its write isn't the latest
         self.generations.withLock { windowGenerations in
             for (placement, generation) in zip(placements, generations) {
