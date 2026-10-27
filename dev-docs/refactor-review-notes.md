@@ -156,6 +156,8 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 | [RB-107](#rb-107-the-generated-command-help-doesnt-escape-the-docs-text) | low | speculative | Scripts | The generated command help doesn't escape the docs text | open |
 | [RB-110](#rb-110-debug-windows-can-log-a-window-after-its-session-ended) | low | speculative | Commands and CLI | `debug-windows` can log a window after its session ended | open |
 | [RB-112](#rb-112-the-initial-focused-workspace-changed-event-names-the-current-workspace-as-the-previous-one) | low | speculative | Commands and CLI | The initial `focused-workspace-changed` event names the current workspace as the previous one | open |
+| [RB-113](#rb-113-an-app-whose-ax-subscription-fails-is-retried-on-every-refresh) | low | possible | Core model | An app whose AX subscription fails is retried on every refresh | open |
+| [RB-114](#rb-114-subscribe-sends-the-initial-events-in-random-order) | low | possible | Commands and CLI | `subscribe` sends the initial events in random order | open |
 | [RB-61](#rb-61-tests-cant-reset-two-private-focus-globals) | low | possible | Tests | Tests can't reset two private focus globals | fixed |
 | [RB-64](#rb-64-all-ax-dumps-run-in-one-test-that-crashes-on-a-malformed-dump) | low | possible | Tests | All AX dumps run in one test that crashes on a malformed dump | fixed |
 | [RB-70](#rb-70-testservereventdecoding-checks-only-the-event-type) | low | possible | Tests | `testServerEventDecoding` checks only the event type | fixed |
@@ -163,7 +165,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 | [RB-94](#rb-94-newscalarornil-reads-json-booleans-as-integers) | low | speculative | Tests | `newScalarOrNil` reads JSON booleans as integers | open |
 | [RB-102](#rb-102-syncfocusfrommacos-crashes-on-test-windows) | low | speculative | Tests | `syncFocusFromMacOs` crashes on test windows | open |
 
-**Totals:** 55 entries were open before `fix-review-bugs`: 2 high, 8 medium and 45 low. Of these, 51 fixed and 4 closed. The fixes turned up 22 new entries (RB-71 to RB-92; 1 medium and 21 low): 7 fixed, 1 needs decision and 14 open. A further 18 entries were resolved by the refactor, and 3 were dropped. The `simplify` stream added 20 entries (RB-93 to RB-112; 1 medium and 19 low), all open.
+**Totals:** 55 entries were open before `fix-review-bugs`: 2 high, 8 medium and 45 low. Of these, 51 fixed and 4 closed. The fixes turned up 22 new entries (RB-71 to RB-92; 1 medium and 21 low): 7 fixed, 1 needs decision and 14 open. A further 18 entries were resolved by the refactor, and 3 were dropped. The `simplify` stream added 20 entries (RB-93 to RB-112; 1 medium and 19 low), all open. Two more low entries came from the `perf` stream and from merging (RB-113 and RB-114), both open. The `perf` stream's other report, about stale cached window levels, is already covered by RB-35 and RB-85.
 
 ## Core model
 
@@ -380,6 +382,15 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 - **Description:** Focus follows mouse iterates the live `mruChildren` stack of the floating container and awaits `getAxRect` for each window. `MruStack.remove` sets `next` to nil on the node it unlinks, and raising a window removes it first. If the window that the iterator returns next is raised or unbound during an await, the iterator returns it and then stops.
 - **How it shows up:** the floating windows after it are never checked. If the mouse is over one of them, focus follows mouse falls through to the tiling tree and can focus the tiling window behind the floating one.
 - **Fix direction:** iterate over a copy, such as `Array(mruChildren)`, or don't clear `next` in `remove`.
+
+### RB-113: An app whose AX subscription fails is retried on every refresh
+
+- **Status:** Open. Found by the `perf` stream.
+- **Severity:** low · **Confidence:** possible
+- **Location:** `Sources/AppBundle/tree/MacApp.swift:73-82`
+- **Description:** If `AxSubscription.bulkSubscribe` fails for a regular app, `getOrRegister` stores `nil` in `allAppsMap` and the app thread exits. The next lookup finds nothing, so it creates a new per-app thread and tries to subscribe again.
+- **How it shows up:** while an app that rejects or ignores AX observers is running, every heavy refresh spawns a thread and waits for the failed subscription attempt. That means thread churn and slower refreshes.
+- **Fix direction:** remember the failure (for example, with a retry backoff per pid) instead of retrying on every refresh.
 
 ## Commands and CLI
 
@@ -685,6 +696,15 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 - **Description:** Unless `--no-send-initial` is given, `subscribe` sends an initial event for each subscribed type. The initial `focused-workspace-changed` event sets `prevWorkspace` to the current workspace.
 - **How it shows up:** the initial event looks like a change from the current workspace to itself, and nothing marks it as initial. A subscriber that tracks the previous workspace gets a wrong value.
 - **Fix direction:** send the real previous workspace (`_prevFocusedWorkspaceName`), or document the initial value.
+
+### RB-114: `subscribe` sends the initial events in random order
+
+- **Status:** Open. Found while merging the round-2 branches.
+- **Severity:** low · **Confidence:** possible
+- **Location:** `Sources/AppBundle/subscriptions.swift:19`
+- **Description:** `SubscribeCmdArgs.events` is a `Set<ServerEventType>`, and the initial events are sent by iterating it. Set iteration order changes from run to run.
+- **How it shows up:** with several event types, `aerospace subscribe` prints its initial events in a different order each time. A client that expects a fixed order can misread the stream.
+- **Fix direction:** iterate in a fixed order, such as `ServerEventType.allCases` filtered by `args.events`.
 
 ## Config, shell and UI
 
