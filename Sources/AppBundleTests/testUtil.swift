@@ -55,13 +55,6 @@ extension Result<Shell<any Command>, CmdParseError> {
         }
     }
 
-    var helpOrNil: String? {
-        return switch self {
-            case .failure(.help(let kind)): kind.help
-            case .success, .failure(.invalid): nil
-        }
-    }
-
     var cmdOrNil: Shell<any Command>? { try? get() }
     var cmdOrDie: Shell<any Command> { cmdOrNil ?? dieT("\(self)") }
 }
@@ -73,23 +66,6 @@ extension Result {
             case .success: nil
         }
     }
-}
-
-/// Records an issue unless `command` parses as the single command `expected`
-func testParseSingleCommandSucc(_ command: String, _ expected: any Command, sourceLocation: SourceLocation = #_sourceLocation) {
-    let failure: String? = switch parseCommand(command) {
-        case .success(.cmd(let actual)): actual.equals(expected) ? nil : "Expected \(expected), parsed \(actual)"
-        case .success(let shell): "Expected a single command, parsed the shell \(shell.shellOfCommandsDescription)"
-        case .failure(.help): "Expected \(expected), parsed help"
-        case .failure(.invalid(let msg)): "Expected \(expected), failed to parse: \(msg)"
-    }
-    if let failure { Issue.record(Comment(rawValue: failure), sourceLocation: sourceLocation) }
-}
-
-/// Records an issue unless `command` parses as help
-func testParseCommandHelp(_ command: String, sourceLocation: SourceLocation = #_sourceLocation) {
-    if case .failure(.help) = parseCommand(command) { return }
-    Issue.record(Comment(rawValue: "Expected help, parsed \(parseCommand(command))"), sourceLocation: sourceLocation)
 }
 
 /// The command of `raw` if it parses as a single command of type `T`, nil otherwise
