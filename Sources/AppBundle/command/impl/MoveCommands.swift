@@ -48,8 +48,9 @@ struct MoveCommand: nonisolated Command {
     func run(_ cx: CmdContext) async throws(CmdFail) {
         let window = try cx.window(windowId: windowId)
         try await window.failIfFullscreen(failIfFullscreen, macosNativeFullscreen: failIfMacosNativeFullscreen)
-        switch window.placement {
-            case nil: throw .silent
+        // The window may have closed or moved at the suspension point above
+        guard let (workspace, placement) = window.workspacePlacement else { throw .silent }
+        switch placement {
             case .tiling(let parent):
                 let siblingIndex = parent.children.firstIndex(of: window).orDie() + direction.focusOffset
                 let sibling = parent.orientation == direction.orientation ? parent.children.getOrNil(atIndex: siblingIndex) : nil
@@ -58,14 +59,12 @@ struct MoveCommand: nonisolated Command {
                 } else if sibling != nil {
                     window.move(to: parent, at: siblingIndex, weight: .keep) // The window and the sibling window trade places
                 } else {
-                    try await moveOut(window, cx)
+                    try await moveOut(window, workspace, cx)
                 }
             case .floating: // floating window
                 throw "moving floating windows isn't yet supported" // todo
-            case .macosMinimized, .macosFullscreen, .macosHiddenApp:
+            case .macosFullscreen, .macosHiddenApp:
                 throw CmdFail(moveOutMacosUnconventionalWindow)
-            case .macosPopup:
-                throw CmdFail(bugPrompt()) // Impossible
         }
     }
 
@@ -85,16 +84,15 @@ struct MoveCommand: nonisolated Command {
     }
 
     /// Moves the window next to its innermost ancestor whose parent has the move's orientation
-    private func moveOut(_ window: Window, _ cx: CmdContext) async throws(CmdFail) {
+    private func moveOut(_ window: Window, _ workspace: Workspace, _ cx: CmdContext) async throws(CmdFail) {
         if let (_, parent, index) = window.tilingPath.dropFirst().first(where: { $0.parent.orientation == direction.orientation }) {
             window.move(to: parent, at: index + direction.insertionOffset)
         } else {
-            try await atWorkspaceEdge(window, cx)
+            try await atWorkspaceEdge(window, workspace, cx)
         }
     }
 
-    private func atWorkspaceEdge(_ window: Window, _ cx: CmdContext) async throws(CmdFail) {
-        guard let workspace = window.nodeWorkspace else { throw CmdFail(bugPrompt()) }
+    private func atWorkspaceEdge(_ window: Window, _ workspace: Workspace, _ cx: CmdContext) async throws(CmdFail) {
         if boundaries == .allMonitorsOuterFrame, try !workspace.workspaceMonitor.monitor(in: direction).wrapped {
             let moveNodeToMonitor = MoveNodeToMonitorCommand(
                 target: .direction(direction),

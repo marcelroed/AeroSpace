@@ -15,8 +15,12 @@ struct WindowParentTest {
     @Test
     func placement() {
         let windows = windowOfEveryParentKind()
-        let root = Workspace.get(byName: "a").rootTilingContainer
-        expectEqual(windows.map(\.placement), [.tiling(root), .floating, .macosFullscreen, .macosHiddenApp, .macosMinimized, .macosPopup, nil])
+        let workspace = Workspace.get(byName: "a")
+        let root = workspace.rootTilingContainer
+        let expected: [WindowPlacement?] = [
+            .tiling(root), .floating(workspace), .macosFullscreen(workspace), .macosHiddenApp(workspace), .macosMinimized, .macosPopup, nil,
+        ]
+        expectEqual(windows.map(\.placement), expected)
     }
 
     @Test

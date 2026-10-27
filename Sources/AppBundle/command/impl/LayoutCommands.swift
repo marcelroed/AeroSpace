@@ -86,24 +86,19 @@ struct LayoutCommand: nonisolated Command {
         let target = try cx.target(windowId: windowId, workspace: workspace)
 
         let subject: LayoutSubject
-        switch root ? nil : target.windowOrNil {
-            case let window?:
-                switch window.placement {
-                    case .floating:
-                        subject = .floatingWindow(window)
-                    case .tiling(let it):
-                        subject = .tilingContainer(it)
-                    case .macosFullscreen,
-                         .macosHiddenApp,
-                         .macosMinimized:
-                        let msg = "Can't change layout for macOS minimized, fullscreen windows or windows or hidden apps. " +
-                            "This behavior is subject to change"
-                        throw CmdFail(msg)
-                    case nil, .macosPopup:
-                        throw CmdFail(bugPrompt())
-                }
-            case nil:
-                subject = .tilingContainer(target.workspace.rootTilingContainer)
+        if let (window, placement) = root ? nil : target.windowAndPlacement {
+            switch placement {
+                case .floating:
+                    subject = .floatingWindow(window, target.workspace)
+                case .tiling(let parent):
+                    subject = .tilingContainer(parent)
+                case .macosFullscreen, .macosHiddenApp:
+                    let msg = "Can't change layout for macOS minimized, fullscreen windows or windows or hidden apps. " +
+                        "This behavior is subject to change"
+                    throw CmdFail(msg)
+            }
+        } else {
+            subject = .tilingContainer(target.workspace.rootTilingContainer)
         }
 
         let targetDescription = toggleBetween.first(where: { !subject.matches($0) }) ?? toggleBetween.first
@@ -117,10 +112,11 @@ struct LayoutCommand: nonisolated Command {
                 parent.layout = targetDescription.tilingLayout ?? parent.layout
                 parent.changeOrientation(targetDescription.tilingOrientation ?? parent.orientation)
             case .tiling:
-                guard case .floatingWindow(let window) = subject else { return } // Already tiling
-                let workspace = window.nodeWorkspace // The floating container's workspace. Read it before the suspension point
-                window.lastFloatingSize = (try? await window.getAxSize(.nonCancellable)) ?? window.lastFloatingSize
-                guard let workspace else { throw CmdFail(bugPrompt()) }
+                guard case .floatingWindow(let window, let workspace) = subject else { return } // Already tiling
+                let size = try? await window.getAxSize(.nonCancellable)
+                // The window may have closed or moved at the suspension point above
+                guard window.placement == .floating(workspace) else { return }
+                window.lastFloatingSize = size ?? window.lastFloatingSize
                 do {
                     try await window.relayoutWindow(on: workspace, .nonCancellable, forceTile: true)
                 } catch {
@@ -138,7 +134,7 @@ struct LayoutCommand: nonisolated Command {
 /// What the layout command changes
 private enum LayoutSubject {
     case tilingContainer(TilingContainer) // The window's tiling parent, or the workspace's root container
-    case floatingWindow(Window)
+    case floatingWindow(Window, Workspace)
 
     func matches(_ description: LayoutCommand.LayoutDescription) -> Bool {
         guard case .tilingContainer(let container) = self else { return description == .floating }
@@ -199,8 +195,8 @@ struct SplitCommand: nonisolated Command {
         if config.enableNormalizationFlattenContainers {
             throw CmdFail("'split' has no effect when 'enable-normalization-flatten-containers' normalization enabled. My recommendation: keep the normalizations enabled, and prefer 'join-with' over 'split'.")
         }
-        let window = try cx.window(windowId: windowId)
-        switch window.placement {
+        guard let (window, placement) = try cx.target(windowId: windowId).windowAndPlacement else { throw CmdFail(noWindowIsFocused) }
+        switch placement {
             case .floating:
                 // Nothing to do for floating and macOS native fullscreen windows
                 throw CmdFail("Can't split floating windows")
@@ -216,10 +212,8 @@ struct SplitCommand: nonisolated Command {
                     window.wrap(orientation, .tiles)
                 }
                 return
-            case .macosMinimized, .macosFullscreen, .macosHiddenApp:
+            case .macosFullscreen, .macosHiddenApp:
                 throw CmdFail("Can't split macos fullscreen, minimized windows and windows of hidden apps. This behavior may change in the future")
-            case .macosPopup, nil:
-                throw CmdFail(bugPrompt()) // Impossible
         }
     }
 }

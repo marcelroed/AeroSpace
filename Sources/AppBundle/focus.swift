@@ -4,8 +4,15 @@ import Common
 /// This object should be only passed around but never memorized
 /// Alternative name: ResolvedFocus
 struct LiveFocus: Equatable {
-    let windowOrNil: Window?
     let workspace: Workspace
+    /// The window and where it is on ``workspace``. nil: the workspace is empty
+    let windowAndPlacement: (window: Window, placement: WorkspacePlacement)?
+
+    var windowOrNil: Window? { windowAndPlacement?.window }
+
+    static func == (lhs: LiveFocus, rhs: LiveFocus) -> Bool {
+        lhs.workspace == rhs.workspace && lhs.windowOrNil == rhs.windowOrNil
+    }
 
     fileprivate var frozen: FrozenFocus {
         return FrozenFocus(
@@ -99,14 +106,18 @@ extension Window {
         return setFocus(to: focus)
     }
 
-    func toLiveFocusOrNil() -> LiveFocus? { nodeWorkspace.map { LiveFocus(windowOrNil: self, workspace: $0) } }
+    /// nil for the minimized, popup and unbound windows: they aren't on a workspace
+    func toLiveFocusOrNil() -> LiveFocus? {
+        workspacePlacement.map { LiveFocus(workspace: $0.workspace, windowAndPlacement: (self, $0.placement)) }
+    }
 }
 extension Workspace {
     func focusWorkspace() -> Bool { setFocus(to: toLiveFocus()) }
 
     func toLiveFocus() -> LiveFocus {
-        // nil window: empty workspace
-        LiveFocus(windowOrNil: mostRecentWindowRecursive ?? mostRecentWindowPastEmptyRoot ?? anyLeafWindowRecursive, workspace: self)
+        let window = mostRecentWindowRecursive ?? mostRecentWindowPastEmptyRoot ?? anyLeafWindowRecursive
+        // The window is on this workspace, so it has a workspace placement. No window: the workspace is empty
+        return window?.toLiveFocusOrNil() ?? LiveFocus(workspace: self, windowAndPlacement: nil)
     }
 
     /// After the last tiling window closes, the empty root stays the most recent child (RB-77). Then the most recent window

@@ -51,23 +51,46 @@ enum LayoutReason: Equatable {
     case macos(prevParentKind: ContainerKind)
 }
 
-/// A window's parent, typed. The parent of a window is always a container
+/// A window's parent, typed. The parent of a window is always a container. The containers of a workspace carry it
 enum WindowPlacement: Equatable {
     case tiling(TilingContainer)
-    case floating, macosFullscreen, macosHiddenApp, macosMinimized, macosPopup
+    case floating(Workspace)
+    case macosFullscreen(Workspace)
+    case macosHiddenApp(Workspace)
+    case macosMinimized
+    case macosPopup
+}
+
+/// Where a window is on its workspace: the placement of a focused window, see ``LiveFocus``. Minimized, popup and unbound
+/// windows have none
+enum WorkspacePlacement {
+    case tiling(TilingContainer)
+    case floating, macosFullscreen, macosHiddenApp
 }
 
 extension Window {
     /// nil while the window is unbound
     var placement: WindowPlacement? {
         guard let parent = parent as? Container else { return nil }
+        let workspace = parent.parent as? Workspace // The parent of a floating, fullscreen or hidden-app container
         return switch parent.kind {
             case .tiling: .tiling(parent as? TilingContainer ?? dieT("A tiling container must be a TilingContainer"))
-            case .floating: .floating
-            case .macosFullscreen: .macosFullscreen
-            case .macosHiddenApp: .macosHiddenApp
+            case .floating: workspace.map { .floating($0) }
+            case .macosFullscreen: workspace.map { .macosFullscreen($0) }
+            case .macosHiddenApp: workspace.map { .macosHiddenApp($0) }
             case .macosMinimized: .macosMinimized
             case .macosPopup: .macosPopup
+        }
+    }
+
+    /// The window's workspace and where the window is there. nil for the minimized, popup and unbound windows
+    var workspacePlacement: (workspace: Workspace, placement: WorkspacePlacement)? {
+        switch placement {
+            case .tiling(let parent): parent.nodeWorkspace.map { ($0, .tiling(parent)) }
+            case .floating(let workspace): (workspace, .floating)
+            case .macosFullscreen(let workspace): (workspace, .macosFullscreen)
+            case .macosHiddenApp(let workspace): (workspace, .macosHiddenApp)
+            case .macosMinimized, .macosPopup, nil: nil
         }
     }
 
