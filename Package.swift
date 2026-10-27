@@ -7,6 +7,9 @@ let swiftSettings: [SwiftSetting] = [
     .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
     .strictMemorySafety(),
 ]
+/// The app runs on the main thread, except for the AX app threads, the socket server and the signal handlers.
+/// Code that runs there is marked `nonisolated`
+let mainActorSwiftSettings: [SwiftSetting] = swiftSettings + [.defaultIsolation(MainActor.self)]
 
 let package = Package(
     name: "AeroSpacePackage",
@@ -52,14 +55,14 @@ let package = Package(
                 .target(name: "Common"),
                 .target(name: "PrivateApi"),
             ],
-            swiftSettings: swiftSettings,
+            swiftSettings: mainActorSwiftSettings,
         ),
         .executableTarget(
             name: "AeroSpaceApp",
             dependencies: [
                 .target(name: "AppBundle"),
             ],
-            swiftSettings: swiftSettings,
+            swiftSettings: mainActorSwiftSettings,
         ),
         .executableTarget(
             name: "Cli",
@@ -73,7 +76,7 @@ let package = Package(
             dependencies: [
                 .target(name: "AppBundle"),
             ],
-            swiftSettings: swiftSettings,
+            swiftSettings: mainActorSwiftSettings,
         ),
     ],
 )

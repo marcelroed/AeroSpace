@@ -74,8 +74,8 @@ private let matcherParsers: [String: Parser<LegacyWindowDetectedCallbackMatcher>
 ]
 
 private func upcast<T>(
-    _ fun: @escaping @Sendable (OrderedJson, ConfigBacktrace) -> ResOrConfigParseDiagnostic<T>,
-) -> @Sendable (OrderedJson, ConfigBacktrace) -> ResOrConfigParseDiagnostic<T?> {
+    _ fun: @escaping @MainActor (OrderedJson, ConfigBacktrace) -> ResOrConfigParseDiagnostic<T>,
+) -> @MainActor (OrderedJson, ConfigBacktrace) -> ResOrConfigParseDiagnostic<T?> {
     { fun($0, $1).map(Optional.init) }
 }
 

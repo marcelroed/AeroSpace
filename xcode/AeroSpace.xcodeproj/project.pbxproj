@@ -250,6 +250,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = bobko.aerospace.debug;
 				PRODUCT_NAME = "AeroSpace-Debug";
 				SDKROOT = macosx;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 			};
 			name = Debug;
 		};
@@ -328,6 +329,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = bobko.aerospace;
 				PRODUCT_NAME = AeroSpace;
 				SDKROOT = macosx;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
 			};
 			name = Release;

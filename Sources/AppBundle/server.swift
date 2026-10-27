@@ -66,7 +66,7 @@ nonisolated private func newConnection(_ connection: NWConnection) async { // to
             }
             continue
         }
-        let parsedCmd = parseCommand(request.args)
+        let parsedCmd = await parseCommand(request.args)
         guard let token: RunSessionGuard = await .isServerEnabled(orIsEnableCommand: parsedCmd.cmdOrNil) else {
             await answerToClient(
                 exitCode: EXIT_CODE_TWO,
@@ -96,7 +96,7 @@ nonisolated private func newConnection(_ connection: NWConnection) async { // to
                     }
                 } catch {
                     answer = ServerAnswer(
-                        exitCode: command.args.failExitCode,
+                        exitCode: await command.args.failExitCode,
                         stderr: "Fail to await main thread. \(error.localizedDescription)",
                         serverVersionAndHash: serverVersionAndHash,
                     )

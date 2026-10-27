@@ -81,18 +81,19 @@ struct ConfigParserContext {
 }
 
 /// Parses a value of a TOML table key and writes it to the corresponding field of `S`
-struct Parser<S>: Sendable {
-    fileprivate let parseInto: @Sendable (_ target: inout S, OrderedJson, ConfigBacktrace, inout ConfigParserContext) -> Void
+/// The closure types are `@MainActor`: references to the (main actor) parse functions have isolated function types
+struct Parser<S> {
+    fileprivate let parseInto: @MainActor (_ target: inout S, OrderedJson, ConfigBacktrace, inout ConfigParserContext) -> Void
 
-    private init(parseInto: @escaping @Sendable (_ target: inout S, OrderedJson, ConfigBacktrace, inout ConfigParserContext) -> Void) {
+    private init(parseInto: @escaping @MainActor (_ target: inout S, OrderedJson, ConfigBacktrace, inout ConfigParserContext) -> Void) {
         self.parseInto = parseInto
     }
 
-    init<T>(_ keyPath: SendableWritableKeyPath<S, T>, _ parse: @escaping @Sendable (OrderedJson, ConfigBacktrace, inout ConfigParserContext) -> T) {
+    init<T>(_ keyPath: WritableKeyPath<S, T>, _ parse: @escaping @MainActor (OrderedJson, ConfigBacktrace, inout ConfigParserContext) -> T) {
         parseInto = { target, raw, backtrace, c in target[keyPath: keyPath] = parse(raw, backtrace, &c) }
     }
 
-    init<T>(_ keyPath: SendableWritableKeyPath<S, T>, _ parse: @escaping @Sendable (OrderedJson, ConfigBacktrace) -> ResOrConfigParseDiagnostic<T>) {
+    init<T>(_ keyPath: WritableKeyPath<S, T>, _ parse: @escaping @MainActor (OrderedJson, ConfigBacktrace) -> ResOrConfigParseDiagnostic<T>) {
         parseInto = { target, raw, backtrace, c in
             if let value = parse(raw, backtrace).getOrNil(appendErrorTo: &c.errors) {
                 target[keyPath: keyPath] = value
@@ -101,7 +102,7 @@ struct Parser<S>: Sendable {
     }
 
     /// A nested table. Its keys are parsed with `fields`, starting from the field's current value
-    init<T>(_ keyPath: SendableWritableKeyPath<S, T>, _ fields: [String: Parser<T>]) {
+    init<T>(_ keyPath: WritableKeyPath<S, T>, _ fields: [String: Parser<T>]) {
         parseInto = { target, raw, backtrace, c in target[keyPath: keyPath] = parseTable(raw, target[keyPath: keyPath], fields, backtrace, &c) }
     }
 
@@ -109,7 +110,7 @@ struct Parser<S>: Sendable {
     static var parsedManually: Self { Parser(parseInto: { _, _, _, _ in }) }
 
     /// The key only produces diagnostics (e.g. deprecated keys). The parsed value is dropped
-    static func diagnosticOnly<T>(_ parse: @escaping @Sendable (OrderedJson, ConfigBacktrace) -> ResOrConfigParseDiagnostic<T>) -> Self {
+    static func diagnosticOnly<T>(_ parse: @escaping @MainActor (OrderedJson, ConfigBacktrace) -> ResOrConfigParseDiagnostic<T>) -> Self {
         Parser(parseInto: { _, raw, backtrace, c in _ = parse(raw, backtrace).getOrNil(appendErrorTo: &c.errors) })
     }
 }
