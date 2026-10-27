@@ -22,9 +22,6 @@ public struct ServerAnswer: Codable, Sendable {
 }
 
 public struct ClientRequest: Codable, Sendable, ConvenienceMutable, Equatable {
-    // periphery:ignore - Unused. keep it for API compatibility with old servers for a couple of version
-    public var command: String? = nil
-
     public let args: [String]
     public let stdin: String
 
@@ -56,23 +53,11 @@ public struct ClientRequest: Codable, Sendable, ConvenienceMutable, Equatable {
     }
 
     public init(from decoder: any Decoder) throws {
-        let data = try ClientRequestData.init(from: decoder)
-        var raw = ClientRequest(
-            args: data.args,
-            stdin: data.stdin,
-            windowId: data.windowId.flattenOptional(),
-            workspace: data.workspace.flattenOptional(),
-        )
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        if !container.contains(.windowId) { raw.windowId = nil }
-        if !container.contains(.workspace) { raw.workspace = nil }
-        self = raw
+        args = try container.decode([String].self, forKey: .args)
+        stdin = try container.decode(String.self, forKey: .stdin)
+        // Missing key: nil. Explicit null: .some(nil)
+        windowId = try container.contains(.windowId) ? .some(container.decodeIfPresent(UInt32.self, forKey: .windowId)) : nil
+        workspace = try container.contains(.workspace) ? .some(container.decodeIfPresent(String.self, forKey: .workspace)) : nil
     }
-}
-
-private struct ClientRequestData: Codable, Sendable {
-    var args: [String]
-    var stdin: String
-    var windowId: UInt32??
-    var workspace: String??
 }

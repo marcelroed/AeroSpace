@@ -24,7 +24,7 @@ func checkAxDumpsRecursive(_ dir: URL) throws -> Int {
         checkedDumps += 1
 
         let rawJson = try JSONSerialization.jsonObject(with: Data.init(contentsOf: file), options: [.json5Allowed]) as! [String: Any]
-        let json = Json.newOrDieRecursive(rawJson).asDictOrDie
+        let json = OrderedJson.newOrDieRecursive(rawJson).asDictOrDie
         let app = json["Aero.AXApp"]!.asDictOrDie
         let appBundleId = (rawJson["Aero.App.appBundleId"] as? String).flatMap { KnownBundleId.init(rawValue: $0) }
         let windowLevel = json["Aero.windowLevel"].map { MacOsWindowLevel.fromJson($0) ?? dieT() }
@@ -43,7 +43,7 @@ func checkAxDumpsRecursive(_ dir: URL) throws -> Int {
     return checkedDumps
 }
 
-extension [String: Json]: AxUiElementMock {
+extension OrderedJson.JsonDict: AxUiElementMock {
     public func get<Attr>(_ attr: Attr) -> Attr.T? where Attr: ReadableAttr {
         guard let value = self[attr.key] else {
             return isSynthetic ? dieT("\(self) doesn't contain \(attr.key)") : nil

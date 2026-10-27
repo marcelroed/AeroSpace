@@ -16,65 +16,50 @@ struct LayoutCommand: Command {
         }
         guard let target = args.resolveTargetOrReportError(env, io) else { return .fail }
 
-        let node: ConventionalWindowParentCases
+        let subject: LayoutSubject
         switch args.root ? nil : target.windowOrNil {
             case let window?:
-                switch window.windowParentCases {
-                    case .floatingWindowsContainer(let it):
-                        node = .floatingWindowsContainer(it)
+                switch window.parent?.cases {
+                    case .floatingWindowsContainer:
+                        subject = .floatingWindow(window)
                     case .tilingContainer(let it):
-                        node = .tilingContainer(it)
+                        subject = .tilingContainer(it)
                     case .macosFullscreenWindowsContainer,
                          .macosHiddenAppsWindowsContainer,
                          .macosMinimizedWindowsContainer:
                         let msg = "Can't change layout for macOS minimized, fullscreen windows or windows or hidden apps. " +
                             "This behavior is subject to change"
                         return .fail(io.err(msg))
-                    case .unbound, .macosPopupWindowsContainer:
+                    case nil, .workspace, .macosPopupWindowsContainer:
                         return .fail(io.err(bugPrompt()))
                 }
             case nil:
-                node = .tilingContainer(target.workspace.rootTilingContainer)
+                subject = .tilingContainer(target.workspace.rootTilingContainer)
         }
 
-        let targetDescription = args.toggleBetween.val.first(where: { !node.matchesDescription($0) })
+        let targetDescription = args.toggleBetween.val.first(where: { !subject.matches($0) })
             ?? args.toggleBetween.val.first.orDie()
-        if node.matchesDescription(targetDescription) {
+        if subject.matches(targetDescription) {
             return .noop(io, failIfNoop: args.failIfNoop, "Already in the requested \(targetDescription.rawValue) mode. " +
                 "Tip: use --fail-if-noop to exit with non-zero exit code")
         }
         switch targetDescription {
-            case .h_accordion:
-                return changeTilingLayout(io, targetLayout: .accordion, targetOrientation: .h, node: node)
-            case .v_accordion:
-                return changeTilingLayout(io, targetLayout: .accordion, targetOrientation: .v, node: node)
-            case .h_tiles:
-                return changeTilingLayout(io, targetLayout: .tiles, targetOrientation: .h, node: node)
-            case .v_tiles:
-                return changeTilingLayout(io, targetLayout: .tiles, targetOrientation: .v, node: node)
-            case .accordion:
-                return changeTilingLayout(io, targetLayout: .accordion, targetOrientation: nil, node: node)
-            case .tiles:
-                return changeTilingLayout(io, targetLayout: .tiles, targetOrientation: nil, node: node)
-            case .horizontal:
-                return changeTilingLayout(io, targetLayout: nil, targetOrientation: .h, node: node)
-            case .vertical:
-                return changeTilingLayout(io, targetLayout: nil, targetOrientation: .v, node: node)
+            case .h_accordion, .v_accordion, .h_tiles, .v_tiles, .accordion, .tiles, .horizontal, .vertical:
+                guard case .tilingContainer(let parent) = subject else { return .fail(io.err("The window is non-tiling")) }
+                parent.layout = targetDescription.tilingLayout ?? parent.layout
+                parent.changeOrientation(targetDescription.tilingOrientation ?? parent.orientation)
+                return .succ
             case .tiling:
-                guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
-                switch node {
-                    case .tilingContainer:
-                        return .succ // Nothing to do
-                    case .floatingWindowsContainer(let container):
-                        window.lastFloatingSize = (try? await window.getAxSize(.nonCancellable)) ?? window.lastFloatingSize
-                        guard let workspace = container.nodeWorkspace else { return .fail(io.err(bugPrompt())) }
-                        do {
-                            try await window.relayoutWindow(on: workspace, .nonCancellable, forceTile: true)
-                        } catch {
-                            return .fail(io.err(bugPrompt()))
-                        }
-                        return .succ
+                guard case .floatingWindow(let window) = subject else { return .succ } // Already tiling
+                let workspace = window.nodeWorkspace // The floating container's workspace. Read it before the suspension point
+                window.lastFloatingSize = (try? await window.getAxSize(.nonCancellable)) ?? window.lastFloatingSize
+                guard let workspace else { return .fail(io.err(bugPrompt())) }
+                do {
+                    try await window.relayoutWindow(on: workspace, .nonCancellable, forceTile: true)
+                } catch {
+                    return .fail(io.err(bugPrompt()))
                 }
+                return .succ
             case .floating:
                 guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
                 let workspace = target.workspace
@@ -87,37 +72,39 @@ struct LayoutCommand: Command {
 
 @MainActor var global_layoutForNextDetectedWindow: LayoutCmdArgs.LayoutDescription? = nil
 
-@MainActor private func changeTilingLayout(
-    _ io: CmdIo,
-    targetLayout: Layout?,
-    targetOrientation: Orientation?,
-    node: ConventionalWindowParentCases,
-) -> BinaryExitCode {
-    switch node {
-        case .floatingWindowsContainer:
-            return .fail(io.err("The window is non-tiling"))
-        case .tilingContainer(let parent):
-            let targetOrientation = targetOrientation ?? parent.orientation
-            let targetLayout = targetLayout ?? parent.layout
-            parent.layout = targetLayout
-            parent.changeOrientation(targetOrientation)
-            return .succ
+/// What the layout command changes
+private enum LayoutSubject {
+    case tilingContainer(TilingContainer) // The window's tiling parent, or the workspace's root container
+    case floatingWindow(Window)
+
+    @MainActor func matches(_ description: LayoutCmdArgs.LayoutDescription) -> Bool {
+        guard case .tilingContainer(let container) = self else { return description == .floating }
+        return switch description {
+            case .tiling: true
+            case .floating: false
+            case .h_accordion, .v_accordion, .h_tiles, .v_tiles, .accordion, .tiles, .horizontal, .vertical:
+                container.layout == (description.tilingLayout ?? container.layout) &&
+                    container.orientation == (description.tilingOrientation ?? container.orientation)
+        }
     }
 }
 
-extension ConventionalWindowParentCases {
-    @MainActor fileprivate func matchesDescription(_ layout: LayoutCmdArgs.LayoutDescription) -> Bool {
-        return switch layout {
-            case .accordion:   tilingContainerOrNil?.layout == .accordion
-            case .tiles:       tilingContainerOrNil?.layout == .tiles
-            case .horizontal:  tilingContainerOrNil?.orientation == .h
-            case .vertical:    tilingContainerOrNil?.orientation == .v
-            case .h_accordion: tilingContainerOrNil.map { $0.layout == .accordion && $0.orientation == .h } == true
-            case .v_accordion: tilingContainerOrNil.map { $0.layout == .accordion && $0.orientation == .v } == true
-            case .h_tiles:     tilingContainerOrNil.map { $0.layout == .tiles && $0.orientation == .h } == true
-            case .v_tiles:     tilingContainerOrNil.map { $0.layout == .tiles && $0.orientation == .v } == true
-            case .tiling:      tilingContainerOrNil != nil
-            case .floating:    floatingWindowsContainerOrNil != nil
+extension LayoutCmdArgs.LayoutDescription {
+    /// The layout that a tiling description requests. nil: keep the current one
+    fileprivate var tilingLayout: Layout? {
+        switch self {
+            case .accordion, .h_accordion, .v_accordion: .accordion
+            case .tiles, .h_tiles, .v_tiles: .tiles
+            case .horizontal, .vertical, .tiling, .floating: nil
+        }
+    }
+
+    /// The orientation that a tiling description requests. nil: keep the current one
+    fileprivate var tilingOrientation: Orientation? {
+        switch self {
+            case .horizontal, .h_accordion, .h_tiles: .h
+            case .vertical, .v_accordion, .v_tiles: .v
+            case .accordion, .tiles, .tiling, .floating: nil
         }
     }
 }

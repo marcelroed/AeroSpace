@@ -30,21 +30,13 @@ final class ConfigTest: XCTestCase {
     }
 
     func testConfigVersionOutOfBounds() {
-        let result = parseConfig(
-            """
-            config-version = 0
-            """,
-        )
+        let result = parseConfig("config-version = 0")
         assertTrue(result.allowReloadConfig)
         assertEquals(result.strErrors, ["[ERROR] config-version: config-version must be in [1, 2] range"])
     }
 
     func testConfigVersionOutdatedWarning() {
-        let result = parseConfig(
-            """
-            config-version = 1
-            """,
-        )
+        let result = parseConfig("config-version = 1")
         assertTrue(result.allowReloadConfig)
         assertEquals(result.errors, [])
         assertEquals(result.strWarnings, [
@@ -55,21 +47,13 @@ final class ConfigTest: XCTestCase {
     }
 
     func testLatestConfigVersionNoWarning() {
-        let result = parseConfig(
-            """
-            config-version = \(ConfigVersion.max)
-            """,
-        )
+        let result = parseConfig("config-version = \(ConfigVersion.max)")
         assertEquals(result.errors, [])
         assertEquals(result.warnings, [])
     }
 
     func testExecOnWorkspaceChangeDifferentTypesError() {
-        let errors = parseConfig(
-            """
-            exec-on-workspace-change = ['', 1]
-            """,
-        ).strErrors
+        let errors = parseConfig("exec-on-workspace-change = ['', 1]").strErrors
         assertEquals(errors, ["[ERROR] exec-on-workspace-change[1]: Expected type is \'String\'. But actual type is \'Int\'"])
     }
 
@@ -84,11 +68,7 @@ final class ConfigTest: XCTestCase {
     }
 
     func testPersistentWorkspacesAreAvailableOnlySinceVersion2() {
-        let errors = parseConfig(
-            """
-            persistent-workspaces = ['a']
-            """,
-        ).strErrors
+        let errors = parseConfig("persistent-workspaces = ['a']").strErrors
         assertEquals(errors, ["[ERROR] persistent-workspaces: This config option is only available since \'config-version = 2\'"])
     }
 
@@ -103,11 +83,7 @@ final class ConfigTest: XCTestCase {
     }
 
     func testDropBindings() {
-        let result = parseConfig(
-            """
-            mode.main = {}
-            """,
-        )
+        let result = parseConfig("mode.main = {}")
         assertTrue(result.allowReloadConfig)
         assertEquals(result.errors, [])
         assertTrue(result.config.modes[mainModeId]?.bindings.isEmpty == true)
@@ -209,11 +185,7 @@ final class ConfigTest: XCTestCase {
     }
 
     func testTypeMismatch() {
-        let errors = parseConfig(
-            """
-            enable-normalization-flatten-containers = 'true'
-            """,
-        ).strErrors
+        let errors = parseConfig("enable-normalization-flatten-containers = 'true'").strErrors
         assertEquals(
             errors,
             ["[ERROR] enable-normalization-flatten-containers: Expected type is \'Bool\'. But actual type is \'String\'"],
@@ -257,11 +229,7 @@ final class ConfigTest: XCTestCase {
         let command = parseCommand("layout tiles h_tiles v_tiles list h_list v_list").cmdOrNil?.flatten().singleOrNil()
         XCTAssertTrue(command is LayoutCommand)
         assertEquals((command as! LayoutCommand).args.toggleBetween.val, [.tiles, .h_tiles, .v_tiles, .tiles, .h_tiles, .v_tiles])
-
-        guard case .help = parseCommand("layout tiles -h") else {
-            XCTFail()
-            return
-        }
+        testParseCommandHelp("layout tiles -h")
     }
 
     func testSplitCommandAndFlattenContainersNormalization() {
@@ -531,22 +499,14 @@ final class ConfigTest: XCTestCase {
     }
 
     func testAfterLoginCommandDeprecation() {
-        let result = parseConfig(
-            """
-            after-login-command = ['exec-and-forget echo hi']
-            """,
-        )
+        let result = parseConfig("after-login-command = ['exec-and-forget echo hi']")
         assertEquals(
             result.strErrors,
             ["[ERROR] after-login-command: after-login-command is deprecated since AeroSpace 0.19.0. https://github.com/nikitabobko/AeroSpace/issues/1482"],
         )
 
         // Empty array is still accepted
-        let okResult = parseConfig(
-            """
-            after-login-command = []
-            """,
-        )
+        let okResult = parseConfig("after-login-command = []")
         assertEquals(okResult.errors, [])
     }
 
@@ -566,11 +526,7 @@ final class ConfigTest: XCTestCase {
     }
 
     func testOnFocusChangedTypeError() {
-        let result = parseConfig(
-            """
-            on-focus-changed = 1
-            """,
-        )
+        let result = parseConfig("on-focus-changed = 1")
         assertEquals(
             result.strErrors,
             ["[ERROR] on-focus-changed: Expected types are \'string\' or \'array\'. But actual type is \'int\'"],
@@ -578,27 +534,15 @@ final class ConfigTest: XCTestCase {
     }
 
     func testParseDefaultRootContainerLayout() {
-        let result = parseConfig(
-            """
-            default-root-container-layout = 'accordion'
-            """,
-        )
+        let result = parseConfig("default-root-container-layout = 'accordion'")
         assertEquals(result.errors, [])
         assertEquals(result.config.defaultRootContainerLayout, .accordion)
 
-        let listResult = parseConfig(
-            """
-            default-root-container-layout = 'list'
-            """,
-        )
+        let listResult = parseConfig("default-root-container-layout = 'list'")
         assertEquals(listResult.errors, [])
         assertEquals(listResult.config.defaultRootContainerLayout, .tiles)
 
-        let bad = parseConfig(
-            """
-            default-root-container-layout = 'bogus'
-            """,
-        )
+        let bad = parseConfig("default-root-container-layout = 'bogus'")
         assertEquals(
             bad.strErrors,
             ["[ERROR] default-root-container-layout: Can\'t parse layout \'bogus\'"],
@@ -606,19 +550,11 @@ final class ConfigTest: XCTestCase {
     }
 
     func testParseDefaultRootContainerOrientation() {
-        let result = parseConfig(
-            """
-            default-root-container-orientation = 'vertical'
-            """,
-        )
+        let result = parseConfig("default-root-container-orientation = 'vertical'")
         assertEquals(result.errors, [])
         assertEquals(result.config.defaultRootContainerOrientation, .vertical)
 
-        let bad = parseConfig(
-            """
-            default-root-container-orientation = 'diagonal'
-            """,
-        )
+        let bad = parseConfig("default-root-container-orientation = 'diagonal'")
         assertEquals(
             bad.strErrors,
             ["[ERROR] default-root-container-orientation: Can\'t parse default container orientation \'diagonal\'"],
@@ -626,11 +562,7 @@ final class ConfigTest: XCTestCase {
     }
 
     func testDeprecatedIndentForNestedContainers() {
-        let errors = parseConfig(
-            """
-            indent-for-nested-containers-with-the-same-orientation = 30
-            """,
-        ).strErrors
+        let errors = parseConfig("indent-for-nested-containers-with-the-same-orientation = 30").strErrors
         assertEquals(
             errors,
             ["[ERROR] indent-for-nested-containers-with-the-same-orientation: Deprecated. Please drop it from the config. See https://github.com/nikitabobko/AeroSpace/issues/96"],
@@ -639,18 +571,10 @@ final class ConfigTest: XCTestCase {
 
     func testDeprecatedNonEmptyWorkspacesRootContainersLayoutOnStartup() {
         // The 'smart' value used to be accepted and is silently dropped now
-        let smart = parseConfig(
-            """
-            non-empty-workspaces-root-containers-layout-on-startup = 'smart'
-            """,
-        )
+        let smart = parseConfig("non-empty-workspaces-root-containers-layout-on-startup = 'smart'")
         assertEquals(smart.errors, [])
 
-        let bad = parseConfig(
-            """
-            non-empty-workspaces-root-containers-layout-on-startup = 'tiles'
-            """,
-        ).strErrors
+        let bad = parseConfig("non-empty-workspaces-root-containers-layout-on-startup = 'tiles'").strErrors
         assertEquals(
             bad,
             ["[ERROR] non-empty-workspaces-root-containers-layout-on-startup: \'non-empty-workspaces-root-containers-layout-on-startup\' is deprecated. Please drop it from your config"],
@@ -658,21 +582,13 @@ final class ConfigTest: XCTestCase {
     }
 
     func testOutdatedConfigVersionWarning() {
-        let result = parseConfig(
-            """
-            config-version = 1
-            """,
-        )
+        let result = parseConfig("config-version = 1")
         assertEquals(result.errors, [])
         assertEquals(result.warnings.count, 1)
         XCTAssertTrue(result.warnings[0].message.contains("'config-version = 1' is outdated"))
 
         // The current max config-version should not produce the outdated warning
-        let latest = parseConfig(
-            """
-            config-version = \(ConfigVersion.max)
-            """,
-        )
+        let latest = parseConfig("config-version = \(ConfigVersion.max)")
         assertEquals(latest.errors, [])
         assertEquals(latest.warnings, [])
     }
@@ -715,19 +631,11 @@ final class ConfigTest: XCTestCase {
             "[ERROR] key-mapping.key-notation-to-key-code.q: 'qw' is invalid key code",
         ])
 
-        let dvorakResult = parseConfig(
-            """
-            key-mapping.preset = 'dvorak'
-            """,
-        )
+        let dvorakResult = parseConfig("key-mapping.preset = 'dvorak'")
         assertEquals(dvorakResult.errors, [])
         assertEquals(dvorakResult.config.keyMapping, KeyMapping(preset: .dvorak, rawKeyNotationToKeyCode: [:]))
         assertEquals(dvorakResult.config.keyMapping.resolve()["quote"], .q)
-        let colemakResult = parseConfig(
-            """
-            key-mapping.preset = 'colemak'
-            """,
-        )
+        let colemakResult = parseConfig("key-mapping.preset = 'colemak'")
         assertEquals(colemakResult.errors, [])
         assertEquals(colemakResult.config.keyMapping, KeyMapping(preset: .colemak, rawKeyNotationToKeyCode: [:]))
         assertEquals(colemakResult.config.keyMapping.resolve()["f"], .e)

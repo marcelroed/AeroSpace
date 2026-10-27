@@ -5,7 +5,6 @@ public struct ListWorkspacesCmdArgs: CmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
     public static let parser: CmdParser<Self> = .init(
         kind: .listWorkspaces,
-        help: list_workspaces_help_generated,
         flags: [
             // Aliases
             "--focused": trueBoolFlag(\.focused),
@@ -21,13 +20,13 @@ public struct ListWorkspacesCmdArgs: CmdArgs {
             "--count": trueBoolFlag(\.outputOnlyCount),
             "--json": trueBoolFlag(\.json),
         ],
-        posArgs: [],
         conflictingOptions: [
             ["--all", "--focused", "--monitor"],
             ["--count", "--format"],
             ["--count", "--json"],
         ],
     )
+    public static let defaultFormat: [InterToken<InterVar>] = [.interVar(.formatVar(.workspace(.workspaceName)))]
 
     fileprivate var all: Bool = false // Alias
     fileprivate var focused: Bool = false // Alias
@@ -42,10 +41,6 @@ public struct ListWorkspacesCmdArgs: CmdArgs {
         public var visible: Bool?
         public var empty: Bool?
     }
-}
-
-extension ListWorkspacesCmdArgs {
-    public var format: [InterToken<InterVar>] { _format.isEmpty ? [.interVar(.formatVar(.workspace(.workspaceName)))] : _format }
 }
 
 func parseListWorkspacesCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ListWorkspacesCmdArgs> {

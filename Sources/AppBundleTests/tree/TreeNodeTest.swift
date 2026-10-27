@@ -57,10 +57,7 @@ struct TreeNodeTest: AeroSpaceTestSuite {
             }
         }
         workspace.normalizeContainers()
-        assertEquals(
-            workspace.rootTilingContainer.layoutDescription,
-            .h_tiles([.window(0), .window(1)]),
-        )
+        assertEquals(workspace.rootTilingContainer.layoutDescription, .h_tiles([.window(0), .window(1)]))
     }
 
     @Test

@@ -1,9 +1,8 @@
 public struct MoveCmdArgs: CmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
-    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
     public static let parser: CmdParser<Self> = .init(
         kind: .move,
-        help: move_help_generated,
         flags: [
             "--window-id": windowIdSubArgParser(),
             "--boundaries": ArgParser(\.rawBoundaries, upcastArgParserFun(enumSubArg(Boundaries.self, placeholder: "<boundary>"))),
@@ -20,11 +19,6 @@ public struct MoveCmdArgs: CmdArgs {
     public var failIfFullscreen: Bool = false
     public var failIfMacosNativeFullscreen: Bool = false
 
-    public enum Boundaries: String, CaseIterable, Equatable, Sendable {
-        case workspace
-        case allMonitorsOuterFrame = "all-monitors-outer-frame"
-    }
-
     public enum WhenBoundariesCrossed: String, CaseIterable, Equatable, Sendable {
         case stop = "stop"
         case fail = "fail"
@@ -35,8 +29,4 @@ public struct MoveCmdArgs: CmdArgs {
 extension MoveCmdArgs {
     public var boundaries: Boundaries { rawBoundaries ?? .workspace }
     public var boundariesAction: WhenBoundariesCrossed { rawBoundariesAction ?? .createImplicitContainer }
-}
-
-func parseMoveCmdArgs(_ args: StrArrSlice) -> ParsedCmd<MoveCmdArgs> {
-    parseSpecificCmdArgs(MoveCmdArgs(rawArgs: args), args)
 }

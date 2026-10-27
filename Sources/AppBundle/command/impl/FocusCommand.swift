@@ -49,16 +49,16 @@ struct FocusCommand: Command {
                 guard let currentIndex = windows.firstIndex(where: { $0 == target.windowOrNil }) else {
                     return .fail
                 }
-                var targetIndex = currentIndex + nextPrev.indexOffset
-                if !(0 ..< windows.count).contains(targetIndex) {
-                    switch args.boundariesAction {
-                        case .stop: return .succ
-                        case .fail: return .fail
-                        case .wrapAroundTheWorkspace: targetIndex = (targetIndex + windows.count) % windows.count
-                        case .wrapAroundAllMonitors: return .fail(io.err(bugPrompt("Must be discarded by args parser")))
-                    }
+                let targetIndex = currentIndex + nextPrev.indexOffset
+                if let windowToFocus = windows.getOrNil(atIndex: targetIndex) {
+                    return .from(bool: windowToFocus.focusWindow())
                 }
-                return .from(bool: windows[targetIndex].focusWindow())
+                switch args.boundariesAction {
+                    case .stop: return .succ
+                    case .fail: return .fail
+                    case .wrapAroundTheWorkspace: return .from(bool: windows.get(wrappingIndex: targetIndex).orDie().focusWindow())
+                    case .wrapAroundAllMonitors: return .fail(io.err(bugPrompt("Must be discarded by args parser")))
+                }
         }
     }
 }
@@ -69,54 +69,32 @@ struct FocusCommand: Command {
     _ args: FocusCmdArgs,
     _ direction: CardinalDirection,
 ) -> BinaryExitCode {
+    let wrappedMonitor: MonitorInfo?
     switch args.boundaries {
-        case .workspace:
-            return switch args.boundariesAction {
-                case .stop: .succ
-                case .fail: .fail
-                case .wrapAroundTheWorkspace: wrapAroundTheWorkspace(target, io, direction)
-                case .wrapAroundAllMonitors: .fail(io.err("Must be discarded by args parser"))
-            }
+        case .workspace: wrappedMonitor = nil
         case .allMonitorsOuterFrame:
-            let currentMonitor = target.workspace.workspaceMonitor
-            guard let (monitors, index) = currentMonitor.findRelativeMonitor(inDirection: direction) else {
+            guard let (monitors, index) = target.workspace.workspaceMonitor.findRelativeMonitor(inDirection: direction) else {
                 return .fail(io.err(bugPrompt("Should never happen. Can't find the current monitor")))
             }
-
             if let targetMonitor = monitors.getOrNil(atIndex: index) {
                 return .from(bool: targetMonitor.activeWorkspace.focusWorkspace())
-            } else {
-                guard let wrapped = monitors.get(wrappingIndex: index) else { return .fail(io.err(bugPrompt("\(index) \(monitors)"))) }
-                return hitAllMonitorsOuterFrameBoundaries(target, io, args, direction, wrapped)
             }
+            guard let wrapped = monitors.get(wrappingIndex: index) else { return .fail(io.err(bugPrompt("\(index) \(monitors)"))) }
+            wrappedMonitor = wrapped
     }
-}
-
-@MainActor private func hitAllMonitorsOuterFrameBoundaries(
-    _ target: LiveFocus,
-    _ io: CmdIo,
-    _ args: FocusCmdArgs,
-    _ direction: CardinalDirection,
-    _ wrappedMonitor: MonitorInfo,
-) -> BinaryExitCode {
     switch args.boundariesAction {
-        case .stop:
-            return .succ
-        case .fail:
-            return .fail
+        case .stop: return .succ
+        case .fail: return .fail
         case .wrapAroundTheWorkspace:
-            return wrapAroundTheWorkspace(target, io, direction)
+            guard let windowToFocus = target.workspace.findLeafWindowRecursive(snappedTo: direction.opposite) else {
+                return .fail(io.err(noWindowIsFocused))
+            }
+            return .from(bool: windowToFocus.focusWindow())
         case .wrapAroundAllMonitors:
+            guard let wrappedMonitor else { return .fail(io.err("Must be discarded by args parser")) } // --boundaries workspace
             wrappedMonitor.activeWorkspace.findLeafWindowRecursive(snappedTo: direction.opposite)?.markAsMostRecentChild()
             return .from(bool: wrappedMonitor.activeWorkspace.focusWorkspace())
     }
-}
-
-@MainActor private func wrapAroundTheWorkspace(_ target: LiveFocus, _ io: CmdIo, _ direction: CardinalDirection) -> BinaryExitCode {
-    guard let windowToFocus = target.workspace.findLeafWindowRecursive(snappedTo: direction.opposite) else {
-        return .fail(io.err(noWindowIsFocused))
-    }
-    return .from(bool: windowToFocus.focusWindow())
 }
 
 @MainActor private func makeFloatingWindowsSeenAsTiling(workspace: Workspace) async -> [FloatingWindowData] {
@@ -137,15 +115,10 @@ struct FocusCommand: Command {
             guard let targetCenter = try? await target.getCenter(.nonCancellable) else { continue }
             guard let parent = target.parent as? TilingContainer else { continue }
             tilingParent = parent
-            index = switch tilingParent.layout {
-                case .tiles:
-                    center.getProjection(tilingParent.orientation) >= targetCenter.getProjection(tilingParent.orientation)
-                        ? target.ownIndex.orDie() + 1
-                        : target.ownIndex.orDie()
-                case .accordion:
-                    center.getProjection(tilingParent.orientation) >= targetCenter.getProjection(tilingParent.orientation)
-                        ? tilingParent.children.count
-                        : 0
+            let isAfterTarget = center.getProjection(parent.orientation) >= targetCenter.getProjection(parent.orientation)
+            index = switch parent.layout {
+                case .tiles: target.ownIndex.orDie() + (isAfterTarget ? 1 : 0)
+                case .accordion: isAfterTarget ? parent.children.count : 0
             }
         } else {
             index = 0

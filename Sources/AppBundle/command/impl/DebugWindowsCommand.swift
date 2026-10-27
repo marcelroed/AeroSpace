@@ -80,7 +80,7 @@ private func dumpWindowDebugInfo(_ window: Window, _ cm: CancellationMode) async
     let window = window.asMacWindow()
     let appInfoDic = window.macApp.nsApp.bundleURL.flatMap { Bundle.init(url: $0) }?.infoDictionary ?? [:]
 
-    var result: [String: Json] = try await window.dumpAxInfo(cm)
+    var result: OrderedJson.JsonDict = try await window.macApp.dumpWindowAxInfo(windowId: window.windowId, cm)
 
     let windowLevel = getWindowLevel(for: window.windowId)
     let windowLevelJson = windowLevel?.toJson() ?? .null
@@ -98,33 +98,28 @@ private func dumpWindowDebugInfo(_ window: Window, _ cm: CancellationMode) async
     result["Aero.App.nsApp.appBundlePath"] = .stringOrNull(window.macApp.nsApp.bundleURL?.description)
     result["Aero.AXApp"] = .dict(try await window.macApp.dumpAppAxInfo(cm))
 
-    let isDialog = try await window.isDialogHeuristic(windowLevel, cm)
-    let isWindow = try await window.isWindowHeuristic(windowLevel, cm)
+    let isDialog = try await window.macApp.isDialogHeuristic(window.windowId, windowLevel, cm)
+    let isWindow = try await window.macApp.isWindowHeuristic(window.windowId, windowLevel, cm)
     result["Aero.AxUiElementWindowType"] = .string(AxUiElementWindowType.new(isWindow: isWindow, isDialog: { isDialog }).rawValue)
     result["Aero.AxUiElementWindowType_isDialogHeuristic"] = .bool(isDialog)
 
-    var matchingCallbacks: [Json] = []
+    var matchingCallbacks: [OrderedJson] = []
     for callback in config.onWindowDetected where await callback.matches(window) {
         matchingCallbacks.append(callback.debugJson)
     }
     result["Aero.on-window-detected"] = .array(matchingCallbacks)
 
-    return JSONEncoder.aeroSpaceDefault.encodeToString(result).prettyDescription
+    return JSONEncoder.aeroSpaceDefault.encodeToString(OrderedJson.dict(result)).prettyDescription
         .prefixLines(with: "\(window.app.rawAppBundleId ?? "nil-bundle-id").\(window.windowId) ||| ")
 }
 
 @MainActor
 func debugWindowsIfRecording(_ window: Window, _ cm: CancellationMode) async throws {
-    switch debugWindowsState {
-        case .recording: break
-        case .notRecording, .recordingAborted: return
-    }
+    guard debugWindowsState == .recording else { return }
     if debugWindowsLog.count > debugWindowsLimit {
         debugWindowsState = .recordingAborted
         debugWindowsLog = [:]
     }
-    if debugWindowsLog.keys.contains(window.windowId) {
-        return
-    }
+    if debugWindowsLog.keys.contains(window.windowId) { return }
     debugWindowsLog[window.windowId] = try await dumpWindowDebugInfo(window, cm)
 }

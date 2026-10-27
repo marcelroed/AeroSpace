@@ -17,9 +17,8 @@ func startUnixSocketServer() {
     listener.start(queue: .global())
 }
 
-func toggleReleaseServerIfDebug(_ state: EnableCmdArgs.State) async {
-    if serverArgs.isReadOnly { return }
-    if !isDebug { return }
+func toggleReleaseServerIfDebug(_ state: ToggleEnum) async {
+    if serverArgs.isReadOnly || !isDebug { return }
     let socketFile = "/tmp/\(stableAeroSpaceAppId)-\(unixUserName).sock"
     let connection = NWConnection(to: NWEndpoint.unix(path: socketFile), using: .tcp)
     defer { connection.cancel() }
@@ -37,13 +36,10 @@ private let serverVersionAndHash = "\(aeroSpaceAppVersion) \(gitHash)"
 private func newConnection(_ connection: NWConnection) async { // todo add exit codes
     func answerToClient(exitCode: Int32, stdout: String = "", stderr: String = "") async {
         let ans = ServerAnswer(exitCode: exitCode, stdout: stdout, stderr: stderr, serverVersionAndHash: serverVersionAndHash)
-        await answerToClient(ans)
-    }
-    func answerToClient(_ ans: ServerAnswer) async {
         _ = await connection.writeAtomic(ans)
     }
 
-    guard let clientVersion = await connection.readUInt32().getIgnoringErrorsOrNil() else { return }
+    guard let clientVersion = try? await connection.readUInt32().get() else { return }
     // The server unconditionally answers with the only version it supports
     if await connection.writeUInt32(SOCKET_PROTOCOL_VERSION).error != nil { return }
     if clientVersion != SOCKET_PROTOCOL_VERSION { return }
@@ -78,41 +74,35 @@ private func newConnection(_ connection: NWConnection) async { // todo add exit 
             continue
         }
         switch parsedCmd {
-            case .help(let help):
-                await answerToClient(exitCode: EXIT_CODE_ZERO, stdout: help)
-                continue
-            case .failure(let err):
-                await answerToClient(exitCode: err.exitCode, stderr: err.msg)
-                continue
+            case .help(let help): await answerToClient(exitCode: EXIT_CODE_ZERO, stdout: help)
+            case .failure(let err): await answerToClient(exitCode: err.exitCode, stderr: err.msg)
             case .cmd(let command):
-                var answer: ServerAnswer =
-                    await Result {
-                        try await runLightSession(.socketServer(command.args), token) { () throws in
-                            let env = CmdEnv.init(
-                                windowId: request.windowId.flattenOptional(),
-                                workspaceName: request.workspace.flattenOptional(),
-                            )
-                            let cmdResult = await command.run(env, CmdStdin(request.stdin))
-                            return ServerAnswer(
-                                exitCode: cmdResult.exitCode.rawValue,
-                                stdout: cmdResult.stdout.joined(separator: "\n"),
-                                stderr: cmdResult.stderr.joined(separator: "\n"),
-                                serverVersionAndHash: serverVersionAndHash,
-                            )
-                        }
-                    }
-                    .get { err in
-                        ServerAnswer(
-                            exitCode: command.args.failExitCode,
-                            stderr: "Fail to await main thread. \(err.localizedDescription)",
+                var answer: ServerAnswer
+                do {
+                    answer = try await runLightSession(.socketServer(command.args), token) { () throws in
+                        let env = CmdEnv.init(
+                            windowId: request.windowId.flattenOptional(),
+                            workspaceName: request.workspace.flattenOptional(),
+                        )
+                        let cmdResult = await command.run(env, CmdStdin(request.stdin))
+                        return ServerAnswer(
+                            exitCode: cmdResult.exitCode.rawValue,
+                            stdout: cmdResult.stdout.joined(separator: "\n"),
+                            stderr: cmdResult.stderr.joined(separator: "\n"),
                             serverVersionAndHash: serverVersionAndHash,
                         )
                     }
+                } catch {
+                    answer = ServerAnswer(
+                        exitCode: command.args.failExitCode,
+                        stderr: "Fail to await main thread. \(error.localizedDescription)",
+                        serverVersionAndHash: serverVersionAndHash,
+                    )
+                }
                 if request.windowId == nil || request.workspace == nil {
                     answer.stderr += "\n\nAeroSpace client has sent incomplete JSON request. 'windowId' or/and 'workspace' fields are missing. Please forward your AEROSPACE_WINDOW_ID and AEROSPACE_WORKSPACE environment variables to these JSON fields. If the appropriate environment variables are empty, pass explicit 'null' in the JSON."
                 }
-                await answerToClient(answer)
-                continue
+                _ = await connection.writeAtomic(answer)
         }
     }
 }

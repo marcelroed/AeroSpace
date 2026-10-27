@@ -1,78 +1,50 @@
 public typealias SendableWritableKeyPath<Root, Value> = Sendable & WritableKeyPath<Root, Value>
 typealias ArgParserFun<Input, Value> = @Sendable (Input) -> ParsedCliArgs<Value>
-protocol ArgParserProtocol<Input, Root, Context>: Sendable {
-    associatedtype Input
-    associatedtype Value
-    associatedtype Root
-    associatedtype Context
-    var context: Context { get }
-    var keyPath: SendableWritableKeyPath<Root, Value> { get }
-    var parse: ArgParserFun<Input, Value> { get }
-}
-struct ArgParser<Input, Root, Value, Context: Sendable>: ArgParserProtocol {
-    let keyPath: SendableWritableKeyPath<Root, Value>
-    let parse: ArgParserFun<Input, Value>
-    let context: Context
+typealias SubArgParser<Root> = ArgParser<SubArgParserInput, Root>
+typealias PosArgParser<Root> = ArgParser<PosArgParserInput, Root>
 
-    init(
+/// Parses a flag (and its values) or a positional argument into `Root`
+struct ArgParser<Input, Root>: Sendable {
+    /// Positional arguments only: the placeholder reported when the mandatory argument is missing, nil if it's optional
+    let argPlaceholderIfMandatory: String?
+    /// Parses `input` into `root`, appends the errors to `errors` and returns the number of consumed args
+    let parse: @Sendable (_ input: Input, _ root: inout Root, _ errors: inout [String]) -> Int
+}
+
+extension ArgParser {
+    init<Value>(
         _ keyPath: SendableWritableKeyPath<Root, Value>,
         _ parse: @escaping ArgParserFun<Input, Value>,
-        context: Context,
-    ) {
-        self.keyPath = keyPath
-        self.parse = parse
-        self.context = context
-    }
-
-    init(
-        _ keyPath: SendableWritableKeyPath<Root, Value>,
-        _ parse: @escaping ArgParserFun<SubArgParserInput, Value>,
-    ) where Context == (), Input == SubArgParserInput {
-        self.init(keyPath, parse, context: ())
-    }
-
-    init(
-        _ keyPath: SendableWritableKeyPath<Root, Value>,
-        _ parse: @escaping ArgParserFun<PosArgParserInput, Value>,
         argPlaceholderIfMandatory: String? = nil,
-    ) where Context == PosArgParserContext, Input == PosArgParserInput {
-        self.init(keyPath, parse, context: PosArgParserContext(argPlaceholderIfMandatory: argPlaceholderIfMandatory))
+    ) {
+        self.init(argPlaceholderIfMandatory: argPlaceholderIfMandatory) { input, root, errors in
+            let parsed = parse(input)
+            if let value = parsed.value.getOrNil(appendErrorTo: &errors) {
+                root[keyPath: keyPath] = value
+            }
+            return parsed.advanceBy
+        }
     }
 }
 
-typealias PosArgParser<Root, Value> = ArgParser<PosArgParserInput, Root, Value, PosArgParserContext>
-
-struct PosArgParserContext {
-    let argPlaceholderIfMandatory: String?
-}
-
-func dashDashArg<Root: AeroAny>(mandatory: Bool) -> PosArgParser<Root, ()> {
-    return ArgParser(
-        \.noopKeyPath,
-        { input in
-            switch (input.arg, mandatory) {
-                case ("--", _): .succ((), advanceBy: 1)
-                case (_, false): .succ((), advanceBy: 0)
-                case (_, true): .fail("Expected: --. Got: \(input.arg.singleQuoted)", advanceBy: 0)
-            }
-        },
-        context: PosArgParserContext(argPlaceholderIfMandatory: mandatory ? "--" : nil),
-    )
+func dashDashArg<Root>(mandatory: Bool) -> PosArgParser<Root> {
+    PosArgParser(argPlaceholderIfMandatory: mandatory ? "--" : nil) { input, _, errors in
+        switch (input.arg, mandatory) {
+            case ("--", _): return 1
+            case (_, false): return 0
+            case (_, true):
+                errors.append("Expected: --. Got: \(input.arg.singleQuoted)")
+                return 0
+        }
+    }
 }
 
 func newMandatoryPosArgParser<Root, Value>(
     _ keyPath: SendableWritableKeyPath<Root, Lateinit<Value>>,
-    _ parse: @escaping @Sendable (PosArgParserInput) -> ParsedCliArgs<Value>,
+    _ parse: @escaping ArgParserFun<PosArgParserInput, Value>,
     placeholder: String,
-) -> PosArgParser<Root, Lateinit<Value>> {
-    let parseWrapper: @Sendable (PosArgParserInput) -> ParsedCliArgs<Lateinit<Value>> = {
-        parse($0).map { .initialized($0) }
-    }
-    return ArgParser(
-        keyPath,
-        parseWrapper,
-        context: PosArgParserContext(argPlaceholderIfMandatory: placeholder),
-    )
+) -> PosArgParser<Root> {
+    ArgParser(keyPath, { parse($0).map { .initialized($0) } }, argPlaceholderIfMandatory: placeholder)
 }
 
 // todo reuse in config

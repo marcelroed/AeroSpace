@@ -47,17 +47,12 @@ private func moveMouse(_ io: CmdIo, _ point: CGPoint) -> BinaryExitCode {
 private func windowSubjectRectOrReportError(_ target: LiveFocus, _ io: CmdIo) async -> Rect? {
     // todo bug it's bad that we operate on the "ax physical" state directly. command seq won't work correctly
     //      focus <direction> command has the similar problem
-    if let window: Window = target.windowOrNil {
-        if let rect = window.lastAppliedLayoutPhysicalRect {
-            return rect
-        } else if let rect = try? await window.getAxRect(.nonCancellable) {
-            return rect
-        } else {
-            io.err("Failed to get rect of window '\(window.windowId)'")
-            return nil
-        }
-    } else {
+    guard let window = target.windowOrNil else {
         io.err(noWindowIsFocused)
         return nil
     }
+    if let rect = window.lastAppliedLayoutPhysicalRect { return rect }
+    if let rect = try? await window.getAxRect(.nonCancellable) { return rect }
+    io.err("Failed to get rect of window '\(window.windowId)'")
+    return nil
 }

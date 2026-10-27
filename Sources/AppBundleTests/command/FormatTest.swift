@@ -57,8 +57,7 @@ final class FormatTest: XCTestCase {
     }
 
     func testFormatWithNewlineAndTab() {
-        let window = TestWindow.new(id: 42, parent: Workspace.get(byName: name).rootTilingContainer)
-        let objs: [AeroObj] = [.window(.forTest(window: window, title: nil))]
+        let objs = [newWindowObj(id: 42)]
         let result = objs.format([
             .interVar(.formatVar(.window(.windowId))),
             .interVar(.plainInterVar(.tab)),
@@ -70,24 +69,19 @@ final class FormatTest: XCTestCase {
     }
 
     func testFormatMultipleRightPaddingColumns() {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            let windows: [AeroObj] = [
-                .window(.forTest(window: TestWindow.new(id: 2, parent: $0), title: "a")),
-                .window(.forTest(window: TestWindow.new(id: 100, parent: $0), title: "bb")),
-            ]
-            let result = windows.format([
-                .interVar(.formatVar(.window(.windowId))),
-                .interVar(.plainInterVar(.rightPadding)),
-                .literal(" | "),
-                .interVar(.formatVar(.window(.windowTitle))),
-                .interVar(.plainInterVar(.rightPadding)),
-                .literal(" END"),
-            ])
-            assertSucc(result, [
-                "2   | a  END",
-                "100 | bb END",
-            ])
-        }
+        let windows = [newWindowObj(id: 2, title: "a"), newWindowObj(id: 100, title: "bb")]
+        let result = windows.format([
+            .interVar(.formatVar(.window(.windowId))),
+            .interVar(.plainInterVar(.rightPadding)),
+            .literal(" | "),
+            .interVar(.formatVar(.window(.windowTitle))),
+            .interVar(.plainInterVar(.rightPadding)),
+            .literal(" END"),
+        ])
+        assertSucc(result, [
+            "2   | a  END",
+            "100 | bb END",
+        ])
     }
 
     func testFormatFailureAccumulatesErrors() {
@@ -98,13 +92,10 @@ final class FormatTest: XCTestCase {
             .interVar(.plainInterVar(.rightPadding)),
             .interVar(.formatVar(.window(.windowTitle))),
         ])
-        switch result {
-            case .success: XCTFail("expected failure")
-            case .failure(let msg):
-                let msg = msg.map(\.description).joined(separator: "\n")
-                assertTrue(msg.contains("Unknown interpolation variable 'window-id'"))
-                assertTrue(msg.contains("Unknown interpolation variable 'window-title'"))
-        }
+        let msg = result.failureOrNil?.map(\.description).joined(separator: "\n")
+        assertNotNil(msg)
+        assertTrue(msg?.contains("Unknown interpolation variable 'window-id'") == true)
+        assertTrue(msg?.contains("Unknown interpolation variable 'window-title'") == true)
     }
 
     func testPrimitiveKind() {
@@ -157,8 +148,7 @@ final class FormatTest: XCTestCase {
 
     func testExpandWindowLayoutTiling() {
         let root = Workspace.get(byName: name).rootTilingContainer
-        let window = TestWindow.new(id: 1, parent: root)
-        let obj = AeroObj.window(.forTest(window: window, title: nil))
+        let obj = newWindowObj(id: 1, parent: root)
 
         root.layout = .tiles
         root.changeOrientation(.h)
@@ -176,41 +166,32 @@ final class FormatTest: XCTestCase {
     }
 
     func testExpandWindowLayoutFloating() {
-        let workspace = Workspace.get(byName: name)
-        let window = TestWindow.new(id: 1, parent: workspace.floatingWindowsContainer)
-        let obj = AeroObj.window(.forTest(window: window, title: nil))
+        let obj = newWindowObj(id: 1, parent: Workspace.get(byName: name).floatingWindowsContainer)
         assertPrimitive(FormatVar.window(.windowLayout).expandFormatVar(obj: obj), .string("floating"))
     }
 
     func testExpandWindowLayoutMacosNativeFullscreen() {
-        let workspace = Workspace.get(byName: name)
-        let window = TestWindow.new(id: 1, parent: workspace.macOsNativeFullscreenWindowsContainer)
-        let obj = AeroObj.window(.forTest(window: window, title: nil))
+        let obj = newWindowObj(id: 1, parent: Workspace.get(byName: name).macOsNativeFullscreenWindowsContainer)
         assertPrimitive(FormatVar.window(.windowLayout).expandFormatVar(obj: obj), .string("macos_native_fullscreen"))
     }
 
     func testExpandWindowLayoutMacosNativeHiddenApp() {
-        let workspace = Workspace.get(byName: name)
-        let window = TestWindow.new(id: 1, parent: workspace.macOsNativeHiddenAppsWindowsContainer)
-        let obj = AeroObj.window(.forTest(window: window, title: nil))
+        let obj = newWindowObj(id: 1, parent: Workspace.get(byName: name).macOsNativeHiddenAppsWindowsContainer)
         assertPrimitive(FormatVar.window(.windowLayout).expandFormatVar(obj: obj), .string("macos_native_window_of_hidden_app"))
     }
 
     func testExpandWindowLayoutMacosNativeMinimized() {
-        let window = TestWindow.new(id: 1, parent: macosMinimizedWindowsContainer)
-        let obj = AeroObj.window(.forTest(window: window, title: nil))
+        let obj = newWindowObj(id: 1, parent: macosMinimizedWindowsContainer)
         assertPrimitive(FormatVar.window(.windowLayout).expandFormatVar(obj: obj), .string("macos_native_minimized"))
     }
 
     func testExpandWindowLayoutMacosPopup() {
-        let window = TestWindow.new(id: 1, parent: macosPopupWindowsContainer)
-        let obj = AeroObj.window(.forTest(window: window, title: nil))
+        let obj = newWindowObj(id: 1, parent: macosPopupWindowsContainer)
         assertPrimitive(FormatVar.window(.windowLayout).expandFormatVar(obj: obj), .string("NULL-WINDOW-LAYOUT"))
     }
 
     func testExpandWindowToWorkspaceWhenWindowHasWorkspace() {
-        let window = TestWindow.new(id: 1, parent: Workspace.get(byName: name).rootTilingContainer)
-        let obj = AeroObj.window(.forTest(window: window, title: nil))
+        let obj = newWindowObj(id: 1)
         assertPrimitive(FormatVar.workspace(.workspaceName).expandFormatVar(obj: obj), .string(name))
     }
 
@@ -222,8 +203,7 @@ final class FormatTest: XCTestCase {
     }
 
     func testExpandWindowToMonitorWhenWindowHasMonitor() {
-        let window = TestWindow.new(id: 1, parent: Workspace.get(byName: name).rootTilingContainer)
-        let obj = AeroObj.window(.forTest(window: window, title: nil))
+        let obj = newWindowObj(id: 1)
         assertPrimitive(FormatVar.monitor(.monitorName).expandFormatVar(obj: obj), .string(mainMonitorInfo.name))
     }
 
@@ -235,8 +215,7 @@ final class FormatTest: XCTestCase {
     }
 
     func testExpandWindowToApp() {
-        let window = TestWindow.new(id: 1, parent: Workspace.get(byName: name).rootTilingContainer)
-        let obj = AeroObj.window(.forTest(window: window, title: nil))
+        let obj = newWindowObj(id: 1)
         assertPrimitive(FormatVar.app(.appPid).expandFormatVar(obj: obj), .int(Int64(0)))
         assertPrimitive(FormatVar.app(.appBundleId).expandFormatVar(obj: obj), .string("bobko.AeroSpace.test-app"))
     }
@@ -289,8 +268,7 @@ final class FormatTest: XCTestCase {
     }
 
     func testInterVarExpandDelegates() {
-        let window = TestWindow.new(id: 5, parent: Workspace.get(byName: name).rootTilingContainer)
-        let obj = AeroObj.window(.forTest(window: window, title: nil))
+        let obj = newWindowObj(id: 5)
 
         assertPrimitive(InterVar.formatVar(.window(.windowId)).expandFormatVar(obj: obj), .int(Int64(5)))
         assertPrimitive(InterVar.plainInterVar(.newline).expandFormatVar(obj: obj), .string("\n"))
@@ -317,83 +295,50 @@ final class FormatTest: XCTestCase {
     }
 
     func testFormatToJsonEmptyInput() {
-        let result: [AeroObj] = []
-        assertSucc(
-            result.formatToJson([.interVar(.formatVar(.window(.windowId)))], ignoreRightPaddingVar: true),
-            JSONEncoder.aeroSpaceDefault.encodeToString([[String: Primitive]]()).orDie(),
-        )
+        assertFormatToJson([], [.interVar(.formatVar(.window(.windowId)))], [])
     }
 
     func testFormatToJsonSingleObject() {
         let window = TestWindow.new(id: 42, parent: Workspace.get(byName: name).rootTilingContainer)
         window.isFullscreen = true
-        let objs: [AeroObj] = [.window(.forTest(window: window, title: "hello"))]
-        let result = objs.formatToJson(
+        assertFormatToJson(
+            [.window(.forTest(window: window, title: "hello"))],
             [
                 .interVar(.formatVar(.window(.windowId))),
                 .interVar(.formatVar(.window(.windowTitle))),
                 .interVar(.formatVar(.window(.windowIsFullscreen))),
             ],
-            ignoreRightPaddingVar: true,
+            [["window-id": Primitive.int(42), "window-title": Primitive.string("hello"), "window-is-fullscreen": Primitive.bool(true)]],
         )
-        let expected = JSONEncoder.aeroSpaceDefault.encodeToString([[
-            "window-id": Primitive.int(42),
-            "window-title": Primitive.string("hello"),
-            "window-is-fullscreen": Primitive.bool(true),
-        ]])
-        assertSucc(result, expected.orDie())
     }
 
     func testFormatToJsonMultipleObjects() {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            let objs: [AeroObj] = [
-                .window(.forTest(window: TestWindow.new(id: 1, parent: $0), title: nil)),
-                .window(.forTest(window: TestWindow.new(id: 2, parent: $0), title: nil)),
-            ]
-            let result = objs.formatToJson(
-                [.interVar(.formatVar(.window(.windowId)))],
-                ignoreRightPaddingVar: true,
-            )
-            let expected = JSONEncoder.aeroSpaceDefault.encodeToString([
-                ["window-id": Primitive.int(1)],
-                ["window-id": Primitive.int(2)],
-            ])
-            assertSucc(result, expected.orDie())
-        }
+        assertFormatToJson(
+            [newWindowObj(id: 1), newWindowObj(id: 2)],
+            [.interVar(.formatVar(.window(.windowId)))],
+            [["window-id": Primitive.int(1)], ["window-id": Primitive.int(2)]],
+        )
     }
 
     func testFormatToJsonIgnoresLiterals() {
-        let window = TestWindow.new(id: 7, parent: Workspace.get(byName: name).rootTilingContainer)
-        let objs: [AeroObj] = [.window(.forTest(window: window, title: nil))]
-        let result = objs.formatToJson(
-            [
-                .literal("ignored-prefix"),
-                .interVar(.formatVar(.window(.windowId))),
-                .literal("  "),
-            ],
-            ignoreRightPaddingVar: true,
+        assertFormatToJson(
+            [newWindowObj(id: 7)],
+            [.literal("ignored-prefix"), .interVar(.formatVar(.window(.windowId))), .literal("  ")],
+            [["window-id": Primitive.int(7)]],
         )
-        let expected = JSONEncoder.aeroSpaceDefault.encodeToString([["window-id": Primitive.int(7)]])
-        assertSucc(result, expected.orDie())
     }
 
     func testFormatToJsonIgnoresRightPaddingWhenFlagTrue() {
-        let window = TestWindow.new(id: 8, parent: Workspace.get(byName: name).rootTilingContainer)
-        let objs: [AeroObj] = [.window(.forTest(window: window, title: nil))]
-        let result = objs.formatToJson(
-            [
-                .interVar(.formatVar(.window(.windowId))),
-                .interVar(.plainInterVar(.rightPadding)),
-            ],
+        assertFormatToJson(
+            [newWindowObj(id: 8)],
+            [.interVar(.formatVar(.window(.windowId))), .interVar(.plainInterVar(.rightPadding))],
+            [["window-id": Primitive.int(8)]],
             ignoreRightPaddingVar: true,
         )
-        let expected = JSONEncoder.aeroSpaceDefault.encodeToString([["window-id": Primitive.int(8)]])
-        assertSucc(result, expected.orDie())
     }
 
     func testFormatToJsonRightPaddingFailsWhenFlagFalse() {
-        let window = TestWindow.new(id: 8, parent: Workspace.get(byName: name).rootTilingContainer)
-        let objs: [AeroObj] = [.window(.forTest(window: window, title: nil))]
+        let objs = [newWindowObj(id: 8)]
         let result = objs.formatToJson(
             [
                 .interVar(.formatVar(.window(.windowId))),
@@ -405,22 +350,11 @@ final class FormatTest: XCTestCase {
     }
 
     func testFormatToJsonExpandsPlainInterVars() {
-        let window = TestWindow.new(id: 11, parent: Workspace.get(byName: name).rootTilingContainer)
-        let objs: [AeroObj] = [.window(.forTest(window: window, title: nil))]
-        let result = objs.formatToJson(
-            [
-                .interVar(.formatVar(.window(.windowId))),
-                .interVar(.plainInterVar(.newline)),
-                .interVar(.plainInterVar(.tab)),
-            ],
-            ignoreRightPaddingVar: true,
+        assertFormatToJson(
+            [newWindowObj(id: 11)],
+            [.interVar(.formatVar(.window(.windowId))), .interVar(.plainInterVar(.newline)), .interVar(.plainInterVar(.tab))],
+            [["window-id": Primitive.int(11), "newline": Primitive.string("\n"), "tab": Primitive.string("\t")]],
         )
-        let expected = JSONEncoder.aeroSpaceDefault.encodeToString([[
-            "window-id": Primitive.int(11),
-            "newline": Primitive.string("\n"),
-            "tab": Primitive.string("\t"),
-        ]])
-        assertSucc(result, expected.orDie())
     }
 
     func testFormatToJsonFailsOnUnknownInterpolationVariable() {
@@ -429,11 +363,8 @@ final class FormatTest: XCTestCase {
             [.interVar(.formatVar(.window(.windowId)))],
             ignoreRightPaddingVar: true,
         )
-        switch result {
-            case .success: XCTFail("expected failure")
-            case .failure(let msg):
-                assertTrue(msg.starts(with: "Unknown interpolation variable 'window-id'."))
-        }
+        assertFail(result)
+        assertTrue(result.failureOrNil?.starts(with: "Unknown interpolation variable 'window-id'.") == true)
     }
 
     func testFormatToJsonReturnsFirstFailureForMultipleObjects() {
@@ -453,18 +384,34 @@ final class FormatTest: XCTestCase {
     func testFormatToJsonRepeatedVariableIsOutputOnce() {
         let window = TestWindow.new(id: 5, parent: Workspace.get(byName: name).rootTilingContainer)
         window.isFullscreen = false
-        let objs: [AeroObj] = [.window(.forTest(window: window, title: nil))]
-        let result = objs.formatToJson(
+        assertFormatToJson(
+            [.window(.forTest(window: window, title: nil))],
             [
                 .interVar(.formatVar(.window(.windowIsFullscreen))),
                 .literal(" between literals "),
                 .interVar(.formatVar(.window(.windowIsFullscreen))),
             ],
-            ignoreRightPaddingVar: true,
+            [["window-is-fullscreen": Primitive.bool(false)]],
         )
-        let expected = JSONEncoder.aeroSpaceDefault.encodeToString([[
-            "window-is-fullscreen": Primitive.bool(false),
-        ]])
-        assertSucc(result, expected.orDie())
+    }
+
+    /// A new window with `id` in `parent` (the root container of the test workspace by default), as an AeroObj
+    private func newWindowObj(id: UInt32, parent: NonLeafTreeNodeObject? = nil, title: String? = nil) -> AeroObj {
+        .window(.forTest(window: TestWindow.new(id: id, parent: parent ?? Workspace.get(byName: name).rootTilingContainer), title: title))
+    }
+
+    /// Checks that `objects` format to the JSON encoding of `expected`
+    private func assertFormatToJson(
+        _ objects: [AeroObj],
+        _ format: [InterToken<InterVar>],
+        _ expected: [[String: Primitive]],
+        ignoreRightPaddingVar: Bool = true,
+        fileID: String = #fileID,
+        filePath: StaticString = #filePath,
+        line: Int = #line,
+        column: Int = #column,
+    ) {
+        let result = objects.formatToJson(format, ignoreRightPaddingVar: ignoreRightPaddingVar)
+        assertSucc(result, JSONEncoder.aeroSpaceDefault.encodeToString(expected).orDie(), fileID: fileID, filePath: filePath, line: line, column: column)
     }
 }

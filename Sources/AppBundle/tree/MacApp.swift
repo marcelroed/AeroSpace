@@ -110,12 +110,6 @@ final class MacApp: AbstractApp {
         }
     }
 
-    func getAxSize(_ windowId: UInt32, _ cm: CancellationMode) async throws -> CGSize? {
-        try await withWindow(windowId, cm) { window, job in
-            window.get(Ax.sizeAttr)
-        }
-    }
-
     // todo merge together with detectNewWindows
     func getFocusedWindow(_ cm: CancellationMode) async throws -> Window? {
         let windowId = try await thread?.runInLoop(cm) { [nsApp, axApp, windows] job in
@@ -212,47 +206,30 @@ final class MacApp: AbstractApp {
         } == true
     }
 
-    func setNativeFullscreen(_ windowId: UInt32, _ value: Bool) {
+    /// Like setAxFrame, cancels the window's pending frame job
+    func setAxAttr<Attr: WritableAttr>(_ windowId: UInt32, _ attr: Attr, _ value: Attr.T) where Attr.T: Sendable {
         setFrameJobs.removeValue(forKey: windowId)?.cancel()
         setFrameJobs[windowId] = withWindowAsync(windowId, .cancellable) { window, job in
-            window.set(Ax.isFullscreenAttr, value)
+            window.set(attr, value)
         }
     }
 
-    func setNativeMinimized(_ windowId: UInt32, _ value: Bool) {
-        setFrameJobs.removeValue(forKey: windowId)?.cancel()
-        setFrameJobs[windowId] = withWindowAsync(windowId, .cancellable) { window, job in
-            window.set(Ax.minimizedAttr, value)
-        }
-    }
-
-    func dumpWindowAxInfo(windowId: UInt32, _ cm: CancellationMode) async throws -> [String: Json] {
+    func dumpWindowAxInfo(windowId: UInt32, _ cm: CancellationMode) async throws -> OrderedJson.JsonDict {
         try await withWindow(windowId, cm) { window, job in
             dumpAxRecursive(window, .window)
         } ?? [:]
     }
 
-    func dumpAppAxInfo(_ cm: CancellationMode) async throws -> [String: Json] {
+    func dumpAppAxInfo(_ cm: CancellationMode) async throws -> OrderedJson.JsonDict {
         try await thread?.runInLoop(cm) { [axApp] job in
             dumpAxRecursive(axApp.threadGuarded, .app)
         } ?? [:]
     }
 
-    func getAxTitle(_ windowId: UInt32, _ cm: CancellationMode) async throws -> String? {
-        try await withWindow(windowId, cm) { window, job in
-            window.get(Ax.titleAttr)
-        }
-    }
-
-    func isMacosNativeFullscreen(_ windowId: UInt32, _ cm: CancellationMode) async throws -> Bool? {
-        try await withWindow(windowId, cm) { window, job in
-            window.get(Ax.isFullscreenAttr)
-        }
-    }
-
-    func isMacosNativeMinimized(_ windowId: UInt32, _ cm: CancellationMode) async throws -> Bool? {
-        try await withWindow(windowId, cm) { window, job in
-            window.get(Ax.minimizedAttr)
+    // Calls runInLoop directly: withWindow's body closure would have to capture attr, costing one more closure context
+    func getAxAttr<Attr: ReadableAttr>(_ windowId: UInt32, _ attr: Attr, _ cm: CancellationMode) async throws -> Attr.T? {
+        try await thread?.runInLoop(cm) { [windows] job in
+            windows.threadGuarded[windowId]?.ax.get(attr)
         }
     }
 
@@ -309,9 +286,12 @@ final class MacApp: AbstractApp {
             // Second line of defence against lock screen. See the first line of defence: closedWindowsCache
             // Second and third lines of defence are technically needed only to avoid potential flickering
             if frontmostAppBundleId != lockScreenAppBundleId {
-                (alive, dead) = try alive.partition {
+                for (id, window) in alive {
                     try job.checkCancellation()
-                    return $0.value.ax.containingWindowId() != nil
+                    if window.ax.containingWindowId() == nil {
+                        alive[id] = nil
+                        dead[id] = window
+                    }
                 }
             }
 

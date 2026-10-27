@@ -36,7 +36,7 @@ extension HotKey {
                         mode: activeMode,
                         binding: binding.descriptionWithKeyNotation,
                     ))
-                    try await runLightSession(.hotkeyBinding, .checkServerIsEnabledOrDie()) { () throws in
+                    try await runLightSession(.hotkeyBinding, .isServerEnabled ?? dieT("server is disabled")) { () throws in
                         _ = await config.modes[activeMode]?.bindings[binding.descriptionWithKeyCode]?.commands
                             .run(.defaultEnv, .emptyStdin)
                     }

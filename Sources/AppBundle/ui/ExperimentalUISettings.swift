@@ -1,18 +1,5 @@
 import SwiftUI
 
-struct ExperimentalUISettings {
-    var displayStyle: MenuBarStyle {
-        get {
-            UserDefaults.standard.string(forKey: ExperimentalUISettingsItems.displayStyle.rawValue)
-                .flatMap(MenuBarStyle.init(rawValue:)) ?? .monospacedText
-        }
-        set {
-            UserDefaults.standard.set(newValue.rawValue, forKey: ExperimentalUISettingsItems.displayStyle.rawValue)
-            UserDefaults.standard.synchronize()
-        }
-    }
-}
-
 enum MenuBarStyle: String, CaseIterable, Identifiable {
     case monospacedText
     case systemText
@@ -31,38 +18,23 @@ enum MenuBarStyle: String, CaseIterable, Identifiable {
     }
 }
 
-enum ExperimentalUISettingsItems: String {
-    case displayStyle
-}
-
 @MainActor
 func getExperimentalUISettingsMenu(viewModel: TrayMenuModel) -> some View {
     let color = viewModel.appearanceTheme == .dark ? Color.white : Color.black
     return Menu {
         Text("Menu bar style (macOS 14 or later):")
         ForEach(MenuBarStyle.allCases) { style in
-            MenuBarStyleButton(style: style, color: color).environmentObject(viewModel)
+            Button {
+                viewModel.menuBarStyle = style
+            } label: {
+                Toggle(isOn: .constant(viewModel.menuBarStyle == style)) {
+                    MenuBarLabel(style: style, color: color)
+                        .environmentObject(viewModel)
+                    Text(" -  " + style.title)
+                }
+            }
         }
     } label: {
         Text("Experimental UI Settings (No stability guarantees)")
-    }
-}
-
-@MainActor
-struct MenuBarStyleButton: View {
-    @EnvironmentObject var viewModel: TrayMenuModel
-    let style: MenuBarStyle
-    let color: Color
-
-    var body: some View {
-        Button {
-            viewModel.experimentalUISettings.displayStyle = style
-        } label: {
-            Toggle(isOn: .constant(viewModel.experimentalUISettings.displayStyle == style)) {
-                MenuBarLabel(style: style, color: color)
-                    .environmentObject(viewModel)
-                Text(" -  " + style.title)
-            }
-        }
     }
 }

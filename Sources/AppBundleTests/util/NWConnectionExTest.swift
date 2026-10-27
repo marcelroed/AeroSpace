@@ -77,9 +77,9 @@ private final class TestSocketServer: Sendable {
             Task.startUnstructured {
                 defer { connection.cancel() }
                 connection.start(queue: .global())
-                guard await connection.readUInt32().getIgnoringErrorsOrNil() != nil else { return }
+                guard (try? await connection.readUInt32().get()) != nil else { return }
                 if await connection.writeUInt32(serverVersion).error != nil { return }
-                while let raw = await connection.readNonAtomic().getIgnoringErrorsOrNil() {
+                while let raw = try? await connection.readNonAtomic().get() {
                     let request = ClientRequest.decodeJson(raw).getOrDie()
                     let answer = ServerAnswer(
                         exitCode: 0,

@@ -2,7 +2,6 @@ public struct MoveNodeToWorkspaceCmdArgs: CmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
     public static let parser: CmdParser<Self> = .init(
         kind: .moveNodeToWorkspace,
-        help: move_node_to_workspace_help_generated,
         flags: [
             "--wrap-around": ArgParser(\._wrapAround, constSubArgParserFun(true)),
             "--fail-if-noop": trueBoolFlag(\.failIfNoop),
@@ -26,9 +25,7 @@ public struct MoveNodeToWorkspaceCmdArgs: CmdArgs {
     public var focusFollowsWindow: Bool = false
     public var target: Lateinit<WorkspaceTarget> = .uninitialized
 
-    public init(rawArgs: StrArrSlice) {
-        self.commonState = .init(rawArgs)
-    }
+    public init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
 }
 
 extension MoveNodeToWorkspaceCmdArgs {

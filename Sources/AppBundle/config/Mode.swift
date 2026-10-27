@@ -20,17 +20,6 @@ func parseModes(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout Con
 }
 
 func parseMode(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext, _ mapping: [String: Key]) -> Mode {
-    guard let rawTable = parseTomlTable(raw, backtrace).getOrNil(appendErrorTo: &c.errors) else { return .zero }
-
-    var result: Mode = .zero
-    for (key, value) in rawTable {
-        let backtrace = backtrace + .key(key)
-        switch key {
-            case "binding":
-                result.bindings = parseBindings(value, backtrace, &c, mapping)
-            default:
-                c.errors.append(unknownKeyDiagnostic(backtrace))
-        }
-    }
-    return result
+    let fields: [String: Parser<Mode>] = ["binding": Parser(\.bindings) { raw, backtrace, c in parseBindings(raw, backtrace, &c, mapping) }]
+    return parseTable(raw, .zero, fields, backtrace, &c)
 }

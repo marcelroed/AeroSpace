@@ -12,14 +12,15 @@ func parseSpecificCmdArgs<T: CmdArgs>(_ raw: T, _ args: StrArrSlice) -> ParsedCm
 
         switch (positionalOnly, arg) {
             case (false, "-h"), (false, "--help"):
-                return .help(T.info.help)
+                return .help(T.parser.kind.help)
             case (false, _) where arg.isCliDashFlag && !(T.parser.negativeNumbersArePositional && isNegativeNumber(arg)):
                 if let optionParser = T.parser.flags[arg] {
                     index += 1
                     if !options.insert(arg).inserted {
                         errors.append("Duplicated option \(arg.singleQuoted)")
                     }
-                    raw = optionParser.transformRaw(raw, &index, SubArgParserInput(superArg: arg, index: index, args: args), &errors)
+                    let input = SubArgParserInput(superArg: arg, index: index, args: args)
+                    index += optionParser.parse(input, &raw, &errors)
                 } else {
                     errors.append("Unknown flag \(arg.singleQuoted)")
                     break loop
@@ -28,9 +29,9 @@ func parseSpecificCmdArgs<T: CmdArgs>(_ raw: T, _ args: StrArrSlice) -> ParsedCm
                 if arg == "--" {
                     positionalOnly = true
                 }
-                if let parser = T.parser.positionalArgs.getOrNil(atIndex: posArgumentParserIndex) {
+                if let parser = T.parser.posArgs.getOrNil(atIndex: posArgumentParserIndex) {
                     let input = PosArgParserInput(index: index, args: args, sawDashDash: positionalOnly)
-                    raw = parser.transformRaw(raw, &index, input, &errors)
+                    index += parser.parse(input, &raw, &errors)
                     posArgumentParserIndex += 1
                 } else {
                     errors.append("Unknown argument \(arg.singleQuoted)")
@@ -39,8 +40,8 @@ func parseSpecificCmdArgs<T: CmdArgs>(_ raw: T, _ args: StrArrSlice) -> ParsedCm
         }
     }
 
-    for arg in T.parser.positionalArgs[posArgumentParserIndex...] {
-        if let placeholder = arg.context.argPlaceholderIfMandatory {
+    for arg in T.parser.posArgs[posArgumentParserIndex...] {
+        if let placeholder = arg.argPlaceholderIfMandatory {
             errors.append("Argument \(placeholder.singleQuoted) is mandatory")
         }
     }
@@ -63,17 +64,6 @@ public struct CmdParsingFailure: Sendable, Equatable {
     public init(_ msg: String, _ exitCode: Int32) {
         self.msg = msg
         self.exitCode = exitCode
-    }
-}
-
-extension ArgParserProtocol where Root: ConvenienceMutable {
-    fileprivate func transformRaw(_ raw: consuming Root, _ index: inout Int, _ input: Input, _ errors: inout [String]) -> Root {
-        let parsedCliArgs = parse(input)
-        index += parsedCliArgs.advanceBy
-        return switch parsedCliArgs.value.getOrNil(appendErrorTo: &errors) {
-            case let value?: raw.copy(keyPath, value)
-            case nil: raw
-        }
     }
 }
 

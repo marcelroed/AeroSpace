@@ -38,11 +38,11 @@ struct EchoCommandTest: AeroSpaceTestSuite {
             EchoCmdArgs(rawArgs: []).copy(\.args, .initialized([[.literal("-h")]])),
         )
 
-        testParseCommandFail("echo", msg: "ERROR: Argument '--' is mandatory\nERROR: Argument '<string>' is mandatory", exitCode: 2)
-        testParseCommandFail("echo --", msg: "ERROR: Argument '<string>' is mandatory", exitCode: 2)
-        testParseCommandFail("echo foo", msg: "ERROR: Expected: --. Got: 'foo'", exitCode: 2)
-        testParseCommandFail("echo --stderr foo", msg: "ERROR: Expected: --. Got: 'foo'", exitCode: 2)
-        testParseCommandFail("echo -- %{foo}", msg: "ERROR: Can't parse 'foo'.\n       Possible values: (window-id|window-is-fullscreen|window-title|window-layout|window-parent-container-layout|workspace|workspace-is-focused|workspace-is-visible|workspace-root-container-layout|app-bundle-id|app-name|app-pid|app-exec-path|app-bundle-path|monitor-id|monitor-appkit-nsscreen-screens-id|monitor-name|monitor-is-main|right-padding|newline|tab)", exitCode: 2)
+        testParseCommandFail("echo", msg: "ERROR: Argument '--' is mandatory\nERROR: Argument '<string>' is mandatory")
+        testParseCommandFail("echo --", msg: "ERROR: Argument '<string>' is mandatory")
+        testParseCommandFail("echo foo", msg: "ERROR: Expected: --. Got: 'foo'")
+        testParseCommandFail("echo --stderr foo", msg: "ERROR: Expected: --. Got: 'foo'")
+        testParseCommandFail("echo -- %{foo}", msg: "ERROR: Can't parse 'foo'.\n       Possible values: (window-id|window-is-fullscreen|window-title|window-layout|window-parent-container-layout|workspace|workspace-is-focused|workspace-is-visible|workspace-root-container-layout|app-bundle-id|app-name|app-pid|app-exec-path|app-bundle-path|monitor-id|monitor-appkit-nsscreen-screens-id|monitor-name|monitor-is-main|right-padding|newline|tab)")
 
         testParseCommandHelp("echo -h")
         testParseCommandHelp("echo --help")
@@ -51,28 +51,19 @@ struct EchoCommandTest: AeroSpaceTestSuite {
     @Test
     func testRunPlainNoWindow() async {
         assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
-        let result = await parseCommand("echo -- foo").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, ["foo"])
+        await assertRun("echo -- foo", exitCode: 0, stdout: ["foo"], stderr: [])
     }
 
     @Test
     func testRunMultipleArgs() async {
         assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
-        let result = await parseCommand("echo -- foo bar baz").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, ["foo", "bar", "baz"])
+        await assertRun("echo -- foo bar baz", exitCode: 0, stdout: ["foo", "bar", "baz"], stderr: [])
     }
 
     @Test
     func testRunStderr() async {
         assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
-        let result = await parseCommand("echo --stderr -- foo").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["foo"])
+        await assertRun("echo --stderr -- foo", exitCode: 0, stdout: [], stderr: ["foo"])
     }
 
     @Test
@@ -80,28 +71,19 @@ struct EchoCommandTest: AeroSpaceTestSuite {
         Workspace.get(byName: name).rootTilingContainer.apply {
             assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
         }
-        let result = await parseCommand("echo -- '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, ["1"])
+        await assertRun("echo -- '%{window-id}'", exitCode: 0, stdout: ["1"], stderr: [])
     }
 
     @Test
     func testRunWindowInterpolationNoWindow() async {
         assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
-        let result = await parseCommand("echo -- '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, [noWindowIsFocused])
+        await assertRun("echo -- '%{window-id}'", exitCode: 2, stdout: [], stderr: [noWindowIsFocused])
     }
 
     @Test
     func testRunWorkspaceInterpolation() async {
         assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
-        let result = await parseCommand("echo -- '%{workspace}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, [name])
+        await assertRun("echo -- '%{workspace}'", exitCode: 0, stdout: [name], stderr: [])
     }
 
     @Test
@@ -109,10 +91,7 @@ struct EchoCommandTest: AeroSpaceTestSuite {
         Workspace.get(byName: name).rootTilingContainer.apply {
             assertEquals(TestWindow.new(id: 42, parent: $0).focusWindow(), true)
         }
-        let result = await parseCommand("echo -- 'id: %{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, ["id: 42"])
+        await assertRun("echo -- 'id: %{window-id}'", exitCode: 0, stdout: ["id: 42"], stderr: [])
     }
 
     @Test
@@ -120,9 +99,6 @@ struct EchoCommandTest: AeroSpaceTestSuite {
         Workspace.get(byName: name).rootTilingContainer.apply {
             assertEquals(TestWindow.new(id: 5, parent: $0).focusWindow(), true)
         }
-        let result = await parseCommand("echo --stderr -- '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["5"])
+        await assertRun("echo --stderr -- '%{window-id}'", exitCode: 0, stdout: [], stderr: ["5"])
     }
 }

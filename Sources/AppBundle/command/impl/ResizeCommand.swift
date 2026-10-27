@@ -20,13 +20,12 @@ struct ResizeCommand: Command {
             case .smartOpposite: (candidates.first?.parent as? TilingContainer)?.orientation.opposite
         }
         let node = candidates.first(where: { ($0.parent as? TilingContainer)?.orientation == orientation })
-        guard let parent = node?.parent as? TilingContainer else {
+        // node was picked by its parent's orientation, so parent.orientation == orientation
+        guard let node, let parent = node.parent as? TilingContainer else {
             return .fail(io.err("resize command doesn't support floating windows yet https://github.com/nikitabobko/AeroSpace/issues/9"))
         }
-        guard let orientation else { return .fail }
-        guard let node else { return .fail }
         let diff: CGFloat = switch args.units.val {
-            case .set(let unit): CGFloat(unit) - node.getWeight(orientation)
+            case .set(let unit): CGFloat(unit) - node.getWeight(parent.orientation)
             case .add(let unit): CGFloat(unit)
             case .subtract(let unit): -CGFloat(unit)
         }
@@ -36,7 +35,7 @@ struct ResizeCommand: Command {
             child.setWeight(parent.orientation, child.getWeight(parent.orientation) - childDiff)
         }
 
-        node.setWeight(orientation, node.getWeight(orientation) + diff)
+        node.setWeight(parent.orientation, node.getWeight(parent.orientation) + diff)
         return .succ
     }
 }

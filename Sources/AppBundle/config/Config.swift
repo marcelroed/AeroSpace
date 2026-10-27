@@ -50,7 +50,6 @@ struct Config {
     var focusFollowsMouse: FocusFollowsMouse = FocusFollowsMouse()
 
     var onFocusChanged: Shell<any Command> = .empty
-    // var onFocusedWorkspaceChanged: [any Command] = []
     var onFocusedMonitorChanged: Shell<any Command> = .empty
 
     var gaps: Gaps = .zero

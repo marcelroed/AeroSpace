@@ -107,11 +107,11 @@ extension TilingContainer {
         var point = point
         var virtualPoint = virtual.topLeftCorner
 
-        guard let delta = ((orientation == .h ? width : height) - CGFloat(children.sumOfDouble { $0.getWeight(orientation) }))
+        guard let delta = ((orientation == .h ? width : height) - children.sum { $0.getWeight(orientation) })
             .div(children.count) else { return }
 
         let lastIndex = children.indices.last
-        let rawGap = context.resolvedGaps.inner.get(orientation).toDouble()
+        let rawGap = Double(context.resolvedGaps.inner.get(orientation))
         for (i, child) in children.enumerated() {
             let weight = child.getWeight(orientation) + delta
             child.setWeight(orientation, weight)
@@ -150,24 +150,13 @@ extension TilingContainer {
                 case mruIndex + 1:                (2 * padding, 0)
                 default:                          (padding, padding)
             }
-            switch orientation {
-                case .h:
-                    try await child.layoutRecursive(
-                        point + CGPoint(x: lPadding, y: 0),
-                        width: width - rPadding - lPadding,
-                        height: height,
-                        virtual: virtual,
-                        context,
-                    )
-                case .v:
-                    try await child.layoutRecursive(
-                        point + CGPoint(x: 0, y: lPadding),
-                        width: width,
-                        height: height - lPadding - rPadding,
-                        virtual: virtual,
-                        context,
-                    )
-            }
+            try await child.layoutRecursive(
+                point.addingOffset(orientation, lPadding),
+                width: orientation == .h ? width - rPadding - lPadding : width,
+                height: orientation == .v ? height - lPadding - rPadding : height,
+                virtual: virtual,
+                context,
+            )
         }
     }
 }

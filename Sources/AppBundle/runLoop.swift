@@ -71,7 +71,7 @@ final class RunLoopJob: Sendable, AeroAny {
     let cm: CancellationMode
     init(_ cm: CancellationMode) { self.cm = cm }
 
-    static let cancelled: RunLoopJob = RunLoopJob(.cancellable).also { $0.cancel() }
+    static let cancelled: RunLoopJob = RunLoopJob(.cancellable).apply { $0.cancel() }
 
     func checkCancellation() throws(CancellationError) {
         if cm == .cancellable && isCancelled {

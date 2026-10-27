@@ -76,7 +76,6 @@ struct ConfigParseDiagnostic: Error, Equatable {
 typealias ResOrConfigParseDiagnostic<T> = Result<T, ConfigParseDiagnostic>
 
 struct ConfigParserContext {
-    var configVersion: ConfigVersion
     var errors: [ConfigParseDiagnostic]
     var warnings: [ConfigParseDiagnostic]
 }
@@ -99,6 +98,11 @@ struct Parser<S>: Sendable {
                 target[keyPath: keyPath] = value
             }
         }
+    }
+
+    /// A nested table. Its keys are parsed with `fields`, starting from the field's current value
+    init<T>(_ keyPath: SendableWritableKeyPath<S, T>, _ fields: [String: Parser<T>]) {
+        parseInto = { target, raw, backtrace, c in target[keyPath: keyPath] = parseTable(raw, target[keyPath: keyPath], fields, backtrace, &c) }
     }
 
     /// The key is known, but its value is parsed separately. The field keeps its initial value
@@ -127,7 +131,6 @@ private let configParser: [String: Parser<Config>] = [
     "on-focus-changed": Parser(\.onFocusChanged, parseShellOfCommandsForConfig),
     "on-mode-changed": Parser(\.onModeChanged, parseShellOfCommandsForConfig),
     "on-focused-monitor-changed": Parser(\.onFocusedMonitorChanged, parseShellOfCommandsForConfig),
-    // "on-focused-workspace-changed": Parser(\.onFocusedWorkspaceChanged, { parseCommandOrCommands($0).toParsedConfig($1) }),
 
     "enable-normalization-flatten-containers": Parser(\.enableNormalizationFlattenContainers, parseBool),
     "enable-normalization-opposite-orientation-for-nested-containers": Parser(\.enableNormalizationOppositeOrientationForNestedContainers, parseBool),
@@ -146,8 +149,8 @@ private let configParser: [String: Parser<Config>] = [
     keyMappingConfigRootKey: .parsedManually,
     modeConfigRootKey: .parsedManually,
 
-    "gaps": Parser(\.gaps, parseGaps),
-    "focus-follows-mouse": Parser(\.focusFollowsMouse, parseFocusFollowsMouse),
+    "gaps": Parser(\.gaps, gapsParser),
+    "focus-follows-mouse": Parser(\.focusFollowsMouse, ["enabled": Parser(\.enabled, parseBool)]),
     "workspace-to-monitor-force-assignment": Parser(\.workspaceToMonitorForceAssignment, parseWorkspaceToMonitorAssignment),
     "on-window-detected": Parser(\.onWindowDetected, parseOnWindowDetectedArray),
 
@@ -155,16 +158,6 @@ private let configParser: [String: Parser<Config>] = [
     "non-empty-workspaces-root-containers-layout-on-startup": .diagnosticOnly(parseStartupRootContainerLayout),
     "indent-for-nested-containers-with-the-same-orientation": .diagnosticOnly(parseIndentForNestedContainersWithTheSameOrientation),
 ]
-
-extension ParsedCmd {
-    func toResult() -> ResOrStr<T> {
-        return switch self {
-            case .cmd(let a): .success(a)
-            case .help(let a): .failure(a)
-            case .failure(let a): .failure(a.msg)
-        }
-    }
-}
 
 func parseDeprecatedAfterLoginCommand(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<[any Command]> {
     if let array = raw.asArrayOrNil, array.count == 0 {
@@ -184,12 +177,12 @@ func parseShellOfCommandsForConfig(_ raw: OrderedJson, _ backtrace: ConfigBacktr
             if let elem = elem.asStringOrNil {
                 result.append(parseCommandForConfig(elem, allowExecAndForget: true, backtrace, &c))
             } else {
-                c.errors.append(.init(backtrace, expectedActualTypeError(expected: .string, actual: elem.tomlType)))
+                c.errors.append(expectedActualTypeDiagnostic(expected: .string, actual: elem.tomlType, backtrace))
             }
         }
         return .newCompound(result, Shell<any Command>.seq)
     } else {
-        c.errors.append(.init(backtrace, expectedActualTypeError(expected: [.string, .array], actual: raw.tomlType)))
+        c.errors.append(expectedActualTypeDiagnostic(expected: [.string, .array], actual: raw.tomlType, backtrace))
         return .empty
     }
 }
@@ -200,48 +193,35 @@ func parseCommandForConfig(
     _ backtrace: ConfigBacktrace,
     _ c: inout ConfigParserContext,
 ) -> Shell<any Command> {
-    parseCommand(raw, allowExecAndForget: allowExecAndForget, allowEval: false).toResult().toParsedConfig(backtrace)
-        .getOrNil(appendErrorTo: &c.errors) ?? .empty
+    switch parseCommand(raw, allowExecAndForget: allowExecAndForget, allowEval: false) {
+        case .cmd(let shell): return shell
+        case .help(let msg): c.errors.append(.init(backtrace, msg))
+        case .failure(let failure): c.errors.append(.init(backtrace, failure.msg))
+    }
+    return .empty
 }
 
 private func parseTomlRootTable(_ rawToml: String, _ errors: inout [ConfigParseDiagnostic]) -> OrderedJson.JsonDict {
     do {
         let dict: [String: Any] = try .init(try TOMLTable(source: rawToml))
-        return tomlTableToJsonDict(dict, .emptyRoot, &errors)
+        return tomlToOrderedJson(dict, .emptyRoot, &errors)?.asDictOrNil ?? [:]
     } catch {
         errors.append(.init(.emptyRoot, error.description, preventConfigReload: true))
         return [:]
     }
 }
 
-private func tomlTableToJsonDict(
-    _ dict: [String: Any],
-    _ backtrace: ConfigBacktrace,
-    _ errors: inout [ConfigParseDiagnostic],
-) -> OrderedJson.JsonDict {
-    var json = OrderedJson.JsonDict()
-    for (key, tomlValue) in dict.sortedEntries {
-        json[key] = tomlAnyToOrderedJsonRecursive(any: tomlValue, backtrace + .key(key), &errors)
-    }
-    return json
-}
-
-private func tomlAnyToOrderedJsonRecursive(
-    any: Any,
-    _ backtrace: ConfigBacktrace,
-    _ errors: inout [ConfigParseDiagnostic],
-) -> OrderedJson? {
+/// Tables are converted with sorted keys. Values of unsupported types are reported and dropped
+private func tomlToOrderedJson(_ any: Any, _ backtrace: ConfigBacktrace, _ errors: inout [ConfigParseDiagnostic]) -> OrderedJson? {
     switch any {
         case let dict as [String: Any]:
-            return .dict(tomlTableToJsonDict(dict, backtrace, &errors))
-        case let array as [Any]:
-            var json = OrderedJson.JsonArray()
-            for (index, tomlValue) in array.enumerated() {
-                let element = tomlAnyToOrderedJsonRecursive(any: tomlValue, backtrace + .index(index), &errors)
-                guard let element else { continue }
-                json.append(element)
+            var json = OrderedJson.JsonDict()
+            for (key, tomlValue) in dict.sortedEntries {
+                json[key] = tomlToOrderedJson(tomlValue, backtrace + .key(key), &errors)
             }
-            return .array(json)
+            return .dict(json)
+        case let array as [Any]:
+            return .array(array.enumerated().compactMap { index, tomlValue in tomlToOrderedJson(tomlValue, backtrace + .index(index), &errors) })
         default:
             if let value = OrderedJson.newScalarOrNil(any) { return value }
             errors.append(.init(backtrace, "Unsupported TOML type: \(type(of: any))"))
@@ -258,16 +238,14 @@ struct ParseConfigResult {
 }
 
 @MainActor func parseConfig(_ rawToml: String) -> ParseConfigResult {
-    var errors = NonCopyable([ConfigParseDiagnostic]())
-    let rawTable = parseTomlRootTable(rawToml, &errors.value)
+    var c = ConfigParserContext(errors: [], warnings: [])
+    let rawTable = parseTomlRootTable(rawToml, &c.errors)
 
     let configVersion: ConfigVersion = rawTable[configVersionConfigRootKey]
-        .flatMap { parseConfigVersion($0, .rootKey(configVersionConfigRootKey)).getOrNil(appendErrorTo: &errors.value) }
+        .flatMap { parseConfigVersion($0, .rootKey(configVersionConfigRootKey)).getOrNil(appendErrorTo: &c.errors) }
         ?? .min
 
-    var c = ConfigParserContext(configVersion: configVersion, errors: errors.consume(), warnings: [ConfigParseDiagnostic]())
-
-    var config = rawTable.parseTable(Config(), configParser, .emptyRoot, &c)
+    var config = parseTable(.dict(rawTable), Config(), configParser, .emptyRoot, &c)
     config.configVersion = configVersion
 
     if let mapping = rawTable[keyMappingConfigRootKey].flatMap({ parseKeyMapping($0, .rootKey(keyMappingConfigRootKey), &c) }) {
@@ -392,13 +370,21 @@ func parseTable<T>(
     _ c: inout ConfigParserContext,
 ) -> T {
     guard let table = parseTomlTable(raw, backtrace).getOrNil(appendErrorTo: &c.errors) else { return initial }
-    return table.parseTable(initial, fieldsParser, backtrace, &c)
+    var result = initial
+    for (key, value) in table {
+        let backtrace: ConfigBacktrace = backtrace + .key(key)
+        switch fieldsParser[key] {
+            case let parser?: parser.parseInto(&result, value, backtrace, &c)
+            case nil: c.errors.append(.init(backtrace, backtrace.isRootKey ? "Unknown top-level key" : "Unknown key"))
+        }
+    }
+    return result
 }
 
 private func parseStartupRootContainerLayout(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<Void> {
-    parseString(raw, backtrace)
-        .filter(.init(backtrace, "'non-empty-workspaces-root-containers-layout-on-startup' is deprecated. Please drop it from your config")) { raw in raw == "smart" }
-        .map { _ in () }
+    parseString(raw, backtrace).flatMap { raw in
+        raw == "smart" ? .success(()) : .failure(.init(backtrace, "'non-empty-workspaces-root-containers-layout-on-startup' is deprecated. Please drop it from your config"))
+    }
 }
 
 private func parseLayout(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<Layout> {
@@ -409,7 +395,7 @@ private func parseLayout(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> Re
 private func parsePersistentWorkspaces(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<OrderedSet<String>> {
     parseArrayOfStrings(raw, backtrace)
         .flatMap { arr in
-            let set = arr.toOrderedSet()
+            let set = OrderedSet(arr)
             return set.count == arr.count ? .success(set) : .failure(.init(backtrace, "Contains duplicated workspace names"))
         }
 }
@@ -442,13 +428,9 @@ func parseBool(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigP
 
 struct ConfigBacktrace: CustomStringConvertible, Equatable {
     private var path: [TomlBacktraceItem] = []
-    private init(_ path: [TomlBacktraceItem]) {
-        check(path.first?.isKey != false, "Tried to construct invalid TOML path: \(path)")
-        self.path = path
-    }
 
-    static func rootKey(_ key: String) -> Self { .init([.key(key)]) }
-    static let emptyRoot: Self = .init([])
+    static func rootKey(_ key: String) -> Self { Self(path: [.key(key)]) }
+    static let emptyRoot: Self = Self()
 
     var description: String {
         var result = ""
@@ -482,35 +464,11 @@ enum TomlBacktraceItem: Equatable {
     }
 }
 
-extension OrderedJson.JsonDict {
-    func parseTable<T>(
-        _ initial: T,
-        _ fieldsParser: [String: Parser<T>],
-        _ backtrace: ConfigBacktrace,
-        _ c: inout ConfigParserContext,
-    ) -> T {
-        var result = initial
-
-        for (key, value) in self {
-            let backtrace: ConfigBacktrace = backtrace + .key(key)
-            switch fieldsParser[key] {
-                case let parser?: parser.parseInto(&result, value, backtrace, &c)
-                case nil: c.errors.append(unknownKeyDiagnostic(backtrace))
-            }
-        }
-
-        return result
-    }
-}
-
-func unknownKeyDiagnostic(_ backtrace: ConfigBacktrace) -> ConfigParseDiagnostic {
-    .init(backtrace, backtrace.isRootKey ? "Unknown top-level key" : "Unknown key")
-}
-
 func expectedActualTypeDiagnostic(expected: TomlType, actual: TomlType, _ backtrace: ConfigBacktrace) -> ConfigParseDiagnostic {
-    .init(backtrace, expectedActualTypeError(expected: expected, actual: actual))
+    .init(backtrace, "Expected type is \(expected.rawValue.singleQuoted). But actual type is \(actual.rawValue.singleQuoted)")
 }
 
+/// Unlike the single-type message, prints the lowercase case names ('string' or 'array'). Tests pin both formats
 func expectedActualTypeDiagnostic(expected: [TomlType], actual: TomlType, _ backtrace: ConfigBacktrace) -> ConfigParseDiagnostic {
-    .init(backtrace, expectedActualTypeError(expected: expected, actual: actual))
+    .init(backtrace, "Expected types are \(expected.map { "'\($0)'" }.joined(separator: " or ")). But actual type is '\(actual)'")
 }

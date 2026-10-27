@@ -1,16 +1,6 @@
 import AppKit
 import Common
 
-enum EffectiveLeaf {
-    case window(Window)
-    case emptyWorkspace(Workspace)
-}
-extension LiveFocus {
-    var asLeaf: EffectiveLeaf {
-        if let windowOrNil { .window(windowOrNil) } else { .emptyWorkspace(workspace) }
-    }
-}
-
 /// This object should be only passed around but never memorized
 /// Alternative name: ResolvedFocus
 struct LiveFocus: AeroAny, Equatable {
@@ -78,16 +68,13 @@ private struct FrozenFocus: AeroAny, Equatable, Sendable {
 }
 extension Window {
     func focusWindow() -> Bool {
-        if let focus = toLiveFocusOrNil() {
-            return setFocus(to: focus)
-        } else {
-            // todo We should also exit-native-hidden/unminimize[/exit-native-fullscreen?] window if we want to fix ID-B6E178F2
-            //      and retry to focus the window. Otherwise, it's not possible to focus minimized/hidden windows
-            return false
-        }
+        // todo We should also exit-native-hidden/unminimize[/exit-native-fullscreen?] window if we want to fix ID-B6E178F2
+        //      and retry to focus the window. Otherwise, it's not possible to focus minimized/hidden windows
+        guard let focus = toLiveFocusOrNil() else { return false }
+        return setFocus(to: focus)
     }
 
-    func toLiveFocusOrNil() -> LiveFocus? { visualWorkspace.map { LiveFocus(windowOrNil: self, workspace: $0) } }
+    func toLiveFocusOrNil() -> LiveFocus? { nodeWorkspace.map { LiveFocus(windowOrNil: self, workspace: $0) } }
 }
 extension Workspace {
     func focusWorkspace() -> Bool { setFocus(to: toLiveFocus()) }
@@ -95,11 +82,7 @@ extension Workspace {
     func toLiveFocus() -> LiveFocus {
         // todo unfortunately mostRecentWindowRecursive may recursively reach empty rootTilingContainer
         //      while floating or macos unconventional windows might be presented
-        if let wd = mostRecentWindowRecursive ?? anyLeafWindowRecursive {
-            LiveFocus(windowOrNil: wd, workspace: self)
-        } else {
-            LiveFocus(windowOrNil: nil, workspace: self) // emptyWorkspace
-        }
+        LiveFocus(windowOrNil: mostRecentWindowRecursive ?? anyLeafWindowRecursive, workspace: self) // nil window: empty workspace
     }
 }
 
@@ -126,33 +109,25 @@ extension Workspace {
     }
     let focus = focus
     let frozenFocus = focus.frozen
-    var hasFocusChanged = false
-    var hasFocusedWorkspaceChanged = false
-    var hasFocusedMonitorChanged = false
-    if frozenFocus != _lastKnownFocus {
-        _prevFocus = _lastKnownFocus
-        hasFocusChanged = true
-    }
-    if frozenFocus.workspaceName != _lastKnownFocus.workspaceName {
-        _prevFocusedWorkspaceName = _lastKnownFocus.workspaceName
-        hasFocusedWorkspaceChanged = true
-    }
-    if frozenFocus.monitorId_oneBased != _lastKnownFocus.monitorId_oneBased {
-        hasFocusedMonitorChanged = true
-    }
+    let lastKnownFocus = _lastKnownFocus
+    let hasFocusChanged = frozenFocus != lastKnownFocus
+    let hasFocusedWorkspaceChanged = frozenFocus.workspaceName != lastKnownFocus.workspaceName
+    let hasFocusedMonitorChanged = frozenFocus.monitorId_oneBased != lastKnownFocus.monitorId_oneBased
+    if hasFocusChanged { _prevFocus = lastKnownFocus }
+    if hasFocusedWorkspaceChanged { _prevFocusedWorkspaceName = lastKnownFocus.workspaceName }
     _lastKnownFocus = frozenFocus
 
     if onFocusChangedRecursionGuard { return }
     onFocusChangedRecursionGuard = true
     defer { onFocusChangedRecursionGuard = false }
     if hasFocusChanged {
-        _ = await onFocusChanged(.defaultEnv, CmdIoImpl.emptyStdinIgnoringOut, focus)
+        _ = await onFocusChanged(.defaultEnv, CmdIo.emptyStdinIgnoringOut, focus)
     }
     if let _prevFocusedWorkspaceName, hasFocusedWorkspaceChanged {
         onWorkspaceChanged(_prevFocusedWorkspaceName, frozenFocus.workspaceName, focus)
     }
     if hasFocusedMonitorChanged {
-        _ = await onFocusedMonitorChanged(.defaultEnv, CmdIoImpl.emptyStdinIgnoringOut, focus)
+        _ = await onFocusedMonitorChanged(.defaultEnv, CmdIo.emptyStdinIgnoringOut, focus)
     }
 }
 
@@ -184,13 +159,12 @@ extension Workspace {
         var environment = config.execConfig.envVariables
         environment[AEROSPACE_FOCUSED_WORKSPACE] = newWorkspace
         environment[AEROSPACE_PREV_WORKSPACE] = oldWorkspace
-        switch focus.asLeaf {
-            case .emptyWorkspace(let w):
-                environment[AEROSPACE_WORKSPACE] = w.name
-                environment[AEROSPACE_WINDOW_ID] = nil
-            case .window(let w):
-                environment[AEROSPACE_WORKSPACE] = nil
-                environment[AEROSPACE_WINDOW_ID] = w.windowId.description
+        if let window = focus.windowOrNil {
+            environment[AEROSPACE_WORKSPACE] = nil
+            environment[AEROSPACE_WINDOW_ID] = window.windowId.description
+        } else { // Empty workspace
+            environment[AEROSPACE_WORKSPACE] = focus.workspace.name
+            environment[AEROSPACE_WINDOW_ID] = nil
         }
         process.environment = environment
         _ = Result { try process.run() }

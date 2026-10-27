@@ -14,7 +14,6 @@ public protocol CmdArgs:
     ConvenienceMutable,
     Equatable,
     CustomStringConvertible,
-    AeroAny,
     Sendable
 {
     associatedtype ExitCodeType: ExitCode = BinaryExitCode
@@ -32,8 +31,6 @@ public struct CmdArgsCommonState: ConvenienceMutable, Equatable, Sendable {
 }
 
 extension CmdArgs {
-    public static var info: CmdStaticInfo { Self.parser.info }
-
     public var windowId: UInt32? {
         get { commonState.windowId }
         set(value) { commonState.windowId = value }
@@ -51,48 +48,15 @@ extension CmdArgs {
     }
 
     public var description: String {
-        switch Self.info.kind {
-            case .execAndForget:
-                CmdKind.execAndForget.rawValue + " " + (self as! ExecAndForgetCmdArgs).bashScript
-            default:
-                ([Self.info.kind.rawValue] + commonState.rawArgsForStrRepr.value.toArray()).joinArgs()
-        }
+        ([Self.parser.kind.rawValue] + commonState.rawArgsForStrRepr.value.toArray()).joinArgs()
     }
 }
 
 public struct CmdParser<Root>: Sendable {
-    let info: CmdStaticInfo
-    let flags: [String: any ArgParserProtocol<SubArgParserInput, Root, ()>]
-    let positionalArgs: [any ArgParserProtocol<PosArgParserInput, Root, PosArgParserContext>]
-    let conflictingOptions: [Set<String>]
-    /// Whether args like `-10` are positional arguments rather than unknown flags
-    let negativeNumbersArePositional: Bool
-
-    init(
-        kind: CmdKind,
-        help: String,
-        flags: [String: any ArgParserProtocol<SubArgParserInput, Root, ()>],
-        posArgs: [any ArgParserProtocol<PosArgParserInput, Root, PosArgParserContext>],
-        conflictingOptions: [Set<String>] = [],
-        negativeNumbersArePositional: Bool = false,
-    ) {
-        self.info = CmdStaticInfo(help: help, kind: kind)
-        self.flags = flags
-        self.positionalArgs = posArgs
-        self.conflictingOptions = conflictingOptions
-        self.negativeNumbersArePositional = negativeNumbersArePositional
-    }
-}
-
-public struct CmdStaticInfo: Equatable, Sendable {
-    public let help: String
     public let kind: CmdKind
-
-    public init(
-        help: String,
-        kind: CmdKind,
-    ) {
-        self.help = help
-        self.kind = kind
-    }
+    var flags: [String: SubArgParser<Root>] = [:]
+    var posArgs: [PosArgParser<Root>] = []
+    var conflictingOptions: [Set<String>] = []
+    /// Whether args like `-10` are positional arguments rather than unknown flags
+    var negativeNumbersArePositional = false
 }

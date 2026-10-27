@@ -3,14 +3,12 @@ public struct TestCmdArgs: CmdArgs {
     public init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
     public static let parser: CmdParser<Self> = .init(
         kind: .test,
-        help: test_help_generated,
         // Design question: Does --window-id flag compare window ids or checks the conditions against the specified window?
         // Design question: Does --workspace flag compare workspaces or checks the conditions against the specified workspace?
         // Alternative name: --act-on-window-id.
         // Alternative 2: `with-context [--window-id <window-id>] [--workspace <workspace>] <subcommand>` command
         // Alternative 3: `env [name=value]... <subcommand>` command
         // Alternative 4: --window-id and --workspace flags for aerospace top-level command + aerospace subcommand
-        flags: [:],
         posArgs: [
             newMandatoryPosArgParser(\.lhs, parseTestLhs, placeholder: "<lhs>"),
             newMandatoryPosArgParser(\.infixOperator, enumPosArg(InfixOperator.self), placeholder: "<operator>"),
@@ -26,8 +24,8 @@ public struct TestCmdArgs: CmdArgs {
 
 func parseTestRhs(_ input: PosArgParserInput) -> ParsedCliArgs<String> {
     let result = input.arg.rawInterpolationTokens(interpolationChar: "%").flatMap { tokens in
-        switch tokens.sequencePattern {
-            case .one(.literal(let literal)): .success(literal)
+        switch tokens.singleOrNil() {
+            case .literal(let literal): .success(literal)
             default: .failure("Right hand side doesn't allow interpolation variables")
         }
     }
@@ -36,8 +34,8 @@ func parseTestRhs(_ input: PosArgParserInput) -> ParsedCliArgs<String> {
 
 func parseTestLhs(_ input: PosArgParserInput) -> ParsedCliArgs<FormatVar> {
     let result = input.arg.interpolationTokens(interpolationChar: "%", ofInterVarType: FormatVar.self).flatMap { tokens in
-        switch tokens.sequencePattern {
-            case .one(.interVar(let formatVar)): .success(formatVar)
+        switch tokens.singleOrNil() {
+            case .interVar(let formatVar): .success(formatVar)
             default: .failure("Left hand side must be a single interpolation variable")
         }
     }

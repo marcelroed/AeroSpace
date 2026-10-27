@@ -1,7 +1,7 @@
 import AppKit
 import Common
 
-func dumpAxRecursive(_ ax: AXUIElement, _ kind: AxKind, recursionDepth: Int = 0) -> [String: Json] {
+func dumpAxRecursive(_ ax: AXUIElement, _ kind: AxKind, recursionDepth: Int = 0) -> OrderedJson.JsonDict {
     if recursionDepth > 5 {
         return [
             "dumpAxRecursive infinite recursion": .bool(true),
@@ -9,11 +9,16 @@ func dumpAxRecursive(_ ax: AXUIElement, _ kind: AxKind, recursionDepth: Int = 0)
         ]
     }
     let recursionDepth = recursionDepth + 1
-    var result: [String: Json] = [:]
+    var result: OrderedJson.JsonDict = [:]
     var ignored: [String] = []
     var writable: [String] = []
     var failedAxRequest: [String] = []
-    for key: String in ax.attrs(failedAxRequest: &failedAxRequest) {
+    var attrNames: CFArray?
+    let attrNamesStatus = unsafe AXUIElementCopyAttributeNames(ax, &attrNames)
+    if attrNamesStatus != .success {
+        failedAxRequest.append("AXUIElementCopyAttributeNames(\(attrNamesStatus.repr))")
+    }
+    for key: String in attrNames as? [String] ?? [] {
         if globalIgnore.contains(key) || kindSpecificIgnore[kind]?.contains(key) == true {
             ignored.append(key)
         } else {
@@ -44,18 +49,13 @@ enum AxKind: Hashable {
     case app
 }
 
-private func prettyValue(_ value: Any?, recursionDepth: Int) -> Json {
+func prettyValue(_ value: Any?, recursionDepth: Int) -> OrderedJson {
     if let arr = value as? [Any?] {
         return .array(arr.map { prettyValue($0, recursionDepth: recursionDepth) })
     }
+    // AX booleans and numbers are CFBoolean/NSNumber, and all of them convert to Int. So booleans are dumped as 0/1
     if let value = value as? Int {
         return .int(value)
-    }
-    if let value = value as? UInt32 {
-        return .int(value)
-    }
-    if let value = value as? Bool {
-        return .bool(value)
     }
     if let value {
         let ax = value as! AXUIElement
@@ -71,17 +71,6 @@ private func prettyValue(_ value: Any?, recursionDepth: Int) -> Json {
         return .string(String(describing: value))
     }
     return .null
-}
-
-extension AXUIElement {
-    fileprivate func attrs(failedAxRequest: inout [String]) -> [String] {
-        var rawArray: CFArray?
-        let status = unsafe AXUIElementCopyAttributeNames(self, &rawArray)
-        if status != .success {
-            failedAxRequest.append("AXUIElementCopyAttributeNames(\(status.repr))")
-        }
-        return rawArray as? [String] ?? []
-    }
 }
 
 private let globalIgnore: Set<String> = [

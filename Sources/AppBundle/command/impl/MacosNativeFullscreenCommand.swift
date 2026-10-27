@@ -11,10 +11,7 @@ struct MacosNativeFullscreenCommand: Command {
     /*conforms*/ let shouldResetClosedWindowsCache = false
 
     func run(_ env: CmdEnv, _ io: CmdIo) async -> BinaryExitCode {
-        guard let target = args.resolveTargetOrReportError(env, io) else { return .fail }
-        guard let window = target.windowOrNil else {
-            return .fail(io.err(noWindowIsFocused))
-        }
+        guard let window = args.resolveWindowOrReportError(env, io) else { return .fail }
         guard let prevState = try? await window.isMacosFullscreen(.nonCancellable) else { return .fail(io.err(bugPrompt())) }
         let newState = args.toggle.resolve(current: prevState)
         if newState == prevState {
@@ -22,30 +19,25 @@ struct MacosNativeFullscreenCommand: Command {
                 "Tip: use --fail-if-noop to exit with non-zero exit code")
         }
         window.asMacWindow().setNativeFullscreen(newState)
-        guard let workspace = window.visualWorkspace else {
+        guard let workspace = window.nodeWorkspace else {
             return .fail(io.err(windowIsntPartOfTree(window)))
         }
         if newState { // Enter fullscreen
             window.bind(to: workspace.macOsNativeFullscreenWindowsContainer, adaptiveWeight: 1, index: INDEX_BIND_LAST)
         } else { // Exit fullscreen
-            switch window.layoutReason {
-                case .macos(let prevParentKind):
-                    do {
-                        try await exitMacOsNativeUnconventionalState(
-                            window: window,
-                            prevParentKind: prevParentKind,
-                            workspace: workspace,
-                            .nonCancellable,
-                        )
-                    } catch {
-                        return .fail(io.err(bugPrompt()))
-                    }
-                default:
-                    do {
-                        try await window.relayoutWindow(on: workspace, .nonCancellable)
-                    } catch {
-                        return .fail(io.err(bugPrompt()))
-                    }
+            do {
+                if case .macos(let prevParentKind) = window.layoutReason {
+                    try await exitMacOsNativeUnconventionalState(
+                        window: window,
+                        prevParentKind: prevParentKind,
+                        workspace: workspace,
+                        .nonCancellable,
+                    )
+                } else {
+                    try await window.relayoutWindow(on: workspace, .nonCancellable)
+                }
+            } catch {
+                return .fail(io.err(bugPrompt()))
             }
         }
         return .succ

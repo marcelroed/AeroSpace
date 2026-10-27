@@ -1,7 +1,7 @@
 import AppKit
 import Common
 
-protocol Command: AeroAny, Equatable, Sendable {
+protocol Command: AeroAny, Sendable {
     associatedtype T: CmdArgs
 
     var args: T { get }
@@ -13,17 +13,8 @@ protocol Command: AeroAny, Equatable, Sendable {
 }
 
 extension Command {
-    static func == (lhs: Self, rhs: Self) -> Bool {
-        return lhs.args.equals(rhs.args)
-    }
-
-    nonisolated func equals(_ other: any Command) -> Bool {
-        (other as? Self).flatMap { self == $0 } ?? false
-    }
-}
-
-extension Command {
-    var info: CmdStaticInfo { T.info }
+    /// Command types and their args types are 1:1, so comparing the args compares the commands
+    nonisolated func equals(_ other: any Command) -> Bool { args.equals(other.args) }
 }
 
 extension Command {

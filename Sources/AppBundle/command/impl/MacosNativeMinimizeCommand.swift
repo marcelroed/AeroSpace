@@ -9,10 +9,7 @@ struct MacosNativeMinimizeCommand: Command {
     func run(_ env: CmdEnv, _ io: CmdIo) async -> BinaryExitCode {
         // resolveTargetOrReportError on already minimized windows will always fail
         // It would be easier if minimized windows were part of the workspace in tree hierarchy
-        guard let target = args.resolveTargetOrReportError(env, io) else { return .fail }
-        guard let window = target.windowOrNil else {
-            return .fail(io.err(noWindowIsFocused))
-        }
+        guard let window = args.resolveWindowOrReportError(env, io) else { return .fail }
         guard let newState: Bool = try? await !window.isMacosMinimized(.nonCancellable) else { return .fail(io.err(bugPrompt())) }
         window.asMacWindow().setNativeMinimized(newState)
         if newState { // minimize

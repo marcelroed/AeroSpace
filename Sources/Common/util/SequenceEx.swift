@@ -1,8 +1,4 @@
-import OrderedCollections
-
 extension Sequence {
-    public func filterNotNil<Unwrapped>() -> [Unwrapped] where Element == Unwrapped? { compactMap(id) }
-
     @inlinable public func filterIsInstance<R>(of _: R.Type) -> [R] { compactMap { $0 as? R } }
 
     public func mapAllOrFailure<T, E>(_ transform: (Self.Element) -> Result<T, E>) -> Result<[T], E> {
@@ -33,18 +29,6 @@ extension Sequence {
         return .cmd(result)
     }
 
-    public func mapAllOrFailures<T, E>(_ transform: (Self.Element) -> Result<T, E>) -> Result<[T], [E]> {
-        var result: [T] = []
-        var errors: [E] = []
-        for element in self {
-            switch transform(element) {
-                case .success(let element): result.append(element)
-                case .failure(let error): errors.append(error)
-            }
-        }
-        return errors.isEmpty ? .success(result) : .failure(errors)
-    }
-
     @inlinable public func minByOrDie(_ selector: (Self.Element) -> some Comparable) -> Self.Element {
         minBy(selector) ?? dieT("Empty sequence")
     }
@@ -69,43 +53,15 @@ extension Sequence {
         })
     }
 
-    @inlinable public func sumOfDouble(_ selector: (Self.Element) -> Double) -> Double {
-        var result: Double = 0
+    @inlinable public func sum<N: AdditiveArithmetic>(_ selector: (Self.Element) -> N) -> N {
+        var result = N.zero
         for elem in self {
             result += selector(elem)
         }
         return result
-    }
-
-    @inlinable public func sumOfInt(_ selector: (Self.Element) -> Int) -> Int {
-        var result: Int = 0
-        for elem in self {
-            result += selector(elem)
-        }
-        return result
-    }
-
-    public func grouped<Group>(by criterion: (_ transforming: Element) -> Group) -> [Group: [Element]] {
-        Dictionary(grouping: self, by: criterion)
     }
 
     public var withIndex: [(index: Int, value: Element)] { enumerated().map { (index: $0.offset, value: $0.element) } }
 
     public func toSet() -> Set<Element> where Element: Hashable { Set(self) }
-    public func toOrderedSet() -> OrderedSet<Element> where Element: Hashable { OrderedSet(self) }
-
-    public var sequencePattern: SequencePattern<Self> {
-        var iterator = makeIterator()
-        guard let first = iterator.next() else { return .empty }
-        guard let second = iterator.next() else { return .one(first) }
-        guard let _ = iterator.next() else { return .two(first, second) }
-        return .many
-    }
-}
-
-public enum SequencePattern<Seq: Sequence> {
-    case empty
-    case one(Seq.Element)
-    case two(Seq.Element, Seq.Element)
-    case many
 }

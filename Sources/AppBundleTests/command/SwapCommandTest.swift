@@ -15,33 +15,10 @@ struct SwapCommandTest: AeroSpaceTestSuite {
             TestWindow.new(id: 3, parent: $0)
         }
 
-        await parseCommand("swap right").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(root.layoutDescription,
-                     .h_tiles([.v_tiles([.window(3), .window(2)]),
-                               .window(1)]))
-        assertEquals(focus.windowOrNil?.windowId, 1)
-        assertEquals(root.mostRecentWindowRecursive?.windowId, 1)
-
-        await parseCommand("swap left").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(root.layoutDescription,
-                     .h_tiles([.v_tiles([.window(1), .window(2)]),
-                               .window(3)]))
-        assertEquals(focus.windowOrNil?.windowId, 1)
-        assertEquals(root.mostRecentWindowRecursive?.windowId, 1)
-
-        await parseCommand("swap down").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(root.layoutDescription,
-                     .h_tiles([.v_tiles([.window(2), .window(1)]),
-                               .window(3)]))
-        assertEquals(focus.windowOrNil?.windowId, 1)
-        assertEquals(root.mostRecentWindowRecursive?.windowId, 1)
-
-        await parseCommand("swap up").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(root.layoutDescription,
-                     .h_tiles([.v_tiles([.window(1), .window(2)]),
-                               .window(3)]))
-        assertEquals(focus.windowOrNil?.windowId, 1)
-        assertEquals(root.mostRecentWindowRecursive?.windowId, 1)
+        await assertSwap("swap right", root, .h_tiles([.v_tiles([.window(3), .window(2)]), .window(1)]), focused: 1)
+        await assertSwap("swap left", root, .h_tiles([.v_tiles([.window(1), .window(2)]), .window(3)]), focused: 1)
+        await assertSwap("swap down", root, .h_tiles([.v_tiles([.window(2), .window(1)]), .window(3)]), focused: 1)
+        await assertSwap("swap up", root, .h_tiles([.v_tiles([.window(1), .window(2)]), .window(3)]), focused: 1)
     }
 
     @Test
@@ -54,33 +31,10 @@ struct SwapCommandTest: AeroSpaceTestSuite {
             TestWindow.new(id: 3, parent: $0)
         }
 
-        await parseCommand("swap dfs-next").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(root.layoutDescription,
-                     .h_tiles([.v_tiles([.window(2), .window(1)]),
-                               .window(3)]))
-        assertEquals(focus.windowOrNil?.windowId, 1)
-        assertEquals(root.mostRecentWindowRecursive?.windowId, 1)
-
-        await parseCommand("swap dfs-next").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(root.layoutDescription,
-                     .h_tiles([.v_tiles([.window(2), .window(3)]),
-                               .window(1)]))
-        assertEquals(focus.windowOrNil?.windowId, 1)
-        assertEquals(root.mostRecentWindowRecursive?.windowId, 1)
-
-        await parseCommand("swap dfs-prev").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(root.layoutDescription,
-                     .h_tiles([.v_tiles([.window(2), .window(1)]),
-                               .window(3)]))
-        assertEquals(focus.windowOrNil?.windowId, 1)
-        assertEquals(root.mostRecentWindowRecursive?.windowId, 1)
-
-        await parseCommand("swap dfs-prev").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(root.layoutDescription,
-                     .h_tiles([.v_tiles([.window(1), .window(2)]),
-                               .window(3)]))
-        assertEquals(focus.windowOrNil?.windowId, 1)
-        assertEquals(root.mostRecentWindowRecursive?.windowId, 1)
+        await assertSwap("swap dfs-next", root, .h_tiles([.v_tiles([.window(2), .window(1)]), .window(3)]), focused: 1)
+        await assertSwap("swap dfs-next", root, .h_tiles([.v_tiles([.window(2), .window(3)]), .window(1)]), focused: 1)
+        await assertSwap("swap dfs-prev", root, .h_tiles([.v_tiles([.window(2), .window(1)]), .window(3)]), focused: 1)
+        await assertSwap("swap dfs-prev", root, .h_tiles([.v_tiles([.window(1), .window(2)]), .window(3)]), focused: 1)
     }
 
     @Test
@@ -91,15 +45,8 @@ struct SwapCommandTest: AeroSpaceTestSuite {
             TestWindow.new(id: 3, parent: $0)
         }
 
-        await parseCommand("swap --wrap-around left").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(root.layoutDescription, .h_tiles([.window(3), .window(2), .window(1)]))
-        assertEquals(focus.windowOrNil?.windowId, 1)
-        assertEquals(root.mostRecentWindowRecursive?.windowId, 1)
-
-        await parseCommand("swap --wrap-around right").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(root.layoutDescription, .h_tiles([.window(1), .window(2), .window(3)]))
-        assertEquals(focus.windowOrNil?.windowId, 1)
-        assertEquals(root.mostRecentWindowRecursive?.windowId, 1)
+        await assertSwap("swap --wrap-around left", root, .h_tiles([.window(3), .window(2), .window(1)]), focused: 1)
+        await assertSwap("swap --wrap-around right", root, .h_tiles([.window(1), .window(2), .window(3)]), focused: 1)
     }
 
     @Test
@@ -110,15 +57,8 @@ struct SwapCommandTest: AeroSpaceTestSuite {
             TestWindow.new(id: 3, parent: $0)
         }
 
-        await parseCommand("swap --wrap-around dfs-prev").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(root.layoutDescription, .h_tiles([.window(3), .window(2), .window(1)]))
-        assertEquals(focus.windowOrNil?.windowId, 1)
-        assertEquals(root.mostRecentWindowRecursive?.windowId, 1)
-
-        await parseCommand("swap --wrap-around dfs-next").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(root.layoutDescription, .h_tiles([.window(1), .window(2), .window(3)]))
-        assertEquals(focus.windowOrNil?.windowId, 1)
-        assertEquals(root.mostRecentWindowRecursive?.windowId, 1)
+        await assertSwap("swap --wrap-around dfs-prev", root, .h_tiles([.window(3), .window(2), .window(1)]), focused: 1)
+        await assertSwap("swap --wrap-around dfs-next", root, .h_tiles([.window(1), .window(2), .window(3)]), focused: 1)
     }
 
     @Test
@@ -129,9 +69,23 @@ struct SwapCommandTest: AeroSpaceTestSuite {
             TestWindow.new(id: 3, parent: $0)
         }
 
-        await parseCommand("swap --swap-focus right").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(root.layoutDescription, .h_tiles([.window(1), .window(3), .window(2)]))
-        assertEquals(focus.windowOrNil?.windowId, 3)
-        assertEquals(root.mostRecentWindowRecursive?.windowId, 3)
+        await assertSwap("swap --swap-focus right", root, .h_tiles([.window(1), .window(3), .window(2)]), focused: 3)
+    }
+
+    /// Runs `command`, then checks the layout of `root` and that window `focused` is both focused and the most recent one
+    private func assertSwap(
+        _ command: String,
+        _ root: TilingContainer,
+        _ expected: LayoutDescription,
+        focused: UInt32,
+        fileID: String = #fileID,
+        filePath: StaticString = #filePath,
+        line: Int = #line,
+        column: Int = #column,
+    ) async {
+        await parseCommand(command).cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(root.layoutDescription, expected, fileID: fileID, filePath: filePath, line: line, column: column)
+        assertEquals(focus.windowOrNil?.windowId, focused, fileID: fileID, filePath: filePath, line: line, column: column)
+        assertEquals(root.mostRecentWindowRecursive?.windowId, focused, fileID: fileID, filePath: filePath, line: line, column: column)
     }
 }

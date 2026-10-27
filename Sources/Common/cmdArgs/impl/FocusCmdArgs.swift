@@ -3,7 +3,6 @@ public struct FocusCmdArgs: CmdArgs {
     fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
     public static let parser: CmdParser<Self> = .init(
         kind: .focus,
-        help: focus_help_generated,
         flags: [
             "--ignore-floating": falseBoolFlag(\.floatingAsTiling),
             "--window-id": windowIdSubArgParser(),
@@ -46,16 +45,17 @@ public struct FocusCmdArgs: CmdArgs {
         self.dfsIndex = dfsIndex
     }
 
-    public enum Boundaries: String, CaseIterable, Equatable, Sendable {
-        case workspace
-        case allMonitorsOuterFrame = "all-monitors-outer-frame"
-    }
     public enum WhenBoundariesCrossed: String, CaseIterable, Equatable, Sendable {
         case stop = "stop"
         case fail = "fail"
         case wrapAroundTheWorkspace = "wrap-around-the-workspace"
         case wrapAroundAllMonitors = "wrap-around-all-monitors"
     }
+}
+
+public enum Boundaries: String, CaseIterable, Equatable, Sendable { // focus and move --boundaries
+    case workspace
+    case allMonitorsOuterFrame = "all-monitors-outer-frame"
 }
 
 public enum FocusCmdTarget {
@@ -97,7 +97,7 @@ extension FocusCmdArgs {
 
 func parseFocusCmdArgs(_ args: StrArrSlice) -> ParsedCmd<FocusCmdArgs> {
     return parseSpecificCmdArgs(FocusCmdArgs(rawArgs: args), args)
-        .filterNot("\(FocusCmdArgs.Boundaries.workspace.rawValue) and \(FocusCmdArgs.WhenBoundariesCrossed.wrapAroundAllMonitors.rawValue) is an invalid combination of values") {
+        .filterNot("\(Boundaries.workspace.rawValue) and \(FocusCmdArgs.WhenBoundariesCrossed.wrapAroundAllMonitors.rawValue) is an invalid combination of values") {
             $0.boundaries == .workspace && $0.boundariesAction == .wrapAroundAllMonitors
         }
         .filter("Mandatory argument is missing. \(CardinalOrDfsDirection.unionLiteral), --window-id or --dfs-index is required") {

@@ -3,7 +3,6 @@ public struct EchoCmdArgs: CmdArgs {
     public init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
     public static let parser: CmdParser<Self> = .init(
         kind: .echo,
-        help: echo_help_generated,
         flags: [
             "--stderr": trueBoolFlag(\.isStderr),
             "--window-id": windowIdSubArgParser(),
@@ -12,7 +11,6 @@ public struct EchoCmdArgs: CmdArgs {
             dashDashArg(mandatory: true),
             newMandatoryPosArgParser(\.args, consumeWholeArrayOfInterpolatedPosArgs, placeholder: "<string>"),
         ],
-        conflictingOptions: [],
     )
 
     public var args: Lateinit<[[InterToken<InterVar>]]> = .uninitialized

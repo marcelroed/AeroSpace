@@ -39,24 +39,12 @@ final class MacWindow: Window {
         return window
     }
 
-    func isWindowHeuristic(_ windowLevel: MacOsWindowLevel?, _ cm: CancellationMode) async throws -> Bool { // todo cache
-        try await macApp.isWindowHeuristic(windowId, windowLevel, cm)
-    }
-
-    func isDialogHeuristic(_ windowLevel: MacOsWindowLevel?, _ cm: CancellationMode) async throws -> Bool { // todo cache
-        try await macApp.isDialogHeuristic(windowId, windowLevel, cm)
-    }
-
-    func dumpAxInfo(_ cm: CancellationMode) async throws -> [String: Json] {
-        try await macApp.dumpWindowAxInfo(windowId: windowId, cm)
-    }
-
     func setNativeFullscreen(_ value: Bool) {
-        macApp.setNativeFullscreen(windowId, value)
+        macApp.setAxAttr(windowId, Ax.isFullscreenAttr, value)
     }
 
     func setNativeMinimized(_ value: Bool) {
-        macApp.setNativeMinimized(windowId, value)
+        macApp.setAxAttr(windowId, Ax.minimizedAttr, value)
     }
 
     // skipClosedWindowsCache is an optimization when it's definitely not necessary to cache closed window.
@@ -90,9 +78,9 @@ final class MacWindow: Window {
         }
     }
 
-    override func getTitle(_ cm: CancellationMode) async throws -> String { try await macApp.getAxTitle(windowId, cm) ?? "" }
-    override func isMacosFullscreen(_ cm: CancellationMode) async throws -> Bool { try await macApp.isMacosNativeFullscreen(windowId, cm) == true }
-    override func isMacosMinimized(_ cm: CancellationMode) async throws -> Bool { try await macApp.isMacosNativeMinimized(windowId, cm) == true }
+    override func getTitle(_ cm: CancellationMode) async throws -> String { try await macApp.getAxAttr(windowId, Ax.titleAttr, cm) ?? "" }
+    override func isMacosFullscreen(_ cm: CancellationMode) async throws -> Bool { try await macApp.getAxAttr(windowId, Ax.isFullscreenAttr, cm) == true }
+    override func isMacosMinimized(_ cm: CancellationMode) async throws -> Bool { try await macApp.getAxAttr(windowId, Ax.minimizedAttr, cm) == true }
 
     override func nativeFocus() {
         macApp.nativeFocus(windowId)
@@ -141,25 +129,21 @@ final class MacWindow: Window {
     func unhideFromCorner() {
         guard let prevUnhiddenProportionalPositionInsideWorkspaceRect else { return }
         guard let nodeWorkspace else { return } // hiding only makes sense for workspace windows
-        guard let parent else { return }
 
-        switch getChildParentRelation(child: self, parent: parent) {
-            // Just a small optimization to avoid unnecessary AX calls for non floating windows
-            // Tiling windows should be unhidden with layoutRecursive anyway
-            case .floatingWindow:
-                let workspaceRect = nodeWorkspace.workspaceMonitor.rect
-                var newX = workspaceRect.topLeftX + workspaceRect.width * prevUnhiddenProportionalPositionInsideWorkspaceRect.x
-                var newY = workspaceRect.topLeftY + workspaceRect.height * prevUnhiddenProportionalPositionInsideWorkspaceRect.y
-                // todo we probably should replace lastFloatingSize with proper floating window sizing
-                // https://github.com/nikitabobko/AeroSpace/issues/1519
-                let windowWidth = lastFloatingSize?.width ?? 0
-                let windowHeight = lastFloatingSize?.height ?? 0
-                newX = newX.coerce(in: workspaceRect.minX ... max(workspaceRect.minX, workspaceRect.maxX - windowWidth))
-                newY = newY.coerce(in: workspaceRect.minY ... max(workspaceRect.minY, workspaceRect.maxY - windowHeight))
+        // Just a small optimization to avoid unnecessary AX calls for non floating windows
+        // Tiling windows should be unhidden with layoutRecursive anyway
+        if isFloating {
+            let workspaceRect = nodeWorkspace.workspaceMonitor.rect
+            var newX = workspaceRect.topLeftX + workspaceRect.width * prevUnhiddenProportionalPositionInsideWorkspaceRect.x
+            var newY = workspaceRect.topLeftY + workspaceRect.height * prevUnhiddenProportionalPositionInsideWorkspaceRect.y
+            // todo we probably should replace lastFloatingSize with proper floating window sizing
+            // https://github.com/nikitabobko/AeroSpace/issues/1519
+            let windowWidth = lastFloatingSize?.width ?? 0
+            let windowHeight = lastFloatingSize?.height ?? 0
+            newX = newX.coerce(in: workspaceRect.minX ... max(workspaceRect.minX, workspaceRect.maxX - windowWidth))
+            newY = newY.coerce(in: workspaceRect.minY ... max(workspaceRect.minY, workspaceRect.maxY - windowHeight))
 
-                setAxFrame(CGPoint(x: newX, y: newY), nil)
-            case .macosNativeFullscreenWindow, .macosNativeHiddenAppWindow, .macosNativeMinimizedWindow,
-                 .macosPopupWindow, .tiling, .rootTilingContainer, .shimContainerRelation: break
+            setAxFrame(CGPoint(x: newX, y: newY), nil)
         }
 
         self.prevUnhiddenProportionalPositionInsideWorkspaceRect = nil
@@ -170,7 +154,7 @@ final class MacWindow: Window {
     }
 
     override func getAxSize(_ cm: CancellationMode) async throws -> CGSize? {
-        try await macApp.getAxSize(windowId, cm)
+        try await macApp.getAxAttr(windowId, Ax.sizeAttr, cm)
     }
 
     override func setAxFrame(_ topLeft: CGPoint?, _ size: CGSize?) {
@@ -224,7 +208,7 @@ private func unbindAndGetBindingDataForNewTilingWindow(_ workspace: Workspace, w
 
 @MainActor
 func runOnWindowDetected(ifConventional window: Window) async {
-    switch window.windowParentCases {
+    switch window.parent?.cases {
         case .tilingContainer, .floatingWindowsContainer, .macosMinimizedWindowsContainer,
              .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer:
             let layout = global_layoutForNextDetectedWindow
@@ -237,9 +221,9 @@ func runOnWindowDetected(ifConventional window: Window) async {
             }
             // The layout is applied both before and after the on-window-detected callbacks on purpose
             await applyLayoutForNextDetectedWindow()
-            _ = await onWindowDetected(.defaultEnv, CmdIoImpl.emptyStdinIgnoringOut, window)
+            _ = await onWindowDetected(.defaultEnv, CmdIo.emptyStdinIgnoringOut, window)
             await applyLayoutForNextDetectedWindow()
-        case .macosPopupWindowsContainer, .unbound:
+        case .macosPopupWindowsContainer, .workspace, nil:
             break
     }
 }

@@ -8,7 +8,7 @@ struct TrueCommandTest: AeroSpaceTestSuite {
     @Test
     func testParse() {
         testParseSingleCommandSucc("true", TrueCmdArgs(rawArgs: []))
-        testParseCommandFail("true foo", msg: "ERROR: Unknown argument \'foo\'", exitCode: 2)
+        testParseCommandFail("true foo", msg: "ERROR: Unknown argument \'foo\'")
 
         testParseCommandHelp("true -h")
         testParseCommandHelp("true --help")
@@ -16,6 +16,6 @@ struct TrueCommandTest: AeroSpaceTestSuite {
 
     @Test
     func testExitCode() async {
-        assertEquals(await parseCommand("true").cmdOrDie.run(.defaultEnv, .emptyStdin).exitCode.rawValue, 0)
+        await assertRun("true", exitCode: 0)
     }
 }

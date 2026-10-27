@@ -3,7 +3,6 @@ public struct MoveMouseCmdArgs: CmdArgs {
     fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
     public static let parser: CmdParser<Self> = .init(
         kind: .moveMouse,
-        help: move_mouse_help_generated,
         flags: [
             "--fail-if-noop": trueBoolFlag(\.failIfNoop),
         ],

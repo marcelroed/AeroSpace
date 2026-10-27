@@ -87,10 +87,7 @@ final class MoveNodeToWorkspaceCommandTest: XCTestCase {
     }
 
     func testNoWindowIsFocused() async {
-        let result = await parseCommand("move-node-to-workspace b").cmdOrDie
-            .run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stderr, [noWindowIsFocused])
+        await assertRun("move-node-to-workspace b", exitCode: 2, stderr: [noWindowIsFocused])
     }
 
     func testFailIfNoop_succWithMessage() async {
@@ -98,9 +95,7 @@ final class MoveNodeToWorkspaceCommandTest: XCTestCase {
             _ = TestWindow.new(id: 1, parent: $0).focusWindow()
         }
 
-        let result = await parseCommand("move-node-to-workspace a").cmdOrDie
-            .run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
+        let result = await assertRun("move-node-to-workspace a", exitCode: 0)
         assertEquals(result.stderr.count, 1)
         assertTrue(result.stderr.first?.contains("already belongs to workspace 'a'") == true)
         assertEquals(Workspace.get(byName: "a").rootTilingContainer.children.count, 1)
@@ -111,10 +106,7 @@ final class MoveNodeToWorkspaceCommandTest: XCTestCase {
             _ = TestWindow.new(id: 1, parent: $0).focusWindow()
         }
 
-        let result = await parseCommand("move-node-to-workspace --fail-if-noop a").cmdOrDie
-            .run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stderr, [])
+        await assertRun("move-node-to-workspace --fail-if-noop a", exitCode: 2, stderr: [])
         assertEquals(Workspace.get(byName: "a").rootTilingContainer.children.count, 1)
     }
 
@@ -153,10 +145,7 @@ final class MoveNodeToWorkspaceCommandTest: XCTestCase {
             _ = TestWindow.new(id: 1, parent: $0).focusWindow()
         }
 
-        let result = await parseCommand("move-node-to-workspace prev").cmdOrDie
-            .run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stderr, ["Rached the beginning of the supplied workspaces list"])
+        await assertRun("move-node-to-workspace prev", exitCode: 2, stderr: ["Rached the beginning of the supplied workspaces list"])
         // Window untouched
         assertEquals((Workspace.get(byName: "a").rootTilingContainer.children.singleOrNil() as? Window)?.windowId, 1)
     }

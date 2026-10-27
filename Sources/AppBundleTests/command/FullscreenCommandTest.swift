@@ -17,18 +17,14 @@ struct FullscreenCommandTest: AeroSpaceTestSuite {
         let window = TestWindow.new(id: 1, parent: Workspace.get(byName: name).rootTilingContainer)
         assertTrue(window.focusWindow())
 
-        var result = await parseCommand("fullscreen").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
+        await assertRun("fullscreen", exitCode: 0, stderr: [])
         assertTrue(window.isFullscreen)
         assertFalse(window.noOuterGapsInFullscreen)
 
-        result = await parseCommand("fullscreen").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
+        await assertRun("fullscreen", exitCode: 0)
         assertFalse(window.isFullscreen)
 
-        result = await parseCommand("fullscreen on --no-outer-gaps").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
+        await assertRun("fullscreen on --no-outer-gaps", exitCode: 0)
         assertTrue(window.isFullscreen)
         assertTrue(window.noOuterGapsInFullscreen)
     }
@@ -38,29 +34,19 @@ struct FullscreenCommandTest: AeroSpaceTestSuite {
         let window = TestWindow.new(id: 1, parent: Workspace.get(byName: name).rootTilingContainer)
         assertTrue(window.focusWindow())
 
-        var result = await parseCommand("fullscreen off").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, ["Already not fullscreen. Tip: use --fail-if-noop to exit with non-zero code"])
+        await assertRun("fullscreen off", exitCode: 0, stderr: ["Already not fullscreen. Tip: use --fail-if-noop to exit with non-zero code"])
 
-        result = await parseCommand("fullscreen off --fail-if-noop").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stderr, [])
+        await assertRun("fullscreen off --fail-if-noop", exitCode: 2, stderr: [])
 
         window.isFullscreen = true
-        result = await parseCommand("fullscreen on").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, ["Already fullscreen. Tip: use --fail-if-noop to exit with non-zero code"])
+        await assertRun("fullscreen on", exitCode: 0, stderr: ["Already fullscreen. Tip: use --fail-if-noop to exit with non-zero code"])
 
-        result = await parseCommand("fullscreen on --fail-if-noop").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stderr, [])
+        await assertRun("fullscreen on --fail-if-noop", exitCode: 2, stderr: [])
         assertTrue(window.isFullscreen)
     }
 
     @Test
     func testNoWindowIsFocused() async {
-        let result = await parseCommand("fullscreen").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stderr, [noWindowIsFocused])
+        await assertRun("fullscreen", exitCode: 2, stderr: [noWindowIsFocused])
     }
 }

@@ -13,7 +13,7 @@ private func validateStillPopups() async throws {
     for node in macosPopupWindowsContainer.children {
         let popup = (node as! MacWindow)
         let windowLevel = getWindowLevel(for: popup.windowId)
-        if try await popup.isWindowHeuristic(windowLevel, .cancellable) {
+        if try await popup.macApp.isWindowHeuristic(popup.windowId, windowLevel, .cancellable) { // todo cache
             try await popup.relayoutWindow(on: focus.workspace, .cancellable)
             await runOnWindowDetected(ifConventional: popup)
         }
@@ -26,7 +26,7 @@ private func _normalizeLayoutReason(workspace: Workspace, windows: [Window]) asy
         let isMacosFullscreen = try await window.isMacosFullscreen(.cancellable)
         let isMacosMinimized = try await (!isMacosFullscreen).andAsync { @MainActor @Sendable in try await window.isMacosMinimized(.cancellable) }
         let isMacosWindowOfHiddenApp = !isMacosFullscreen && !isMacosMinimized &&
-            !config.automaticallyUnhideMacosHiddenApps && window.macAppUnsafe.nsApp.isHidden
+            !config.automaticallyUnhideMacosHiddenApps && window.asMacWindow().macApp.nsApp.isHidden
         switch window.layoutReason {
             case .standard:
                 guard let parent = window.parent else { continue }

@@ -14,12 +14,6 @@ struct JoinWithCommandTest: AeroSpaceTestSuite {
         }
 
         await parseCommand("join-with right").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(root.layoutDescription, .h_tiles([
-            .window(0),
-            .v_tiles([
-                .window(1),
-                .window(2),
-            ]),
-        ]))
+        assertEquals(root.layoutDescription, .h_tiles([.window(0), .v_tiles([.window(1), .window(2)])]))
     }
 }

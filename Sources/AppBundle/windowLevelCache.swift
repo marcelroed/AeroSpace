@@ -39,7 +39,7 @@ enum MacOsWindowLevel: Sendable, Equatable {
         }
     }
 
-    static func fromJson(_ json: Json) -> MacOsWindowLevel? {
+    static func fromJson(_ json: OrderedJson) -> MacOsWindowLevel? {
         switch json {
             case .string("normalWindow"): .normalWindow
             case .string("alwaysOnTopWindow"): .alwaysOnTopWindow
@@ -48,7 +48,7 @@ enum MacOsWindowLevel: Sendable, Equatable {
         }
     }
 
-    func toJson() -> Json {
+    func toJson() -> OrderedJson {
         switch self {
             case .normalWindow: .string("normalWindow")
             case .alwaysOnTopWindow: .string("alwaysOnTopWindow")

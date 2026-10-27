@@ -12,65 +12,25 @@ final class LayoutCommandTest: XCTestCase {
         assertNil(parseCommand("layout floating tiling").errorOrNil)
         assertNil(parseCommand("layout --window-id 1 horizontal vertical").errorOrNil)
 
-        testParseCommandFail(
-            "layout --root accordion tiling",
-            msg: "layout command: --root and tiling|floating are incompatible",
-            exitCode: 2,
-        )
+        testParseCommandFail("layout --root accordion tiling", msg: "layout command: --root and tiling|floating are incompatible")
         testParseSingleCommandSucc(
             "layout --root accordion tiles",
             LayoutCmdArgs(rawArgs: [], toggleBetween: [.accordion, .tiles]).copy(\.root, true),
         )
-        testParseCommandFail(
-            "layout --workspace 2 tiles",
-            msg: "--workspace flag requires using an explicit --root flag",
-            exitCode: 2,
-        )
-        testParseCommandFail(
-            "layout --workspace 2 --window-id 2 tiles",
-            msg: "ERROR: Conflicting options: --window-id, --workspace",
-            exitCode: 2,
-        )
-        testParseCommandFail(
-            "layout --fail-if-noop accordion tiling",
-            msg: "--fail-if-noop allows only one <target-layout> argument",
-            exitCode: 2,
-        )
+        testParseCommandFail("layout --workspace 2 tiles", msg: "--workspace flag requires using an explicit --root flag")
+        testParseCommandFail("layout --workspace 2 --window-id 2 tiles", msg: "ERROR: Conflicting options: --window-id, --workspace")
+        testParseCommandFail("layout --fail-if-noop accordion tiling", msg: "--fail-if-noop allows only one <target-layout> argument")
 
         testParseSingleCommandSucc(
             "layout --for-next-detected-window floating",
             LayoutCmdArgs(rawArgs: [], toggleBetween: [.floating]).copy(\.forNextDetectedWindow, true),
         )
-        testParseCommandFail(
-            "layout --for-next-detected-window floating tiling",
-            msg: layoutCommandForNextDetectedWindowFlagIncompatibilityMsg,
-            exitCode: 2,
-        )
-        testParseCommandFail(
-            "layout --for-next-detected-window accordion",
-            msg: layoutCommandForNextDetectedWindowFlagIncompatibilityMsg,
-            exitCode: 2,
-        )
-        testParseCommandFail(
-            "layout --for-next-detected-window --window-id 1 floating",
-            msg: "ERROR: Conflicting options: --for-next-detected-window, --window-id",
-            exitCode: 2,
-        )
-        testParseCommandFail(
-            "layout --for-next-detected-window --workspace 2 floating",
-            msg: "ERROR: Conflicting options: --for-next-detected-window, --workspace",
-            exitCode: 2,
-        )
-        testParseCommandFail(
-            "layout --for-next-detected-window --root floating",
-            msg: "ERROR: Conflicting options: --for-next-detected-window, --root",
-            exitCode: 2,
-        )
-        testParseCommandFail(
-            "layout --for-next-detected-window --fail-if-noop floating",
-            msg: "ERROR: Conflicting options: --fail-if-noop, --for-next-detected-window",
-            exitCode: 2,
-        )
+        testParseCommandFail("layout --for-next-detected-window floating tiling", msg: layoutCommandForNextDetectedWindowFlagIncompatibilityMsg)
+        testParseCommandFail("layout --for-next-detected-window accordion", msg: layoutCommandForNextDetectedWindowFlagIncompatibilityMsg)
+        testParseCommandFail("layout --for-next-detected-window --window-id 1 floating", msg: "ERROR: Conflicting options: --for-next-detected-window, --window-id")
+        testParseCommandFail("layout --for-next-detected-window --workspace 2 floating", msg: "ERROR: Conflicting options: --for-next-detected-window, --workspace")
+        testParseCommandFail("layout --for-next-detected-window --root floating", msg: "ERROR: Conflicting options: --for-next-detected-window, --root")
+        testParseCommandFail("layout --for-next-detected-window --fail-if-noop floating", msg: "ERROR: Conflicting options: --fail-if-noop, --for-next-detected-window")
     }
 
     func testForNextDetectedWindow_doesNotTouchExistingWindows() async {
@@ -79,8 +39,7 @@ final class LayoutCommandTest: XCTestCase {
             assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
         }
 
-        let result = await parseCommand("layout floating --for-next-detected-window").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
+        await assertRun("layout floating --for-next-detected-window", exitCode: 0)
         assertEquals(root.layoutDescription, .h_tiles([.window(1)]))
         assertEquals(workspace.floatingWindows, [])
     }
@@ -200,9 +159,7 @@ final class LayoutCommandTest: XCTestCase {
             TestWindow.new(id: 2, parent: $0)
         }
 
-        let result = await parseCommand("layout h_tiles").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, ["Already in the requested h_tiles mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
+        await assertRun("layout h_tiles", exitCode: 0, stderr: ["Already in the requested h_tiles mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
         assertEquals(root.layoutDescription, .h_tiles([.window(1), .window(2)]))
     }
 
@@ -210,9 +167,7 @@ final class LayoutCommandTest: XCTestCase {
         let workspace = Workspace.get(byName: name)
         assertTrue(workspace.isEffectivelyEmpty)
 
-        let result = await parseCommand("layout v_tiles").cmdOrDie
-            .run(.defaultEnv.withWorkspaceName(name), .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
+        await assertRun("layout v_tiles", env: .defaultEnv.withWorkspaceName(name), exitCode: 0)
         assertEquals(workspace.rootTilingContainer.orientation, .v)
         assertEquals(workspace.rootTilingContainer.layout, .tiles)
     }
@@ -221,9 +176,7 @@ final class LayoutCommandTest: XCTestCase {
         let workspace = Workspace.get(byName: name)
         assertTrue(workspace.isEffectivelyEmpty)
 
-        let result = await parseCommand("layout accordion").cmdOrDie
-            .run(.defaultEnv.withWorkspaceName(name), .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
+        await assertRun("layout accordion", env: .defaultEnv.withWorkspaceName(name), exitCode: 0)
         assertEquals(workspace.rootTilingContainer.layout, .accordion)
         assertEquals(workspace.rootTilingContainer.orientation, .h)
     }
@@ -232,38 +185,36 @@ final class LayoutCommandTest: XCTestCase {
         let workspace = Workspace.get(byName: name)
         assertTrue(workspace.isEffectivelyEmpty)
 
-        let result = await parseCommand("layout h_tiles").cmdOrDie
-            .run(.defaultEnv.withWorkspaceName(name), .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, ["Already in the requested h_tiles mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
+        await assertRun(
+            "layout h_tiles",
+            env: .defaultEnv.withWorkspaceName(name),
+            exitCode: 0,
+            stderr: ["Already in the requested h_tiles mode. Tip: use --fail-if-noop to exit with non-zero exit code"],
+        )
         assertEquals(workspace.rootTilingContainer.layout, .tiles)
         assertEquals(workspace.rootTilingContainer.orientation, .h)
     }
 
     func testEmptyWorkspace_floating_fails() async {
         let workspace = Workspace.get(byName: name)
-        let result = await parseCommand("layout floating").cmdOrDie
-            .run(.defaultEnv.withWorkspaceName(name), .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stderr, [noWindowIsFocused])
+        await assertRun("layout floating", env: .defaultEnv.withWorkspaceName(name), exitCode: 2, stderr: [noWindowIsFocused])
         assertTrue(workspace.isEffectivelyEmpty)
     }
 
     func testEmptyWorkspace_tiling_isNoop() async {
         let workspace = Workspace.get(byName: name)
-        let result = await parseCommand("layout tiling").cmdOrDie
-            .run(.defaultEnv.withWorkspaceName(name), .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, ["Already in the requested tiling mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
+        await assertRun(
+            "layout tiling",
+            env: .defaultEnv.withWorkspaceName(name),
+            exitCode: 0,
+            stderr: ["Already in the requested tiling mode. Tip: use --fail-if-noop to exit with non-zero exit code"],
+        )
         assertTrue(workspace.isEffectivelyEmpty)
     }
 
     func testEmptyWorkspace_tiling_failIfNoop() async {
         let workspace = Workspace.get(byName: name)
-        let result = await parseCommand("layout tiling --fail-if-noop").cmdOrDie
-            .run(.defaultEnv.withWorkspaceName(name), .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stderr, [])
+        await assertRun("layout tiling --fail-if-noop", env: .defaultEnv.withWorkspaceName(name), exitCode: 2, stderr: [])
         assertTrue(workspace.isEffectivelyEmpty)
     }
 
@@ -299,8 +250,7 @@ final class LayoutCommandTest: XCTestCase {
             TestWindow.new(id: 2, parent: $0)
         }
 
-        let result = await parseCommand("layout tiling").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
+        await assertRun("layout tiling", exitCode: 0)
         assertEquals(root.layoutDescription, .h_tiles([.window(1), .window(2)]))
     }
 
@@ -310,8 +260,7 @@ final class LayoutCommandTest: XCTestCase {
             assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
         }
 
-        let result = await parseCommand("layout floating").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
+        await assertRun("layout floating", exitCode: 0)
         assertEquals(workspace.floatingWindows.map(\.windowId), [1])
     }
 
@@ -321,9 +270,7 @@ final class LayoutCommandTest: XCTestCase {
             assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
         }
 
-        let result = await parseCommand("layout v_tiles").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stderr, ["The window is non-tiling"])
+        await assertRun("layout v_tiles", exitCode: 2, stderr: ["The window is non-tiling"])
         assertEquals(workspace.floatingWindows.map(\.windowId), [1])
     }
 
@@ -355,19 +302,14 @@ final class LayoutCommandTest: XCTestCase {
         await parseCommand("layout --root v_accordion").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(root.layout, .accordion)
         assertEquals(root.orientation, .v)
-        assertEquals(root.layoutDescription, .v_accordion([
-            .v_tiles([.window(1)]),
-            .window(2),
-        ]))
+        assertEquals(root.layoutDescription, .v_accordion([.v_tiles([.window(1)]), .window(2)]))
     }
 
     func testRoot_emptyWorkspace_changeLayout() async {
         let workspace = Workspace.get(byName: name)
         assertTrue(workspace.isEffectivelyEmpty)
 
-        let result = await parseCommand("layout --root accordion").cmdOrDie
-            .run(.defaultEnv.withWorkspaceName(name), .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
+        await assertRun("layout --root accordion", env: .defaultEnv.withWorkspaceName(name), exitCode: 0)
         assertEquals(workspace.rootTilingContainer.layout, .accordion)
         assertEquals(workspace.rootTilingContainer.orientation, .h)
     }
@@ -433,18 +375,12 @@ final class LayoutCommandTest: XCTestCase {
             }
             TestWindow.new(id: 2, parent: $0)
         }
-        assertEquals(root.layoutDescription, .h_tiles([
-            .v_tiles([.window(1)]),
-            .window(2),
-        ]))
+        assertEquals(root.layoutDescription, .h_tiles([.v_tiles([.window(1)]), .window(2)]))
 
         await parseCommand("layout --root h_tiles h_accordion").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(root.layout, .accordion)
         assertEquals(root.orientation, .h)
-        assertEquals(root.layoutDescription, .h_accordion([
-            .v_tiles([.window(1)]),
-            .window(2),
-        ]))
+        assertEquals(root.layoutDescription, .h_accordion([.v_tiles([.window(1)]), .window(2)]))
     }
 
     func testRoot_alreadyMatches_isNoop() async {
@@ -454,9 +390,56 @@ final class LayoutCommandTest: XCTestCase {
         }
         assertEquals(root.layoutDescription, .h_tiles([.window(1), .window(2)]))
 
-        let result = await parseCommand("layout --root h_tiles").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, ["Already in the requested h_tiles mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
+        await assertRun("layout --root h_tiles", exitCode: 0, stderr: ["Already in the requested h_tiles mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
         assertEquals(root.layoutDescription, .h_tiles([.window(1), .window(2)]))
     }
+
+    func testTilingDescriptions_allStartingStates() async {
+        let root = Workspace.get(byName: name).rootTilingContainer.apply {
+            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
+            TestWindow.new(id: 2, parent: $0)
+        }
+        for (description, layout, orientation) in tilingDescriptions {
+            for startLayout: Layout in [.tiles, .accordion] {
+                for startOrientation: Orientation in [.h, .v] {
+                    root.layout = startLayout
+                    root.changeOrientation(startOrientation)
+                    let msg = "layout \(description) on \(startLayout) \(startOrientation)"
+                    let expectedLayout = layout ?? startLayout
+                    let expectedOrientation = orientation ?? startOrientation
+                    let isNoop = expectedLayout == startLayout && expectedOrientation == startOrientation
+
+                    let result = await parseCommand("layout \(description)").cmdOrDie.run(.defaultEnv, .emptyStdin)
+                    let noopMsg = "Already in the requested \(description) mode. Tip: use --fail-if-noop to exit with non-zero exit code"
+                    assertEquals(result, CmdResult(stdout: [], stderr: isNoop ? [noopMsg] : [], exitCode: Int32ExitCode(rawValue: 0)), additionalMsg: msg)
+                    assertEquals(root.layout, expectedLayout, additionalMsg: msg)
+                    assertEquals(root.orientation, expectedOrientation, additionalMsg: msg)
+                    assertEquals(root.children.map { ($0 as? Window)?.windowId }, [1, 2], additionalMsg: msg)
+                }
+            }
+        }
+    }
+
+    func testTilingDescriptions_floatingWindow_fail() async {
+        let workspace = Workspace.get(byName: name)
+        workspace.floatingWindowsContainer.apply {
+            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
+        }
+        for (description, _, _) in tilingDescriptions {
+            await assertRun("layout \(description)", exitCode: 2, stdout: [], stderr: ["The window is non-tiling"])
+            assertEquals(workspace.floatingWindows.map(\.windowId), [1])
+        }
+    }
 }
+
+/// The tiling layout descriptions, with the layout and the orientation they request (nil: keep the current one)
+private let tilingDescriptions: [(String, Layout?, Orientation?)] = [
+    ("h_accordion", .accordion, .h),
+    ("v_accordion", .accordion, .v),
+    ("h_tiles", .tiles, .h),
+    ("v_tiles", .tiles, .v),
+    ("accordion", .accordion, nil),
+    ("tiles", .tiles, nil),
+    ("horizontal", nil, .h),
+    ("vertical", nil, .v),
+]

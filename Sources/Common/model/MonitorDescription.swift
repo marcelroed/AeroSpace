@@ -18,14 +18,10 @@ public func parseMonitorDescription(_ raw: String) -> ResOrStr<MonitorDescriptio
             ? .success(.sequenceNumber(int))
             : .failure("Monitor sequence numbers uses 1-based indexing. Values less than 1 are illegal")
     }
-    if raw == "main" {
-        return .success(.main)
+    return switch raw {
+        case "main": .success(.main)
+        case "secondary": .success(.secondary)
+        case "": .failure("Empty string is an illegal monitor description")
+        default: CaseInsensitiveRegex.new(raw).map(MonitorDescription.pattern)
     }
-    if raw == "secondary" {
-        return .success(.secondary)
-    }
-
-    return raw.isEmpty
-        ? .failure("Empty string is an illegal monitor description")
-        : CaseInsensitiveRegex.new(raw).map(MonitorDescription.pattern)
 }

@@ -8,8 +8,11 @@ public func menuBar(viewModel: TrayMenuModel) -> some Scene { // todo should it 
         let shortIdentification = "\(aeroSpaceAppName) v\(aeroSpaceAppVersion) \(gitShortHash)"
         let identification      = "\(aeroSpaceAppName) v\(aeroSpaceAppVersion) \(gitHash)"
         Text(shortIdentification)
-        Button("Copy to clipboard") { identification.copyToClipboard() }
-            .keyboardShortcut("C", modifiers: .command)
+        Button("Copy to clipboard") {
+            let pasteboard = NSPasteboard.general
+            pasteboard.declareTypes([.string], owner: nil)
+            pasteboard.setString(identification, forType: .string)
+        }.keyboardShortcut("C", modifiers: .command)
         Divider()
 
         if viewModel.axPermissionStatus == .granted {
@@ -98,17 +101,13 @@ private func quitButton() -> some View {
 
 @MainActor @ViewBuilder
 private func menuBarIcon(_ viewModel: TrayMenuModel) -> some View {
-    switch (viewModel.axPermissionStatus, viewModel.isEnabled) {
-        case (.granted, true):
-            MenuBarLabel().environmentObject(viewModel)
-        case (.granted, false):
-            Image(systemName: "pause.circle.fill")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-        default:
-            Image(systemName: "exclamationmark.triangle.fill")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
+    let granted = viewModel.axPermissionStatus == .granted
+    if granted && viewModel.isEnabled {
+        MenuBarLabel().environmentObject(viewModel)
+    } else {
+        Image(systemName: granted ? "pause.circle.fill" : "exclamationmark.triangle.fill")
+            .resizable()
+            .aspectRatio(contentMode: .fit)
     }
 }
 

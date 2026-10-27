@@ -26,51 +26,36 @@ extension DynamicConfigValue {
     }
 }
 
-/// A TOML scalar that a ``DynamicConfigValue`` can hold
-protocol TomlScalar {
-    static func fromTomlOrNil(_ raw: OrderedJson) -> Self?
-}
-
-extension Int: TomlScalar {
-    static func fromTomlOrNil(_ raw: OrderedJson) -> Int? { raw.asIntOrNil }
-}
-
-func parseDynamicValue<T: TomlScalar>(
-    _ raw: OrderedJson,
-    ofType valueType: T.Type,
-    _ fallback: T,
-    _ backtrace: ConfigBacktrace,
-    _ c: inout ConfigParserContext,
-) -> DynamicConfigValue<T> {
-    if let simpleValue = T.fromTomlOrNil(raw) {
+func parseDynamicValue(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> DynamicConfigValue<Int> {
+    if let simpleValue = raw.asIntOrNil {
         return .constant(simpleValue)
     } else if let array = raw.asArrayOrNil {
         if array.isEmpty {
             c.errors.append(.init(backtrace, "The array must not be empty"))
-            return .constant(fallback)
+            return .constant(0)
         }
 
-        guard let defaultValue = array.last.flatMap(T.fromTomlOrNil) else {
-            c.errors.append(.init(backtrace, "The last item in the array must be of type \(T.self)"))
-            return .constant(fallback)
+        guard let defaultValue = array.last?.asIntOrNil else {
+            c.errors.append(.init(backtrace, "The last item in the array must be of type Int"))
+            return .constant(0)
         }
 
         if array.dropLast().isEmpty {
             c.errors.append(.init(backtrace, "The array must contain at least one monitor pattern"))
-            return .constant(fallback)
+            return .constant(0)
         }
 
-        let rules: [PerMonitorValue<T>] = parsePerMonitorValues(array.dropLast(), backtrace, &c)
+        let rules = parsePerMonitorValues(array.dropLast(), backtrace, &c)
 
         return .perMonitor(rules, default: defaultValue)
     } else {
-        c.errors.append(.init(backtrace, "Unsupported type: \(raw.tomlType), expected: \(valueType) or array"))
-        return .constant(fallback)
+        c.errors.append(.init(backtrace, "Unsupported type: \(raw.tomlType), expected: Int or array"))
+        return .constant(0)
     }
 }
 
-func parsePerMonitorValues<T: TomlScalar>(_ array: OrderedJson.JsonArray, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> [PerMonitorValue<T>] {
-    array.enumerated().compactMap { (index: Int, raw: OrderedJson) -> PerMonitorValue<T>? in
+private func parsePerMonitorValues(_ array: OrderedJson.JsonArray, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> [PerMonitorValue<Int>] {
+    array.enumerated().compactMap { (index: Int, raw: OrderedJson) -> PerMonitorValue<Int>? in
         var backtrace = backtrace + .index(index)
 
         guard let (key, value) = raw.unwrapTableWithSingleKey(expectedKey: "monitor", &backtrace)
@@ -84,8 +69,8 @@ func parsePerMonitorValues<T: TomlScalar>(_ array: OrderedJson.JsonArray, _ back
 
         guard let monitorDescription = monitorDescriptionResult.getOrNil(appendErrorTo: &c.errors) else { return nil }
 
-        guard let value = T.fromTomlOrNil(value) else {
-            c.errors.append(.init(backtrace, "Expected type is '\(T.self)'. But actual type is '\(value.tomlType)'"))
+        guard let value = value.asIntOrNil else {
+            c.errors.append(.init(backtrace, "Expected type is 'Int'. But actual type is '\(value.tomlType)'"))
             return nil
         }
 

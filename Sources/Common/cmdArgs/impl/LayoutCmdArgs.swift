@@ -3,7 +3,6 @@ public struct LayoutCmdArgs: CmdArgs {
     fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
     public static let parser: CmdParser<Self> = .init(
         kind: .layout,
-        help: layout_help_generated,
         flags: [
             "--window-id": windowIdSubArgParser(),
             "--workspace": workspaceSubArgParser(),
@@ -30,11 +29,18 @@ public struct LayoutCmdArgs: CmdArgs {
         self.toggleBetween = .initialized(toggleBetween)
     }
 
-    public enum LayoutDescription: String, CaseIterable, Equatable, Sendable, AeroAny {
+    public enum LayoutDescription: String, CaseIterable, Equatable, Sendable {
         case accordion, tiles
         case horizontal, vertical
         case h_accordion, v_accordion, h_tiles, v_tiles
         case tiling, floating
+
+        fileprivate var isTilingOrFloating: Bool {
+            switch self {
+                case .floating, .tiling: true
+                case .accordion, .h_accordion, .h_tiles, .horizontal, .tiles, .v_accordion, .v_tiles, .vertical: false
+            }
+        }
     }
 
     public var root: Bool = false
@@ -66,29 +72,9 @@ private func parseToggleBetween(input: PosArgParserInput) -> ParsedCliArgs<[Layo
 
 func parseLayoutCmdArgs(_ args: StrArrSlice) -> ParsedCmd<LayoutCmdArgs> {
     parseSpecificCmdArgs(LayoutCmdArgs(rawArgs: args), args)
-        .map {
-            check(!$0.toggleBetween.val.isEmpty)
-            return $0
-        }
-        .filter(layoutCommandRootFlagIncompatibilityMsg) { cmdArgs in
-            !cmdArgs.root || cmdArgs.toggleBetween.val.allSatisfy {
-                switch $0 {
-                    case .floating, .tiling: false
-                    case .accordion, .h_accordion, .h_tiles,
-                         .horizontal, .tiles, .v_accordion, .v_tiles,
-                         .vertical: true
-                }
-            }
-        }
-        .filter(layoutCommandForNextDetectedWindowFlagIncompatibilityMsg) { cmdArgs in
-            !cmdArgs.forNextDetectedWindow || true == cmdArgs.toggleBetween.val.singleOrNil()?.then {
-                switch $0 {
-                    case .floating, .tiling: true
-                    case .accordion, .h_accordion, .h_tiles,
-                         .horizontal, .tiles, .v_accordion, .v_tiles,
-                         .vertical: false
-                }
-            }
+        .filter(layoutCommandRootFlagIncompatibilityMsg) { !$0.root || !$0.toggleBetween.val.contains(where: \.isTilingOrFloating) }
+        .filter(layoutCommandForNextDetectedWindowFlagIncompatibilityMsg) {
+            !$0.forNextDetectedWindow || $0.toggleBetween.val.singleOrNil()?.isTilingOrFloating == true
         }
         .filter("--workspace flag requires using an explicit --root flag") { ($0.workspaceName != nil).implies($0.root) }
         .filter("--fail-if-noop allows only one <target-layout> argument") { $0.failIfNoop.implies($0.toggleBetween.val.count == 1) }

@@ -157,10 +157,6 @@ extension [String] {
     public var joinedCliArgs: String { "(" + self.joined(separator: "|") + ")" }
 }
 
-extension Int {
-    public func toDouble() -> Double { Double(self) }
-}
-
 public func + <K, V>(lhs: [K: V], rhs: [K: V]) -> [K: V] {
     lhs.merging(rhs) { _, r in r }
 }
@@ -193,21 +189,7 @@ public func eprint(_ msg: String) {
 }
 
 public func exit(_ exitCode: Int32, out: String? = nil, err: String? = nil) -> Never {
-    exitT(exitCode, out: out, err: err)
-}
-
-public func exitT<T>(_ exitCode: Int32, out: String? = nil, err: String? = nil) -> T {
     if let out { print(out) }
     if let err { eprint(err) }
-    exit(exitCode)
-}
-
-/// 'id' stands for 'identity'. It's a common name in functional programming
-public func id<T>(_ t: T) -> T { t }
-
-@inlinable public func zipIfCountsAreEqual<C1, C2>(_ c1: C1, _ c2: C2) -> Zip2Sequence<C1, C2>? where C1: Collection, C2: Collection {
-    switch c1.count == c2.count {
-        case true: zip(c1, c2)
-        case false: nil
-    }
+    Darwin.exit(exitCode)
 }

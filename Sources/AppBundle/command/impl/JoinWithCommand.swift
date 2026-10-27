@@ -7,10 +7,7 @@ struct JoinWithCommand: Command {
 
     func run(_ env: CmdEnv, _ io: CmdIo) -> BinaryExitCode {
         let direction = args.direction.val
-        guard let target = args.resolveTargetOrReportError(env, io) else { return .fail }
-        guard let currentWindow = target.windowOrNil else {
-            return .fail(io.err(noWindowIsFocused))
-        }
+        guard let currentWindow = args.resolveWindowOrReportError(env, io) else { return .fail }
         guard let (parent, ownIndex) = currentWindow.closestParent(hasChildrenInDirection: direction, withLayout: nil) else {
             return .fail(io.err("No windows in the specified direction"))
         }

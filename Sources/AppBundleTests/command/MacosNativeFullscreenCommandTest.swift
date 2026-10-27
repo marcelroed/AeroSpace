@@ -16,28 +16,18 @@ struct MacosNativeFullscreenCommandTest: AeroSpaceTestSuite {
         let window = TestWindow.new(id: 1, parent: Workspace.get(byName: name).rootTilingContainer)
         assertTrue(window.focusWindow())
 
-        var result = await parseCommand("macos-native-fullscreen off").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, ["Already not fullscreen. Tip: use --fail-if-noop to exit with non-zero exit code"])
+        await assertRun("macos-native-fullscreen off", exitCode: 0, stderr: ["Already not fullscreen. Tip: use --fail-if-noop to exit with non-zero exit code"])
 
-        result = await parseCommand("macos-native-fullscreen off --fail-if-noop").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stderr, [])
+        await assertRun("macos-native-fullscreen off --fail-if-noop", exitCode: 2, stderr: [])
 
         window.isMacosFullscreenForTest = true
-        result = await parseCommand("macos-native-fullscreen on").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, ["Already fullscreen. Tip: use --fail-if-noop to exit with non-zero exit code"])
+        await assertRun("macos-native-fullscreen on", exitCode: 0, stderr: ["Already fullscreen. Tip: use --fail-if-noop to exit with non-zero exit code"])
 
-        result = await parseCommand("macos-native-fullscreen on --fail-if-noop").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stderr, [])
+        await assertRun("macos-native-fullscreen on --fail-if-noop", exitCode: 2, stderr: [])
     }
 
     @Test
     func testNoWindowIsFocused() async {
-        let result = await parseCommand("macos-native-fullscreen").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stderr, [noWindowIsFocused])
+        await assertRun("macos-native-fullscreen", exitCode: 2, stderr: [noWindowIsFocused])
     }
 }

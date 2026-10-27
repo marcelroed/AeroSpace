@@ -19,7 +19,8 @@ enum OrderedJson: Encodable, Equatable { // todo rename to Dto (data transfer ob
     func encode(to encoder: any Encoder) throws {
         switch self {
             case .array(let value): try value.encode(to: encoder)
-            case .dict(let value): try value.encode(to: encoder)
+            // Not OrderedDictionary.encode: it writes an array of alternating keys and values
+            case .dict(let value): try Dictionary(uniqueKeysWithValues: value.map { ($0.key, $0.value) }).encode(to: encoder)
             case .string(let value): try value.encode(to: encoder)
             case .int(let value): try value.encode(to: encoder)
             case .bool(let value): try value.encode(to: encoder)
@@ -27,18 +28,48 @@ enum OrderedJson: Encodable, Equatable { // todo rename to Dto (data transfer ob
         }
     }
 
-    static func newScalarOrNil(_ value: Any?) -> OrderedJson? {
-        guard let dto = Json.newScalarOrNil(value) else { return nil }
-        return switch dto {
-            case .array: dieT("array is not scalar")
-            case .dict: dieT("dict is not scalar")
-
-            case .bool(let bool): .bool(bool)
-            case .int(let int): .int(int)
-            case .string(let string): .string(string)
-            case .null: .null
+    static func newOrDieRecursive(_ value: Any?) -> OrderedJson {
+        switch value {
+            case let value as [String: Any?]: .dict(OrderedDictionary(uniqueKeysWithValues: value.mapValues(newOrDieRecursive)))
+            case let value as [Any?]: .array(value.map(newOrDieRecursive))
+            default:
+                newScalarOrNil(value)
+                    ?? dieT("Can't parse \(String(describing: value)) (\(Swift.type(of: value))) to JSON")
         }
     }
+
+    static func newScalarOrNil(_ value: Any?) -> OrderedJson? {
+        switch value {
+            case let value as Int64: .int(value)
+            case let value as Int: .int(Int64(value))
+            case let value as UInt32: .int(Int64(value))
+            case let value as UInt: .int(Int64(value))
+            case let value as Bool: .bool(value)
+            case let value as String: .string(value)
+            case nil, is NSNull: .null
+            default: nil
+        }
+    }
+
+    static func stringOrNull(_ str: String?) -> OrderedJson { str.map(OrderedJson.string) ?? .null }
+
+    static func int(_ int: Int) -> OrderedJson { .int(Int64(exactly: int).orDie()) }
+    static func int(_ int: UInt32) -> OrderedJson { .int(Int64(exactly: int).orDie()) }
+
+    var rawValue: Any? {
+        switch self {
+            case .null: nil
+
+            case .array(let x): x
+            case .dict(let x): x
+
+            case .bool(let x): x
+            case .int(let x): x
+            case .string(let x): x
+        }
+    }
+
+    var asDictOrDie: JsonDict { asDictOrNil.orDie("\(self) is not a dict") }
 
     var asInt64OrNil: Int64? {
         if case .int(let value) = self { value } else { nil }

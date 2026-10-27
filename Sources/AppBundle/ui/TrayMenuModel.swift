@@ -12,14 +12,25 @@ public final class TrayMenuModel: ObservableObject {
     /// Is "layouting" enabled
     @Published var isEnabled: Bool = true
     @Published var workspaces: [WorkspaceViewModel] = []
-    @Published var experimentalUISettings: ExperimentalUISettings = ExperimentalUISettings()
     @Published var sponsorshipMessage: String = sponsorshipPrompts.randomElement().orDie()
     @Published var lastReloadConfigContainedWarnings: Bool = false
     @Published var axPermissionStatus: AxPermissionStatus = .waitingWithPrompt
     // Polled by updateTrayText, since nothing notifies us when these change
     @Published var appearanceTheme: AppearanceTheme = .current
     @Published var textEditorToOpenConfig: URL = getTextEditorToOpenConfig()
+
+    /// Stored in UserDefaults
+    var menuBarStyle: MenuBarStyle {
+        get { UserDefaults.standard.string(forKey: menuBarStyleKey).flatMap(MenuBarStyle.init(rawValue:)) ?? .monospacedText }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: menuBarStyleKey)
+            UserDefaults.standard.synchronize()
+            objectWillChange.send() // Notify the views, like a @Published property
+        }
+    }
 }
+
+private let menuBarStyleKey = "displayStyle"
 
 enum AxPermissionStatus: Equatable {
     case granted

@@ -146,7 +146,7 @@ func gcMonitors() {
 extension CGPoint {
     @MainActor
     fileprivate func setActiveWorkspace(_ workspace: Workspace) -> Bool {
-        if !isValidAssignment(workspace: workspace, screen: self) {
+        if let forceAssigned = workspace.forceAssignedMonitor, forceAssigned.rect.topLeftCorner != self {
             return false
         }
         if let prevMonitorPoint = visibleWorkspaceToScreenPoint[workspace] {
@@ -194,13 +194,5 @@ private func rearrangeWorkspacesOnMonitors() {
         let stubWorkspace = getStubWorkspace(forPoint: newScreen)
         check(newScreen.setActiveWorkspace(stubWorkspace),
               "getStubWorkspace generated incompatible stub workspace (\(stubWorkspace)) for the monitor (\(newScreen)")
-    }
-}
-
-@MainActor
-private func isValidAssignment(workspace: Workspace, screen: CGPoint) -> Bool {
-    switch workspace.forceAssignedMonitor {
-        case let forceAssigned? where forceAssigned.rect.topLeftCorner != screen: false
-        default: true
     }
 }

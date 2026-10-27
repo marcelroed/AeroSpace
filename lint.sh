@@ -33,6 +33,7 @@ else
     ./periphery/.build/out/Products/Debug/periphery scan --quiet \
         --strict \
         --disable-redundant-public-analysis \
+        --retain-codable-properties \
         --no-superfluous-ignore-comments \
         "${periphery_args[@]}" \
         -- "${swift_build_system_args[@]}"

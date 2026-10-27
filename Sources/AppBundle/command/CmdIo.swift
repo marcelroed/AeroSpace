@@ -14,10 +14,25 @@ struct CmdStdin: ~Copyable {
     }
 }
 
-protocol CmdIo: AnyObject {
-    var stdout: [String] { get set }
-    var stderr: [String] { get set }
-    func readStdin() -> String
+final class CmdIo {
+    private var stdin: CmdStdin
+    private let stdinSource: CmdIo? // If set, readStdin() reads from it on demand, so unread stdin stays there
+    var stdout: [String] = []
+    var stderr: [String] = []
+
+    init(stdin: consuming CmdStdin) {
+        self.stdin = stdin
+        stdinSource = nil
+    }
+
+    init(forwardingStdinOf stdinSource: CmdIo) {
+        stdin = .emptyStdin
+        self.stdinSource = stdinSource
+    }
+
+    func readStdin() -> String { stdinSource?.readStdin() ?? stdin.readAll() }
+
+    static var emptyStdinIgnoringOut: CmdIo { CmdIo(stdin: .emptyStdin) }
 }
 
 extension CmdIo {
@@ -26,26 +41,6 @@ extension CmdIo {
     @discardableResult func out(_ msg: [String]) -> IoSideEffect { stdout += msg; return .instance }
     // periphery:ignore
     @discardableResult func err(_ msg: [String]) -> IoSideEffect { stderr += msg; return .instance }
-}
-
-final class CmdIoImpl: CmdIo {
-    private var stdin: CmdStdin
-    var stdout: [String] = []
-    var stderr: [String] = []
-
-    init(stdin: consuming CmdStdin) { self.stdin = stdin }
-    func readStdin() -> String { stdin.readAll() }
-
-    static var emptyStdinIgnoringOut: CmdIo { CmdIoImpl(stdin: .emptyStdin) }
-}
-
-final class CmdIoForwardingStdin: CmdIo {
-    private let stdin: CmdIo
-    var stdout: [String] = []
-    var stderr: [String] = []
-
-    init(stdin: CmdIo) { self.stdin = stdin }
-    func readStdin() -> String { stdin.readStdin() }
 }
 
 struct CmdResult: Equatable {

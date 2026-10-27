@@ -13,7 +13,7 @@ private struct ConfigFileWatcher: ~Copyable {
             eventMask: [.write, .delete, .rename, .revoke],
             queue: .main,
         )
-        source.setEventHandler { MainActor.checkIsolated { onChange() } }
+        source.setEventHandler { MainActor.assumeIsolated { onChange() } }
         source.setCancelHandler { [fd] in close(fd) }
         source.activate()
     }

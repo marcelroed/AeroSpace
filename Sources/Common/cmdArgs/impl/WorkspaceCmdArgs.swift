@@ -3,7 +3,6 @@ public struct WorkspaceCmdArgs: CmdArgs {
     public init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
     public static let parser: CmdParser<Self> = .init(
         kind: .workspace,
-        help: workspace_help_generated,
         flags: [
             "--auto-back-and-forth": ArgParser(\._autoBackAndForth, constSubArgParserFun(true)),
             "--wrap-around": ArgParser(\._wrapAround, constSubArgParserFun(true)),

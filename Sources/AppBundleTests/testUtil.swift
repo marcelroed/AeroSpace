@@ -60,7 +60,30 @@ extension ParsedCmd {
         }
     }
 
+    var failureOrNil: CmdParsingFailure? {
+        return switch self {
+            case .failure(let failure): failure
+            case .cmd, .help: nil
+        }
+    }
+
+    var helpOrNil: String? {
+        return switch self {
+            case .help(let help): help
+            case .cmd, .failure: nil
+        }
+    }
+
     var cmdOrDie: T { cmdOrNil ?? dieT("\(self)") }
+}
+
+extension Result {
+    var failureOrNil: Failure? {
+        return switch self {
+            case .failure(let failure): failure
+            case .success: nil
+        }
+    }
 }
 
 /// The arguments of `raw` if it parses as a single command with arguments of type `T`, nil otherwise
@@ -72,7 +95,7 @@ func parsedArgs<T: CmdArgs>(_ raw: String, as _: T.Type) -> T? {
 func testParseCommandFail(
     _ command: String,
     msg expectedMsg: String,
-    exitCode expectedExitCode: Int32,
+    exitCode expectedExitCode: Int32 = 2,
     fileID: String = #fileID,
     filePath: StaticString = #filePath,
     line: Int = #line,
@@ -85,6 +108,32 @@ func testParseCommandFail(
         case .failure(let failure):
             assertEquals(failure, .init(expectedMsg, expectedExitCode), fileID: fileID, filePath: filePath, line: line, column: column)
     }
+}
+
+/// Runs `command` and checks its exit code, and also its stdout and stderr when they are given
+@MainActor
+@discardableResult
+func assertRun(
+    _ command: String,
+    env: CmdEnv = .defaultEnv,
+    stdin: String = "",
+    exitCode: Int32,
+    stdout: [String]? = nil,
+    stderr: [String]? = nil,
+    fileID: String = #fileID,
+    filePath: StaticString = #filePath,
+    line: Int = #line,
+    column: Int = #column,
+) async -> CmdResult {
+    let result = await parseCommand(command).cmdOrDie.run(env, CmdStdin(stdin))
+    assertEquals(result.exitCode.rawValue, exitCode, additionalMsg: "exit code of '\(command)'", fileID: fileID, filePath: filePath, line: line, column: column)
+    if let stdout {
+        assertEquals(result.stdout, stdout, additionalMsg: "stdout of '\(command)'", fileID: fileID, filePath: filePath, line: line, column: column)
+    }
+    if let stderr {
+        assertEquals(result.stderr, stderr, additionalMsg: "stderr of '\(command)'", fileID: fileID, filePath: filePath, line: line, column: column)
+    }
+    return result
 }
 
 extension WorkspaceCmdArgs {

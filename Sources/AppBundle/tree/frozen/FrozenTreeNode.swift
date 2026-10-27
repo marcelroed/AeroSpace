@@ -14,16 +14,9 @@ struct FrozenContainer: Sendable {
 
     @MainActor init(_ container: TilingContainer) {
         children = container.children.map {
-            switch $0.nodeCases {
+            switch $0.tilingTreeNodeCasesOrDie() {
                 case .window(let w): .window(FrozenWindow(w))
                 case .tilingContainer(let c): .container(FrozenContainer(c))
-                case .workspace,
-                     .floatingWindowsContainer,
-                     .macosMinimizedWindowsContainer,
-                     .macosHiddenAppsWindowsContainer,
-                     .macosFullscreenWindowsContainer,
-                     .macosPopupWindowsContainer:
-                    illegalChildParentRelation(child: $0, parent: container)
             }
         }
         layout = container.layout

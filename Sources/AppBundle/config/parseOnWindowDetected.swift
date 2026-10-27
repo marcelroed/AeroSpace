@@ -5,8 +5,8 @@ struct WindowDetectedCallback: Equatable {
     var checkFurtherCallbacks: Bool = false
     var run: Shell<any Command>
 
-    var debugJson: Json {
-        var result: [String: Json] = [:]
+    var debugJson: OrderedJson {
+        var result: OrderedJson.JsonDict = [:]
         result["matcher"] = switch matcher {
             case .command(let command): .string(command.shellOfCommandsDescription)
             case .legacy(let legacy): legacy.debugJson
@@ -34,24 +34,15 @@ struct LegacyWindowDetectedCallbackMatcher: Equatable {
     var workspace: String?
     var duringAeroSpaceStartup: Bool?
 
-    var debugJson: Json {
-        var resultParts: [String] = []
-        if let appId {
-            resultParts.append("appId=\"\(appId)\"")
-        }
-        if let appNameRegexSubstring {
-            resultParts.append("appNameRegexSubstring=\"\(appNameRegexSubstring.origin)\"")
-        }
-        if let windowTitleRegexSubstring {
-            resultParts.append("windowTitleRegexSubstring=\"\(windowTitleRegexSubstring.origin)\"")
-        }
-        if let workspace {
-            resultParts.append("workspace=\"\(workspace)\"")
-        }
-        if let duringAeroSpaceStartup {
-            resultParts.append("duringAeroSpaceStartup=\(duringAeroSpaceStartup)")
-        }
-        return .string(resultParts.joined(separator: ", "))
+    var debugJson: OrderedJson {
+        let parts: [String?] = [
+            appId.map { "appId=\"\($0)\"" },
+            appNameRegexSubstring.map { "appNameRegexSubstring=\"\($0.origin)\"" },
+            windowTitleRegexSubstring.map { "windowTitleRegexSubstring=\"\($0.origin)\"" },
+            workspace.map { "workspace=\"\($0)\"" },
+            duringAeroSpaceStartup.map { "duringAeroSpaceStartup=\($0)" },
+        ]
+        return .string(parts.compactMap { $0 }.joined(separator: ", "))
     }
 }
 
@@ -99,19 +90,19 @@ private func parseCaseInsensitiveRegex(_ raw: OrderedJson, _ backtrace: ConfigBa
 
 private func parseMatcher(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> WindowDetectedCallbackMatcher {
     switch raw {
-        case .dict(let raw):
-            return .legacy(raw.parseTable(LegacyWindowDetectedCallbackMatcher(), matcherParsers, backtrace, &c))
+        case .dict:
+            return .legacy(parseTable(raw, LegacyWindowDetectedCallbackMatcher(), matcherParsers, backtrace, &c))
         case .string(let raw):
             return .command(parseCommandForConfig(raw, allowExecAndForget: false, backtrace, &c))
         default:
             // Intentionally skip Table type from the list of expected types
-            c.errors.append(.init(backtrace, expectedActualTypeError(expected: .string, actual: raw.tomlType)))
+            c.errors.append(expectedActualTypeDiagnostic(expected: .string, actual: raw.tomlType, backtrace))
             return .command(.empty)
     }
 }
 
 private func parseWindowDetectedCallback(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> WindowDetectedCallback? {
-    var myContext = ConfigParserContext(configVersion: c.configVersion, errors: [], warnings: [])
+    var myContext = ConfigParserContext(errors: [], warnings: [])
     let callback = parseTable(raw, RawWindowDetectedCallback(), windowDetectedParser, backtrace, &myContext)
 
     if callback.matcher == .command(.empty) && !callback.checkFurtherCallbacks {

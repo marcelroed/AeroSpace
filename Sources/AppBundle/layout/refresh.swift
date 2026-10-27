@@ -30,11 +30,9 @@ func runHeavyCompleteRefreshSession(
     let state = signposter.beginInterval(#function, "event: \(event) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug)")
     defer { signposter.endInterval(#function, state) }
     if !TrayMenuModel.shared.isEnabled { return }
-    let res = await Result {
+    do {
         try await $refreshSessionEvent.withValue(event) {
-            let nativeFocused = try await getNativeFocusedWindow(.cancellable)
-            if let nativeFocused { try await debugWindowsIfRecording(nativeFocused, .cancellable) }
-            updateFocusCache(nativeFocused)
+            try await syncFocusFromMacOs()
 
             if shouldLayoutWorkspaces && optimisticallyPreLayoutWorkspaces { try await layoutWorkspaces() }
 
@@ -47,11 +45,10 @@ func runHeavyCompleteRefreshSession(
             try await normalizeLayoutReason()
             if shouldLayoutWorkspaces { try await layoutWorkspaces() }
         }
-    }
-    switch res {
-        case .success(()): break
-        case .failure(let err as CancellationError): check(assumeCancellable, "Non cancellable refresh session was canceled: \(err) (\(type(of: err)))")
-        case .failure(let err): die("Illegal error: \(err)")
+    } catch let err as CancellationError {
+        check(assumeCancellable, "Non cancellable refresh session was canceled: \(err) (\(type(of: err)))")
+    } catch {
+        die("Illegal error: \(error)")
     }
 }
 
@@ -66,9 +63,7 @@ func runLightSession<T>(
     activeRefreshTask?.cancel() // Give priority to runSession
     activeRefreshTask = nil
     return try await $refreshSessionEvent.withValue(event) {
-        let nativeFocused = try await getNativeFocusedWindow(.cancellable)
-        if let nativeFocused { try await debugWindowsIfRecording(nativeFocused, .cancellable) }
-        updateFocusCache(nativeFocused)
+        try await syncFocusFromMacOs()
         let focusBefore = focus.windowOrNil
 
         await refreshModel_nonCancellable()
@@ -95,15 +90,6 @@ struct RunSessionGuard: Sendable {
     static func isServerEnabled(orIsEnableCommand command: (any Command)?) -> RunSessionGuard? {
         command is EnableCommand ? .forceRun : .isServerEnabled
     }
-    @MainActor
-    static func checkServerIsEnabledOrDie(
-        file: StaticString = #fileID,
-        line: Int = #line,
-        column: Int = #column,
-        function: String = #function,
-    ) -> RunSessionGuard {
-        .isServerEnabled ?? dieT("server is disabled", file: file, line: line, column: column, function: function)
-    }
     static let forceRun = RunSessionGuard()
     private init() {}
 }
@@ -115,7 +101,10 @@ func refreshModel_nonCancellable() async {
     } else {
         Workspace.garbageCollectUnusedWorkspaces()
         await checkOnFocusChangedCallbacks_nonCancellable()
-        normalizeContainers()
+        // Can't do it only for visible workspace because most of the commands support --window-id and --workspace flags
+        for workspace in Workspace.all {
+            workspace.normalizeContainers()
+        }
     }
 }
 
@@ -123,7 +112,7 @@ func refreshModel_nonCancellable() async {
 private func refresh() async throws {
     // Garbage collect terminated apps and windows before working with all windows
     let mapping = try await MacApp.refreshAllAndGetAliveWindowIds(frontmostAppBundleId: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
-    let aliveWindowIds = mapping.values.flatMap(id).toSet()
+    let aliveWindowIds = mapping.values.flatMap { $0 }.toSet()
 
     for window in MacWindow.allWindows {
         if !aliveWindowIds.contains(window.windowId) {
@@ -180,8 +169,8 @@ private func layoutWorkspaces() async throws {
         let important = 10
 
         let corner: OptimalHideCorner =
-            monitors.sumOfInt { contains($0, blc1) + contains($0, blc2) + important * contains($0, blc3) } <
-            monitors.sumOfInt { contains($0, brc1) + contains($0, brc2) + important * contains($0, brc3) }
+            monitors.sum { contains($0, blc1) + contains($0, blc2) + important * contains($0, blc3) } <
+            monitors.sum { contains($0, brc1) + contains($0, brc2) + important * contains($0, brc3) }
             ? .bottomLeftCorner
             : .bottomRightCorner
         monitorToOptimalHideCorner[monitor.rect.topLeftCorner] = corner
@@ -198,13 +187,5 @@ private func layoutWorkspaces() async throws {
         for window in workspace.allLeafWindowsRecursive {
             try await (window as! MacWindow).hideInCorner(corner) // todo as!
         }
-    }
-}
-
-@MainActor
-private func normalizeContainers() {
-    // Can't do it only for visible workspace because most of the commands support --window-id and --workspace flags
-    for workspace in Workspace.all {
-        workspace.normalizeContainers()
     }
 }

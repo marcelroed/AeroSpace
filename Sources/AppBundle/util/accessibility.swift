@@ -64,6 +64,22 @@ enum Ax {
         ReadableAttrImpl(key: key, getter: castToAxUiElementMock)
     }
 
+    /// An attribute whose value is an AXValue of the given type
+    private static func writableAxValue<V: BitwiseCopyable & Sendable>(_ key: String, _ type: AXValueType, _ zero: V) -> WritableAttrImpl<V> {
+        WritableAttrImpl(
+            key: key,
+            getter: {
+                var raw = zero
+                check(unsafe AXValueGetValue($0 as! AXValue, type, &raw))
+                return raw
+            },
+            setter: {
+                var value = $0
+                return unsafe AXValueCreate(type, &value) as CFTypeRef
+            },
+        )
+    }
+
     static let parentWindowRecursive = ReadableAttrImpl<AXUIElement>(
         key: kAXWindowAttribute,
         getter: { ($0 as! AXUIElement) },
@@ -78,30 +94,8 @@ enum Ax {
     static let isFullscreenAttr = writableBool("AXFullScreen")
     static let isFocused = readableBool(kAXFocusedAttribute)
     static let isMainAttr = writableBool(kAXMainAttribute)
-    static let sizeAttr = WritableAttrImpl<CGSize>(
-        key: kAXSizeAttribute,
-        getter: {
-            var raw: CGSize = .zero
-            check(unsafe AXValueGetValue($0 as! AXValue, .cgSize, &raw))
-            return raw
-        },
-        setter: {
-            var size = $0
-            return unsafe AXValueCreate(.cgSize, &size) as CFTypeRef
-        },
-    )
-    static let topLeftCornerAttr = WritableAttrImpl<CGPoint>(
-        key: kAXPositionAttribute,
-        getter: {
-            var raw: CGPoint = .zero
-            check(unsafe AXValueGetValue($0 as! AXValue, .cgPoint, &raw))
-            return raw
-        },
-        setter: {
-            var size = $0
-            return unsafe AXValueCreate(.cgPoint, &size) as CFTypeRef
-        },
-    )
+    static let sizeAttr = writableAxValue(kAXSizeAttribute, .cgSize, CGSize.zero)
+    static let topLeftCornerAttr = writableAxValue(kAXPositionAttribute, .cgPoint, CGPoint.zero)
     /// Returns windows visible on all monitors
     /// If some windows are located on not active macOS Spaces then they won't be returned
     static let windowsAttr = ReadableAttrImpl<[WindowIdAndAxUiElement]>(
@@ -129,23 +123,16 @@ private func castToAxUiElementMock(_ a: AnyObject) -> any AxUiElementMock {
 typealias WindowIdAndAxUiElement = (windowId: UInt32, ax: AXUIElement)
 typealias WindowIdAndAxUiElementMock = (windowId: UInt32, ax: any AxUiElementMock)
 
-private func windowOrNil(_ any: Any?) -> WindowIdAndAxUiElementMock? {
-    guard let any else { return nil }
-    let potentialWindow = castToAxUiElementMock(any as AnyObject)
+private func windowOrNil(_ obj: AnyObject) -> WindowIdAndAxUiElementMock? {
+    let potentialWindow = castToAxUiElementMock(obj)
     // Filter out non-window objects (e.g. Finder's desktop)
-    return switch potentialWindow.containingWindowId() {
-        case let windowId?: (windowId, potentialWindow)
-        case nil: nil
-    }
+    return potentialWindow.containingWindowId().map { ($0, potentialWindow) }
 }
 
 private func axWindowOrNil(_ any: Any) -> WindowIdAndAxUiElement? {
     let potentialWindow = any as AnyObject as! AXUIElement
     // Filter out non-window objects (e.g. Finder's desktop)
-    return switch potentialWindow.containingWindowId() {
-        case let windowId?: (windowId, potentialWindow)
-        case nil: nil
-    }
+    return potentialWindow.containingWindowId().map { ($0, potentialWindow) }
 }
 
 extension AXUIElement: AxUiElementMock {
@@ -173,12 +160,5 @@ extension AXUIElement: AxUiElementMock {
         return unsafe _AXUIElementGetWindow(self, &cgWindowId) == .success && cgWindowId != kCGNullWindowID
             ? cgWindowId
             : nil
-    }
-}
-
-extension AXObserver {
-    static func new(_ pid: pid_t, _ handler: AXObserverCallback) -> AXObserver? {
-        var observer: AXObserver? = nil
-        return unsafe AXObserverCreate(pid, handler, &observer) == .success ? observer : nil
     }
 }

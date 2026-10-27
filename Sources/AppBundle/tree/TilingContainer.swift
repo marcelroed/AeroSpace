@@ -2,22 +2,13 @@ import AppKit
 import Common
 
 final class TilingContainer: TreeNode, NonLeafTreeNodeObject { // todo consider renaming to GenericContainer
-    fileprivate var _orientation: Orientation
-    var orientation: Orientation { _orientation }
+    fileprivate(set) var orientation: Orientation
     var layout: Layout
 
     init(parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, _ orientation: Orientation, _ layout: Layout, index: Int) {
-        self._orientation = orientation
+        self.orientation = orientation
         self.layout = layout
         super.init(parent: parent, adaptiveWeight: adaptiveWeight, index: index)
-    }
-
-    static func newHTiles(parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) -> TilingContainer {
-        TilingContainer(parent: parent, adaptiveWeight: adaptiveWeight, .h, .tiles, index: index)
-    }
-
-    static func newVTiles(parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) -> TilingContainer {
-        TilingContainer(parent: parent, adaptiveWeight: adaptiveWeight, .v, .tiles, index: index)
     }
 }
 
@@ -33,17 +24,17 @@ extension TilingContainer {
             parentsWithSelf
                 .filterIsInstance(of: TilingContainer.self)
                 .forEach {
-                    $0._orientation = orientation
+                    $0.orientation = orientation
                     orientation = orientation.opposite
                 }
         } else {
-            _orientation = targetOrientation
+            self.orientation = targetOrientation
         }
     }
 
     func normalizeOppositeOrientationForNestedContainers() {
         if orientation == (parent as? TilingContainer)?.orientation {
-            _orientation = orientation.opposite
+            orientation = orientation.opposite
         }
         for child in children {
             (child as? TilingContainer)?.normalizeOppositeOrientationForNestedContainers()

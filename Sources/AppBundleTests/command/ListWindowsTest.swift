@@ -75,10 +75,7 @@ final class ListWindowsTest: XCTestCase {
     }
 
     func testRunFocusedNoWindow() async {
-        let result = await parseCommand("list-windows --focused --format '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stderr, [noWindowIsFocused])
-        assertEquals(result.stdout, [])
+        await assertRun("list-windows --focused --format '%{window-id}'", exitCode: 2, stdout: [], stderr: [noWindowIsFocused])
     }
 
     func testRunFocusedHappy() async {
@@ -86,18 +83,13 @@ final class ListWindowsTest: XCTestCase {
             assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
             TestWindow.new(id: 2, parent: $0)
         }
-        let result = await parseCommand("list-windows --focused --format '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, ["1"])
+        await assertRun("list-windows --focused --format '%{window-id}'", exitCode: 0, stdout: ["1"], stderr: [])
     }
 
     func testRunAll() async {
         TestWindow.new(id: 1, parent: Workspace.get(byName: "a").rootTilingContainer)
         TestWindow.new(id: 2, parent: Workspace.get(byName: "b").rootTilingContainer)
-        let result = await parseCommand("list-windows --all --format '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
+        let result = await assertRun("list-windows --all --format '%{window-id}'", exitCode: 0, stderr: [])
         assertEquals(result.stdout.sorted(), ["1", "2"])
     }
 
@@ -106,25 +98,19 @@ final class ListWindowsTest: XCTestCase {
         TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
         TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
         TestWindow.new(id: 3, parent: Workspace.get(byName: "b").rootTilingContainer)
-        let result = await parseCommand("list-windows --all --count").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stdout, ["3"])
+        await assertRun("list-windows --all --count", exitCode: 0, stdout: ["3"])
     }
 
     func testRunJson() async {
         TestWindow.new(id: 7, parent: Workspace.get(byName: "a").rootTilingContainer)
-        let result = await parseCommand("list-windows --all --format '%{window-id}' --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
         let expected = JSONEncoder.aeroSpaceDefault.encodeToString([["window-id": 7]])
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stdout, [expected])
+        await assertRun("list-windows --all --format '%{window-id}' --json", exitCode: 0, stdout: [expected.orDie()])
     }
 
     func testRunFilterByWorkspaceName() async {
         TestWindow.new(id: 1, parent: Workspace.get(byName: "a").rootTilingContainer)
         TestWindow.new(id: 2, parent: Workspace.get(byName: "b").rootTilingContainer)
-        let result = await parseCommand("list-windows --workspace a --format '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stdout, ["1"])
+        await assertRun("list-windows --workspace a --format '%{window-id}'", exitCode: 0, stdout: ["1"])
     }
 
     func testRunFilterByWorkspaceFocused() async {
@@ -132,9 +118,7 @@ final class ListWindowsTest: XCTestCase {
         TestWindow.new(id: 1, parent: workspaceA.rootTilingContainer)
         TestWindow.new(id: 2, parent: Workspace.get(byName: "b").rootTilingContainer)
         assertEquals(workspaceA.focusWorkspace(), true)
-        let result = await parseCommand("list-windows --workspace focused --format '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stdout, ["1"])
+        await assertRun("list-windows --workspace focused --format '%{window-id}'", exitCode: 0, stdout: ["1"])
     }
 
     func testRunFilterByWorkspaceVisible() async {
@@ -142,45 +126,30 @@ final class ListWindowsTest: XCTestCase {
         TestWindow.new(id: 1, parent: workspaceA.rootTilingContainer)
         TestWindow.new(id: 2, parent: Workspace.get(byName: "b").rootTilingContainer)
         assertEquals(workspaceA.focusWorkspace(), true)
-        let result = await parseCommand("list-windows --workspace visible --format '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stdout, ["1"])
+        await assertRun("list-windows --workspace visible --format '%{window-id}'", exitCode: 0, stdout: ["1"])
     }
 
     func testRunFilterByMonitor() async {
         TestWindow.new(id: 1, parent: Workspace.get(byName: "a").rootTilingContainer)
-        let result = await parseCommand("list-windows --monitor focused --format '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stdout, ["1"])
+        await assertRun("list-windows --monitor focused --format '%{window-id}'", exitCode: 0, stdout: ["1"])
     }
 
     func testRunInvalidMonitor() async {
         TestWindow.new(id: 1, parent: Workspace.get(byName: "a").rootTilingContainer)
-        let result = await parseCommand("list-windows --monitor 99 --format '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["Invalid monitor ID: 99"])
+        await assertRun("list-windows --monitor 99 --format '%{window-id}'", exitCode: 2, stdout: [], stderr: ["Invalid monitor ID: 99"])
     }
 
     func testRunFilterByPid() async {
         TestWindow.new(id: 1, parent: Workspace.get(byName: "a").rootTilingContainer)
-        let matching = await parseCommand("list-windows --monitor all --pid 0 --format '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(matching.exitCode.rawValue, 0)
-        assertEquals(matching.stdout, ["1"])
+        await assertRun("list-windows --monitor all --pid 0 --format '%{window-id}'", exitCode: 0, stdout: ["1"])
 
-        let mismatching = await parseCommand("list-windows --monitor all --pid 9999 --format '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(mismatching.exitCode.rawValue, 0)
-        assertEquals(mismatching.stdout, [])
+        await assertRun("list-windows --monitor all --pid 9999 --format '%{window-id}'", exitCode: 0, stdout: [])
     }
 
     func testRunFilterByAppBundleId() async {
         TestWindow.new(id: 1, parent: Workspace.get(byName: "a").rootTilingContainer)
-        let matching = await parseCommand("list-windows --monitor all --app-bundle-id bobko.AeroSpace.test-app --format '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(matching.exitCode.rawValue, 0)
-        assertEquals(matching.stdout, ["1"])
+        await assertRun("list-windows --monitor all --app-bundle-id bobko.AeroSpace.test-app --format '%{window-id}'", exitCode: 0, stdout: ["1"])
 
-        let mismatching = await parseCommand("list-windows --monitor all --app-bundle-id com.unknown.app --format '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(mismatching.exitCode.rawValue, 0)
-        assertEquals(mismatching.stdout, [])
+        await assertRun("list-windows --monitor all --app-bundle-id com.unknown.app --format '%{window-id}'", exitCode: 0, stdout: [])
     }
 }

@@ -48,12 +48,8 @@ import Foundation
 
 @MainActor
 private func smartLayoutAtStartup() {
-    let workspace = focus.workspace
-    let root = workspace.rootTilingContainer
-    switch root.children.count <= 3 {
-        case true: root.layout = .tiles
-        case false: root.layout = .accordion
-    }
+    let root = focus.workspace.rootTilingContainer
+    root.layout = root.children.count <= 3 ? .tiles : .accordion
 }
 
 var isStartup: Bool { refreshSessionEvent?.isStartup == true }

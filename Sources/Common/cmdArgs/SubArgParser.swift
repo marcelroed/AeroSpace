@@ -1,21 +1,19 @@
-typealias SubArgParser<Root, Value> = ArgParser<SubArgParserInput, Root, Value, ()>
-
-func windowIdSubArgParser<T: CmdArgs>() -> SubArgParser<T, UInt32?> {
+func windowIdSubArgParser<T: CmdArgs>() -> SubArgParser<T> {
     singleValueSubArgParser(\T.windowId, "<window-id>", parseUInt32)
 }
-func workspaceSubArgParser<T: CmdArgs>() -> SubArgParser<T, WorkspaceName?> {
+func workspaceSubArgParser<T: CmdArgs>() -> SubArgParser<T> {
     singleValueSubArgParser(\T.workspaceName, "<workspace>", WorkspaceName.parse)
 }
 
-func trueBoolFlag<T>(_ keyPath: SendableWritableKeyPath<T, Bool>) -> SubArgParser<T, Bool> {
+func trueBoolFlag<T>(_ keyPath: SendableWritableKeyPath<T, Bool>) -> SubArgParser<T> {
     ArgParser(keyPath, constSubArgParserFun(true))
 }
 
-func falseBoolFlag<T>(_ keyPath: SendableWritableKeyPath<T, Bool>) -> SubArgParser<T, Bool> {
+func falseBoolFlag<T>(_ keyPath: SendableWritableKeyPath<T, Bool>) -> SubArgParser<T> {
     ArgParser(keyPath, constSubArgParserFun(false))
 }
 
-func boolFlag<T>(_ keyPath: SendableWritableKeyPath<T, Bool?>) -> SubArgParser<T, Bool?> {
+func boolFlag<T>(_ keyPath: SendableWritableKeyPath<T, Bool?>) -> SubArgParser<T> {
     ArgParser(keyPath) { input in input.argOrNil == "no" ? .succ(false, advanceBy: 1) : .succ(true, advanceBy: 0) }
 }
 
@@ -23,7 +21,7 @@ func singleValueSubArgParser<Root, Value>(
     _ keyPath: SendableWritableKeyPath<Root, Value?>,
     _ placeholder: String,
     _ mapper: @escaping @Sendable (String) -> ResOrStr<Value>,
-) -> SubArgParser<Root, Value?> {
+) -> SubArgParser<Root> {
     ArgParser(keyPath) { input in
         switch input.nonFlagArgOrNil() {
             case nil: .fail("'\(input.superArg)' must be followed by '\(placeholder)'", advanceBy: 0)

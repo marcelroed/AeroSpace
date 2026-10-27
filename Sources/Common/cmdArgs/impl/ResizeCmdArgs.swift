@@ -1,9 +1,8 @@
 public struct ResizeCmdArgs: CmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
-    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
     public static let parser: CmdParser<Self> = .init(
         kind: .resize,
-        help: resize_help_generated,
         flags: [
             "--window-id": windowIdSubArgParser(),
         ],
@@ -37,10 +36,6 @@ public struct ResizeCmdArgs: CmdArgs {
         case add(UInt)
         case subtract(UInt)
     }
-}
-
-func parseResizeCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ResizeCmdArgs> {
-    parseSpecificCmdArgs(ResizeCmdArgs(rawArgs: args), args)
 }
 
 private func parseUnits(i: PosArgParserInput) -> ParsedCliArgs<ResizeCmdArgs.Units> {

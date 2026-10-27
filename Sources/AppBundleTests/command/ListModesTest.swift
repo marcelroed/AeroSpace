@@ -26,37 +26,20 @@ final class ListModesTest: XCTestCase {
             "resize": Mode(bindings: [:]),
         ]
 
-        let defaultResult = await parseCommand("list-modes").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(defaultResult.exitCode.rawValue, 0)
-        assertEquals(defaultResult.stdout, ["main", "resize", "service"])
-        assertEquals(defaultResult.stderr, [])
+        await assertRun("list-modes", exitCode: 0, stdout: ["main", "resize", "service"], stderr: [])
 
-        let currentResult = await parseCommand("list-modes --current").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(currentResult.exitCode.rawValue, 0)
-        assertEquals(currentResult.stdout, ["main"])
-        assertEquals(currentResult.stderr, [])
+        await assertRun("list-modes --current", exitCode: 0, stdout: ["main"], stderr: [])
 
-        let countResult = await parseCommand("list-modes --count").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(countResult.exitCode.rawValue, 0)
-        assertEquals(countResult.stdout, ["3"])
-        assertEquals(countResult.stderr, [])
+        await assertRun("list-modes --count", exitCode: 0, stdout: ["3"], stderr: [])
 
-        let jsonResult = await parseCommand("list-modes --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
         let expectedJson = JSONEncoder.aeroSpaceDefault.encodeToString([
             ["mode-id": "main"],
             ["mode-id": "resize"],
             ["mode-id": "service"],
         ])
-        assertEquals(jsonResult.exitCode.rawValue, 0)
-        assertEquals(jsonResult.stdout, [expectedJson])
-        assertEquals(jsonResult.stderr, [])
+        await assertRun("list-modes --json", exitCode: 0, stdout: [expectedJson.orDie()], stderr: [])
 
-        let currentJsonResult = await parseCommand("list-modes --current --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        let expectedCurrentJson = JSONEncoder.aeroSpaceDefault.encodeToString([
-            ["mode-id": "main"],
-        ])
-        assertEquals(currentJsonResult.exitCode.rawValue, 0)
-        assertEquals(currentJsonResult.stdout, [expectedCurrentJson])
-        assertEquals(currentJsonResult.stderr, [])
+        let expectedCurrentJson = JSONEncoder.aeroSpaceDefault.encodeToString([["mode-id": "main"]])
+        await assertRun("list-modes --current --json", exitCode: 0, stdout: [expectedCurrentJson.orDie()], stderr: [])
     }
 }

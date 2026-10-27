@@ -7,11 +7,11 @@ private struct Subscriber {
     let events: Set<ServerEventType>
 }
 
-@MainActor private var subscribers: [UniqueToken: Subscriber] = [:]
+@MainActor private var subscribers: [UUID: Subscriber] = [:]
 
 @MainActor
 func handleSubscribeAndWaitTillError(_ connection: NWConnection, _ args: SubscribeCmdArgs) async {
-    let id = UniqueToken()
+    let id = UUID()
     subscribers[id] = Subscriber(connection: connection, events: args.events)
     defer { subscribers.removeValue(forKey: id) }
     if args.sendInitial {

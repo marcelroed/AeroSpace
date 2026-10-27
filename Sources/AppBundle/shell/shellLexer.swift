@@ -1,7 +1,7 @@
 import Common
 
 extension String {
-    public func shellLexerTokens() -> ResOrStr<[LexerToken]> {
+    func shellLexerTokens() -> ResOrStr<[LexerToken]> {
         Result { () throws(String) in try _shellLexerTokens(self) }
     }
 }
@@ -15,11 +15,11 @@ private func _shellLexerTokens(_ str: String) throws(String) -> [LexerToken] {
     var wordLocation = Location(line: 1, column: 1)
     let array = locateChars(str + " ") // synthetic trailing space to flush the last word
 
-    func flushWord(_ wordKind: WordKind) throws(String) {
-        if wordKind == .bare, word != "~=", let reservedChar = word.first(where: { reservedChars.contains($0) }) {
+    func flushWord(quoted: Bool = false) throws(String) {
+        if !quoted, word != "~=", let reservedChar = word.first(where: { reservedChars.contains($0) }) {
             throw "\(wordLocation): Bare word '\(word)' contains reserved character: \(reservedChar). Please quote the bare word if you want to use the character."
         }
-        if wordKind == .quoted || !word.isEmpty {
+        if quoted || !word.isEmpty {
             result.append(.init(wordLocation, .word(word)))
             word = ""
         }
@@ -35,7 +35,7 @@ private func _shellLexerTokens(_ str: String) throws(String) -> [LexerToken] {
             case (.comment, _): break // Skip comment
 
             case (.quotedWord(quoteChar: char.value), _): // Close quotes
-                try flushWord(.quoted)
+                try flushWord(quoted: true)
                 state = .rightAfterQuotedWord
             case (.quotedWord, _): // Yet another character of a quoted word
                 word.append(char.value)
@@ -49,38 +49,38 @@ private func _shellLexerTokens(_ str: String) throws(String) -> [LexerToken] {
             // All the remaining states below: .skipWhitespaces, .bareWord, or .rightAfterQuotedWord
 
             case (_, "\n"):
-                try flushWord(.bare)
+                try flushWord()
                 result.append(.init(char.location, .newline))
             case (.rightAfterQuotedWord, _) where char.value.isWhitespace:
                 state = .skipWhitespaces
 
             case (_, "&") where array.getOrNil(atIndex: index)?.value == "&":
-                try flushWord(.bare)
+                try flushWord()
                 result.append(.init(char.location, .and))
                 index += 1
             case (_, "|") where array.getOrNil(atIndex: index)?.value == "|":
-                try flushWord(.bare)
+                try flushWord()
                 result.append(.init(char.location, .or))
                 index += 1
             case (_, "|"):
-                try flushWord(.bare)
+                try flushWord()
                 result.append(.init(char.location, .pipe))
             case (_, "\\") where array.getOrNil(atIndex: index)?.value == "#":
                 throw "\(char.location): Please put a space between backslash and a comment start"
             case (_, "\\"):
-                try flushWord(.bare)
+                try flushWord()
                 state = .backslash
             case (_, "#"): // Start comment
-                try flushWord(.bare)
+                try flushWord()
                 state = .comment
             case (_, ";"):
-                try flushWord(.bare)
+                try flushWord()
                 result.append(.init(char.location, .semicolon))
             case (_, "("):
-                try flushWord(.bare)
+                try flushWord()
                 result.append(.init(char.location, .lParen))
             case (_, ")"):
-                try flushWord(.bare)
+                try flushWord()
                 result.append(.init(char.location, .rParen))
 
             case (.skipWhitespaces, _) where char.value.isQuote: // Open quotes
@@ -98,7 +98,7 @@ private func _shellLexerTokens(_ str: String) throws(String) -> [LexerToken] {
             case (.skipWhitespaces, _): break // Skip whitespaces
 
             case (.bareWord, _) where char.value.isWhitespace: // End bare word
-                try flushWord(.bare)
+                try flushWord()
             case (.bareWord, _): // Yet another character of a bare word
                 word.append(char.value)
         }
@@ -142,16 +142,16 @@ private func locateChars(_ str: String) -> [LocatedChar] {
 
 private let reservedChars: Set<Character> = ["(", ")", "$", "~", "&", "?", "*", "!", "\\", "|", "<", ">", "`", "'", "\"", "#", "\n"]
 
-public struct LexerToken: Equatable {
+struct LexerToken: Equatable {
     let location: Location
     let payload: Payload
 
-    public init(_ location: Location, _ payload: Payload) {
+    init(_ location: Location, _ payload: Payload) {
         self.location = location
         self.payload = payload
     }
 
-    public enum Payload: Equatable, CustomStringConvertible {
+    enum Payload: Equatable, CustomStringConvertible {
         case end
 
         case word(String)
@@ -166,7 +166,7 @@ public struct LexerToken: Equatable {
         case semicolon // ;
         case newline // \n
 
-        public var description: String {
+        var description: String {
             switch self {
                 case .end: "End of input"
                 case .and: "&&"
@@ -182,16 +182,11 @@ public struct LexerToken: Equatable {
     }
 }
 
-public struct Location: CustomStringConvertible, Equatable {
-    public var line: Int
-    public var column: Int
+struct Location: CustomStringConvertible, Equatable {
+    var line: Int
+    var column: Int
 
-    public init(line: Int, column: Int) {
-        self.line = line
-        self.column = column
-    }
-
-    public var description: String { "Line \(line) Column \(column)" }
+    var description: String { "Line \(line) Column \(column)" }
 }
 
 extension Character {
@@ -207,9 +202,4 @@ private enum State {
     case bareWord
     case skipWhitespaces
     case rightAfterQuotedWord
-}
-
-private enum WordKind: Equatable {
-    case bare
-    case quoted
 }

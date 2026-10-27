@@ -44,10 +44,7 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
 
     @Test
     func testConfigPath() async {
-        let result = await parseCommand("config --config-path").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, [configUrl.absoluteURL.path])
+        await assertRun("config --config-path", exitCode: 0, stdout: [configUrl.absoluteURL.path], stderr: [])
     }
 
     @Test
@@ -56,9 +53,7 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
             "main": Mode(bindings: [:]),
             "service": Mode(bindings: [:]),
         ]
-        let result = await parseCommand("config --major-keys").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
+        let result = await assertRun("config --major-keys", exitCode: 0, stderr: [])
         // The whole listing comes back as one stdout entry separated by newlines.
         // Dict iteration order isn't stable, so sort before asserting.
         let lines = (result.stdout.singleOrNil() ?? "").split(separator: "\n").map(String.init).sorted()
@@ -67,50 +62,35 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
 
     @Test
     func testAllKeys() async {
-        let command = parseCommand("focus left").cmdOrDie
-        let binding = HotkeyBinding(.option, .h, command)
-        config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
+        bindAltHToFocusLeft()
 
-        let result = await parseCommand("config --all-keys").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
         // Single mode + single binding => dict iteration order doesn't affect the output.
-        assertEquals(
-            result.stdout,
-            [".\nmode\nmode.main\nmode.main.binding\nmode.main.binding.alt-h"],
-        )
+        await assertRun("config --all-keys", exitCode: 0, stdout: [".\nmode\nmode.main\nmode.main.binding\nmode.main.binding.alt-h"], stderr: [])
     }
 
     @Test
     func testGetRoot_complexObject_fails() async {
-        let result = await parseCommand("config --get .").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(
-            result.stderr,
-            ["Complicated objects can be printed only with --json flag. Alternatively, you can try to inspect keys of the object with --keys flag"],
+        await assertRun(
+            "config --get .",
+            exitCode: 2,
+            stdout: [],
+            stderr: ["Complicated objects can be printed only with --json flag. Alternatively, you can try to inspect keys of the object with --keys flag"],
         )
     }
 
     @Test
     func testGetRoot_keys() async {
         config.modes = ["main": Mode(bindings: [:])]
-        let result = await parseCommand("config --get . --keys").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, ["mode"])
+        await assertRun("config --get . --keys", exitCode: 0, stdout: ["mode"], stderr: [])
     }
 
     @Test
     func testGetRoot_json() async {
         config.modes = ["main": Mode(bindings: [:])]
-        let expectedMap: ConfigMapValue = .map(["mode": .map(["main": .map(["binding": .map([:])])])])
+        let expectedMap: OrderedJson = .dict(["mode": .dict(["main": .dict(["binding": .dict([:])])])])
         let expectedJson = JSONEncoder.aeroSpaceDefault.encodeToString(expectedMap)
 
-        let result = await parseCommand("config --get . --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, [expectedJson])
+        await assertRun("config --get . --json", exitCode: 0, stdout: [expectedJson.orDie()], stderr: [])
     }
 
     @Test
@@ -118,13 +98,10 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
         config.modes = ["main": Mode(bindings: [:])]
         // --keys converts the map into an array of string-scalar keys, which is then JSON-encoded.
         let expected = JSONEncoder.aeroSpaceDefault.encodeToString(
-            ConfigMapValue.array([.scalar(.string("mode"))]),
+            OrderedJson.array([.string("mode")]),
         )
 
-        let result = await parseCommand("config --get . --keys --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, [expected])
+        await assertRun("config --get . --keys --json", exitCode: 0, stdout: [expected.orDie()], stderr: [])
     }
 
     @Test
@@ -133,110 +110,160 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
             "main": Mode(bindings: [:]),
             "service": Mode(bindings: [:]),
         ]
-        let result = await parseCommand("config --get mode --keys").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
         // Plain (non-json) array output is sorted before printing.
-        assertEquals(result.stdout, ["main\nservice"])
+        await assertRun("config --get mode --keys", exitCode: 0, stdout: ["main\nservice"], stderr: [])
     }
 
     @Test
     func testGetScalar() async {
-        let command = parseCommand("focus left").cmdOrDie
-        let binding = HotkeyBinding(.option, .h, command)
-        config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
+        let command = bindAltHToFocusLeft()
 
-        let result = await parseCommand("config --get mode.main.binding.alt-h").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, [command.shellOfCommandsDescription])
+        await assertRun("config --get mode.main.binding.alt-h", exitCode: 0, stdout: [command.shellOfCommandsDescription], stderr: [])
     }
 
     @Test
     func testGetScalar_keys_fails() async {
-        let command = parseCommand("focus left").cmdOrDie
-        let binding = HotkeyBinding(.option, .h, command)
-        config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
+        let command = bindAltHToFocusLeft()
 
-        let result = await parseCommand("config --get mode.main.binding.alt-h --keys").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
         // The error message interpolates the enum directly, yielding the default Swift case repr.
-        assertEquals(result.stderr, ["--keys flag cannot be applied to scalar object 'string(\"\(command.shellOfCommandsDescription)\")'"])
+        await assertRun(
+            "config --get mode.main.binding.alt-h --keys",
+            exitCode: 2,
+            stdout: [],
+            stderr: ["--keys flag cannot be applied to scalar object 'string(\"\(command.shellOfCommandsDescription)\")'"],
+        )
     }
 
     @Test
     func testGetScalar_dereference_fails() async {
-        let command = parseCommand("focus left").cmdOrDie
-        let binding = HotkeyBinding(.option, .h, command)
-        config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
+        let command = bindAltHToFocusLeft()
 
-        let result = await parseCommand("config --get mode.main.binding.alt-h.foo").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["Can't dereference scalar value '\(command.shellOfCommandsDescription)'"])
+        await assertRun("config --get mode.main.binding.alt-h.foo", exitCode: 2, stdout: [], stderr: ["Can't dereference scalar value '\(command.shellOfCommandsDescription)'"])
     }
 
     @Test
     func testGetMissingKey_fails() async {
-        let result = await parseCommand("config --get nonExistent").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["No value at key token 'nonExistent'"])
+        await assertRun("config --get nonExistent", exitCode: 2, stdout: [], stderr: ["No value at key token 'nonExistent'"])
     }
 
     @Test
     func testGetInvalidPath_emptyKey() async {
-        let result = await parseCommand("config --get ''").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["Invalid empty key"])
+        await assertRun("config --get ''", exitCode: 2, stdout: [], stderr: ["Invalid empty key"])
     }
 
     @Test
     func testGetInvalidPath_doubleDot() async {
-        let result = await parseCommand("config --get a..b").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["Invalid key 'a..b'"])
+        await assertRun("config --get a..b", exitCode: 2, stdout: [], stderr: ["Invalid key 'a..b'"])
     }
 
     @Test
     func testGetInvalidPath_trailingDot() async {
-        let result = await parseCommand("config --get a.").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["Invalid key 'a.'"])
+        await assertRun("config --get a.", exitCode: 2, stdout: [], stderr: ["Invalid key 'a.'"])
     }
 
     // The naturally-built configMap (buildConfigMap) never produces arrays, so the array branches
-    // of ConfigMapValue.find/dumpAllKeysRecursive are exercised directly here.
+    // of OrderedJson.find/dumpAllKeysRecursive are exercised directly here.
     @Test
     func testFindArrayIndex_success() {
-        let arr: ConfigMapValue = .array([.scalar(.string("a")), .scalar(.string("b"))])
-        switch arr.find(keyPath: ["1"].slice) {
-            case .success(.scalar(.string(let s))): assertEquals(s, "b")
-            default: fail("expected .scalar(.string(\"b\"))")
-        }
+        let arr: OrderedJson = .array([.string("a"), .string("b")])
+        assertSucc(arr.find(keyPath: ["1"].slice), .string("b"))
     }
 
     @Test
     func testFindArrayIndex_outOfBounds() {
-        let arr: ConfigMapValue = .array([.scalar(.string("a"))])
+        let arr: OrderedJson = .array([.string("a")])
         assertFail(arr.find(keyPath: ["5"].slice), "Index out of bounds. Index: 5, Size: 1")
     }
 
     @Test
     func testFindArrayIndex_notInt() {
-        let arr: ConfigMapValue = .array([.scalar(.string("a"))])
+        let arr: OrderedJson = .array([.string("a")])
         assertFail(arr.find(keyPath: ["foo"].slice), "Can't convert key token 'foo' to Int")
     }
 
     @Test
     func testDumpAllKeys_array() {
-        let value: ConfigMapValue = .array([.scalar(.string("a")), .map(["k": .scalar(.int(1))])])
+        let value: OrderedJson = .array([.string("a"), .dict(["k": .int(1)])])
         var result: [String] = []
         value.dumpAllKeysRecursive(path: ".", result: &result)
         assertEquals(result, [".", "0", "1", "1.k"])
+    }
+
+    @Test
+    func testGetMode_json_literal() async {
+        let command = parseCommand("focus left").cmdOrDie
+        let binding = HotkeyBinding(.option, .h, command)
+        let binding2 = HotkeyBinding(.option, .j, parseCommand("focus down").cmdOrDie)
+        config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding, binding2.descriptionWithKeyCode: binding2])]
+
+        let expected = """
+            {
+              "main" : {
+                "binding" : {
+                  "alt-h" : "focus left",
+                  "alt-j" : "focus down"
+                }
+              }
+            }
+            """
+        await assertRun("config --get mode --json", exitCode: 0, stdout: [expected], stderr: [])
+    }
+
+    @Test
+    func testGetRoot_json_literal() async {
+        config.modes = ["main": Mode(bindings: [:])]
+        let expected = """
+            {
+              "mode" : {
+                "main" : {
+                  "binding" : {
+
+                  }
+                }
+              }
+            }
+            """
+        await assertRun("config --get . --json", exitCode: 0, stdout: [expected], stderr: [])
+    }
+
+    @Test
+    func testGetMode_keysJson_literal() async {
+        config.modes = ["main": Mode(bindings: [:])]
+        await assertRun("config --get mode.main --keys --json", exitCode: 0, stdout: ["[\n  \"binding\"\n]"], stderr: [])
+    }
+
+    @Test
+    func testGetScalar_json_literal() async {
+        bindAltHToFocusLeft()
+        await assertRun("config --get mode.main.binding.alt-h --json", exitCode: 0, stdout: ["\"focus left\""], stderr: [])
+    }
+
+    @Test
+    func testEncodeArray_literal() {
+        let value: OrderedJson = .array([.string("a/b"), .int(1), .dict(["k": .array([])]), .array([.int(0)])])
+        let expected = """
+            [
+              "a/b",
+              1,
+              {
+                "k" : [
+
+                ]
+              },
+              [
+                0
+              ]
+            ]
+            """
+        assertEquals(JSONEncoder.aeroSpaceDefault.encodeToString(value), expected)
+    }
+
+    /// Binds alt-h to `focus left` in the main mode, and returns that command
+    @discardableResult
+    private func bindAltHToFocusLeft() -> Shell<any Command> {
+        let command = parseCommand("focus left").cmdOrDie
+        let binding = HotkeyBinding(.option, .h, command)
+        config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
+        return command
     }
 }

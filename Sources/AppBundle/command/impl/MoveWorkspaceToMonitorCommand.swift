@@ -10,25 +10,28 @@ struct MoveWorkspaceToMonitorCommand: Command {
         let focusedWorkspace = target.workspace
         let prevMonitor = focusedWorkspace.workspaceMonitor
 
-        switch args.target.val.resolve(target.workspace.workspaceMonitor, wrapAround: args.wrapAround) {
-            case .success(let targetMonitor):
-                if targetMonitor.monitorId_oneBased == prevMonitor.monitorId_oneBased {
-                    return .succ
-                }
-                if targetMonitor.setActiveWorkspace(focusedWorkspace) {
-                    let stubWorkspace = getStubWorkspace(for: prevMonitor)
-                    check(
-                        prevMonitor.setActiveWorkspace(stubWorkspace),
-                        "getStubWorkspace generated incompatible stub workspace (\(stubWorkspace)) for the monitor (\(prevMonitor)",
-                    )
-                    return .succ
-                } else {
-                    return .fail(io.err(
-                        "Can't move workspace '\(focusedWorkspace.name)' to monitor '\(targetMonitor.name)'. workspace-to-monitor-force-assignment doesn't allow it",
-                    ))
-                }
-            case .failure(let msg):
-                return .fail(io.err(msg))
+        guard let targetMonitor = args.target.val.resolve(target.workspace.workspaceMonitor, wrapAround: args.wrapAround)
+            .getOrNil(appendErrorTo: &io.stderr) else { return .fail }
+        if targetMonitor.monitorId_oneBased == prevMonitor.monitorId_oneBased {
+            return .succ
         }
+        return .from(bool: moveWorkspace(focusedWorkspace, to: targetMonitor, stubbing: prevMonitor, io))
     }
+}
+
+/// Shows `workspace` on `monitor` and a stub workspace on `prevMonitor`. Returns false with an error if force assignment forbids it
+@MainActor
+func moveWorkspace(_ workspace: Workspace, to monitor: MonitorInfo, stubbing prevMonitor: MonitorInfo?, _ io: CmdIo) -> Bool {
+    guard monitor.setActiveWorkspace(workspace) else {
+        io.err("Can't move workspace '\(workspace.name)' to monitor '\(monitor.name)'. workspace-to-monitor-force-assignment doesn't allow it")
+        return false
+    }
+    if let prevMonitor {
+        let stubWorkspace = getStubWorkspace(for: prevMonitor)
+        check(
+            prevMonitor.setActiveWorkspace(stubWorkspace),
+            "getStubWorkspace generated incompatible stub workspace (\(stubWorkspace)) for the monitor (\(prevMonitor)",
+        )
+    }
+    return true
 }
