@@ -11,16 +11,11 @@ private let itemCornerRadius = CGFloat(6)
 struct MenuBarLabel: View {
     @Environment(\.colorScheme) var menuColorScheme: ColorScheme
     @EnvironmentObject var viewModel: TrayMenuModel
-    let color: Color?
-    let style: MenuBarStyle?
+    var style: MenuBarStyle? = nil
+    var color: Color? = nil
 
     private var finalColor: Color {
         color ?? (menuColorScheme == .dark ? Color.white : Color.black)
-    }
-
-    init(style: MenuBarStyle? = nil, color: Color? = nil) {
-        self.style = style
-        self.color = color
     }
 
     var body: some View {
@@ -55,7 +50,7 @@ struct MenuBarLabel: View {
                     let modeItem = viewModel.trayItems.first { $0.type == .mode }
                     if let modeItem {
                         itemView(for: modeItem)
-                        modeSeparator(with: .monospaced)
+                        modeSeparator
                     }
                     let orderedWorkspaces = viewModel.workspaces.filter { !$0.isEffectivelyEmpty || $0.isVisible }
                     ForEach(orderedWorkspaces, id: \.name) { item in
@@ -82,7 +77,7 @@ struct MenuBarLabel: View {
         ForEach(viewModel.trayItems, id: \.id) { item in
             itemView(for: item)
             if item.type == .mode {
-                modeSeparator(with: .monospaced)
+                modeSeparator
             }
         }
     }
@@ -101,9 +96,9 @@ struct MenuBarLabel: View {
         .opacity(0.6)
     }
 
-    private func modeSeparator(with design: Font.Design) -> some View {
+    private var modeSeparator: some View {
         Text(":")
-            .font(.system(.largeTitle, design: design))
+            .font(.system(.largeTitle, design: .monospaced))
             .foregroundStyle(finalColor)
             .bold()
     }
@@ -132,38 +127,36 @@ struct MenuBarLabel: View {
                 .font(.system(.largeTitle))
                 .foregroundStyle(finalColor)
                 .frame(height: itemSize)
+        } else if let imageName = item.systemImageName {
+            Image(systemName: imageName)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(finalColor)
+                .frame(width: itemSize, height: itemSize)
         } else {
-            if let imageName = item.systemImageName {
-                Image(systemName: imageName)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .symbolRenderingMode(.monochrome)
-                    .foregroundStyle(finalColor)
-                    .frame(width: itemSize, height: itemSize)
-            } else {
-                let text = Text(item.name)
-                    .font(.system(.largeTitle))
-                    .bold()
-                    .padding(.horizontal, itemBorderSize * 2)
-                    .frame(height: itemSize)
-                if item.isActive {
-                    ZStack {
-                        text.background {
-                            RoundedRectangle(cornerRadius: itemCornerRadius, style: .circular)
-                        }
-                        text.blendMode(.destinationOut)
-                    }
-                    .compositingGroup()
-                    .foregroundStyle(finalColor)
-                    .frame(height: itemSize)
-                } else {
+            let text = Text(item.name)
+                .font(.system(.largeTitle))
+                .bold()
+                .padding(.horizontal, itemBorderSize * 2)
+                .frame(height: itemSize)
+            if item.isActive {
+                ZStack {
                     text.background {
-                        RoundedRectangle(cornerRadius: itemCornerRadius, style: .continuous)
-                            .strokeBorder(lineWidth: itemBorderSize)
+                        RoundedRectangle(cornerRadius: itemCornerRadius, style: .circular)
                     }
-                    .foregroundStyle(finalColor)
-                    .frame(height: itemSize)
+                    text.blendMode(.destinationOut)
                 }
+                .compositingGroup()
+                .foregroundStyle(finalColor)
+                .frame(height: itemSize)
+            } else {
+                text.background {
+                    RoundedRectangle(cornerRadius: itemCornerRadius, style: .continuous)
+                        .strokeBorder(lineWidth: itemBorderSize)
+                }
+                .foregroundStyle(finalColor)
+                .frame(height: itemSize)
             }
         }
     }
