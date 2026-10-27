@@ -164,6 +164,9 @@ enum OptimalHideCorner {
 @MainActor
 private func layoutWorkspaces() async throws {
     if !TrayMenuModel.shared.isEnabled {
+        // No screens: don't lay the windows out against the fake mainMonitorInfo. AeroSpace can't be disabled while there are
+        // no screens (EnableCommand), so the windows were already unhidden when it was disabled
+        if !hasScreens { return }
         for workspace in Workspace.all {
             workspace.allLeafWindowsRecursive.forEach { ($0 as! MacWindow).unhideFromCorner() } // todo as!
             try await workspace.layoutWorkspace() // Unhide tiling windows from corner
