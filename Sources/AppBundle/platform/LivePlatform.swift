@@ -127,12 +127,12 @@ final class LivePlatform: Platform {
         let levels = onScreenWindowLevels()
         return try await observe(windows) { app in
             let classifier = app.classifier
-            return { @Sendable axApp, raws in
+            return { @Sendable axApp, raws, isAbandoned in
                 let activationPolicy = classifier.nsApp.activationPolicy // An XPC: once per app
-                return raws.compactMap { raw in
+                return eachUntilAbandoned(raws, isAbandoned) { raw in
                     guard let window = axApp.window(raw) else { return nil }
                     let kind = window.getWindowType(axApp: axApp.element, classifier.appId, activationPolicy, levels[raw])
-                    return (raw, DetectedWindow(kind: kind, rect: axApp.rect(raw)))
+                    return DetectedWindow(kind: kind, rect: axApp.rect(raw))
                 }
             }
         }
@@ -140,7 +140,7 @@ final class LivePlatform: Platform {
 
     func nativeFacts(_ windows: [AppInfo: [WindowId]]) async throws(CancellationError) -> [WindowId: NativeFacts] {
         try await observe(windows) { _ in
-            { @Sendable axApp, raws in raws.compactMap { raw in axApp.nativeFacts(raw).map { (raw, $0) } } }
+            { @Sendable axApp, raws, isAbandoned in axApp.nativeFacts(raws, isAbandoned) }
         }
     }
 
@@ -148,7 +148,7 @@ final class LivePlatform: Platform {
         let levels = onScreenWindowLevels()
         return try await observe(windows) { app in
             let read = debugInfoRead(app, levels)
-            return { @Sendable axApp, raws in raws.compactMap { raw in read(axApp, raw).map { (raw, $0) } } }
+            return { @Sendable axApp, raws, isAbandoned in eachUntilAbandoned(raws, isAbandoned) { raw in read(axApp, raw) } }
         }
     }
 
@@ -169,7 +169,7 @@ final class LivePlatform: Platform {
     }
 
     func facts(_ id: WindowId) async -> NativeFacts? {
-        await read(id) { app, raw in app.nativeFacts(raw) }
+        await read(id) { app, raw in app.nativeFacts([raw]) { false }.first?.1 }
     }
 
     func kind(_ id: WindowId) async -> AxUiElementWindowType? {
@@ -375,14 +375,14 @@ final class LivePlatform: Platform {
     }
 
     /// An observe read: one abandonable call per app (see ``AxApp/call(_:)``), the apps in parallel. `read` makes the body for
-    /// an app's windows on main; the body runs on the app's thread. A window whose app is gone, or that the body skips, is
-    /// missing from the result. The caller tells each window's app: a window that isn't registered yet has no other route
-    /// to it
+    /// an app's windows on main; the body runs on the app's thread and stops between windows once the call is abandoned. A
+    /// window whose app is gone, or that the body skips, is missing from the result. The caller tells each window's app: a
+    /// window that isn't registered yet has no other route to it
     private func observe<T: Sendable>(
         _ windows: [AppInfo: [WindowId]],
-        _ read: (LiveApp) -> @Sendable (isolated AxApp, [UInt32]) -> [(UInt32, T)],
+        _ read: (LiveApp) -> ObserveBody<T>,
     ) async throws(CancellationError) -> [WindowId: T] {
-        var calls: [(AxApp, [UInt32], @Sendable (isolated AxApp, [UInt32]) -> [(UInt32, T)])] = []
+        var calls: [(AxApp, [UInt32], ObserveBody<T>)] = []
         for (app, ids) in windows {
             guard let app = apps[app.pid], let ax = app.ax else { continue }
             calls.append((ax, ids.map(\.raw), read(app)))
@@ -390,7 +390,7 @@ final class LivePlatform: Platform {
         do {
             return try await withThrowingTaskGroup(of: [(UInt32, T)].self) { group in
                 for (ax, raws, body) in calls {
-                    group.addTask { @Sendable in try await ax.call { @Sendable app, _ in body(app, raws) } }
+                    group.addTask { @Sendable in try await ax.call { @Sendable app, isAbandoned in body(app, raws, isAbandoned) } }
                 }
                 var result: [WindowId: T] = [:]
                 for try await pairs in group {
@@ -437,6 +437,20 @@ final class LivePlatform: Platform {
         let raw = id.raw
         return await ax.run { app in body(app, raw) }
     }
+}
+
+/// The body of an observe read on the app's thread: the values of the windows, until `isAbandoned`
+private typealias ObserveBody<T> = @Sendable (isolated AxApp, _ windows: [UInt32], _ isAbandoned: () -> Bool) -> [(UInt32, T)]
+
+/// The values of the windows that `read` returns one for, until the call is abandoned (at cancellation or termination): a
+/// batch doesn't keep a busy app's thread
+nonisolated private func eachUntilAbandoned<T>(_ raws: [UInt32], _ isAbandoned: () -> Bool, _ read: (UInt32) -> T?) -> [(UInt32, T)] {
+    var result: [(UInt32, T)] = []
+    for raw in raws {
+        if isAbandoned() { break }
+        if let value = read(raw) { result.append((raw, value)) }
+    }
+    return result
 }
 
 /// The latest-wins slot of the native focus's slow path: a newer focus request makes a pending one stale

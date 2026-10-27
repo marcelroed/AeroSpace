@@ -164,14 +164,16 @@ nonisolated extension AXUIElement: AxUiElementMock {
         return AXUIElementSetAttributeValue(self, attr.key as CFString, value) == .success
     }
 
-    func containingWindowId() -> CGWindowID? {
+    func containingWindowId() -> CGWindowID? { containingWindowIdWithError().windowId }
+
+    /// Like ``containingWindowId()``, but tells why it failed: e.g. `.cannotComplete` after the AX timeout of a busy app
+    func containingWindowIdWithError() -> (error: AXError, windowId: CGWindowID?) {
         let state = signposter.beginInterval(#function)
         defer { signposter.endInterval(#function, state) }
         countAxCall("windowId")
         var cgWindowId = CGWindowID()
-        return unsafe _AXUIElementGetWindow(self, &cgWindowId) == .success && cgWindowId != kCGNullWindowID
-            ? cgWindowId
-            : nil
+        let error = unsafe _AXUIElementGetWindow(self, &cgWindowId)
+        return (error, error == .success && cgWindowId != kCGNullWindowID ? cgWindowId : nil)
     }
 }
 

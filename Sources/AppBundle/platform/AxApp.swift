@@ -133,12 +133,17 @@ actor AxApp {
         // Second line of defence against lock screen (964e5b11). See the first line of defence: closedWindowsCache
         // Second and third lines of defence are technically needed only to avoid potential flickering
         if !isLockScreen {
+            var isBusy = false
             for (id, window) in alive {
                 if isAbandoned() { return [] }
                 // Liveness via _AXUIElementGetWindow, not the unreliable kAXUIElementDestroyedNotification (405dec8b).
                 // PF-1: a listed CFEqual element has just answered containingWindowId() in the windowsAttr getter
-                let isAlive = listed.contains { $0.ax == window.ax } || window.ax.containingWindowId() != nil
-                if !isAlive {
+                if isBusy || listed.contains(where: { $0.ax == window.ax }) { continue }
+                let (error, windowId) = window.ax.containingWindowIdWithError()
+                // A timeout is no evidence that the window is gone, and the next call would wait as long (R2a L4)
+                if error == .cannotComplete {
+                    isBusy = true
+                } else if windowId == nil {
                     alive[id] = nil
                 }
             }
@@ -162,17 +167,25 @@ actor AxApp {
         windows[windowId].flatMap { axRect($0.ax) }
     }
 
-    func nativeFacts(_ windowId: UInt32) -> NativeFacts? {
-        guard let window = windows[windowId]?.ax else { return nil }
-        // PF-3: one IPC instead of two. A failed attribute comes back as an AXValue error, which the getters map to nil like a failed get
-        let (error, values) = window.getMultiple([Ax.isFullscreenAttr.key, Ax.minimizedAttr.key])
-        if error == .success, let values, values.count == 2 {
-            let isFullscreen = Ax.isFullscreenAttr.getter(values[0]) == true
-            return NativeFacts(isFullscreen: isFullscreen, isMinimized: !isFullscreen && Ax.minimizedAttr.getter(values[1]) == true)
+    /// The native states of the windows that are registered. It stops after an AX timeout: the app is busy, each further
+    /// read would wait as long, and a timed-out read tells nothing (R2a L1). The windows from there are missing
+    func nativeFacts(_ windowIds: [UInt32], _ isAbandoned: () -> Bool) -> [(UInt32, NativeFacts)] {
+        var result: [(UInt32, NativeFacts)] = []
+        for windowId in windowIds {
+            if isAbandoned() { break }
+            guard let window = windows[windowId]?.ax else { continue }
+            // PF-3: one IPC instead of two. A failed attribute comes back as an AXValue error, which the getters map to nil
+            // like a failed get
+            let (error, values) = window.getMultiple([Ax.isFullscreenAttr.key, Ax.minimizedAttr.key])
+            if error == .cannotComplete { break }
+            let (isFullscreen, isMinimized): (Bool, Bool) = if error == .success, let values, values.count == 2 {
+                (Ax.isFullscreenAttr.getter(values[0]) == true, Ax.minimizedAttr.getter(values[1]) == true)
+            } else {
+                (window.get(Ax.isFullscreenAttr) == true, window.get(Ax.minimizedAttr) == true)
+            }
+            result.append((windowId, NativeFacts(isFullscreen: isFullscreen, isMinimized: !isFullscreen && isMinimized)))
         }
-        // After an AX timeout, treat fullscreen like a timed-out get (false) instead of waiting for it again
-        let isFullscreen = error != .cannotComplete && window.get(Ax.isFullscreenAttr) == true
-        return NativeFacts(isFullscreen: isFullscreen, isMinimized: !isFullscreen && window.get(Ax.minimizedAttr) == true)
+        return result
     }
 
     /// See ``postPlacements(_:isZoom:)``. The app's animations are off from the batch's first write to its end
