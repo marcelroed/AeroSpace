@@ -30,7 +30,7 @@ func runHeavyCompleteRefreshSession(
     let state = signposter.beginInterval(#function, "event: \(event) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug)")
     defer { signposter.endInterval(#function, state) }
     if !TrayMenuModel.shared.isEnabled { return }
-    let res = await Result {
+    do {
         try await $refreshSessionEvent.withValue(event) {
             try await syncFocusFromMacOs()
 
@@ -45,11 +45,10 @@ func runHeavyCompleteRefreshSession(
             try await normalizeLayoutReason()
             if shouldLayoutWorkspaces { try await layoutWorkspaces() }
         }
-    }
-    switch res {
-        case .success(()): break
-        case .failure(let err as CancellationError): check(assumeCancellable, "Non cancellable refresh session was canceled: \(err) (\(type(of: err)))")
-        case .failure(let err): die("Illegal error: \(err)")
+    } catch let err as CancellationError {
+        check(assumeCancellable, "Non cancellable refresh session was canceled: \(err) (\(type(of: err)))")
+    } catch {
+        die("Illegal error: \(error)")
     }
 }
 

@@ -1,12 +1,4 @@
 extension Result {
-    public init(catching body: () async throws(Failure) -> Success) async {
-        do {
-            self = .success(try await body())
-        } catch {
-            self = .failure(error)
-        }
-    }
-
     public func getOrNil(appendErrorTo errors: inout [Failure]) -> Success? {
         switch self {
             case .success(let success):
@@ -14,17 +6,6 @@ extension Result {
             case .failure(let error):
                 errors.append(error)
                 return nil
-        }
-    }
-
-    public func filter(_ failure: @autoclosure () -> Failure, _ predicate: (Success) -> Bool) -> Self {
-        flatMap { succ in predicate(succ) ? .success(succ) : .failure(failure()) }
-    }
-
-    public func getIgnoringErrorsOrNil() -> Success? {
-        return switch self {
-            case .success(let success): success
-            case .failure: nil
         }
     }
 
@@ -43,20 +24,6 @@ extension Result {
             case .failure(let err):
                 await handle(err)
                 return nil
-        }
-    }
-
-    public func get(or handle: (Failure) async -> Success) async -> Success {
-        switch self {
-            case .success(let it): return it
-            case .failure(let err): return await handle(err)
-        }
-    }
-
-    public var isSuccess: Bool {
-        switch self {
-            case .success: true
-            case .failure: false
         }
     }
 }

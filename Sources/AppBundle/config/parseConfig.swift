@@ -382,9 +382,9 @@ func parseTable<T>(
 }
 
 private func parseStartupRootContainerLayout(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<Void> {
-    parseString(raw, backtrace)
-        .filter(.init(backtrace, "'non-empty-workspaces-root-containers-layout-on-startup' is deprecated. Please drop it from your config")) { raw in raw == "smart" }
-        .map { _ in () }
+    parseString(raw, backtrace).flatMap { raw in
+        raw == "smart" ? .success(()) : .failure(.init(backtrace, "'non-empty-workspaces-root-containers-layout-on-startup' is deprecated. Please drop it from your config"))
+    }
 }
 
 private func parseLayout(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<Layout> {
