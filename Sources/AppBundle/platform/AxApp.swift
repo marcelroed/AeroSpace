@@ -234,15 +234,12 @@ actor AxApp {
                 self.generations.withLock { $0.isLatest(windowId, generation) } && !isTerminatingNow()
             }
             let window = AxPlacementWindow(ax: registered.ax, animations: animations, isCurrentNow: isCurrent)
-            // A parked tile: where the window server shows it before the write. Not if it's at its frame already: a park
-            // that turned stale before its write left it there
-            var shownBefore: CGPoint? = nil
-            if case .frame(_, let topLeft, _) = placement, registered.placement.isParked {
-                shownBefore = windowServerTopLeft(windowId).flatMap { $0.isWithinAPoint(of: topLeft) ? nil : $0 }
-            }
+            // A tile whose park wrote its corner's x. That x, not a window server call: one here would delay the write
+            // (p99 4 ms, up to 36 ms during a switch)
+            let cornerX: CGFloat? = if case .frame = placement { registered.placement.cornerX } else { nil }
             windows[windowId]?.placement.apply(placement, to: window)
-            if let shownBefore, window.didWritePosition {
-                unparkedTiles.append(UnparkedTile(windowId: windowId, shownBefore: shownBefore, isCurrent: isCurrent))
+            if let cornerX, window.didWritePosition {
+                unparkedTiles.append(UnparkedTile(windowId: windowId, cornerX: cornerX, isCurrent: isCurrent))
             }
         }
         if case .shown(let shownJobs) = job {
@@ -437,29 +434,33 @@ nonisolated private func axRect(_ window: AXUIElement) -> Rect? {
 /// Termination started: the restore job waits behind the app's jobs, so they stop before their next AX call
 nonisolated private func isTerminatingNow() -> Bool { isTerminating.load(ordering: .sequentiallyConsistent) }
 
-/// A tile that a shown job unparked, which the parks wait for (``waitUntilOnScreen(_:until:windowServerTopLeft:)``)
+/// A tile that a shown job unparked, which the parks wait for (``waitUntilOnScreen(_:until:windowServerX:)``)
 nonisolated struct UnparkedTile {
     let windowId: UInt32
-    /// Where the window server showed the window before the write, usually its corner
-    let shownBefore: CGPoint
+    /// The x that the window's park wrote (``PlacementState/cornerX``)
+    let cornerX: CGFloat
     /// false once a newer write of the window is posted or termination started: nobody waits for this write then
     let isCurrent: () -> Bool
 }
 
 /// An app can answer the AX writes of a window before it moves the window on screen: cmux moves it ~25 ms later. The parks
 /// that wait for the shown job (``ShownJobs``) would uncover the desktop in between, so the job waits until the window
-/// server shows each tile it unparked away from where it was, until `deadline`. Away is enough: the app's animations are
-/// off (``AnimationsOff``), so the move is a jump to where the app puts the window, which may be a bit off the target
+/// server shows each tile it unparked a point or more off the x that its park wrote, until `deadline`. The x is enough:
+/// - the app's animations are off (``AnimationsOff``), so the move is one jump to where the app puts the window, which may
+///   be a bit off the target;
+/// - macOS clamps a parked window's y for some apps, but not its x: the window server shows it at the x that the park
+///   wrote. If macOS clamped the x too (some multi-monitor setup?), the wait would end at once: the desktop might show for
+///   a few frames, but the switch would never be slower
 nonisolated func waitUntilOnScreen(
     _ tiles: [UnparkedTile],
     until deadline: DispatchTime,
-    windowServerTopLeft: (UInt32) -> CGPoint? = windowServerTopLeft,
+    windowServerX: (UInt32) -> CGFloat? = windowServerX,
 ) {
     var pending = tiles
     while true {
         pending.removeAll { tile in
-            guard tile.isCurrent(), let shown = windowServerTopLeft(tile.windowId) else { return true } // Or it closed
-            return shown != tile.shownBefore
+            guard tile.isCurrent(), let x = windowServerX(tile.windowId) else { return true } // Or it closed
+            return abs(x - tile.cornerX) >= 1
         }
         if pending.isEmpty { return }
         if DispatchTime.now() >= deadline {
@@ -473,18 +474,13 @@ nonisolated func waitUntilOnScreen(
 /// From the shown job's last write. The parks' deadline cuts it short (see ``LivePlatform``'s `parkWaitLimit`)
 nonisolated private let onScreenWaitLimit: DispatchTimeInterval = .milliseconds(100)
 
-/// The window's top left corner as the window server shows it. nil once the window is gone
-nonisolated private func windowServerTopLeft(_ windowId: UInt32) -> CGPoint? {
+/// The window's x as the window server shows it. nil once the window is gone
+nonisolated private func windowServerX(_ windowId: UInt32) -> CGFloat? {
     guard let info = (CGWindowListCopyWindowInfo(.optionIncludingWindow, windowId) as? [NSDictionary])?.first,
           let bounds = info[kCGWindowBounds] as? NSDictionary,
           let rect = CGRect(dictionaryRepresentation: bounds)
     else { return nil }
-    return rect.origin
-}
-
-nonisolated extension CGPoint {
-    /// AX and the window server give whole points, and the layout's frames have fractions
-    fileprivate func isWithinAPoint(of other: CGPoint) -> Bool { abs(x - other.x) < 1 && abs(y - other.y) < 1 }
+    return rect.origin.x
 }
 
 /// A window of the app for ``PlacementState``, on the app's thread

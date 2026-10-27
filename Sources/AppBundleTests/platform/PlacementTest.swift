@@ -55,6 +55,32 @@ struct PlacementTest {
         }
     }
 
+    /// A park records the x it wrote: AxApp's shown job waits until the window server shows the unparked window away from
+    /// it. An unpark or a `.leave` clears it. A park that turned stale before its write records none: nothing waits then
+    @Test
+    func aParkRecordsTheXItWroteUntilTheWindowIsUnparkedOrLeft() {
+        let park: Placement = .park(1, parkTarget(.bottomRightCorner, testMonitor))
+        let floating = FloatingTarget(monitor: testMonitor, monitors: NonEmptyArray(testMonitor), isShown: true)
+        let rows: [(name: String, next: Placement)] = [
+            ("unparked as a tile", .frame(1, topLeft: .zero, size: CGSize(width: 400, height: 300))),
+            ("unparked as a floating window", .floating(1, floating)),
+            ("left as a macOS fullscreen window", .leave(1)),
+        ]
+        let cornerX: CGFloat? = 1919
+        for row in rows {
+            fake.windows[1] = FakeWindow(app: testApp, rect: rect(100, 100, 400, 300), title: "1")
+            fake.apply([park])
+            expectEqual(fake.windows[1]?.placement.cornerX, cornerX, "\(row.name)")
+            fake.apply([row.next])
+            expectEqual(fake.windows[1]?.placement.cornerX, nil, "\(row.name)")
+        }
+
+        var state = PlacementState(lastFloatingSize: nil)
+        state.apply(park, to: StaleAfter(calls: 1)) // Stale at its write
+        #expect(state.isParked)
+        expectEqual(state.cornerX, nil)
+    }
+
     /// The park remembers where the window was relative to the monitor it was on (#1492), and only once: the second park
     /// doesn't remember the corner (90a7c672). The unpark puts it at the same relative position on its workspace's monitor
     @Test

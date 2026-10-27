@@ -216,19 +216,18 @@ struct AxAppTest {
 
     @Test
     func theWaitForAnUnparkedTileEndsOnceItLeftItsCornerClosedOrWasWrittenAgain() {
-        let corner = CGPoint(x: 1919, y: 1079)
-        let tile = CGPoint(x: 0, y: 25)
-        // The window server's answers, one per lookup, the last one repeated
-        let rows: [(name: String, shown: [CGPoint?], isCurrent: Bool, lookups: Int)] = [
-            ("left its corner", [corner, corner, tile], true, 3),
-            ("put a bit off its frame by the app", [corner, CGPoint(x: 2, y: 25)], true, 2),
-            ("closed", [corner, nil], true, 2),
-            ("written again, or termination started", [corner], false, 0),
+        let cornerX: CGFloat = 1919
+        // The window server's x of the window, one per lookup, the last one repeated
+        let rows: [(name: String, shown: [CGFloat?], isCurrent: Bool, lookups: Int)] = [
+            ("left its corner", [cornerX, cornerX, 0], true, 3),
+            ("put a bit off its frame by the app", [cornerX, 2], true, 2),
+            ("closed", [cornerX, nil], true, 2),
+            ("written again, or termination started", [cornerX], false, 0),
         ]
         for row in rows {
             var lookups = 0
             let start: DispatchTime = .now()
-            let unparked = UnparkedTile(windowId: 1, shownBefore: corner, isCurrent: { row.isCurrent })
+            let unparked = UnparkedTile(windowId: 1, cornerX: cornerX, isCurrent: { row.isCurrent })
             waitUntilOnScreen([unparked], until: .now() + .seconds(10)) { _ in
                 defer { lookups += 1 }
                 return row.shown[min(lookups, row.shown.count - 1)]
@@ -238,8 +237,8 @@ struct AxAppTest {
         }
 
         let start: DispatchTime = .now()
-        let neverMoves = UnparkedTile(windowId: 1, shownBefore: corner, isCurrent: { true })
-        waitUntilOnScreen([neverMoves], until: start + .milliseconds(50)) { _ in corner }
+        let neverMoves = UnparkedTile(windowId: 1, cornerX: cornerX, isCurrent: { true })
+        waitUntilOnScreen([neverMoves], until: start + .milliseconds(50)) { _ in cornerX }
         #expect(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds >= 50_000_000, "gives up at the deadline")
     }
 

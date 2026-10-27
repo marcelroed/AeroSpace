@@ -64,8 +64,8 @@ nonisolated protocol PlacementWindow {
 /// placement checks the state, reads the window, updates the state and writes the window in one job, so that no other
 /// placement of the window runs in between (the 90a7c672 race of a park's read is gone)
 nonisolated struct PlacementState {
-    /// Set while the window is parked: where it was, relative to the monitor it was on
-    private var parkedAt: CGPoint? = nil
+    /// Set while the window is parked
+    private var parked: Parked? = nil
     /// The size that termination and `layout floating` restore: the window's size when it was registered, then whenever
     /// a floating window parks or the size is remembered (`layout tiling`, `enable on`)
     private(set) var lastFloatingSize: CGSize?
@@ -77,7 +77,11 @@ nonisolated struct PlacementState {
         self.lastFloatingSize = lastFloatingSize
     }
 
-    var isParked: Bool { parkedAt != nil }
+    var isParked: Bool { parked != nil }
+
+    /// The x that the window's park wrote, while it's parked: AxApp's shown job waits until the window server shows the
+    /// unparked window away from it. nil if no park write was sent: e.g., the park turned stale before it
+    var cornerX: CGFloat? { parked?.cornerX }
 
     /// A read of the window's rect outside the placements (e.g., the drag of a tile) found it at `rect`. nil: unknown
     mutating func recordRead(_ rect: Rect?) { lastFrame = rect }
@@ -90,18 +94,18 @@ nonisolated struct PlacementState {
                 // first, unless the window is known to be elsewhere: parked, or last seen at another frame. A skipped read
                 // always becomes a write, because `lastFrame` may be stale: the app or the user may have moved the window
                 let frame = Rect(topLeftX: topLeft.x, topLeftY: topLeft.y, width: size.width, height: size.height)
-                let isKnownElsewhere = parkedAt != nil || lastFrame.map { !$0.isAt(frame) } == true
+                let isKnownElsewhere = parked != nil || lastFrame.map { !$0.isAt(frame) } == true
                 let isThere = !isKnownElsewhere && window.rect().map { $0.isAt(frame) } == true
                 if isThere || window.setFrame(topLeft: topLeft, size: size) {
-                    parkedAt = nil
+                    parked = nil
                     lastFrame = frame
                 }
             case .floating(_, let target):
-                if let parkedAt {
-                    let topLeft = unparkTopLeft(proportional: parkedAt, monitorRect: target.monitor.rect, lastFloatingSize: lastFloatingSize)
+                if let parked {
+                    let topLeft = unparkTopLeft(proportional: parked.at, monitorRect: target.monitor.rect, lastFloatingSize: lastFloatingSize)
                     // Unparked once it's written. A stale unpark leaves the window parked for the next one
                     guard window.setFrame(topLeft: topLeft, size: nil) else { return }
-                    self.parkedAt = nil
+                    self.parked = nil
                 }
                 guard window.isCurrent(), let rect = window.rect(),
                       let topLeft = floatingTopLeft(current: rect, target: target),
@@ -109,16 +113,20 @@ nonisolated struct PlacementState {
                 else { return }
                 window.setFrame(topLeft: topLeft, size: nil)
             case .park(_, let target):
-                if parkedAt == nil {
+                if parked == nil {
                     guard let rect = window.rect() else { return }
                     // Remember the position only once: a repeated park would remember the corner (90a7c672)
-                    parkedAt = proportionalPosition(of: rect, monitors: target.monitors)
+                    parked = Parked(at: proportionalPosition(of: rect, monitors: target.monitors))
                     if target.isFloating {
                         lastFloatingSize = rect.size
                     }
                     // A park that turns stale before this write (e.g., while AxApp waits for the shown jobs) leaves the
-                    // window in place but marked parked: the next placement writes it (`.floating` to where it is) or parks it
-                    window.setFrame(topLeft: parkTopLeft(size: rect.size, target: target), size: nil)
+                    // window in place but marked parked, with no `cornerX`: the next placement writes it (`.floating` to
+                    // where it is) or parks it
+                    let topLeft = parkTopLeft(size: rect.size, target: target)
+                    if window.setFrame(topLeft: topLeft, size: nil) {
+                        parked?.cornerX = topLeft.x
+                    }
                 } else {
                     // Parked already: the window moves only if it isn't in the corner (e.g., the app moved it). Only its x
                     // tells: macOS clamps a parked window's y for some apps (Helium shows at y 1083 where AeroSpace wrote
@@ -126,12 +134,13 @@ nonisolated struct PlacementState {
                     // write it again. The bottom left corner uses the size read now: the app may have resized the window
                     let rect = window.rect()
                     let topLeft = parkTopLeft(size: rect?.size, target: target)
-                    if rect.map({ abs($0.topLeftX - topLeft.x) < 1 }) != true {
-                        window.setFrame(topLeft: topLeft, size: nil)
+                    let isInCorner = rect.map { abs($0.topLeftX - topLeft.x) < 1 } == true
+                    if !isInCorner && window.setFrame(topLeft: topLeft, size: nil) {
+                        parked?.cornerX = topLeft.x
                     }
                 }
             case .leave:
-                parkedAt = nil
+                parked = nil
         }
     }
 
@@ -146,6 +155,14 @@ nonisolated struct PlacementState {
         guard let lastFloatingSize else { return }
         window.setFrame(topLeft: nil, size: lastFloatingSize)
     }
+}
+
+/// A parked window of ``PlacementState``
+nonisolated private struct Parked {
+    /// Where the window was, relative to the monitor it was on
+    let at: CGPoint
+    /// The x that the last park write sent the window to. nil until one is sent
+    var cornerX: CGFloat? = nil
 }
 
 nonisolated extension Rect {
