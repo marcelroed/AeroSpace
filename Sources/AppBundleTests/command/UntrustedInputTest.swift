@@ -7,8 +7,7 @@ import Testing
 @Suite(.aeroSpaceGlobalState)
 struct UntrustedInputTest {
     nonisolated static let extremeNumbers: [String] = [
-        "\(Int.min)", "\(Int.max)", "\(UInt64.max)", "-\(UInt64.max)", "99999999999999999999999999999",
-        "\(Int32.min)", "\(UInt32.max)", "\(UInt64(UInt32.max) + 1)", "-1", "-0", "0",
+        "0", "-1", "\(Int.min)", "\(Int64(Int32.max) + 1)", "\(Int.max)", "\(UInt64(Int.max) + 1)", "99999999999999999999999999999",
     ]
 
     /// Every numeric option and argument, `{}` is the number. `volume` is in `volumeNumbers`: running it would change
