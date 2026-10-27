@@ -6,8 +6,9 @@ import OrderedCollections
 func getDefaultConfigUrlFromProject() -> URL {
     var url = URL(filePath: #filePath)
     check(FileManager.default.fileExists(atPath: url.path))
-    while !FileManager.default.fileExists(atPath: url.appending(component: ".git").path) {
-        check(url.path != "/", "Can't find the project root: no parent directory of \(#filePath) contains .git")
+    // Not .git: a tarball or a copy of the sources has no .git, or the .git of an enclosing repo. Like projectRoot in the tests
+    while !FileManager.default.fileExists(atPath: url.appending(component: "Package.swift").path) {
+        check(url.path != "/", "Can't find the project root: no parent directory of \(#filePath) contains Package.swift")
         url.deleteLastPathComponent()
     }
     let projectRoot: URL = url
