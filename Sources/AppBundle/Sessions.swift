@@ -4,7 +4,7 @@ import Common
 /// The funnel for every session: each input that reads or changes the model enters through one of these methods.
 /// - Hotkeys, the CLI server, the menu and config auto-reload call ``light(_:_:body:)``.
 /// - GlobalObserver calls ``onWorkspaceNotification(_:)``, ``onAppHidden()`` and ``onLeftMouseUp()``.
-/// - The AX observer callbacks call ``onAxEvent(pid:_:)``, the focus-follows-mouse monitor calls ``onMouseMoved(to:)``.
+/// - The AX observer callbacks call ``onAxEvent(_:)``, the focus-follows-mouse monitor calls ``onMouseMoved(to:)``.
 ///
 /// A light session runs a command-like body between two model refreshes, presents and schedules a heavy refresh. A heavy
 /// refresh re-reads the windows of all apps from macOS (it registers new windows and garbage collects closed ones), then
@@ -102,12 +102,12 @@ final class Sessions {
 
     /// The entry point of the AX observers. On the app's AX thread, the observer callback maps the notification to an
     /// ``AxEvent``, then calls this on the main actor:
-    /// `Task.startUnstructured { @MainActor in await world.sessions.onAxEvent(pid: pid, event) }`.
-    /// - `pid`: the app whose observer fired. Unused for now: every event except a mouse drag refreshes all apps.
+    /// `Task.startUnstructured { @MainActor in await world.sessions.onAxEvent(event) }`. It doesn't tell which app's
+    /// observer fired: every event except a mouse drag refreshes all apps.
     /// - Ignored while AeroSpace is disabled.
     /// - `.moved` / `.resized` of the window that the user drags or resizes with the mouse: a light session follows the
     ///   mouse (one ``LatestTaskSlot`` per kind). Any other event, e.g. a window that the layout moved: a heavy refresh.
-    func onAxEvent(pid _: pid_t, _ event: AxEvent) async {
+    func onAxEvent(_ event: AxEvent) async {
         guard let token: RunSessionGuard = .isServerEnabled else { return }
         let sessionEvent: RefreshSessionEvent = .ax("\(event)")
         switch event {
@@ -222,7 +222,7 @@ nonisolated enum RefreshSessionEvent: Sendable {
     }
 }
 
-/// An AX notification, as an app's AX observer reports it to ``Sessions/onAxEvent(pid:_:)``. It crosses from the app's AX
+/// An AX notification, as an app's AX observer reports it to ``Sessions/onAxEvent(_:)``. It crosses from the app's AX
 /// thread to the main actor
 nonisolated enum AxEvent: Sendable, Equatable {
     case windowCreated, focusedWindowChanged, destroyed, miniaturized, deminiaturized

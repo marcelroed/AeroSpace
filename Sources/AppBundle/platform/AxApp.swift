@@ -392,9 +392,8 @@ nonisolated func axObserverCallback(
     // No strong reference, not even a temporary one: if it were the last one, the isolated deinit would run inline,
     // inside this AXObserver callout, and release the observer whose callout is on the stack. Without it, the last
     // release happens elsewhere, and the deinit runs as a job after the callout
-    let pid = unsafe Unmanaged<AxApp>.fromOpaque(refcon)._withUnsafeGuaranteedRef { app in
+    unsafe Unmanaged<AxApp>.fromOpaque(refcon)._withUnsafeGuaranteedRef { app in
         app.preconditionIsolated()
-        return app.pid
     }
     let event: AxEvent
     switch notification as String {
@@ -408,7 +407,7 @@ nonisolated func axObserverCallback(
         default: return
     }
     Task.startUnstructured { @MainActor in
-        await world.sessions.onAxEvent(pid: pid, event)
+        await world.sessions.onAxEvent(event)
     }
 }
 
