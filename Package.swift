@@ -40,15 +40,13 @@ let package = Package(
         ),
         .target(
             name: "Common",
-            dependencies: [
-                .product(name: "Collections", package: "swift-collections"),
-            ],
             swiftSettings: swiftSettings,
         ),
         .target(
             name: "AppBundle",
             dependencies: [
-                .product(name: "Collections", package: "swift-collections"),
+                // Only the module that is used: the `Collections` umbrella builds all of swift-collections (64k lines)
+                .product(name: "OrderedCollections", package: "swift-collections"),
                 .product(name: "HotKey", package: "HotKey"),
                 .product(name: "ISSoundAdditions", package: "ISSoundAdditions"),
                 .product(name: "TOMLDecoder", package: "TOMLDecoder"),
