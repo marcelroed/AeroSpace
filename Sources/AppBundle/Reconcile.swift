@@ -201,7 +201,7 @@ enum Reconcile {
                 case .noAnswer(let app): noAnswer.insert(app.pid)
             }
         }
-        for id in o.known.sorted() where !listed.contains(id) {
+        for id in o.known.filter({ !listed.contains($0) }).sorted() {
             guard let window = Window.get(byId: id), !noAnswer.contains(window.app.pid) else { continue }
             window.garbageCollect(skipClosedWindowsCache: false)
         }
