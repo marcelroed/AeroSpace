@@ -81,6 +81,7 @@ struct FocusCommandTest {
         // Out of the container
         ("h_tiles(1 v_tiles(*2))", "focus left", "h_tiles(*1 v_tiles(2))"),
         ("h_tiles(1 h_tiles(*2))", "focus left", "h_tiles(*1 h_tiles(2))"),
+        ("h_tiles(*1 v_tiles())", "focus right", "h_tiles(*1)"), // An empty container is no neighbor. Then normalization drops it
         ("h_tiles(*1 2)", "focus --boundaries-action stop dfs-prev", "h_tiles(*1 2)"),
         ("h_tiles(*1 2)", "focus --boundaries-action wrap-around-the-workspace dfs-prev", "h_tiles(1 *2)"),
         ("h_tiles(1 *2)", "focus --boundaries-action stop dfs-next", "h_tiles(1 *2)"),

@@ -156,10 +156,10 @@ struct FocusCommand: nonisolated Command {
     private func findChange(_ target: LiveFocus) throws(CmdFail) -> FocusChange? {
         switch self.target {
             case .direction(let direction, let options):
-                guard let neighbor = target.windowOrNil?.neighbor(direction) else {
+                // A neighbor without windows (an empty container that normalization hasn't removed yet) is no neighbor
+                guard let window = target.windowOrNil?.neighbor(direction)?.edgeWindow(snappedTo: direction.opposite) else {
                     return try atWorkspaceEdge(target.workspace, direction, options.boundaries)
                 }
-                guard let window = neighbor.edgeWindow(snappedTo: direction.opposite) else { throw CmdFail(bugPrompt()) }
                 return .window(window)
             case .windowId:
                 return target.windowOrNil.map { .window($0) }
