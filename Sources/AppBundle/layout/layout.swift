@@ -37,12 +37,12 @@ extension Workspace {
     /// The placements of the workspace's windows: the frames of ``layoutTiling()`` in their order, then the floating
     /// windows, which keep their frame unless they are off the workspace's monitor, then the macOS fullscreen windows,
     /// which stay where they are. A hidden app's windows get none: they stay parked, so that a floating one goes back
-    /// where it was once the app is unhidden
+    /// where it was once the app is unhidden. Nor does the floating window that the user drags: the mouse places it
     func layoutPlacements() -> [Placement] {
         if isEffectivelyEmpty { return [] }
         var placements = layoutTiling()
         let floatingTarget = FloatingTarget(monitor: workspaceMonitor, monitors: world.monitors.all, isShown: isVisible)
-        for window in floatingWindows {
+        for window in floatingWindows where window.windowId != world.draggedFloatingWindow?.id {
             window.lastAppliedLayoutPhysicalRect = nil
             window.lastAppliedLayoutVirtualRect = nil
             if window.isFullscreen {

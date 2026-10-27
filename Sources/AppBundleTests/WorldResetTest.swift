@@ -56,6 +56,7 @@ private func changeEveryProperty() async {
     world.activeMode = nil
     world.layoutForNextDetectedWindow = .floating
     world.mouseManipulatedWindowId = 1
+    world.draggedFloatingWindow = (2, .zero)
     world.debugWindows = .aborted
     world.isEnabled = false
     world.ui.messageModel.message = Message(body: "From the previous test")

@@ -42,8 +42,11 @@ final class World {
     var activeMode: String? = mainModeId
     /// Set by `layout --for-next-detected-window`, taken by the next window that on-window-detected sees
     var layoutForNextDetectedWindow: LayoutCommand.LayoutDescription? = nil
-    /// The window that the user moves or resizes with the mouse. Layout leaves it where the mouse puts it
+    /// The tile that the user moves or resizes with the mouse. Layout leaves it where the mouse puts it
     var mouseManipulatedWindowId: WindowId? = nil
+    /// The floating window that the user moves with the mouse, and its center where the drag last read it. Layout leaves it
+    /// where the mouse puts it, and the mouse up drops it on that monitor (``dropDraggedFloatingWindow()``)
+    var draggedFloatingWindow: (id: WindowId, center: CGPoint)? = nil
     var debugWindows: DebugWindowsRecording = .off
     /// Is window management on (`enable on|off`). While it's off, the sessions skip everything but `enable`
     var isEnabled: Bool = true {
@@ -91,6 +94,7 @@ final class World {
         activeMode = fresh.activeMode
         layoutForNextDetectedWindow = fresh.layoutForNextDetectedWindow
         mouseManipulatedWindowId = fresh.mouseManipulatedWindowId
+        draggedFloatingWindow = fresh.draggedFloatingWindow
         debugWindows = fresh.debugWindows
         isEnabled = fresh.isEnabled // The didSet resets the menu bar model's copy
         // `ui` and `sessions` stay. Their state that a test can leave behind:

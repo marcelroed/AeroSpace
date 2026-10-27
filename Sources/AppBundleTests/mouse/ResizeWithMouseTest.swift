@@ -3,7 +3,7 @@ import AppKit
 import Common
 import Testing
 
-/// Resizing and moving a tile with the mouse: the AX events of the drag (``Sessions/onAxEvent(_:)``), then the mouse up
+/// Resizing and moving a window with the mouse: the AX events of the drag (``Sessions/onAxEvent(_:)``), then the mouse up
 @Suite(.aeroSpaceGlobalState)
 struct ResizeWithMouseTest {
     @Test
@@ -73,6 +73,42 @@ struct ResizeWithMouseTest {
         expectEqual(testWindow(1).rect, frame)
         expectEqual(fake.calls(of: .focus), []) // macOS focuses it already. The tile that it left never gets the focus
     }
+
+    /// A floating window's center crosses the monitors' edge before the mouse does (x 1800), or with it (x 2100). The
+    /// window stays on its workspace until the mouse up: on-focused-monitor-changed's `move-mouse monitor-lazy-center`
+    /// doesn't warp the mouse that the user holds, and the layout leaves the window where the mouse puts it. The mouse up
+    /// moves it to the monitor of its center, where it keeps the focus, and the mouse follows it there if it isn't there
+    @Test(arguments: [
+        (1800, [.warpMouse(CGPoint(x: 2880, y: 540))]),
+        (2100, []),
+    ] as [(CGFloat, [PlatformCall])])
+    func draggingAFloatingWindowAcrossTheMonitorsEdgeWarpsTheMouseOnlyOnceItsUp(
+        mouseX: CGFloat,
+        warps: [PlatformCall],
+    ) async throws {
+        fake.monitorInfos = [testMonitor, rightTestMonitor]
+        updateMonitors()
+        let right = Workspace.get(byName: "right")
+        #expect(rightTestMonitor.setActiveWorkspace(right))
+        let left = setUpTree("h_tiles(2) floating(*1)")
+        world.config.onFocusedMonitorChanged = parseCommand("move-mouse monitor-lazy-center").cmdOrDie
+        testWindow(1).rect = rect(1500, 100, 300, 200)
+        fake.focused = 1
+        await Reconcile.heavy(.ax("test"))
+        fake.mouseLocation = CGPoint(x: mouseX, y: 150)
+        fake.resetCalls()
+
+        await drag(1, to: rect(1780, 100, 300, 200), .moved(windowId: 1)) // Its center is at x 1930
+        expectEqual(fake.calls(of: .warpMouse), [])
+        expectEqual(testWindow(1).nodeWorkspace, left)
+
+        try await releaseTheMouse()
+        expectEqual(fake.calls(of: .warpMouse), warps)
+        expectEqual(fake.frames(of: 1), [])
+        expectEqual(testWindow(1).nodeWorkspace, right)
+        expectEqual(focus.windowOrNil?.windowId, 1)
+        expectEqual(fake.focused, 1)
+    }
 }
 
 /// h_tiles(*1 2) on the 1920x1080 test monitor, laid out
@@ -90,7 +126,7 @@ private func drag(_ id: WindowId, to frame: Rect, _ event: AxEvent) async {
     fake.isLeftMouseDown = true
     testWindow(id).rect = frame
     await world.sessions.onAxEvent(event)
-    for _ in 0 ..< 100 where world.mouseManipulatedWindowId == nil { await Task.yield() }
+    for _ in 0 ..< 100 where world.mouseManipulatedWindowId == nil && world.draggedFloatingWindow == nil { await Task.yield() }
     await untilHeavyIdle()
 }
 
