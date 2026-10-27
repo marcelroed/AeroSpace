@@ -42,9 +42,10 @@ nonisolated private func newConnection(_ connection: NWConnection) async {
     }
 
     let rawRequest: Data
-    switch await connection.readNonAtomic() {
+    switch await connection.readRequestFrame() {
         case .success(let it): rawRequest = it
         case .failure(let err): return await answer(exitCode: EXIT_CODE_TWO, stderr: "Error: \(err)")
+        case nil: return
     }
     let request: ClientRequest
     switch ClientRequest.decodeJson(rawRequest) {

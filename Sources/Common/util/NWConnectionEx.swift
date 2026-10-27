@@ -83,4 +83,21 @@ extension NWConnection {
                 return .failure(e)
         }
     }
+
+    /// The server's read of a request frame. nil for a client from before the frames: it starts with
+    /// its protocol version, 1, instead of a frame length, and waits for the server's version. A request is never 1 byte
+    /// long. Any other version makes the old client report that the client and the server are incompatible, rather than
+    /// both waiting for each other
+    public func readRequestFrame() async -> Result<Data, NWError>? {
+        switch await readUInt32() {
+            case .success(1):
+                let version = withUnsafeBytes(of: UInt32(2)) { pointer in unsafe Data(pointer) }
+                await withCheckedContinuation { cont in send(content: version, completion: .contentProcessed { _ in cont.resume() }) }
+                return nil
+            case .success(let count):
+                return await read(bytes: Int(count))
+            case .failure(let e):
+                return .failure(e)
+        }
+    }
 }

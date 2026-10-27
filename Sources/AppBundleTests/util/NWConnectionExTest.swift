@@ -39,6 +39,20 @@ struct NWConnectionExTest {
     }
 
     @Test
+    func legacyClientGetsAnotherProtocolVersion() async throws {
+        let server = try await TestSocketServer.start()
+        defer { server.stop() }
+        let connection = NWConnection(to: .unix(path: server.path), using: .tcp)
+        defer { connection.cancel() }
+
+        #expect(await connection.initConnection().error == nil)
+        // A client from before the frames sends its protocol version, 1, and waits for the server's
+        await connection.sendAndWait(withUnsafeBytes(of: UInt32(1)) { unsafe Data($0) })
+        let serverVersion = await withTimeout(seconds: 5) { await connection.receiveUInt32() }
+        #expect(serverVersion == .some(.some(2)))
+    }
+
+    @Test
     func initConnectionWithoutServerFails() async {
         let connection = NWConnection(to: .unix(path: testSocketPath()), using: .tcp)
         defer { connection.cancel() }
@@ -124,7 +138,7 @@ nonisolated private final class TestSocketServer: Sendable {
             Task.startUnstructured {
                 defer { connection.cancel() }
                 connection.start(queue: .global())
-                guard let raw = try? await connection.readNonAtomic().get() else { return }
+                guard let raw = try? await connection.readRequestFrame()?.get() else { return }
                 if closeMidAnswer {
                     await connection.sendAndWait(withUnsafeBytes(of: UInt32(100)) { unsafe Data($0) }) // The answer size
                     return
@@ -180,6 +194,16 @@ extension NWConnection {
     nonisolated fileprivate func sendAndWait(_ data: Data) async {
         await withCheckedContinuation { cont in
             send(content: data, completion: .contentProcessed { _ in cont.resume() })
+        }
+    }
+
+    /// Receives a bare UInt32, not a frame. nil if the connection ends first
+    nonisolated fileprivate func receiveUInt32() async -> UInt32? {
+        await withCheckedContinuation { cont in
+            receive(minimumIncompleteLength: 4, maximumLength: 4) { data, _, _, _ in
+                guard let data, data.count == 4 else { return cont.resume(returning: nil) }
+                cont.resume(returning: unsafe data.withUnsafeBytes { pointer in unsafe pointer.loadUnaligned(as: UInt32.self) })
+            }
         }
     }
 }

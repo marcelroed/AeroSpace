@@ -126,7 +126,7 @@ private func send(_ connection: NWConnection, _ request: ClientRequest) async ->
             if let ans = try? JSONDecoder().decode(ServerAnswer.self, from: answer) { return ans }
             exit(EXIT_CODE_TWO, err: "Failed to parse server response: \(String(data: answer, encoding: .utf8).prettyDescription)")
         case .failure(let error):
-            exit(EXIT_CODE_TWO, err: "Failed to read from server socket: \(error)")
+            exit(EXIT_CODE_TWO, err: "Failed to read from server socket: \(error)\nAre the CLI and AeroSpace.app from the same version? (Potential fix: restart AeroSpace.app)")
     }
 }
 
