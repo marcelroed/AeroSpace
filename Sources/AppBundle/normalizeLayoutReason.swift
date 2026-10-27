@@ -11,7 +11,7 @@ private func validateStillPopups() async throws {
     for node in macosPopupWindowsContainer.children {
         let popup = (node as! MacWindow)
         let windowLevel = getWindowLevel(for: popup.windowId)
-        if try await popup.macApp.isWindowHeuristic(popup.windowId, windowLevel, .cancellable) { // todo cache
+        if try await popup.macApp.isWindowHeuristic(popup.windowId.raw, windowLevel, .cancellable) { // todo cache
             // The popup may have closed or moved at the suspension point above
             if popup.parent !== macosPopupWindowsContainer { continue }
             try await popup.relayoutWindow(on: focus.workspace, .cancellable)

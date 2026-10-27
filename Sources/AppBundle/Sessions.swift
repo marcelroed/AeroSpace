@@ -147,7 +147,7 @@ final class Sessions {
     }
 
     private func onMovedOrResized(
-        _ windowId: UInt32?,
+        _ windowId: WindowId?,
         _ event: RefreshSessionEvent,
         _ slot: LatestTaskSlot,
         _ token: RunSessionGuard,
@@ -238,7 +238,7 @@ nonisolated enum AxEvent: Sendable, Equatable {
     case deminiaturized
     /// kAXMovedNotification, observed on a window: by the user's mouse, by AeroSpace's layout or by the app itself.
     /// The window's id, nil if AX can't tell it (e.g. the window is being destroyed)
-    case moved(windowId: UInt32?)
+    case moved(windowId: WindowId?)
     /// kAXResizedNotification, observed on a window. Same as `moved`
-    case resized(windowId: UInt32?)
+    case resized(windowId: WindowId?)
 }

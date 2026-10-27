@@ -16,7 +16,7 @@ private func expanded(_ formatVar: FormatVar, _ obj: AeroObj) -> String {
 private let workspaceName = "a"
 
 /// A new window with `id` in `parent` (the root container of workspace `a` by default), as an AeroObj
-private func newWindowObj(id: UInt32, parent: Container? = nil, title: String? = nil) -> AeroObj {
+private func newWindowObj(id: WindowId, parent: Container? = nil, title: String? = nil) -> AeroObj {
     .window(.forTest(window: TestWindow.new(id: id, parent: parent ?? Workspace.get(byName: workspaceName).rootTilingContainerCreatingIfNeeded()), title: title))
 }
 

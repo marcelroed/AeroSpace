@@ -15,14 +15,14 @@ struct MoveCommand: nonisolated Command {
     var boundariesAction: WhenBoundariesCrossed = .createImplicitContainer
     var failIfFullscreen = false
     var failIfMacosNativeFullscreen = false
-    var windowId: UInt32? = nil
+    var windowId: WindowId? = nil
 
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
         var boundaries: Boundaries = .workspace
         var boundariesAction: WhenBoundariesCrossed = .createImplicitContainer
         var failIfFullscreen = false
         var failIfMacosNativeFullscreen = false
-        var windowId: UInt32? = nil
+        var windowId: WindowId? = nil
         while let option = try a.nextOption() {
             switch option {
                 case "--window-id": windowId = try a.windowId(of: option)
@@ -127,12 +127,12 @@ struct SwapCommand: nonisolated Command {
     var target: CardinalOrDfsDirection
     var swapFocus = false
     var wrapAround = false
-    var windowId: UInt32? = nil
+    var windowId: WindowId? = nil
 
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
         var swapFocus = false
         var wrapAround = false
-        var windowId: UInt32? = nil
+        var windowId: WindowId? = nil
         while let option = try a.nextOption() {
             switch option {
                 case "--swap-focus": swapFocus = true
@@ -169,10 +169,10 @@ struct JoinWithCommand: nonisolated Command {
     static let resetsClosedWindowsCache = true
     var source: SourceWords = []
     var direction: CardinalDirection
-    var windowId: UInt32? = nil
+    var windowId: WindowId? = nil
 
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
-        var windowId: UInt32? = nil
+        var windowId: WindowId? = nil
         while let option = try a.nextOption() {
             switch option {
                 case "--window-id": windowId = try a.windowId(of: option)
@@ -198,7 +198,7 @@ struct MoveNodeToWorkspaceCommand: nonisolated Command {
     /// Each target carries the options that apply to it
     nonisolated enum Target: Equatable, Sendable {
         case relative(NextPrev, wrapAround: Bool = false, useStdin: Bool = false)
-        case direct(WorkspaceName, failIfNoop: Bool = false, windowId: UInt32? = nil)
+        case direct(WorkspaceName, failIfNoop: Bool = false, windowId: WindowId? = nil)
     }
 
     static let resetsClosedWindowsCache = true
@@ -211,7 +211,7 @@ struct MoveNodeToWorkspaceCommand: nonisolated Command {
         var failIfNoop = false
         var focusFollowsWindow = false
         var useStdin = false
-        var windowId: UInt32? = nil
+        var windowId: WindowId? = nil
         while let option = try a.nextOption() {
             switch option {
                 case "--wrap-around": wrapAround = true
@@ -239,7 +239,7 @@ struct MoveNodeToWorkspaceCommand: nonisolated Command {
     }
 
     func run(_ cx: CmdContext) async throws(CmdFail) {
-        let windowId: UInt32? = if case .direct(_, _, let windowId) = self.target { windowId } else { nil }
+        let windowId: WindowId? = if case .direct(_, _, let windowId) = self.target { windowId } else { nil }
         let target = try cx.target(windowId: windowId)
         guard let window = target.windowOrNil else { throw CmdFail(noWindowIsFocused) }
         let targetWorkspace: Workspace
@@ -286,13 +286,13 @@ struct MoveNodeToMonitorCommand: nonisolated Command {
     var wrapAround = false
     var focusFollowsWindow = false
     var failIfNoop = false
-    var windowId: UInt32? = nil
+    var windowId: WindowId? = nil
 
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
         var wrapAround = false
         var focusFollowsWindow = false
         var failIfNoop = false
-        var windowId: UInt32? = nil
+        var windowId: WindowId? = nil
         while let option = try a.nextOption() {
             switch option {
                 case "--wrap-around": wrapAround = true

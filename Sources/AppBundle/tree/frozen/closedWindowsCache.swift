@@ -30,7 +30,7 @@ struct FrozenWorkspace: Sendable {
 
 func cacheClosedWindowIfNeeded() {
     let allWs = Workspace.all
-    let allWindowIds: Set<UInt32> = allWs.flatMap(\.allLeafWindowsRecursive).map(\.windowId).toSet()
+    let allWindowIds: Set<WindowId> = allWs.flatMap(\.allLeafWindowsRecursive).map(\.windowId).toSet()
     if allWindowIds.isSubset(of: world.closedWindowsCache.windowIds) {
         return // already cached
     }

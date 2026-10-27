@@ -5,7 +5,7 @@ struct CloseCommand: nonisolated Command {
     static let resetsClosedWindowsCache = false
     var source: SourceWords = []
     var quitIfLastWindow = false
-    var windowId: UInt32? = nil
+    var windowId: WindowId? = nil
 
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
         var result = Self()
@@ -78,7 +78,7 @@ struct FullscreenCommand: nonisolated Command {
     var toggle: ToggleEnum = .toggle
     var noOuterGaps = false
     var failIfNoop = false
-    var windowId: UInt32? = nil
+    var windowId: WindowId? = nil
 
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
         var result = Self()
@@ -123,7 +123,7 @@ struct MacosNativeFullscreenCommand: nonisolated Command {
     var source: SourceWords = []
     var toggle: ToggleEnum = .toggle
     var failIfNoop = false
-    var windowId: UInt32? = nil
+    var windowId: WindowId? = nil
 
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
         var result = Self()
@@ -178,7 +178,7 @@ struct MacosNativeFullscreenCommand: nonisolated Command {
 struct MacosNativeMinimizeCommand: nonisolated Command {
     static let resetsClosedWindowsCache = false
     var source: SourceWords = []
-    var windowId: UInt32? = nil
+    var windowId: WindowId? = nil
 
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
         var result = Self()

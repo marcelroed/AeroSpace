@@ -318,8 +318,8 @@ nonisolated func axObserverCallback(
         case kAXUIElementDestroyedNotification: event = .destroyed
         case kAXWindowMiniaturizedNotification: event = .miniaturized
         case kAXWindowDeminiaturizedNotification: event = .deminiaturized
-        case kAXMovedNotification: event = .moved(windowId: element.containingWindowId())
-        case kAXResizedNotification: event = .resized(windowId: element.containingWindowId())
+        case kAXMovedNotification: event = .moved(windowId: element.containingWindowId().map(WindowId.init(raw:)))
+        case kAXResizedNotification: event = .resized(windowId: element.containingWindowId().map(WindowId.init(raw:)))
         default: return
     }
     Task.startUnstructured { @MainActor in

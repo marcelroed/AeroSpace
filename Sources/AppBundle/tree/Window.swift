@@ -2,25 +2,23 @@ import AppKit
 import Common
 
 open class Window: TreeNode, Hashable {
-    nonisolated let windowId: UInt32
+    nonisolated let windowId: WindowId
     let app: any AbstractApp
     var lastFloatingSize: CGSize?
     var isFullscreen: Bool = false
     var noOuterGapsInFullscreen: Bool = false
     var layoutReason: LayoutReason = .standard
 
-    init(id: UInt32, _ app: any AbstractApp, lastFloatingSize: CGSize?, parent: Container, weight: CGFloat?, index: Int?) {
+    /// Registers the window in ``World/windows``
+    init(id: WindowId, _ app: any AbstractApp, lastFloatingSize: CGSize?, parent: Container, weight: CGFloat?, index: Int?) {
         self.windowId = id
         self.app = app
         self.lastFloatingSize = lastFloatingSize
         super.init(parent: parent, weight: weight, index: index)
+        check(world.windows.updateValue(self, forKey: id) == nil, "Window \(id) is already registered")
     }
 
-    static func get(byId windowId: UInt32) -> Window? { // todo make non optional
-        isUnitTest
-            ? Workspace.all.flatMap { $0.allLeafWindowsRecursive }.first(where: { $0.windowId == windowId })
-            : MacWindow.allWindowsMap[windowId]
-    }
+    static func get(byId windowId: WindowId) -> Window? { world.windows[windowId] } // todo make non optional
 
     func closeAxWindow() { die("Not implemented") }
 

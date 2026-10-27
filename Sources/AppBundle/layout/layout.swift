@@ -92,7 +92,7 @@ private struct LayoutParams {
     let gaps: ResolvedGaps
     let accordionPadding: CGFloat
     /// The window that is moved or resized with the mouse. Its frame is left alone
-    let skippedWindowId: UInt32?
+    let skippedWindowId: WindowId?
     /// The root's most recent window: the only one that a `fullscreen` window fills the monitor with
     let fullscreenCandidate: Window?
 }

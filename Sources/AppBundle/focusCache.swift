@@ -14,5 +14,5 @@ func syncFocusFromMacOs() async throws {
         _ = nativeFocused?.focusWindow()
         world.focusStore.lastKnownNativeFocusedWindowId = nativeFocused?.windowId
     }
-    nativeFocused?.asMacWindow().macApp.lastNativeFocusedWindowId = nativeFocused?.windowId
+    nativeFocused?.asMacWindow().macApp.lastNativeFocusedWindowId = nativeFocused?.windowId.raw
 }

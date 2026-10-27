@@ -15,7 +15,7 @@ struct FocusCommand: nonisolated Command {
     nonisolated enum Target: Equatable, Sendable {
         case direction(CardinalDirection, DirectionOptions = DirectionOptions())
         case dfsRelative(DfsNextPrev, atEdge: AtEdge = .stop, floatingAsTiling: Bool = true)
-        case windowId(UInt32)
+        case windowId(WindowId)
         case dfsIndex(UInt32)
     }
 
@@ -59,7 +59,7 @@ struct FocusCommand: nonisolated Command {
         var boundaries: Boundaries? = nil
         var boundariesAction: WhenBoundariesCrossed? = nil
         var wrapAround = false
-        var windowId: UInt32? = nil
+        var windowId: WindowId? = nil
         var dfsIndex: UInt32? = nil
         var hasOtherOptions = false
         while let option = try a.nextOption() {

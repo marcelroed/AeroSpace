@@ -5,27 +5,26 @@ final class MacWindow: Window {
     let macApp: MacApp
     private var prevUnhiddenProportionalPositionInsideWorkspaceRect: CGPoint?
 
-    private init(_ id: UInt32, _ macApp: MacApp, lastFloatingSize: CGSize?, parent: Container, index: Int?) {
+    private init(_ id: WindowId, _ macApp: MacApp, lastFloatingSize: CGSize?, parent: Container, index: Int?) {
         self.macApp = macApp
         super.init(id: id, macApp, lastFloatingSize: lastFloatingSize, parent: parent, weight: nil, index: index)
     }
 
-    static var allWindowsMap: [UInt32: MacWindow] = [:]
-    static var allWindows: [MacWindow] { Array(allWindowsMap.values) }
+    static var allWindows: [MacWindow] { world.windows.values.compactMap { $0 as? MacWindow } } // todo M2-PLAT: commit (c) drops it
 
     @discardableResult
-    static func getOrRegister(windowId: UInt32, macApp: MacApp) async throws -> MacWindow {
-        if let existing = allWindowsMap[windowId] { return existing }
-        let rect = try await macApp.getAxRect(windowId, .cancellable)
+    static func getOrRegister(windowId rawWindowId: UInt32, macApp: MacApp) async throws -> MacWindow {
+        let windowId = WindowId(raw: rawWindowId)
+        if let existing = world.windows[windowId] { return existing as! MacWindow }
+        let rect = try await macApp.getAxRect(rawWindowId, .cancellable)
         let monitor = rect.map { world.monitors.approximation($0.center) } ?? world.monitors.main
         let workspace = isStartup ? monitor.activeWorkspace : focus.workspace
-        let type = try await macApp.getAxUiElementWindowType(windowId, getWindowLevel(for: windowId), .cancellable)
+        let type = try await macApp.getAxUiElementWindowType(rawWindowId, getWindowLevel(for: windowId), .cancellable)
         let slot = unbindAndGetSlotForNewWindow(type, workspace, window: nil)
 
         // atomic synchronous section
-        if let existing = allWindowsMap[windowId] { return existing }
+        if let existing = world.windows[windowId] { return existing as! MacWindow }
         let window = MacWindow(windowId, macApp, lastFloatingSize: rect?.size, parent: slot.parent, index: slot.index)
-        allWindowsMap[windowId] = window
 
         try await debugWindowsIfRecording(window, .cancellable)
         if try await !restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: window) {
@@ -35,17 +34,17 @@ final class MacWindow: Window {
     }
 
     func setNativeFullscreen(_ value: Bool) {
-        macApp.setAxAttr(windowId, Ax.isFullscreenAttr, value)
+        macApp.setAxAttr(windowId.raw, Ax.isFullscreenAttr, value)
     }
 
     func setNativeMinimized(_ value: Bool) {
-        macApp.setAxAttr(windowId, Ax.minimizedAttr, value)
+        macApp.setAxAttr(windowId.raw, Ax.minimizedAttr, value)
     }
 
     // skipClosedWindowsCache is an optimization when it's definitely not necessary to cache closed window.
     //                        If you are unsure, it's better to pass `false`
     func garbageCollect(skipClosedWindowsCache: Bool) {
-        if MacWindow.allWindowsMap.removeValue(forKey: windowId) == nil {
+        if world.windows.removeValue(forKey: windowId) == nil {
             return
         }
         if !skipClosedWindowsCache { cacheClosedWindowIfNeeded() }
@@ -73,20 +72,20 @@ final class MacWindow: Window {
         }
     }
 
-    override func getTitle(_ cm: CancellationMode) async throws -> String { try await macApp.getAxAttr(windowId, Ax.titleAttr, cm) ?? "" }
-    override func isMacosFullscreen(_ cm: CancellationMode) async throws -> Bool { try await macApp.getAxAttr(windowId, Ax.isFullscreenAttr, cm) == true }
-    override func isMacosMinimized(_ cm: CancellationMode) async throws -> Bool { try await macApp.getAxAttr(windowId, Ax.minimizedAttr, cm) == true }
+    override func getTitle(_ cm: CancellationMode) async throws -> String { try await macApp.getAxAttr(windowId.raw, Ax.titleAttr, cm) ?? "" }
+    override func isMacosFullscreen(_ cm: CancellationMode) async throws -> Bool { try await macApp.getAxAttr(windowId.raw, Ax.isFullscreenAttr, cm) == true }
+    override func isMacosMinimized(_ cm: CancellationMode) async throws -> Bool { try await macApp.getAxAttr(windowId.raw, Ax.minimizedAttr, cm) == true }
     override func getMacosFullscreenAndMinimized(_ cm: CancellationMode) async throws -> (isFullscreen: Bool, isMinimized: Bool) {
-        try await macApp.getMacosFullscreenAndMinimized(windowId, cm) ?? (false, false)
+        try await macApp.getMacosFullscreenAndMinimized(windowId.raw, cm) ?? (false, false)
     }
 
     override func nativeFocus() {
-        macApp.nativeFocus(windowId)
+        macApp.nativeFocus(windowId.raw)
     }
 
     override func closeAxWindow() {
         garbageCollect(skipClosedWindowsCache: true)
-        macApp.closeAndUnregisterAxWindow(windowId)
+        macApp.closeAndUnregisterAxWindow(windowId.raw)
     }
 
     // todo it's part of the window layout and should be moved to layout.swift
@@ -154,15 +153,15 @@ final class MacWindow: Window {
     }
 
     override func getAxSize(_ cm: CancellationMode) async throws -> CGSize? {
-        try await macApp.getAxAttr(windowId, Ax.sizeAttr, cm)
+        try await macApp.getAxAttr(windowId.raw, Ax.sizeAttr, cm)
     }
 
     override func setAxFrame(_ topLeft: CGPoint?, _ size: CGSize?) {
-        macApp.setAxFrame(windowId, topLeft, size)
+        macApp.setAxFrame(windowId.raw, topLeft, size)
     }
 
     override func getAxRect(_ cm: CancellationMode) async throws -> Rect? {
-        try await macApp.getAxRect(windowId, cm)
+        try await macApp.getAxRect(windowId.raw, cm)
     }
 }
 
@@ -170,7 +169,7 @@ extension Window {
     func relayoutWindow(on workspace: Workspace, _ cm: CancellationMode, forceTile: Bool = false) async throws {
         let type: AxUiElementWindowType = forceTile
             ? .window
-            : try await asMacWindow().macApp.getAxUiElementWindowType(windowId, getWindowLevel(for: windowId), cm)
+            : try await asMacWindow().macApp.getAxUiElementWindowType(windowId.raw, getWindowLevel(for: windowId), cm)
         // The window or the workspace may be gone after the suspension point above
         guard isAlive, workspace.isAlive else { return }
         let slot = unbindAndGetSlotForNewWindow(type, workspace, window: self)

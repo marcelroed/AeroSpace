@@ -188,8 +188,8 @@ nonisolated struct ArgCursor {
         return Array(values)
     }
 
-    mutating func windowId(of option: String) throws(CmdParseError) -> UInt32 {
-        try value(of: option, "<window-id>", parseUInt32)
+    mutating func windowId(of option: String) throws(CmdParseError) -> WindowId {
+        WindowId(raw: try value(of: option, "<window-id>", parseUInt32))
     }
 
     mutating func workspace(of option: String) throws(CmdParseError) -> WorkspaceName {

@@ -21,7 +21,7 @@ func refresh() async throws {
     // The screens may disappear at the suspension point above (e.g. display reconfiguration on wake). Leave the windows to a
     // session that runs with screens. todo M2-REC: P1's re-check of `platform.monitors()` replaces this (RB-01)
     if !liveHasScreens() { return }
-    let aliveWindowIds = mapping.values.flatMap { $0 }.toSet()
+    let aliveWindowIds: Set<WindowId> = mapping.values.flatMap { $0.map(WindowId.init(raw:)) }.toSet()
 
     for window in MacWindow.allWindows {
         if !aliveWindowIds.contains(window.windowId) {

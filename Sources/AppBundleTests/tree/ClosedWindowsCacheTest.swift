@@ -27,7 +27,7 @@ struct ClosedWindowsCacheTest {
         for window in workspace.tilingWindows {
             window.move(to: other.rootTilingContainerCreatingIfNeeded(), at: 0, weight: .value(1))
         }
-        for id: UInt32 in [4, 5] {
+        for id: WindowId in [4, 5] {
             testWindow(id).move(to: workspace.rootTilingContainerCreatingIfNeeded(), weight: .value(1))
         }
         let orphan = TestWindow.new(id: 7, parent: workspace.rootTilingContainerCreatingIfNeeded()) // Not cached

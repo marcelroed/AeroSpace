@@ -325,7 +325,7 @@ extension FormatVar {
                 return try expand(.monitor(ws.workspaceMonitor))
             case (.window(let w), .window):
                 switch self {
-                    case .windowId: return .int(w.window.windowId)
+                    case .windowId: return .int(w.window.windowId.raw)
                     case .windowIsFullscreen: return .bool(w.window.isFullscreen)
                     case .windowTitle: return .string(w.title.orDie("Title wasn't prefetched"))
                     case .windowLayout, .windowParentContainerLayout: return try layout(of: w.window)

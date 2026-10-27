@@ -163,8 +163,8 @@ struct TreeNodeTest {
     @Test(arguments: [
         ("h_tiles(1 v_tiles(2 3)) floating(4)", 4), // The only floating window closes
         ("h_tiles(1 v_tiles(2) 3)", 2), // The only window of a nested container closes
-    ] as [(String, UInt32)])
-    func toLiveFocusFallsBackToTheFirstWindowPastAnEmptyContainer(tree: String, closedWindowId: UInt32) {
+    ] as [(String, WindowId)])
+    func toLiveFocusFallsBackToTheFirstWindowPastAnEmptyContainer(tree: String, closedWindowId: WindowId) {
         let workspace = setUpTree(tree, workspace: "a")
         testWindow(3).markAsMostRecentChild()
         testWindow(closedWindowId).markAsMostRecentChild()
@@ -181,8 +181,8 @@ struct TreeNodeTest {
         ("h_tiles(1 v_tiles(2 3) 4) floating(6)", 6, "h_tiles(1 v_tiles(2 3) 4 5)"),
         // The most recent window is floating
         ("h_tiles(1 v_tiles(2 3) 4) floating(6 7)", 6, "h_tiles(1 v_tiles(2 3) 4 5) floating(7)"),
-    ] as [(String, UInt32?, String)])
-    func newTilingWindowSlot(tree: String, closedWindowId: UInt32?, after: String) async throws {
+    ] as [(String, WindowId?, String)])
+    func newTilingWindowSlot(tree: String, closedWindowId: WindowId?, after: String) async throws {
         let workspace = setUpTree(tree, workspace: "a")
         testWindow(2).markAsMostRecentChild()
         if let closedWindowId {

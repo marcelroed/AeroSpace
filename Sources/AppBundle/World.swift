@@ -18,6 +18,8 @@ final class World {
     private(set) var macosMinimizedWindowsContainer: Container = Container(root: .macosMinimized)
     /// The objects that are windows from the AX perspective, but not even dialogs from the human perspective
     private(set) var macosPopupWindowsContainer: Container = Container(root: .macosPopup)
+    /// Every window, bound or not, from its registration until it's garbage collected. See ``Window/get(byId:)``
+    var windows: [WindowId: Window] = [:]
     /// See ``TreeNode/markAsMostRecentChild()``
     var mruClock: UInt64 = 0
     /// The monitors of the current session, see ``updateMonitors(_:)``
@@ -39,7 +41,7 @@ final class World {
     /// Set by `layout --for-next-detected-window`, taken by the next window that on-window-detected sees
     var layoutForNextDetectedWindow: LayoutCommand.LayoutDescription? = nil
     /// The window that the user moves or resizes with the mouse. Layout leaves it where the mouse puts it
-    var mouseManipulatedWindowId: UInt32? = nil
+    var mouseManipulatedWindowId: WindowId? = nil
     var debugWindows: DebugWindowsRecording = .off
     /// Is window management on (`enable on|off`). While it's off, the sessions skip everything but `enable`
     var isEnabled: Bool = true {
@@ -68,6 +70,7 @@ final class World {
         sortedWorkspaces = fresh.sortedWorkspaces
         macosMinimizedWindowsContainer = fresh.macosMinimizedWindowsContainer
         macosPopupWindowsContainer = fresh.macosPopupWindowsContainer
+        windows = fresh.windows
         mruClock = fresh.mruClock
         monitors = fresh.monitors
         assignment = fresh.assignment

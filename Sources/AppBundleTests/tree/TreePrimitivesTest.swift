@@ -146,12 +146,12 @@ struct TreePrimitivesTest {
 
     @Test(arguments: [
         // Siblings, in both directions
-        ("h_tiles(1:2 2 3:4)", 1 as UInt32, 3 as UInt32, "h_tiles(3:2 2:1 1:4)"),
+        ("h_tiles(1:2 2 3:4)", 1 as WindowId, 3 as WindowId, "h_tiles(3:2 2:1 1:4)"),
         ("h_tiles(1:2 2 3:4)", 3, 1, "h_tiles(3:2 2:1 1:4)"),
         // Different parents
         ("h_tiles(1:2 v_tiles(2 3:4))", 1, 3, "h_tiles(3:2 v_tiles:1(2:1 1:4))"),
-    ] as [(String, UInt32, UInt32, String)])
-    func swap(tree: String, a: UInt32, b: UInt32, after: String) {
+    ] as [(String, WindowId, WindowId, String)])
+    func swap(tree: String, a: WindowId, b: WindowId, after: String) {
         let workspace = setUpTree(tree, workspace: "a")
         testWindow(a).swap(with: testWindow(b))
         expectEqual(describeTree("a", weights: true), after)
@@ -237,6 +237,6 @@ struct TreePrimitivesTest {
         expectEqual(workspace.existingRootTilingContainer, nil)
         workspace.rootTilingContainerCreatingIfNeeded().layout = .accordion
         expectEqual(workspace.rootLayout.layout, .accordion)
-        expectEqual(setUpTree("h_tiles(1 v_tiles(2 3))", workspace: "b").tilingWindows.map(\.windowId), [1, 2, 3])
+        expectEqual(setUpTree("h_tiles(2 v_tiles(3 4))", workspace: "b").tilingWindows.map(\.windowId), [2, 3, 4])
     }
 }

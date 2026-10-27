@@ -6,13 +6,13 @@ final class TestWindow: Window, CustomStringConvertible {
     var rect: Rect?
     var isMacosFullscreenForTest = false
 
-    private init(_ id: UInt32, _ parent: Container, _ weight: CGFloat, _ rect: Rect?) {
+    private init(_ id: WindowId, _ parent: Container, _ weight: CGFloat, _ rect: Rect?) {
         self.rect = rect
         super.init(id: id, TestApp.shared, lastFloatingSize: nil, parent: parent, weight: weight, index: nil)
     }
 
     @discardableResult
-    static func new(id: UInt32, parent: Container, weight: CGFloat = 1, rect: Rect? = nil) -> TestWindow {
+    static func new(id: WindowId, parent: Container, weight: CGFloat = 1, rect: Rect? = nil) -> TestWindow {
         let wi = TestWindow(id, parent, weight, rect)
         TestApp.shared._windows.append(wi)
         return wi
@@ -26,6 +26,7 @@ final class TestWindow: Window, CustomStringConvertible {
     }
 
     override func closeAxWindow() {
+        world.windows.removeValue(forKey: windowId)
         destroy()
     }
 

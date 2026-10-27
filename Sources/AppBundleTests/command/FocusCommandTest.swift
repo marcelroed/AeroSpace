@@ -139,7 +139,7 @@ struct FocusCommandTest {
         let workspace = setUpTree("h_tiles() floating(1 *2 3)")
         for id: UInt32 in 1 ... 3 {
             let offset = CGFloat(id - 1) * 10
-            testWindow(id).rect = rect(offset, offset, 100, 100)
+            testWindow(WindowId(raw: id)).rect = rect(offset, offset, 100, 100)
         }
         let output = await runCmd("focus right")
         expectEqual(output, .ok)
@@ -200,7 +200,7 @@ struct FocusCommandTest {
     @Test
     func focusDfsRelative() async {
         setUpTree("h_tiles(v_tiles(*1 h_tiles(2 3)) 4)")
-        for (command, focused): (String, UInt32) in [
+        for (command, focused): (String, WindowId) in [
             ("dfs-next", 2), ("dfs-next", 3), ("dfs-next", 4),
             ("dfs-prev", 3), ("dfs-prev", 2), ("dfs-prev", 1),
         ] {
@@ -224,7 +224,7 @@ struct FocusCommandTest {
     @Test
     func floatingAsTiling_tiles() async {
         setUpTree("h_tiles(1 2) floating(*3 4)")
-        for (id, x): (UInt32, CGFloat) in [(1, 0), (2, 960)] {
+        for (id, x): (WindowId, CGFloat) in [(1, 0), (2, 960)] {
             testWindow(id).rect = rect(x, 0, 960, 1080)
             testWindow(id).lastAppliedLayoutVirtualRect = rect(x, 0, 960, 1080)
         }
@@ -277,7 +277,7 @@ struct FocusCommandTest {
 /// window of v_tiles
 private func setUpFloatingWindowAboveTiles(_ spec: String) -> Workspace {
     let workspace = setUpTree(spec)
-    let rects: [(UInt32, Rect)] = [(1, rect(0, 0, 960, 540)), (2, rect(0, 540, 960, 540)), (3, rect(960, 0, 960, 1080))]
+    let rects: [(WindowId, Rect)] = [(1, rect(0, 0, 960, 540)), (2, rect(0, 540, 960, 540)), (3, rect(960, 0, 960, 1080))]
     for (id, rect) in rects {
         testWindow(id).rect = rect
         testWindow(id).lastAppliedLayoutVirtualRect = rect

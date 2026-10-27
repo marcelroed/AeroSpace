@@ -98,7 +98,7 @@ func describeNode(_ node: TreeNode, weights: Bool = false, mru: Bool = false) ->
 }
 
 /// The test window with id `id`, bound or not
-func testWindow(_ id: UInt32) -> TestWindow {
+func testWindow(_ id: WindowId) -> TestWindow {
     TestApp.shared.windows.singleOrNil(where: { $0.windowId == id }).orDie("No test window with id \(id)") as? TestWindow ?? dieT()
 }
 
@@ -151,7 +151,7 @@ private func build(_ node: SpecNode, in parent: Container, focused: inout [Windo
             build(child, in: container, focused: &focused)
         }
     } else {
-        let id = UInt32(node.name).orDie("'\(node.name)' isn't a window id")
+        let id = WindowId(raw: UInt32(node.name).orDie("'\(node.name)' isn't a window id"))
         let window = TestWindow.new(id: id, parent: parent, weight: node.weight ?? 1)
         if node.isFocused { focused.append(window) }
     }

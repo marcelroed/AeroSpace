@@ -11,7 +11,7 @@ struct LayoutTest {
     func tilesHorizontal() async throws {
         let workspace = setUpTree("h_tiles(0 1 2)", workspace: "a")
         let root = workspace.existingRootTilingContainer.orDie()
-        let windows = (0 ..< 3).map(testWindow)
+        let windows = ([0, 1, 2] as [WindowId]).map(testWindow)
 
         try await workspace.layoutWorkspace()
 
@@ -78,7 +78,7 @@ struct LayoutTest {
         world.config.accordionPadding = 30
         let workspace = setUpTree("h_accordion(0 1 2)", workspace: "a")
         let root = workspace.existingRootTilingContainer.orDie()
-        let windows = (0 ..< 3).map(testWindow)
+        let windows = ([0, 1, 2] as [WindowId]).map(testWindow)
 
         // MRU is the first child
         windows[0].markAsMostRecentChild()
@@ -119,7 +119,7 @@ struct LayoutTest {
     func accordionVertical() async throws {
         world.config.accordionPadding = 30
         let workspace = setUpTree("v_accordion(0 1 2 3)", workspace: "a")
-        let windows = (0 ..< 4).map(testWindow)
+        let windows = ([0, 1, 2, 3] as [WindowId]).map(testWindow)
         windows[1].markAsMostRecentChild()
 
         try await workspace.layoutWorkspace()
@@ -238,7 +238,7 @@ struct LayoutTest {
         expectEqual(frames.map(\.window.windowId), [1, 2, 3, 4]) // Depth first: the order layoutWorkspace applies them in
         expectEqual(frames.first, WindowFrame(window: testWindow(1), topLeft: CGPoint(x: 0, y: 0), size: CGSize(width: 640, height: 1079)))
         expectEqual(frames.last, WindowFrame(window: testWindow(4), topLeft: CGPoint(x: 1280, y: 0), size: CGSize(width: 640, height: 1079)))
-        #expect((1 ... 5).allSatisfy { testWindow($0).setAxFrameHistory.isEmpty })
+        #expect(([1, 2, 3, 4, 5] as [WindowId]).allSatisfy { testWindow($0).setAxFrameHistory.isEmpty })
         expectRects(testWindow(4), physical: rect(1280, 0, 640, 1079), virtual: rect(1280, 0, 640, 1080))
         expectEqual(testWindow(4).hWeight, 640)
     }

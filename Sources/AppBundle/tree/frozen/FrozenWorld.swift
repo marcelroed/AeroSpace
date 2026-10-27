@@ -1,5 +1,5 @@
 struct FrozenWorld {
     let workspaces: [FrozenWorkspace]
     let monitors: [FrozenMonitor]
-    let windowIds: Set<UInt32>
+    let windowIds: Set<WindowId>
 }

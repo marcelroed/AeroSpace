@@ -105,11 +105,11 @@ struct RunCallbackCommand: nonisolated Command {
     var source: SourceWords = []
     var callback: CallbackKind
     var forEveryWindow = false
-    var windowId: UInt32? = nil
+    var windowId: WindowId? = nil
 
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
         var forEveryWindow = false
-        var windowId: UInt32? = nil
+        var windowId: WindowId? = nil
         while let option = try a.nextOption() {
             switch option {
                 case "--for-every-window": forEveryWindow = true
@@ -159,11 +159,11 @@ struct EchoCommand: nonisolated Command {
     var source: SourceWords = []
     var args: [[FormatToken]]
     var isStderr = false
-    var windowId: UInt32? = nil
+    var windowId: WindowId? = nil
 
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
         var isStderr = false
-        var windowId: UInt32? = nil
+        var windowId: WindowId? = nil
         while let option = try a.nextOption() {
             switch option {
                 case "--stderr": isStderr = true

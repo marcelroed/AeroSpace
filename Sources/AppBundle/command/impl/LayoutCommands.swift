@@ -34,7 +34,7 @@ struct LayoutCommand: nonisolated Command {
     var root = false
     var failIfNoop = false
     var forNextDetectedWindow = false
-    var windowId: UInt32? = nil
+    var windowId: WindowId? = nil
     var workspace: WorkspaceName? = nil
 
     static let rootFlagIncompatibilityMsg = "layout command: --root and tiling|floating are incompatible"
@@ -182,14 +182,14 @@ struct SplitCommand: nonisolated Command {
     static let resetsClosedWindowsCache = true
     var source: SourceWords = []
     var arg: SplitArg
-    var windowId: UInt32? = nil
+    var windowId: WindowId? = nil
 
     nonisolated enum SplitArg: String, CaseIterable, Sendable {
         case horizontal, vertical, opposite
     }
 
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
-        var windowId: UInt32? = nil
+        var windowId: WindowId? = nil
         while let option = try a.nextOption() {
             switch option {
                 case "--window-id": windowId = try a.windowId(of: option)
@@ -256,10 +256,10 @@ struct ResizeCommand: nonisolated Command {
     var source: SourceWords = []
     var dimension: Dimension
     var units: Units
-    var windowId: UInt32? = nil
+    var windowId: WindowId? = nil
 
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
-        var windowId: UInt32? = nil
+        var windowId: WindowId? = nil
         while let option = try a.nextOption() {
             switch option {
                 case "--window-id": windowId = try a.windowId(of: option)

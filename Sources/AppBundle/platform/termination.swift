@@ -51,11 +51,11 @@ private func restoreWindowsOnMainThread() {
         main: TerminationMonitor(rect: world.monitors.main.rect, visibleRect: world.monitors.main.visibleRect),
     )
     var timedOutApps: Set<pid_t> = []
-    for window in MacWindow.allWindowsMap.values {
+    for window in MacWindow.allWindows {
         // makeAllWindowsVisibleAndRestoreSize may be invoked when something went wrong (e.g. some windows are unbound)
         // that's why it's not allowed to use `.parent` call in here
         guard let app = window.macApp.axForTermination, !timedOutApps.contains(app.pid) else { continue }
-        let windowId = window.windowId
+        let windowId = window.windowId.raw
         let lastFloatingSize = window.lastFloatingSize
         let isDone = app.postAndWait(timeout: terminationAxTimeout) { app in
             app.restore(windowId) { monitors.restoreFrame(windowRect: $0, lastFloatingSize) }

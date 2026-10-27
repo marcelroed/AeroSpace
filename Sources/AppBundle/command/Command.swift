@@ -63,7 +63,7 @@ struct CmdContext {
 
     /// The target of the command: the --window-id or --workspace flag, then the AEROSPACE_WINDOW_ID or
     /// AEROSPACE_WORKSPACE env variable, then the focus
-    func target(windowId: UInt32? = nil, workspace: WorkspaceName? = nil) throws(CmdFail) -> LiveFocus {
+    func target(windowId: WindowId? = nil, workspace: WorkspaceName? = nil) throws(CmdFail) -> LiveFocus {
         if let windowId { return try windowFocus(windowId, "passed to --window-id") }
         if let workspace { return Workspace.get(byName: workspace.raw).toLiveFocus() }
         if let windowId = env.windowId { return try windowFocus(windowId, "specified in \(AEROSPACE_WINDOW_ID) env variable") }
@@ -72,12 +72,12 @@ struct CmdContext {
     }
 
     /// The window of the target
-    func window(windowId: UInt32?, noWindowMsg: String = noWindowIsFocused) throws(CmdFail) -> Window {
+    func window(windowId: WindowId?, noWindowMsg: String = noWindowIsFocused) throws(CmdFail) -> Window {
         guard let window = try target(windowId: windowId).windowOrNil else { throw CmdFail(noWindowMsg) }
         return window
     }
 
-    private func windowFocus(_ windowId: UInt32, _ source: String) throws(CmdFail) -> LiveFocus {
+    private func windowFocus(_ windowId: WindowId, _ source: String) throws(CmdFail) -> LiveFocus {
         guard let window = Window.get(byId: windowId) else { throw "Invalid <window-id> \(windowId) \(source)" }
         guard let liveFocus = window.toLiveFocusOrNil() else {
             throw "Window \(windowId) doesn't belong to any monitor. And thus can't even define a focused workspace"

@@ -32,7 +32,7 @@ struct LiveFocus: Equatable {
 /// Unlike in LiveFocus, information inside FrozenFocus isn't guaranteed to be self-consistent.
 /// window - workspace - monitor relation could change since the moment object was created
 private struct FrozenFocus: Equatable, Sendable {
-    let windowId: UInt32?
+    let windowId: WindowId?
     let workspaceName: String
     // monitorId is not part of the focus. We keep it here only for 'on-focused-monitor-changed' to work
     let monitorId_oneBased: Int
@@ -65,7 +65,7 @@ struct FocusStore {
     private(set) var prevWorkspaceDate: Date = .distantPast
     fileprivate var isRunningOnFocusChangedCallbacks = false
     /// See ``syncFocusFromMacOs()``
-    var lastKnownNativeFocusedWindowId: UInt32? = nil
+    var lastKnownNativeFocusedWindowId: WindowId? = nil
 }
 
 /// The focus, initialized on the first read from the workspace of the main monitor
@@ -186,7 +186,7 @@ func onFocusedMonitorChanged(_ env: CmdEnv, _ io: CmdIo, _ focus: LiveFocus) asy
 
 func onFocusChanged(_ env: CmdEnv, _ io: CmdIo, _ focus: LiveFocus) async -> Int32 {
     broadcastEvent(.focusChanged(
-        windowId: focus.windowOrNil?.windowId,
+        windowId: focus.windowOrNil?.windowId.raw,
         workspace: focus.workspace.name,
     ))
     return await config.onFocusChanged.run(env.withFocus(focus), io)

@@ -23,13 +23,13 @@ enum DebugWindowsRecording {
 /// The dumps of the windows focused during one recording, in focus order. A class, so that a dump awaited during a
 /// recording goes into that recording's log, and never into a later recording's
 final class DebugWindowsLog {
-    var dumps: OrderedDictionary<UInt32, String> = [:]
+    var dumps: OrderedDictionary<WindowId, String> = [:]
 }
 
 struct DebugWindowsCommand: nonisolated Command {
     static let resetsClosedWindowsCache = false
     var source: SourceWords = []
-    var windowId: UInt32? = nil
+    var windowId: WindowId? = nil
 
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
         var result = Self()
@@ -94,12 +94,12 @@ private func dumpWindowDebugInfo(_ window: Window, _ cm: CancellationMode) async
     let window = window.asMacWindow()
     let appInfoDic: [String: Any] = window.macApp.nsApp.bundleURL.flatMap { Bundle(url: $0) }?.infoDictionary ?? [:]
 
-    var result: OrderedJson.JsonDict = try await window.macApp.dumpWindowAxInfo(windowId: window.windowId, cm)
+    var result: OrderedJson.JsonDict = try await window.macApp.dumpWindowAxInfo(windowId: window.windowId.raw, cm)
 
     let windowLevel = getWindowLevel(for: window.windowId)
     let windowLevelJson = windowLevel?.toJson() ?? .null
     result["Aero.windowLevel"] = windowLevelJson
-    result["Aero.axWindowId"] = .int(window.windowId)
+    result["Aero.axWindowId"] = .int(window.windowId.raw)
     result["Aero.workspace"] = .stringOrNull(window.nodeWorkspace?.name)
     result["Aero.treeNodeParent"] = .string(String(describing: window.parent))
     result["Aero.macOS.version"] = .string(ProcessInfo().operatingSystemVersionString) // because built-in apps might behave differently depending on the OS version
@@ -112,8 +112,8 @@ private func dumpWindowDebugInfo(_ window: Window, _ cm: CancellationMode) async
     result["Aero.App.nsApp.appBundlePath"] = .stringOrNull(window.macApp.nsApp.bundleURL?.description)
     result["Aero.AXApp"] = .dict(try await window.macApp.dumpAppAxInfo(cm))
 
-    let isDialog = try await window.macApp.isDialogHeuristic(window.windowId, windowLevel, cm)
-    let isWindow = try await window.macApp.isWindowHeuristic(window.windowId, windowLevel, cm)
+    let isDialog = try await window.macApp.isDialogHeuristic(window.windowId.raw, windowLevel, cm)
+    let isWindow = try await window.macApp.isWindowHeuristic(window.windowId.raw, windowLevel, cm)
     result["Aero.AxUiElementWindowType"] = .string(AxUiElementWindowType.new(isWindow: isWindow, isDialog: { isDialog }).rawValue)
     result["Aero.AxUiElementWindowType_isDialogHeuristic"] = .bool(isDialog)
 
@@ -132,7 +132,7 @@ func debugWindowsIfRecording(_ window: Window, _ cm: CancellationMode) async thr
 }
 
 /// Adds the window's dump to the running recording, unless the recording has it already
-func recordDebugWindow(_ windowId: UInt32, dump: () async throws -> String) async rethrows {
+func recordDebugWindow(_ windowId: WindowId, dump: () async throws -> String) async rethrows {
     guard case .recording(let log) = world.debugWindows, !log.dumps.keys.contains(windowId) else { return }
     if log.dumps.count >= debugWindowsLimit {
         world.debugWindows = .aborted

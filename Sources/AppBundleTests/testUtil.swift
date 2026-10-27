@@ -123,7 +123,7 @@ nonisolated struct CmdOutput: Equatable {
 /// Check the output with `expectEqual`, which shows both outputs on a mismatch. `#expect` doesn't show the values of an
 /// expression with `await`, so `#expect(await runCmd("...") == .ok)` would fail without the output
 @discardableResult
-func runCmd(_ command: String, stdin: String = "", windowIdEnv: UInt32? = nil, workspaceEnv: String? = nil) async -> CmdOutput {
+func runCmd(_ command: String, stdin: String = "", windowIdEnv: WindowId? = nil, workspaceEnv: String? = nil) async -> CmdOutput {
     switch parseCommand(command) {
         case .success(let shell):
             let result = await shell.run(CmdEnv(windowId: windowIdEnv, workspaceName: workspaceEnv), CmdStdin(stdin))

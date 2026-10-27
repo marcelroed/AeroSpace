@@ -131,6 +131,6 @@ struct WindowParentTest {
     private func windowOfEveryParentKind() -> [Window] {
         setUpTree("h_tiles(1 7) floating(2) macos_fullscreen(3) macos_hidden(4) macos_minimized(5) macos_popup(6)", workspace: "a")
         testWindow(7).unbindFromParent()
-        return (1 ... 7).map(testWindow)
+        return ([1, 2, 3, 4, 5, 6, 7] as [WindowId]).map(testWindow)
     }
 }

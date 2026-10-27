@@ -79,7 +79,7 @@ enum WindowDetectedCallbackMatcher: Equatable {
 
 func onWindowDetected(_ env: CmdEnv, _ io: CmdIo, _ window: Window) async -> Int32 {
     broadcastEvent(.windowDetected(
-        windowId: window.windowId,
+        windowId: window.windowId.raw,
         workspace: window.nodeWorkspace?.name,
         appBundleId: window.app.rawAppBundleId,
         appName: window.app.name,

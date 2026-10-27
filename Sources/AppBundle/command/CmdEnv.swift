@@ -1,7 +1,7 @@
 import Common
 
 struct CmdEnv {
-    var windowId: UInt32? = nil
+    var windowId: WindowId? = nil
     var workspaceName: String? = nil
 
     static let defaultEnv: CmdEnv = .init()
@@ -10,7 +10,7 @@ struct CmdEnv {
         if let window = focus.windowOrNil { withWindowId(window.windowId) } else { withWorkspaceName(focus.workspace.name) }
     }
 
-    consuming func withWindowId(_ windowId: UInt32) -> CmdEnv {
+    consuming func withWindowId(_ windowId: WindowId) -> CmdEnv {
         self.windowId = windowId
         self.workspaceName = nil
         return self

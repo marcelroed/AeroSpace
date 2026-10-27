@@ -27,7 +27,7 @@ struct FrozenContainer: Sendable {
 }
 
 struct FrozenWindow: Sendable {
-    let id: UInt32
+    let id: WindowId
     let weight: CGFloat
 
     init(_ window: Window) {
