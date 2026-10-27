@@ -7,7 +7,7 @@ private let modeKey = "mode"
 // For every new config option you add, think:
 // 1. Does it make sense to have different value
 // 2. Prefer commands and commands flags over toml options if possible
-private let rootFields: [String: Field<Config>] = [
+let configFields: [String: Field<Config>] = [
     "after-startup-command": Field(\.afterStartupCommand, decodeShellOfCommands),
 
     "on-focus-changed": Field(\.onFocusChanged, decodeShellOfCommands),
@@ -61,7 +61,7 @@ func parseConfig(_ rawToml: String) -> ParseConfigResult {
     }
     var config = Config()
     // The order is pinned: the sorted root keys, key-mapping, then mode (bindings resolve through key-mapping)
-    decodeTable(.dict(root), into: &config, rootFields, .emptyRoot, &d)
+    decodeTable(.dict(root), into: &config, configFields, .emptyRoot, &d)
     if let raw = root[keyMappingKey] {
         decodeTable(raw, into: &config.keyMapping, keyMappingFields, .rootKey(keyMappingKey), &d)
     }

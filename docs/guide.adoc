@@ -135,6 +135,8 @@ Working with binding modes consists of two parts:
     equal = 'resize smart +50'
 ----
 
+The `on-mode-changed` callback runs its commands every time the binding mode changes.
+
 [#commands]
 === Commands
 

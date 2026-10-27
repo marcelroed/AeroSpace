@@ -29,6 +29,19 @@ struct ConfigTest {
         expectEqual(result.errors, [])
     }
 
+    /// The guide includes default-config.toml, so a key in it is in both
+    @Test
+    func everyKeyIsInTheDefaultConfig() throws {
+        let toml = try String(contentsOf: configExamples.appending(component: "default-config.toml"), encoding: .utf8)
+        let guide = try String(contentsOf: projectRoot.appending(component: "docs/guide.adoc"), encoding: .utf8)
+        #expect(guide.contains("include::config-examples/default-config.toml[]"))
+        for key in configFields.keys.sorted() {
+            // `key = `, `key.child = `, `[key]` or `[key.child]`, also in a comment
+            let assignment = try Regex(#"(^|[\s\[])"# + key + #"( =|\.|\])"#).anchorsMatchLineEndings()
+            #expect(toml.contains(assignment), "Add '\(key)' to default-config.toml")
+        }
+    }
+
     @Test
     func testExecOnWorkspaceChangeDifferentTypesError() {
         let errors = parseConfig("exec-on-workspace-change = ['', 1]").strErrors
@@ -587,6 +600,8 @@ struct ConfigTest {
         expectEqual(colemakResult.config.keyMapping.resolve()["f"], .e)
     }
 }
+
+private let configExamples = projectRoot.appending(component: "docs/config-examples")
 
 extension ParseConfigResult {
     var strErrors: [String] {
