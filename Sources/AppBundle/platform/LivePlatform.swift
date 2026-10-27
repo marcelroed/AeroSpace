@@ -6,7 +6,8 @@ import Synchronization
 /// registration backs off after a failure (RB-113). The termination registry lets a die off the main thread reach the apps
 final class LivePlatform: Platform {
     private var apps: [pid_t: LiveApp] = [:]
-    /// The app of every window that a read returned, for the calls keyed by window
+    /// The app of every window that a read returned, for the calls keyed by window. A registered window also knows its app
+    /// (``liveApp(of:)``), so only a window between its read and its registration depends on this map
     private var windowApps: [WindowId: pid_t] = [:]
     /// Registrations in progress. Everyone who asks for the app meanwhile awaits the same task
     private var pendingRegistrations: [pid_t: Task<Void, Never>] = [:]
@@ -91,6 +92,8 @@ final class LivePlatform: Platform {
         } catch {
             throw CancellationError() // The only error of the reads and of the registration
         }
+        // A cancelled refresh must not replace the map: a light session may have mapped a new window meanwhile
+        try checkCancellation()
         var result: [AppInfo: [WindowId]] = [:]
         var windowApps: [WindowId: pid_t] = [:]
         for (pid, rawIds) in alive {
@@ -203,8 +206,9 @@ final class LivePlatform: Platform {
 
     func focus(_ id: WindowId) {
         if serverArgs.isReadOnly { return }
-        guard let app = liveApp(of: id) else { return }
+        // Bump first: a focus posted earlier for another window must not run, even if this window's app is gone
         let generation = nativeFocusGeneration.wrappingAdd(1, ordering: .sequentiallyConsistent).newValue
+        guard let app = liveApp(of: id) else { return }
         // Performance optimization. If possible avoid doing AX requests
         // (important for apps which are slow at responding even such basic AX requests. E.g. Godot)
         // Beware of the macOS bug: https://github.com/nikitabobko/AeroSpace/issues/101
@@ -265,7 +269,9 @@ final class LivePlatform: Platform {
 
     // MARK: The registry
 
-    private func liveApp(of id: WindowId) -> LiveApp? { windowApps[id].flatMap { apps[$0] } }
+    private func liveApp(of id: WindowId) -> LiveApp? {
+        (windowApps[id] ?? world.windows[id]?.app.pid).flatMap { apps[$0] }
+    }
 
     /// - `isBulkScan`: the refresh's scan of all apps. It skips an app whose registration failed recently (RB-113). A
     ///   single lookup (the frontmost app) always tries again: a just-launched app's focused window must not read as nil
