@@ -46,7 +46,7 @@ struct TreeNodeTest {
         (false, "h_tiles(v_tiles(1))", "h_tiles(v_tiles(1))"),
         (true, "h_tiles(v_tiles(1))", "v_tiles(1)"), // The single child container replaces the root
         (true, "h_tiles(0 h_tiles(1))", "h_tiles(0 1)"),
-    ])
+    ] as [(Bool, String, String)])
     func normalizeContainers(flattenContainers: Bool, before: String, after: String) {
         world.config.enableNormalizationFlattenContainers = flattenContainers
         let workspace = setUpTree(before, workspace: "a")
@@ -111,9 +111,9 @@ struct TreeNodeTest {
     }
 
     @Test(arguments: [
-        ("h_tiles(1 v_tiles(2 3)) floating(4)", 4 as UInt32), // The only floating window closes
+        ("h_tiles(1 v_tiles(2 3)) floating(4)", 4), // The only floating window closes
         ("h_tiles(1 v_tiles(2) 3)", 2), // The only window of a nested container closes
-    ])
+    ] as [(String, UInt32)])
     func toLiveFocusFallsBackToTheFirstWindowPastAnEmptyContainer(tree: String, closedWindowId: UInt32) {
         let workspace = setUpTree(tree, workspace: "a")
         testWindow(3).markAsMostRecentChild()
@@ -126,12 +126,12 @@ struct TreeNodeTest {
     /// Where a new tiling window goes (`layout tiling` on a floating window uses the same slot): after the most recent
     /// window if it's tiling, else at the end of the root
     @Test(arguments: [
-        ("h_tiles(1 v_tiles(2 3) 4)", nil as UInt32?, "h_tiles(1 v_tiles(2 5 3) 4)"),
+        ("h_tiles(1 v_tiles(2 3) 4)", nil, "h_tiles(1 v_tiles(2 5 3) 4)"),
         // The only floating window (a dialog) closed. The empty floating container is the most recent child
         ("h_tiles(1 v_tiles(2 3) 4) floating(6)", 6, "h_tiles(1 v_tiles(2 3) 4 5)"),
         // The most recent window is floating
         ("h_tiles(1 v_tiles(2 3) 4) floating(6 7)", 6, "h_tiles(1 v_tiles(2 3) 4 5) floating(7)"),
-    ])
+    ] as [(String, UInt32?, String)])
     func newTilingWindowSlot(tree: String, closedWindowId: UInt32?, after: String) async throws {
         let workspace = setUpTree(tree, workspace: "a")
         testWindow(2).markAsMostRecentChild()

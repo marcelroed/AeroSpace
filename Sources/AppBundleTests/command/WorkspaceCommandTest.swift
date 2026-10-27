@@ -29,7 +29,7 @@ struct WorkspaceCommandTest {
         ("workspace --", "Argument '(<workspace-name>|next|prev)' is mandatory"),
         ("workspace -- foo --fail-if-noop", "Unknown argument '--fail-if-noop'"),
         ("workspace -- --help", "Workspace names starting with dash are disallowed"),
-    ])
+    ] as [(String, String)])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
         expectEqual(output, .fail(error))
@@ -37,7 +37,7 @@ struct WorkspaceCommandTest {
 
     /// From the focused workspace `from`, the command focuses the workspace `to`
     @Test(arguments: [
-        ("a", "workspace b", "", CmdOutput.ok, "b"),
+        ("a", "workspace b", "", .ok, "b"),
         ("a", "workspace a", "", CmdOutput(stderr: ["Workspace 'a' is already focused. Tip: use --fail-if-noop to exit with non-zero code"]), "a"),
         ("a", "workspace --fail-if-noop a", "", .fail(), "a"),
         // There is no previous workspace
@@ -51,7 +51,7 @@ struct WorkspaceCommandTest {
         ("a", "workspace --stdin next", "", .fail("The list of workspaces is empty"), "a"),
         // The focused workspace isn't in the list: next and prev land on its first workspace
         ("z", "workspace --stdin next", "a\nb\nc\n", .ok, "a"),
-    ])
+    ] as [(String, String, String, CmdOutput, String)])
     func focusesWorkspace(from: String, command: String, stdin: String, expected: CmdOutput, to: String) async {
         #expect(Workspace.get(byName: from).focusWorkspace())
         let output = await runCmd(command, stdin: stdin)

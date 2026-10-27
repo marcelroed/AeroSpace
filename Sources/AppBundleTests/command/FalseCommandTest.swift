@@ -14,7 +14,7 @@ struct FalseCommandTest {
     @Test(arguments: [
         ("false", CmdOutput(exitCode: 1)),
         ("false foo", .fail("Unknown argument 'foo'")),
-    ])
+    ] as [(String, CmdOutput)])
     func run(command: String, expected: CmdOutput) async {
         let output = await runCmd(command)
         expectEqual(output, expected)

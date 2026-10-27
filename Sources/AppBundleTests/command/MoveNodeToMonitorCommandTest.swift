@@ -23,7 +23,7 @@ struct MoveNodeToMonitorCommandTest {
         ("move-node-to-monitor --fail-if-noop next", "--fail-if-noop is incompatible with (left|down|up|right|next|prev)"),
         ("move-node-to-monitor --fail-if-noop left", "--fail-if-noop is incompatible with (left|down|up|right|next|prev)"),
         ("move-node-to-monitor --", "Argument '(left|down|up|right|next|prev|<monitor-pattern>)' is mandatory"),
-    ])
+    ] as [(String, String)])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
         expectEqual(output, .fail(error))

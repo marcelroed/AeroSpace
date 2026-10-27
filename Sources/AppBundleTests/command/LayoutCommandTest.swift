@@ -32,7 +32,7 @@ struct LayoutCommandTest {
         ("layout --for-next-detected-window --workspace 2 floating", "Conflicting options: --for-next-detected-window, --workspace"),
         ("layout --for-next-detected-window --root floating", "Conflicting options: --for-next-detected-window, --root"),
         ("layout --for-next-detected-window --fail-if-noop floating", "Conflicting options: --fail-if-noop, --for-next-detected-window"),
-    ])
+    ] as [(String, String)])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
         expectEqual(output, .fail(error))
@@ -56,7 +56,7 @@ struct LayoutCommandTest {
         ("h_tiles() macos_fullscreen(*1)", "layout --root v_accordion", "v_accordion() macos_fullscreen(*1)"),
         // Changes nothing until a window is detected
         ("h_tiles(*1)", "layout floating --for-next-detected-window", "h_tiles(*1)"),
-    ])
+    ] as [(String, String, String)])
     func succeeds(before: String, command: String, after: String) async {
         setUpTree(before)
         let output = await runCmd(command)
@@ -83,7 +83,7 @@ struct LayoutCommandTest {
         ("h_tiles(*1 2)", "layout tiling", alreadyIn("tiling")),
         ("h_tiles(*1 2)", "layout --root h_tiles", alreadyIn("h_tiles")),
         ("h_tiles() floating(*1)", "layout floating", alreadyIn("floating")),
-    ])
+    ] as [(String, String, CmdOutput)])
     func noop(tree: String, command: String, expected: CmdOutput) async {
         setUpTree(tree)
         let output = await runCmd(command)
@@ -93,14 +93,14 @@ struct LayoutCommandTest {
 
     /// AEROSPACE_WORKSPACE names the empty focused workspace. A non-visible empty workspace would be garbage collected
     @Test(arguments: [
-        ("layout v_tiles", CmdOutput.ok, "v_tiles()"),
+        ("layout v_tiles", .ok, "v_tiles()"),
         ("layout accordion", .ok, "h_accordion()"),
         ("layout --root accordion", .ok, "h_accordion()"),
         ("layout h_tiles", alreadyIn("h_tiles"), "h_tiles()"),
         ("layout tiling", alreadyIn("tiling"), "h_tiles()"),
         ("layout tiling --fail-if-noop", .fail(), "h_tiles()"),
         ("layout floating", .fail("No window is focused"), "h_tiles()"),
-    ])
+    ] as [(String, CmdOutput, String)])
     func emptyWorkspace(command: String, expected: CmdOutput, after: String) async {
         let workspace = setUpTree("h_tiles()")
         let output = await runCmd(command, workspaceEnv: workspace.name)
@@ -121,8 +121,8 @@ struct LayoutCommandTest {
     @Test(arguments: tilingDescriptions, ["h_tiles", "v_tiles", "h_accordion", "v_accordion"])
     func tilingDescription(_ description: TilingDescription, start: String) async {
         setUpTree("\(start)(*1 2)")
-        let startParts = start.split(separator: "_").map(String.init)
-        let expected = (description.orientation ?? startParts[0]) + "_" + (description.layout ?? startParts[1])
+        let startParts = start.split(separator: "_").map { String($0) }
+        let expected = "\(description.orientation ?? startParts[0])_\(description.layout ?? startParts[1])"
         let output = await runCmd("layout \(description.name)")
         expectEqual(output, (expected == start ? alreadyIn(description.name) : .ok))
         expectEqual(describeTree(), "\(expected)(*1 2)")

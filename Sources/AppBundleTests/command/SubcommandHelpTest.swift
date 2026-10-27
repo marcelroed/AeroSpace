@@ -9,12 +9,12 @@ struct SubcommandHelpTest {
     @Test(arguments: CmdKind.allCases)
     func testDocsMatchHelp(kind: CmdKind) throws {
         let adoc = try String(contentsOf: projectRoot.appending(path: "docs/aerospace-\(kind.rawValue).adoc"), encoding: .utf8)
-        let lines = adoc.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        let lines = adoc.split(separator: "\n", omittingEmptySubsequences: false).map { String($0) }
         #expect(lines.contains(":manpurpose: \(kind.purpose)"))
-        let start = try #require(lines.firstIndex { $0.contains("tag::synopsis") }) + 1
+        let start = try #require(lines.firstIndex { $0.contains("tag::synopsis") })
         let end = try #require(lines.firstIndex { $0.contains("end::synopsis") })
         var prefix = "USAGE:"
-        let help = lines[start ..< end].filter { !$0.isEmpty }.map { line in
+        let help = lines[start + 1 ..< end].filter { !$0.isEmpty }.map { (line: String) -> String in
             let line = line.removePrefix("   ")
             guard line.starts(with: "aerospace") else { return line }
             defer { prefix = "   OR:" }

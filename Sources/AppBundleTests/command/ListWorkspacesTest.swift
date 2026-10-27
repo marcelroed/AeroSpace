@@ -13,7 +13,7 @@ struct ListWorkspacesTest {
             "list-workspaces --monitor focused",
             "list-workspaces --all --format %{workspace}",
         ] {
-            #expect(parseCommand(command).cmdOrNil != nil, "\(command)")
+            expectEqual(parseCommand(command).failureOrNil, nil, "\(command)")
         }
         for command in [
             "list-workspaces --all --visible",
@@ -22,7 +22,7 @@ struct ListWorkspacesTest {
             "list-workspaces --visible",
             "list-workspaces --focused --monitor 2",
         ] {
-            #expect(parseCommand(command).cmdOrNil == nil, "\(command)")
+            #expect(parseCommand(command).failureOrNil != nil, "\(command)")
         }
     }
 
@@ -30,7 +30,7 @@ struct ListWorkspacesTest {
         ("list-workspaces --all --format %{workspace} --count", "Conflicting options: --count, --format"),
         ("list-workspaces --empty", "Mandatory option is not specified (--all|--focused|--monitor)"),
         ("list-workspaces --all --focused --monitor mouse", "Conflicting options: --all, --focused, --monitor"),
-    ])
+    ] as [(String, String)])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
         expectEqual(output, .fail(error))
@@ -40,7 +40,7 @@ struct ListWorkspacesTest {
     /// the empty "setUpWorkspacesForTests", the only visible one on the single test monitor
     @Test(arguments: [
         // Sorted by logical segments
-        ("h_tiles(2)", "list-workspaces --all", ["a", "b", "setUpWorkspacesForTests"]) as (String?, String, [String]),
+        ("h_tiles(2)", "list-workspaces --all", ["a", "b", "setUpWorkspacesForTests"]),
         ("h_tiles(2)", "list-workspaces --all --count", ["3"]),
         ("h_tiles(2)", "list-workspaces --monitor all --visible no", ["a", "b"]),
         (nil, "list-workspaces --monitor all --visible", ["setUpWorkspacesForTests"]),
@@ -50,7 +50,7 @@ struct ListWorkspacesTest {
         (nil, "list-workspaces --focused", ["setUpWorkspacesForTests"]),
         // All workspaces are on the main (focused) monitor
         (nil, "list-workspaces --monitor focused", ["a", "setUpWorkspacesForTests"]),
-    ])
+    ] as [(String?, String, [String])])
     func run(b: String?, command: String, stdout: [String]) async {
         setUpTree("h_tiles(1)", workspace: "a")
         if let b { setUpTree(b, workspace: "b") }

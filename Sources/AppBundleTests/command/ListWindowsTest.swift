@@ -29,7 +29,7 @@ struct ListWindowsTest {
 
     @Test(arguments: FormatSubject.allCases)
     func interpolationVariablesConsistency(subject: FormatSubject) {
-        let prefix = switch subject {
+        let prefix: String = switch subject {
             case .window: "window-"
             case .app: "app-"
             case .workspace: "workspace"
@@ -94,7 +94,7 @@ struct ListWindowsTest {
             setUpTree("h_tiles(\(11 - index))", workspace: "w\(index)")
         }
         let output = await runCmd("list-windows --all --format '%{window-id}'")
-        expectEqual(output, CmdOutput(stdout: (1 ... 10).reversed().map(String.init)))
+        expectEqual(output, CmdOutput(stdout: (1 ... 10).reversed().map { String($0) }))
     }
 
     @Test

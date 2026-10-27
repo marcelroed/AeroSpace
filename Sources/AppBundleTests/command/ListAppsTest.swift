@@ -6,10 +6,10 @@ import Testing
 struct ListAppsTest {
     @Test
     func testParse() {
-        #expect(parseCommand("list-apps --macos-native-hidden").cmdOrNil != nil)
-        #expect(parseCommand("list-apps --macos-native-hidden no").cmdOrNil != nil)
-        #expect(parseCommand("list-apps --format %{app-bundle-id}").cmdOrNil != nil)
-        #expect(parseCommand("list-apps --count").cmdOrNil != nil)
+        expectEqual(parseCommand("list-apps --macos-native-hidden").failureOrNil, nil)
+        expectEqual(parseCommand("list-apps --macos-native-hidden no").failureOrNil, nil)
+        expectEqual(parseCommand("list-apps --format %{app-bundle-id}").failureOrNil, nil)
+        expectEqual(parseCommand("list-apps --count").failureOrNil, nil)
         expectEqual(parseCommand("list-apps --format %{app-bundle-id} --count").errorOrNil, "Conflicting options: --count, --format")
     }
 }

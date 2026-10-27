@@ -51,7 +51,7 @@ struct FocusCommandTest {
         // An option is rejected even when it is given with its default value
         ("focus --window-id 42 --boundaries workspace", "--window-id is incompatible with other options"),
         ("focus --dfs-index 0 --boundaries-action stop", "--dfs-index is incompatible with other options"),
-    ])
+    ] as [(String, String)])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
         expectEqual(output, .fail(error))
@@ -91,7 +91,7 @@ struct FocusCommandTest {
         // Along the orientation, the leaf snapped to the opposite side is focused
         ("h_tiles(1 2 *3)", "focus --boundaries all-monitors-outer-frame --boundaries-action wrap-around-all-monitors right", "h_tiles(*1 2 3)"),
         ("h_tiles()", "focus --boundaries all-monitors-outer-frame --boundaries-action wrap-around-all-monitors left", "h_tiles()"),
-    ])
+    ] as [(String, String, String)])
     func succeeds(before: String, command: String, after: String) async {
         setUpTree(before)
         let output = await runCmd(command)
@@ -100,14 +100,14 @@ struct FocusCommandTest {
     }
 
     @Test(arguments: [
-        ("h_tiles(*1 2)", "focus --boundaries-action fail dfs-prev", CmdOutput.fail()),
+        ("h_tiles(*1 2)", "focus --boundaries-action fail dfs-prev", .fail()),
         ("h_tiles(1 *2)", "focus --boundaries-action fail dfs-next", .fail()),
         ("h_tiles(*1 2)", "focus --boundaries all-monitors-outer-frame --boundaries-action fail left", .fail()),
         ("h_tiles()", "focus --boundaries workspace --boundaries-action wrap-around-the-workspace left", .fail("No window is focused")),
         ("h_tiles()", "focus --boundaries all-monitors-outer-frame --boundaries-action wrap-around-the-workspace left", .fail("No window is focused")),
         ("h_tiles()", "focus dfs-next", .fail("No window is focused")),
         ("h_tiles(1) floating(*2)", "focus --ignore-floating dfs-prev", .fail("The window isn't part of the workspace tree")),
-    ])
+    ] as [(String, String, CmdOutput)])
     func fails(tree: String, command: String, expected: CmdOutput) async {
         setUpTree(tree)
         let output = await runCmd(command)

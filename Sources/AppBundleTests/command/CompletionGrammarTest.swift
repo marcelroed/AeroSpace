@@ -7,7 +7,7 @@ import Testing
 /// must list the options of the help (CmdKind is the source of truth)
 @Suite
 struct CompletionGrammarTest {
-    @Test(arguments: CmdKind.allCases.filter { $0 != .execAndForget }) // The config shell only
+    @Test(arguments: CmdKind.allCases.filter { $0 != CmdKind.execAndForget }) // The config shell only
     func grammarHasTheOptionsOfTheHelp(kind: CmdKind) throws {
         let grammar = try CompletionGrammar.load()
         let helpOptions = options(in: kind.help).subtracting(["--help"])

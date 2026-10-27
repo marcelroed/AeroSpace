@@ -34,7 +34,7 @@ struct RunCallbackCommandTest {
         ("run-callback --for-every-window --window-id 1 on-window-detected", "Conflicting options: --for-every-window, --window-id"),
         ("run-callback --for-every-window on-focus-changed", "--for-every-window is only allowed with 'on-window-detected'"),
         ("run-callback --window-id 1 on-focused-monitor-changed", "--window-id is only allowed with 'on-window-detected'"),
-    ])
+    ] as [(String, String)])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
         expectEqual(output, .fail(error))

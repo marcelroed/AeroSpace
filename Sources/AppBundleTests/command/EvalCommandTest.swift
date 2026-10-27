@@ -16,7 +16,7 @@ struct EvalCommandTest {
 
     /// The command runs in the focused workspace 'a'
     @Test(arguments: [
-        ("eval 'workspace b'", CmdOutput.ok, "b"),
+        ("eval 'workspace b'", .ok, "b"),
         // The noop 'workspace a' succeeds, so 'workspace b' runs
         ("eval 'workspace a && workspace b'", CmdOutput(stderr: ["Workspace 'a' is already focused. Tip: use --fail-if-noop to exit with non-zero code"]), "b"),
         ("eval 'echo -- hello'", CmdOutput(stdout: ["hello"]), "a"),
@@ -26,7 +26,7 @@ struct EvalCommandTest {
         ("eval 'workspace'", .fail("Argument '(<workspace-name>|next|prev)' is mandatory"), "a"),
         ("eval 'workspace --help'", .fail("--help is not supported inside eval command"), "a"),
         ("eval 'eval \"workspace b\"'", .fail("Illegal eval (Tip: nested evals are forbidden)"), "a"),
-    ])
+    ] as [(String, CmdOutput, String)])
     func run(command: String, expected: CmdOutput, focusedWorkspace: String) async {
         #expect(Workspace.get(byName: "a").focusWorkspace())
         let output = await runCmd(command)

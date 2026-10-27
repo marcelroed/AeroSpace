@@ -20,7 +20,7 @@ struct MoveCommandTest {
         ("move --boundaries-action left", "Can't parse 'left'.\nPossible values: (stop|fail|create-implicit-container)"),
         ("move --boundaries-action --boundaries workspace left", "'--boundaries-action' must be followed by '<action>'"),
         ("move foo", "Can't parse 'foo'.\nPossible values: (left|down|up|right)"),
-    ])
+    ] as [(String, String)])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
         expectEqual(output, .fail(error))
@@ -44,7 +44,7 @@ struct MoveCommandTest {
         ("h_tiles(*1 2)", "move --boundaries all-monitors-outer-frame --boundaries-action stop left", "h_tiles(*1 2)"),
         ("h_tiles(*1 2)", "move --boundaries all-monitors-outer-frame --boundaries-action create-implicit-container left", "h_tiles(*1 h_tiles(2))"),
         ("h_tiles(*1 2)", "move --boundaries all-monitors-outer-frame down", "v_tiles(h_tiles(2) *1)"),
-    ])
+    ] as [(String, String, String)])
     func succeeds(before: String, command: String, after: String) async {
         setUpTree(before)
         let output = await runCmd(command)
@@ -55,7 +55,7 @@ struct MoveCommandTest {
     @Test(arguments: [
         ("h_tiles(*1 2 3)", "move --boundaries-action fail left"),
         ("h_tiles(1 *2)", "move --boundaries all-monitors-outer-frame --boundaries-action fail right"),
-    ])
+    ] as [(String, String)])
     func fails(tree: String, command: String) async {
         setUpTree(tree)
         let output = await runCmd(command)

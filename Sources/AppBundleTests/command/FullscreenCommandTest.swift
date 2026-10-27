@@ -8,7 +8,7 @@ struct FullscreenCommandTest {
         ("fullscreen off --no-outer-gaps", "--no-outer-gaps is incompatible with 'off' argument"),
         ("fullscreen --fail-if-noop", "--fail-if-noop requires 'on' or 'off' argument"),
         ("fullscreen foo", "Can't parse 'foo'.\nPossible values: (on|off)"),
-    ])
+    ] as [(String, String)])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
         expectEqual(output, .fail(error))
@@ -39,7 +39,7 @@ struct FullscreenCommandTest {
         (false, "fullscreen off --fail-if-noop", .fail()),
         (true, "fullscreen on", CmdOutput(stderr: ["Already fullscreen. Tip: use --fail-if-noop to exit with non-zero code"])),
         (true, "fullscreen on --fail-if-noop", .fail()),
-    ])
+    ] as [(Bool, String, CmdOutput)])
     func noop(isFullscreen: Bool, command: String, expected: CmdOutput) async {
         setUpTree("h_tiles(*1)")
         testWindow(1).isFullscreen = isFullscreen

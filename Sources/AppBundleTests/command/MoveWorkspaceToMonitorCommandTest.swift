@@ -15,7 +15,7 @@ struct MoveWorkspaceToMonitorCommandTest {
         ("move-workspace-to-monitor --", "Argument '(left|down|up|right|next|prev|<monitor-pattern>)' is mandatory"),
         ("move-workspace-to-monitor --wrap-around 2", "--wrap-around is incompatible with <monitor-pattern> argument"),
         ("move-workspace-to-display --wrap-around 2", "Unrecognized subcommand 'move-workspace-to-display'"), // The deprecated alias is gone
-    ])
+    ] as [(String, String)])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
         expectEqual(output, .fail(error))

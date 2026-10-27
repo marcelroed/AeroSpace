@@ -16,7 +16,7 @@ struct EnableCommandTest {
         ("enable toggle --fail-if-noop", "--fail-if-noop is incompatible with 'toggle' argument"),
         ("enable foo", "Can't parse 'foo'.\nPossible values: (on|off|toggle)"),
         ("enable", "Argument '(on|off|toggle)' is mandatory"),
-    ])
+    ] as [(String, String)])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
         expectEqual(output, .fail(error))
@@ -27,7 +27,7 @@ struct EnableCommandTest {
         (true, "enable on --fail-if-noop", .fail()),
         (false, "enable off", CmdOutput(stderr: ["Already disabled. Tip: use --fail-if-noop to exit with non-zero code"])),
         (false, "enable off --fail-if-noop", .fail()),
-    ])
+    ] as [(Bool, String, CmdOutput)])
     func noop(isEnabled: Bool, command: String, expected: CmdOutput) async {
         TrayMenuModel.shared.isEnabled = isEnabled
         let output = await runCmd(command)

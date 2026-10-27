@@ -173,10 +173,10 @@ struct TrayMenuModelTest {
 
     @Test
     func testSystemImageNameIsAnExistingSymbol() {
-        let numbers = (0 ... 60).flatMap { [String($0), "0\($0)", "00\($0)", "+\($0)", "-\($0)"] }
-        let letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".map(String.init)
+        let numbers = (0 ... 60).flatMap { (n: Int) -> [String] in ["\(n)", "0\(n)", "00\(n)", "+\(n)", "-\(n)"] }
+        let letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".map { String($0) }
         for name in numbers + letters {
-            for (type, isActive) in [(TrayItemType.mode, true), (.workspace, true), (.workspace, false)] {
+            for (type, isActive) in [(.mode, true), (.workspace, true), (.workspace, false)] as [(TrayItemType, Bool)] {
                 let item = TrayItem(type: type, name: name, isActive: isActive, hasFullscreenWindows: false)
                 if let imageName = item.systemImageName, NSImage(systemSymbolName: imageName, accessibilityDescription: nil) == nil {
                     Issue.record("Workspace '\(name)' maps to '\(imageName)', which isn't an SF Symbol")

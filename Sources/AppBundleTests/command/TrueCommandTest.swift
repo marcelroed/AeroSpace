@@ -12,9 +12,9 @@ struct TrueCommandTest {
     }
 
     @Test(arguments: [
-        ("true", CmdOutput.ok),
+        ("true", .ok),
         ("true foo", .fail("Unknown argument 'foo'")),
-    ])
+    ] as [(String, CmdOutput)])
     func run(command: String, expected: CmdOutput) async {
         let output = await runCmd(command)
         expectEqual(output, expected)

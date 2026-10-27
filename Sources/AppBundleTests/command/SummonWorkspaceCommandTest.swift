@@ -21,7 +21,7 @@ struct SummonWorkspaceCommandTest {
         ("summon-workspace", "Argument '<workspace>' is mandatory"),
         ("summon-workspace --", "Argument '<workspace>' is mandatory"),
         ("summon-workspace -- --fail-if-noop", "Workspace names starting with dash are disallowed"),
-    ])
+    ] as [(String, String)])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
         expectEqual(output, .fail(error))
@@ -41,7 +41,7 @@ struct SummonWorkspaceCommandTest {
     @Test(arguments: [
         ("summon-workspace bar", CmdOutput(stderr: ["Workspace 'bar' is already visible on the focused monitor. Tip: use --fail-if-noop to exit with non-zero code"])),
         ("summon-workspace --fail-if-noop bar", .fail()),
-    ])
+    ] as [(String, CmdOutput)])
     func alreadyVisibleOnTheFocusedMonitor(command: String, expected: CmdOutput) async {
         let workspace = Workspace.get(byName: "bar")
         #expect(workspace.focusWorkspace())

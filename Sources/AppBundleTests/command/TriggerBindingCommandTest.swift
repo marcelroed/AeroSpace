@@ -21,7 +21,7 @@ struct TriggerBindingCommandTest {
         ("trigger-binding foo", "--mode flag is mandatory"),
         ("trigger-binding", "--mode flag is mandatory"), // The options are checked before the arguments
         ("trigger-binding --mode main --", "Argument '<binding>' is mandatory"),
-    ])
+    ] as [(String, String)])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
         expectEqual(output, .fail(error))

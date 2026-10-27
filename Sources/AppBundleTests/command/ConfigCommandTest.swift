@@ -81,9 +81,10 @@ struct ConfigCommandTest {
         let bindings = [HotkeyBinding(.option, .k, command), HotkeyBinding(.option, .h, command), HotkeyBinding(.option, .j, command)]
         world.config.modes = manyModes(bindings: Dictionary(uniqueKeysWithValues: bindings.map { ($0.descriptionWithKeyCode, $0) }))
 
-        let expected = [".", "mode"] + manyModeNames.sorted().flatMap { mode in
-            ["mode.\(mode)", "mode.\(mode).binding"] + ["alt-h", "alt-j", "alt-k"].map { "mode.\(mode).binding.\($0)" }
+        let modeKeys: [String] = manyModeNames.sorted().flatMap { (mode: String) -> [String] in
+            ["mode.\(mode)", "mode.\(mode).binding", "mode.\(mode).binding.alt-h", "mode.\(mode).binding.alt-j", "mode.\(mode).binding.alt-k"]
         }
+        let expected: [String] = [".", "mode"] + modeKeys
         let output = await runCmd("config --all-keys")
         expectEqual(output, CmdOutput(stdout: [expected.joined(separator: "\n")]))
     }

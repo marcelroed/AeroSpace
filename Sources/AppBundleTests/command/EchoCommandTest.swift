@@ -26,7 +26,7 @@ struct EchoCommandTest {
         ("echo --", "Argument '<string>' is mandatory"),
         ("echo --foo", "Unknown flag '--foo'"),
         ("echo -- %{foo}", "Can't parse 'foo'.\nPossible values: (window-id|window-is-fullscreen|window-title|window-layout|window-parent-container-layout|workspace|workspace-is-focused|workspace-is-visible|workspace-root-container-layout|app-bundle-id|app-name|app-pid|app-exec-path|app-bundle-path|monitor-id|monitor-appkit-nsscreen-screens-id|monitor-name|monitor-is-main|right-padding|newline|tab)"),
-    ])
+    ] as [(String, String)])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
         expectEqual(output, .fail(error))
@@ -42,7 +42,7 @@ struct EchoCommandTest {
         ("h_tiles()", "echo -- '%{window-id} %{app-name}'", .fail("No window is focused")),
         ("h_tiles(*42)", "echo -- 'id: %{window-id}'", CmdOutput(stdout: ["id: 42"])),
         ("h_tiles(*5)", "echo --stderr -- '%{window-id}'", CmdOutput(stderr: ["5"])),
-    ])
+    ] as [(String, String, CmdOutput)])
     func run(tree: String, command: String, expected: CmdOutput) async {
         setUpTree(tree)
         let output = await runCmd(command)

@@ -26,7 +26,7 @@ struct ResizeCommandTest {
         ("resize smart ++10", "<number> argument must be a number"),
         ("resize smart +-0", "<number> argument must be a number"),
         ("resize smart +", "<number> argument must be a number"),
-    ])
+    ] as [(String, String)])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
         expectEqual(output, .fail(error))
@@ -43,7 +43,7 @@ struct ResizeCommandTest {
         ("h_tiles(v_tiles:4(*1:4 2:4) 3:4)", "resize smart +2", "h_tiles(v_tiles:4(*1:6 2:2) 3:4)"),
         // smart-opposite climbs to the ancestor with the opposite orientation and resizes its child on the path
         ("h_tiles(v_tiles:4(*1 2) 3:4)", "resize smart-opposite +2", "h_tiles(v_tiles:6(*1:1 2:1) 3:2)"),
-    ])
+    ] as [(String, String, String)])
     func succeeds(before: String, command: String, after: String) async {
         setUpTree(before)
         let output = await runCmd(command)
@@ -57,7 +57,7 @@ struct ResizeCommandTest {
         ("h_tiles(2) floating(*1)", "resize width +2", "resize command doesn't support floating windows yet https://github.com/nikitabobko/AeroSpace/issues/9"),
         ("h_tiles()", "resize width +2", "No window is focused"),
         ("h_tiles(*1:4)", "resize width +2", "Can't resize: there are no other tiling windows to the left or right"), // RB-67
-    ])
+    ] as [(String, String, String)])
     func fails(tree: String, command: String, error: String) async {
         setUpTree(tree)
         let before = describeTree(weights: true)

@@ -169,7 +169,7 @@ struct LayoutTest {
         try await workspace.layoutWorkspace()
         expectEqual(w1.setAxFrameHistory, [frame(5, 5, 955, 1069)])
         expectEqual(w2.setAxFrameHistory, [frame(5, 5, 1910, 1070)])
-        #expect(w2.lastAppliedLayoutPhysicalRect == nil)
+        expectEqual(w2.lastAppliedLayoutPhysicalRect.map(cg), nil)
         expectEqual(w2.lastAppliedLayoutVirtualRect.map(cg), cg(rect(960, 5, 955, 1070)))
         #expect(w2.isFullscreen)
 
@@ -202,8 +202,8 @@ struct LayoutTest {
         expectEqual(noRect.setAxFrameHistory, [])
         expectEqual(fullscreen.setAxFrameHistory, [frame(0, 0, 1920, 1080)])
         #expect(!fullscreen.isFullscreen)
-        #expect(centered.lastAppliedLayoutPhysicalRect == nil)
-        #expect(centered.lastAppliedLayoutVirtualRect == nil)
+        expectEqual(centered.lastAppliedLayoutPhysicalRect.map(cg), nil)
+        expectEqual(centered.lastAppliedLayoutVirtualRect.map(cg), nil)
 
         // Floating windows of the active workspace are not moved
         #expect(workspace.focusWorkspace())
@@ -223,8 +223,8 @@ struct LayoutTest {
         try await workspace.layoutWorkspace()
 
         expectEqual(w1.setAxFrameHistory, [])
-        #expect(w1.lastAppliedLayoutPhysicalRect == nil)
-        #expect(w1.lastAppliedLayoutVirtualRect == nil)
+        expectEqual(w1.lastAppliedLayoutPhysicalRect.map(cg), nil)
+        expectEqual(w1.lastAppliedLayoutVirtualRect.map(cg), nil)
         expectEqual(w1.hWeight, 960)
         expectEqual(w2.setAxFrameHistory, [frame(960, 0, 960, 1079)])
     }
@@ -249,8 +249,8 @@ struct LayoutTest {
 
         try await workspace.layoutWorkspace()
 
-        #expect(workspace.lastAppliedLayoutPhysicalRect == nil)
-        #expect(workspace.rootTilingContainer.lastAppliedLayoutPhysicalRect == nil)
+        expectEqual(workspace.lastAppliedLayoutPhysicalRect.map(cg), nil)
+        expectEqual(workspace.rootTilingContainer.lastAppliedLayoutPhysicalRect.map(cg), nil)
     }
 
     @Test

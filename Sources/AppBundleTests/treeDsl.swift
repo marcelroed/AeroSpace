@@ -83,14 +83,14 @@ func describeNode(_ node: TreeNode, weights: Bool = false, mru: Bool = false) ->
     let focusedWindowId = focus.windowOrNil?.windowId
     func describe(_ node: TreeNode) -> String {
         let weight = switch node.parent {
-            case let parent as TilingContainer where weights: ":" + node.getWeight(parent.orientation).dslDescription
+            case let parent as TilingContainer where weights: ":\(node.getWeight(parent.orientation).dslDescription)"
             default: ""
         }
         let children = (mru ? node.mruChildren : node.children).map(describe).joined(separator: " ")
         return switch node {
-            case let window as Window: (window.windowId == focusedWindowId ? "*" : "") + String(window.windowId) + weight
-            case let container as TilingContainer: "\(container.orientation)_\(container.layout.rawValue)" + weight + "(\(children))"
-            case let container as Container: container.kind.dslName + "(\(children))"
+            case let window as Window: "\(window.windowId == focusedWindowId ? "*" : "")\(window.windowId)\(weight)"
+            case let container as TilingContainer: "\(container.orientation)_\(container.layout.rawValue)\(weight)(\(children))"
+            case let container as Container: "\(container.kind.dslName)(\(children))"
             case is Workspace: children
             default: dieT("Unknown node \(node.prettyDescription)")
         }
@@ -127,7 +127,7 @@ private func parseTreeSpec(_ spec: String) -> [SpecNode] {
             let isFocused = token.first == "*"
             if isFocused { token = token.dropFirst() }
             let nameAndWeight = token.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
-            let weight = nameAndWeight.count == 2 ? Double(nameAndWeight[1]).orDie("Weight in '\(token)' isn't a number") : nil
+            let weight: Double? = nameAndWeight.count == 2 ? Double(nameAndWeight[1]).orDie("Weight in '\(token)' isn't a number") : nil
             var children: [SpecNode]? = nil
             if rest.first == "(" {
                 rest = rest.dropFirst()

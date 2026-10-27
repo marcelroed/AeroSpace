@@ -214,7 +214,7 @@ struct ConfigTest {
     @Test
     func testMoveWorkspaceToMonitorCommandParsing() {
         #expect(parseCommand("move-workspace-to-monitor --wrap-around next").cmdOrNil?.flatten().singleOrNil() is MoveWorkspaceToMonitorCommand)
-        #expect(parseCommand("move-workspace-to-display --wrap-around next").cmdOrNil == nil) // The deprecated alias is gone
+        #expect(parseCommand("move-workspace-to-display --wrap-around next").failureOrNil != nil) // The deprecated alias is gone
     }
 
     @Test

@@ -16,7 +16,7 @@ struct FocusMonitorCommandTest {
     @Test(arguments: [
         ("focus-monitor --wrap-around main", "--wrap-around is incompatible with <monitor-pattern> argument"),
         ("focus-monitor --", "Argument '(left|down|up|right|next|prev|<monitor-pattern>)' is mandatory"),
-    ])
+    ] as [(String, String)])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
         expectEqual(output, .fail(error))
@@ -46,7 +46,7 @@ struct FocusMonitorCommandTest {
         // With screens, both patterns match "Test Monitor"
         ("focus-monitor 1", "Can't find monitors that match the pattern(s) while there are no screens"),
         ("focus-monitor test", "Can't find monitors that match the pattern(s) while there are no screens"),
-    ])
+    ] as [(String, String)])
     func noScreens_failsWithMessage(command: String, error: String) async {
         let output = await $noScreensForTests.withValue(true) { await runCmd(command) }
         expectEqual(output, .fail(error))
