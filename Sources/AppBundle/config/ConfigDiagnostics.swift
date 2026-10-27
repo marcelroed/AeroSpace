@@ -55,12 +55,13 @@ struct ConfigBacktrace: CustomStringConvertible, Equatable, Sendable {
     static func rootKey(_ key: String) -> Self { Self(path: [.key(key)]) }
     static let emptyRoot: Self = Self()
 
+    /// Keys are written like in TOML: `gaps.outer.left[0].monitor."built-in retina"`
     var description: String {
         var result = ""
         for (i, elem) in path.enumerated() {
             switch elem {
-                case .key(let rootKey) where i == 0: result += rootKey
-                case .key(let key): result += ".\(key)"
+                case .key(let rootKey) where i == 0: result += tomlKey(rootKey)
+                case .key(let key): result += "." + tomlKey(key)
                 case .index(let index): result += "[\(index)]"
             }
         }
@@ -75,6 +76,13 @@ struct ConfigBacktrace: CustomStringConvertible, Equatable, Sendable {
         lhs.path.append(rhs)
         return lhs
     }
+}
+
+/// A bare key as is, any other key quoted
+private func tomlKey(_ key: String) -> String {
+    let isBare = !key.isEmpty && key.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-") }
+    if isBare { return key }
+    return "\"" + key.replacing("\\", with: "\\\\").replacing("\"", with: "\\\"") + "\""
 }
 
 enum TomlBacktraceItem: Equatable, Sendable {

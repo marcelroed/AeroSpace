@@ -162,6 +162,22 @@ struct ConfigTest {
     }
 
     @Test
+    func testErrorPathQuotesKeysLikeToml() {
+        let result = parseConfig(
+            """
+            'a.b' = 1
+            'x"y' = 2
+            gaps.outer.left = [{ monitor.'test monitor' = true }, 1]
+            """,
+        )
+        #expect(result.strErrors == [
+            #"[ERROR] "a.b": Unknown top-level key"#,
+            #"[ERROR] gaps.outer.left[0].monitor."test monitor": Expected type is 'Int'. But actual type is 'Bool'"#,
+            #"[ERROR] "x\"y": Unknown top-level key"#,
+        ])
+    }
+
+    @Test
     func testUnknownKeyParseError() {
         let result = parseConfig(
             """
@@ -561,7 +577,7 @@ struct ConfigTest {
             """,
         ).strErrors
         #expect(errors1 == [
-            "[ERROR] key-mapping.key-notation-to-key-code. f: ' f' is invalid key notation",
+            "[ERROR] key-mapping.key-notation-to-key-code.\" f\": ' f' is invalid key notation",
             "[ERROR] key-mapping.key-notation-to-key-code.q: 'qw' is invalid key code",
         ])
 
