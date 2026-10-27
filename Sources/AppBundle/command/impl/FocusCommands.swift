@@ -315,13 +315,6 @@ nonisolated enum MonitorTarget: Equatable, Sendable {
             default: false
         }
     }
-
-    var directionOrNil: CardinalDirection? {
-        switch self {
-            case .direction(let direction): direction
-            default: nil
-        }
-    }
 }
 
 struct FocusMonitorCommand: nonisolated Command {

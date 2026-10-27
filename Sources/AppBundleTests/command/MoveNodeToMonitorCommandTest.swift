@@ -27,6 +27,24 @@ struct MoveNodeToMonitorCommandTest {
         expectEqual(output, expected)
         expectEqual(describeTree("a"), "h_tiles(*1)")
     }
+
+    /// The window enters next to the monitor it left: first when it moves right, last when it moves left
+    @Test(arguments: [
+        ("right", "h_tiles(1 2 3)"),
+        ("left", "h_tiles(2 3 1)"),
+    ] as [(String, String)])
+    func twoMonitors_theWindowEntersOnTheSideItCameFrom(direction: String, expected: String) async {
+        updateMonitors([testMonitor, rightTestMonitor])
+        let (source, target): (MonitorInfo, MonitorInfo) = direction == "right"
+            ? (testMonitor, rightTestMonitor)
+            : (rightTestMonitor, testMonitor)
+        let targetWorkspace = target.activeWorkspace
+        setUpTree("h_tiles(2 3)", workspace: targetWorkspace.name)
+        setUpTree("h_tiles(*1)", workspace: source.activeWorkspace.name)
+        let output = await runCmd("move-node-to-monitor \(direction)")
+        expectEqual(output, .ok)
+        expectEqual(describeTree(targetWorkspace.name), expected)
+    }
 }
 
 nonisolated private let alreadyBelongs = CmdOutput(

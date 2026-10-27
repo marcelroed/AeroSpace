@@ -321,10 +321,8 @@ struct MoveNodeToMonitorCommand: nonisolated Command {
         guard let currentMonitor = window.nodeMonitor else { throw CmdFail(windowIsntPartOfTree(window)) }
         let targetMonitor = try target.resolve(currentMonitor, wrapAround: wrapAround)
         let targetWs = targetMonitor.activeWorkspace
-        let index = true == target.directionOrNil
-            .map { dir in dir.isPositive && targetWs.rootLayout.orientation == dir.orientation }
-            ? 0
-            : nil
+        // Moving right or down along the root's orientation: the window enters at the start, next to the monitor it left
+        let index: Int? = if case .direction(let dir) = target, dir.isPositive, targetWs.rootLayout.orientation == dir.orientation { 0 } else { nil }
         try moveWindowToWorkspace(window, targetWs, cx, focusFollowsWindow: focusFollowsWindow, failIfNoop: failIfNoop, index: index)
     }
 }
