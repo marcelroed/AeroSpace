@@ -31,8 +31,9 @@ struct SubscribeArgs: Equatable, Sendable {
 
 /// A client's events wait in its queue until its writer sends them. A client that stays connected but stops reading would
 /// make its queue grow without end: past this many events, it's disconnected instead. Its `subscribe` exits, and a new
-/// one starts from the current state. No event is dropped silently
-let maxQueuedEvents = 10000
+/// one starts from the current state. No event is dropped silently. Events follow the user's actions and new windows, so
+/// a client this far behind is stuck
+let maxQueuedEvents = 1000
 
 /// A `subscribe` client: its events, encoded, queue up on the main actor as they happen, and one loop
 /// (``sendEvents(of:)``) writes them, so the client gets them in order: the state when it subscribed, then every change

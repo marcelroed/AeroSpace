@@ -124,7 +124,7 @@ struct SubscribeTest {
 
         // In rounds, so that the reading client's writer keeps up. The stalled client's socket takes a few events, and the
         // rest pile up in its queue, which overflows in one of the last two rounds
-        let roundSize = 1000
+        let roundSize = 500
         let mode = String(repeating: "m", count: 200)
         for round in 0 ..< maxQueuedEvents / roundSize + 2 {
             for _ in 0 ..< roundSize { broadcastEvent(.modeChanged(mode: mode)) }
@@ -178,16 +178,20 @@ private func expectEvents(
 
 /// The next `count` frames of `client`, or fewer and why the read stopped
 private func readFrames(_ client: NWConnection, count: Int) async -> [String] {
-    var frames: [String] = []
-    for _ in 0 ..< count {
-        let frame = await withTimeout(seconds: 5) { await client.readFrame() } // A missing event fails, rather than hangs
-        guard case .success(let data) = frame else {
-            frames.append("no event: \(frame.map { "\($0)" } ?? "a timeout")")
-            break
+    // One timeout for all of them: a missing event fails, rather than hangs
+    let frames: [String]? = await withTimeout(seconds: 5) {
+        var frames: [String] = []
+        for _ in 0 ..< count {
+            let frame = await client.readFrame()
+            guard case .success(let data) = frame else {
+                frames.append("no event: \(frame)")
+                break
+            }
+            frames.append(String(decoding: data, as: UTF8.self))
         }
-        frames.append(String(decoding: data, as: UTF8.self))
+        return frames
     }
-    return frames
+    return frames ?? ["no event: a timeout"]
 }
 
 /// Waits until `count` clients are subscribed: a client's writer ends a moment after it disconnects
