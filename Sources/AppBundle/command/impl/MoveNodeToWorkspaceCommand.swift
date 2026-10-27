@@ -7,17 +7,14 @@ struct MoveNodeToWorkspaceCommand: Command {
     func run(_ env: CmdEnv, _ io: CmdIo) -> BinaryExitCode {
         guard let target = args.resolveTargetOrReportError(env, io) else { return .fail }
         guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
-        let subjectWs = window.nodeWorkspace
         let targetWorkspace: Workspace
         switch args.target.val {
             case .relative(let nextPrev):
-                guard let subjectWs else { return .fail(io.err("Window \(window.windowId) doesn't belong to any workspace")) }
                 let ws = getNextPrevWorkspace(
-                    current: subjectWs,
+                    current: target.workspace, // == window.nodeWorkspace
                     isNext: nextPrev == .next,
                     wrapAround: args.wrapAround,
                     stdin: args.useStdin ? io.readStdin() : nil,
-                    target: target,
                 )
                 guard let ws = ws.getOrNil(appendErrorTo: &io.stderr) else { return .fail }
                 targetWorkspace = ws

@@ -16,7 +16,6 @@ struct WorkspaceCommand: Command {
                     isNext: nextPrev == .next,
                     wrapAround: args.wrapAround,
                     stdin: args.useStdin ? io.readStdin() : nil,
-                    target: target,
                 )
                 guard let workspace = workspace.getOrNil(appendErrorTo: &io.stderr) else { return .fail }
                 workspaceName = workspace.name
@@ -34,7 +33,7 @@ struct WorkspaceCommand: Command {
     }
 }
 
-@MainActor func getNextPrevWorkspace(current: Workspace, isNext: Bool, wrapAround: Bool, stdin: String?, target: LiveFocus) -> ResOrStr<Workspace> {
+@MainActor func getNextPrevWorkspace(current: Workspace, isNext: Bool, wrapAround: Bool, stdin: String?) -> ResOrStr<Workspace> {
     Result { () throws(String) in
         let stdinWorkspaces: [WorkspaceName] = try stdin?.split(whereSeparator: \.isWhitespace)
             .map { String($0).trim() }
@@ -50,7 +49,7 @@ struct WorkspaceCommand: Command {
                 .union([current])
                 .sorted()
         if workspaces.isEmpty { throw "The list of workspaces is empty" }
-        let index = workspaces.firstIndex(where: { $0 == target.workspace })
+        let index = workspaces.firstIndex(where: { $0 == current })
             .map { index in isNext ? index + 1 : index - 1 }
             ?? 0
         return wrapAround
