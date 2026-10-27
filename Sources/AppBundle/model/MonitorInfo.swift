@@ -2,7 +2,7 @@ import AppKit
 import Common
 
 /// Use it instead of NSScreen because it can be mocked in tests
-struct MonitorInfo: AeroAny {
+struct MonitorInfo {
     /// The index in NSScreen.screens array. 1-based index
     let monitorAppKitNsScreenScreensId: Int
     let name: String
@@ -12,6 +12,8 @@ struct MonitorInfo: AeroAny {
 
     var width: CGFloat { rect.width }
     var height: CGFloat { rect.height }
+    /// The orientation of the longer side
+    var orientation: Orientation { width >= height ? .h : .v }
 }
 
 // Note to myself: Don't use NSScreen.main, it's garbage

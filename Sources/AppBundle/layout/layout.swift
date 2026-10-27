@@ -29,7 +29,7 @@ extension Workspace {
         // window on the upper monitor to take full width. rect.height - 1 resolves this problem
         // But I also faced this problem in monitors horizontal configuration. ¯\_(ツ)_/¯
         let height = rect.height - 1
-        lastAppliedLayoutPhysicalRect = rect.copy(\.height, height)
+        lastAppliedLayoutPhysicalRect = Rect(topLeftX: rect.topLeftX, topLeftY: rect.topLeftY, width: rect.width, height: height)
         lastAppliedLayoutVirtualRect = rect
         let root = rootTilingContainer
         let params = LayoutParams(
@@ -134,7 +134,10 @@ extension Rect {
     func notLookingZoomed(in visibleRect: Rect) -> Rect {
         let looksZoomed = abs(minX - visibleRect.minX) <= 10 && abs(minY - visibleRect.minY) <= 10
             && abs(maxX - visibleRect.maxX) <= 10 && abs(maxY - visibleRect.maxY) <= 10
-        return looksZoomed ? copy(\.height, visibleRect.maxY - 11 - minY) : self
+        guard looksZoomed else { return self }
+        var rect = self
+        rect.height = visibleRect.maxY - 11 - minY
+        return rect
     }
 }
 

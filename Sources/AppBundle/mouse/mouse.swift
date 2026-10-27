@@ -4,10 +4,11 @@ var currentlyManipulatedWithMouseWindowId: UInt32? = nil
 nonisolated var isLeftMouseButtonDown: Bool { NSEvent.pressedMouseButtons == 1 }
 
 func isManipulatedWithMouse(_ window: Window) async throws -> Bool {
-    try await (!window.isHiddenInCorner && // Don't allow to resize/move windows of hidden workspaces
-        isLeftMouseButtonDown &&
-        (currentlyManipulatedWithMouseWindowId == nil || window.windowId == currentlyManipulatedWithMouseWindowId))
-        .andAsync { @Sendable @MainActor in try await getNativeFocusedWindow(.cancellable) == window }
+    guard !window.isHiddenInCorner, // Don't allow to resize/move windows of hidden workspaces
+          isLeftMouseButtonDown,
+          currentlyManipulatedWithMouseWindowId == nil || window.windowId == currentlyManipulatedWithMouseWindowId
+    else { return false }
+    return try await getNativeFocusedWindow(.cancellable) == window
 }
 
 /// The AX callback for the window moved/resized notifications. Runs on the AX thread

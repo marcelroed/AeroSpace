@@ -60,7 +60,7 @@ nonisolated private final class RunLoopAction: NSObject, Sendable {
     }
 }
 
-nonisolated final class RunLoopJob: Sendable, AeroAny {
+nonisolated final class RunLoopJob: Sendable {
     private let _isCancelled = Atomic(false)
     var isCancelled: Bool { _isCancelled.load(ordering: .sequentiallyConsistent) }
     func cancel() {
@@ -71,7 +71,11 @@ nonisolated final class RunLoopJob: Sendable, AeroAny {
     let cm: CancellationMode
     init(_ cm: CancellationMode) { self.cm = cm }
 
-    static let cancelled: RunLoopJob = RunLoopJob(.cancellable).apply { $0.cancel() }
+    static let cancelled: RunLoopJob = {
+        let job = RunLoopJob(.cancellable)
+        job.cancel()
+        return job
+    }()
 
     func checkCancellation() throws(CancellationError) {
         if cm == .cancellable && isCancelled {

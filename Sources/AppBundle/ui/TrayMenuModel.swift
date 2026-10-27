@@ -52,7 +52,7 @@ func updateTrayText() {
         let workspace = monitor.activeWorkspace
         return (workspace: workspace, hasFullscreenWindows: workspace.allLeafWindowsRecursive.hasFullscreenWindows)
     }
-    let modeLetter: String? = activeMode?.takeIf { $0 != mainModeId }?.first.map { $0.uppercased() }
+    let modeLetter: String? = activeMode == mainModeId ? nil : activeMode?.first?.uppercased()
 
     let trayText = (modeLetter.map { "(\($0)) " } ?? "") +
         activeWorkspaces
@@ -63,7 +63,7 @@ func updateTrayText() {
         .joined(separator: " │ ")
     let workspaces = Workspace.all.map { workspace in
         let windows = workspace.allLeafWindowsRecursive
-        let apps = windows.compactMap { $0.app.name?.takeIf { !$0.isEmpty } }.toSet()
+        let apps = windows.compactMap(\.app.name).filter { !$0.isEmpty }.toSet()
         let dash = " - "
         let suffix = switch true {
             case !apps.isEmpty: dash + apps.sorted().joinTruncating(separator: ", ", length: 25)

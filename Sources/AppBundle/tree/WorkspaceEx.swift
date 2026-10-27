@@ -6,7 +6,7 @@ extension Workspace {
             let orientation: Orientation = switch config.defaultRootContainerOrientation {
                 case .horizontal: .h
                 case .vertical: .v
-                case .auto: workspaceMonitor.then { $0.width >= $0.height } ? .h : .v
+                case .auto: workspaceMonitor.orientation
             }
             return TilingContainer(parent: self, orientation, config.defaultRootContainerLayout)
         }
@@ -22,7 +22,7 @@ extension Workspace {
 
     private func specialContainer(_ kind: ContainerKind) -> Container {
         singleChild(
-            { ($0 as? Container)?.takeIf { $0.kind == kind } },
+            { ($0 as? Container).flatMap { $0.kind == kind ? $0 : nil } },
             dieMessage: "Workspace must contain zero or one \(kind) container",
         ) { Container(kind, parent: self) }
     }

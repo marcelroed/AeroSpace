@@ -3,7 +3,7 @@ import Common
 
 /// The tree is main actor state. Subclasses and extensions inherit the isolation (async members too),
 /// so a member that must not be isolated has to be marked `nonisolated`
-open class TreeNode: Equatable, AeroAny {
+open class TreeNode: Equatable {
     private(set) final var children: [TreeNode] = []
     fileprivate(set) final weak var parent: TreeNode? = nil
     private var weight: CGFloat

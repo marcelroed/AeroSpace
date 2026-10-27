@@ -179,8 +179,9 @@ func shortcutGroup(label: some View, content: some View) -> some View {
 func getTextEditorToOpenConfig() -> URL {
     // urlForApplication(toOpen:) returns nil for a missing file, e.g. a deleted --config-path file.
     // "Open config" recreates such a file from the default config
-    let config = findCustomConfigUrl().urlOrNil?.takeIf { FileManager.default.fileExists(atPath: $0.path) } ?? defaultConfigUrl
-    return NSWorkspace.shared.urlForApplication(toOpen: config)?
-        .takeIf { $0.lastPathComponent != "Xcode.app" } // Blacklist Xcode. It is too heavy to open plain text files
-        ?? URL(filePath: "/System/Applications/TextEdit.app")
+    let customConfig = findCustomConfigUrl().urlOrNil
+    let config = if let customConfig, FileManager.default.fileExists(atPath: customConfig.path) { customConfig } else { defaultConfigUrl }
+    // Blacklist Xcode. It is too heavy to open plain text files
+    if let editor = NSWorkspace.shared.urlForApplication(toOpen: config), editor.lastPathComponent != "Xcode.app" { return editor }
+    return URL(filePath: "/System/Applications/TextEdit.app")
 }

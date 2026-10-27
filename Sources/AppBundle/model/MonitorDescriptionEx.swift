@@ -7,8 +7,9 @@ extension MonitorDescription {
             case .main: mainMonitorInfo
             case .pattern(let regex): sortedMonitors.first { $0.name.contains(caseInsensitiveRegex: regex) }
             case .secondary:
-                sortedMonitors.takeIf { $0.count == 2 }?
-                    .first { $0.rect.topLeftCorner != mainMonitorInfo.rect.topLeftCorner }
+                sortedMonitors.count == 2
+                    ? sortedMonitors.first { $0.rect.topLeftCorner != mainMonitorInfo.rect.topLeftCorner }
+                    : nil
         }
     }
 }

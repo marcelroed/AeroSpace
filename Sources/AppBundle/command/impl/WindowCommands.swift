@@ -23,7 +23,7 @@ struct CloseCommand: nonisolated Command {
     func run(_ cx: CmdContext) async throws(CmdFail) {
         let window = try cx.window(windowId: windowId, noWindowMsg: "Empty workspace")
         // Access ax directly. Not cool :(
-        if await quitIfLastWindow.andAsync({ @MainActor @Sendable in (try? await window.asMacWindow().macApp.getAxWindowsCount(.nonCancellable)) == 1 }) {
+        if quitIfLastWindow, (try? await window.asMacWindow().macApp.getAxWindowsCount(.nonCancellable)) == 1 {
             let app = window.asMacWindow().macApp
             guard app.nsApp.terminate() else { throw "Failed to quit '\(window.app.name ?? "Unknown app")'" }
             for workspace in Workspace.all {

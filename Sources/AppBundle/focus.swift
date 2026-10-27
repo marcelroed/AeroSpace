@@ -3,7 +3,7 @@ import Common
 
 /// This object should be only passed around but never memorized
 /// Alternative name: ResolvedFocus
-struct LiveFocus: AeroAny, Equatable {
+struct LiveFocus: Equatable {
     let windowOrNil: Window?
     let workspace: Workspace
 
@@ -20,7 +20,7 @@ struct LiveFocus: AeroAny, Equatable {
 /// It's safe to keep a hard reference to this object.
 /// Unlike in LiveFocus, information inside FrozenFocus isn't guaranteed to be self-consistent.
 /// window - workspace - monitor relation could change since the moment object was created
-private struct FrozenFocus: AeroAny, Equatable, Sendable {
+private struct FrozenFocus: Equatable, Sendable {
     let windowId: UInt32?
     let workspaceName: String
     // monitorId is not part of the focus. We keep it here only for 'on-focused-monitor-changed' to work
@@ -118,7 +118,10 @@ extension Workspace {
 }
 
 var prevFocusedWorkspace: Workspace? { world.focusStore.prevWorkspaceName.map { Workspace.get(byName: $0) } }
-var prevFocus: LiveFocus? { world.focusStore.prev?.live.takeIf { $0 != focus } }
+var prevFocus: LiveFocus? {
+    guard let prev = world.focusStore.prev?.live, prev != focus else { return nil }
+    return prev
+}
 
 /// Tests only: the focus that the test set up is the last known one. Otherwise, the first on-focus-changed check of the
 /// test sees no change

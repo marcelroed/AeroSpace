@@ -56,9 +56,10 @@ private func resizeWithMouse(_ window: Window) async throws { // todo cover with
 extension TreeNode {
     fileprivate func getWeightBeforeResize(_ orientation: Orientation) -> CGFloat {
         let currentWeight = getWeight(orientation) // Check assertions
-        return weightBeforeResizeWithMouse
-            ?? (lastAppliedLayoutVirtualRect?.getDimension(orientation) ?? currentWeight)
-            .apply { weightBeforeResizeWithMouse = $0 }
+        if let weightBeforeResizeWithMouse { return weightBeforeResizeWithMouse }
+        let weight = lastAppliedLayoutVirtualRect?.getDimension(orientation) ?? currentWeight
+        weightBeforeResizeWithMouse = weight
+        return weight
     }
 
     fileprivate func resetResizeWeightBeforeResizeRecursive() {
