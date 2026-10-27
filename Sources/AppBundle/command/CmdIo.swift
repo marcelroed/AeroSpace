@@ -39,7 +39,6 @@ final class CmdIo {
     static var emptyStdinIgnoringOut: CmdIo { CmdIo(stdin: .emptyStdin) }
 }
 
-/// What a shell line answers: its output and its exit code
 struct CmdResult: Equatable {
     let stdout: [String]
     let stderr: [String]

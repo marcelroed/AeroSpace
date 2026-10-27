@@ -63,7 +63,6 @@ final class Window: TreeNode, Hashable {
     }
 }
 
-/// Why a window is in its container
 enum LayoutReason: Equatable {
     case standard
     /// macOS made the window fullscreen or minimized, or hid its app. When that state ends, the window goes back to a

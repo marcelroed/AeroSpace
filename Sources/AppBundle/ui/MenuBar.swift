@@ -58,7 +58,7 @@ private func workspacesSection(_ viewModel: TrayMenuModel) -> some View {
             }
         } label: {
             Toggle(isOn: .constant(workspace.isFocused)) {
-                Text(workspace.name + workspace.suffix).font(.system(.body, design: .monospaced))
+                Text(workspace.name + workspace.appsOrMonitor).font(.system(.body, design: .monospaced))
             }
         }
     }

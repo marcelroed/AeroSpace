@@ -83,8 +83,7 @@ extension [Window] {
 
 struct WorkspaceViewModel: Hashable {
     let name: String
-    /// The workspace's apps, or the monitor of an empty visible workspace
-    let suffix: String
+    let appsOrMonitor: String
     let isFocused: Bool
     let isEffectivelyEmpty: Bool
     let isVisible: Bool
@@ -96,14 +95,14 @@ extension WorkspaceViewModel {
         let windows = workspace.allLeafWindowsRecursive
         let apps = windows.compactMap(\.app.name).filter { !$0.isEmpty }.toSet()
         let dash = " - "
-        let suffix = switch true {
+        let appsOrMonitor = switch true {
             case !apps.isEmpty: dash + apps.sorted().joinTruncating(separator: ", ", length: 25)
             case workspace.isVisible: dash + workspace.workspaceMonitor.name
             default: ""
         }
         self.init(
             name: workspace.name,
-            suffix: suffix,
+            appsOrMonitor: appsOrMonitor,
             isFocused: isFocused,
             isEffectivelyEmpty: workspace.isEffectivelyEmpty,
             isVisible: workspace.isVisible,

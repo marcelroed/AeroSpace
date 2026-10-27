@@ -27,22 +27,22 @@ struct TrayMenuModelTest {
         TrayCase(tree: .empty, mode: mainModeId, text: "setUpWorkspacesForTests", items: [
             TrayItem(type: .workspace, name: "setUpWorkspacesForTests", isActive: true, hasFullscreenWindows: false),
         ], workspaces: [
-            WorkspaceViewModel(name: "setUpWorkspacesForTests", suffix: " - Test Monitor", isFocused: true, isEffectivelyEmpty: true, isVisible: true, hasFullscreenWindows: false),
+            WorkspaceViewModel(name: "setUpWorkspacesForTests", appsOrMonitor: " - Test Monitor", isFocused: true, isEffectivelyEmpty: true, isVisible: true, hasFullscreenWindows: false),
         ]),
         TrayCase(tree: .twoWorkspaces(fullscreen: false), mode: mainModeId, text: "a", items: [
             TrayItem(type: .workspace, name: "a", isActive: true, hasFullscreenWindows: false),
         ], workspaces: [
-            WorkspaceViewModel(name: "a", suffix: " - bobko.AeroSpace.test-app", isFocused: true, isEffectivelyEmpty: false, isVisible: true, hasFullscreenWindows: false),
-            WorkspaceViewModel(name: "b", suffix: " - bobko.AeroSpace.test-app", isFocused: false, isEffectivelyEmpty: false, isVisible: false, hasFullscreenWindows: false),
-            WorkspaceViewModel(name: "setUpWorkspacesForTests", suffix: "", isFocused: false, isEffectivelyEmpty: true, isVisible: false, hasFullscreenWindows: false),
+            WorkspaceViewModel(name: "a", appsOrMonitor: " - bobko.AeroSpace.test-app", isFocused: true, isEffectivelyEmpty: false, isVisible: true, hasFullscreenWindows: false),
+            WorkspaceViewModel(name: "b", appsOrMonitor: " - bobko.AeroSpace.test-app", isFocused: false, isEffectivelyEmpty: false, isVisible: false, hasFullscreenWindows: false),
+            WorkspaceViewModel(name: "setUpWorkspacesForTests", appsOrMonitor: "", isFocused: false, isEffectivelyEmpty: true, isVisible: false, hasFullscreenWindows: false),
         ]),
         TrayCase(tree: .twoWorkspaces(fullscreen: true), mode: "service", text: "(S) [a]", items: [
             TrayItem(type: .mode, name: "S", isActive: true, hasFullscreenWindows: false),
             TrayItem(type: .workspace, name: "a", isActive: true, hasFullscreenWindows: true),
         ], workspaces: [
-            WorkspaceViewModel(name: "a", suffix: " - bobko.AeroSpace.test-app", isFocused: true, isEffectivelyEmpty: false, isVisible: true, hasFullscreenWindows: true),
-            WorkspaceViewModel(name: "b", suffix: " - bobko.AeroSpace.test-app", isFocused: false, isEffectivelyEmpty: false, isVisible: false, hasFullscreenWindows: true),
-            WorkspaceViewModel(name: "setUpWorkspacesForTests", suffix: "", isFocused: false, isEffectivelyEmpty: true, isVisible: false, hasFullscreenWindows: false),
+            WorkspaceViewModel(name: "a", appsOrMonitor: " - bobko.AeroSpace.test-app", isFocused: true, isEffectivelyEmpty: false, isVisible: true, hasFullscreenWindows: true),
+            WorkspaceViewModel(name: "b", appsOrMonitor: " - bobko.AeroSpace.test-app", isFocused: false, isEffectivelyEmpty: false, isVisible: false, hasFullscreenWindows: true),
+            WorkspaceViewModel(name: "setUpWorkspacesForTests", appsOrMonitor: "", isFocused: false, isEffectivelyEmpty: true, isVisible: false, hasFullscreenWindows: false),
         ]),
     ] as [TrayCase])
     func trayShowsTheVisibleWorkspaces(_ row: TrayCase) {
@@ -110,7 +110,7 @@ struct TrayMenuModelTest {
         expectNotifies(\.trayText, "changed", "trayText")
         expectNotifies(\.trayItems, [TrayItem(type: .mode, name: "S", isActive: true, hasFullscreenWindows: false)], "trayItems")
         expectNotifies(\.isEnabled, !model.isEnabled, "isEnabled")
-        expectNotifies(\.workspaces, [WorkspaceViewModel(name: "changed", suffix: "", isFocused: true, isEffectivelyEmpty: true, isVisible: true, hasFullscreenWindows: false)], "workspaces")
+        expectNotifies(\.workspaces, [WorkspaceViewModel(name: "changed", appsOrMonitor: "", isFocused: true, isEffectivelyEmpty: true, isVisible: true, hasFullscreenWindows: false)], "workspaces")
         expectNotifies(\.sponsorshipMessage, model.sponsorshipMessage + " changed", "sponsorshipMessage")
         expectNotifies(\.axPermissionStatus, model.axPermissionStatus == .granted ? .waiting : .granted, "axPermissionStatus")
         expectNotifies(\.appearanceTheme, model.appearanceTheme == .dark ? .light : .dark, "appearanceTheme")
