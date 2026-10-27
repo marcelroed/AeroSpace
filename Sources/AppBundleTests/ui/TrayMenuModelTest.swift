@@ -115,14 +115,23 @@ struct TrayMenuModelTest {
         withPreservedMenuBarStyle {
             expectNotifies(\.menuBarStyle, model.menuBarStyle == .squares ? .i3 : .squares, "menuBarStyle")
         }
+    }
 
+    /// The menu bar icon opens the config diagnostics window in its onChange(of: message).
+    /// SwiftUI runs it only if the icon's body reads the message
+    @Test
+    func testMenuBarIconBodyObservesTheMessage() {
         let messageModel = MessageModel.shared
         let prevMessage = messageModel.message
         defer { messageModel.message = prevMessage }
         let notified = NotifiedProperties()
-        withObservationTracking { _ = messageModel.message } onChange: { notified.insert("message") }
+        withObservationTracking {
+            _ = MenuBarIcon(viewModel: .shared, messageModel: messageModel).body
+        } onChange: {
+            notified.insert("body")
+        }
         messageModel.message = Message(body: "changed", containsWarnings: false)
-        #expect(notified.names == ["message"])
+        #expect(notified.names == ["body"])
     }
 
     /// The users' choice survives the update: the key is the same as before

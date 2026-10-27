@@ -5,19 +5,12 @@ import SwiftUI
 
 @main
 struct AeroSpaceApp: App {
-    @Environment(\.openWindow) private var openWindow: OpenWindowAction
-
     init() {
         initAppBundle()
     }
 
     var body: some Scene {
-        menuBar(viewModel: .shared)
+        menuBar(viewModel: .shared, messageModel: .shared)
         getMessageWindow(messageModel: .shared)
-            .onChange(of: MessageModel.shared.message) { _, message in
-                if message != nil {
-                    openWindow(id: messageWindowId)
-                }
-            }
     }
 }

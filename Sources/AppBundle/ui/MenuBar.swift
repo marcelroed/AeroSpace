@@ -2,11 +2,11 @@ import Common
 import Foundation
 import SwiftUI
 
-public func menuBar(viewModel: TrayMenuModel) -> some Scene {
+public func menuBar(viewModel: TrayMenuModel, messageModel: MessageModel) -> some Scene {
     MenuBarExtra {
         MenuBarMenu(viewModel: viewModel)
     } label: {
-        MenuBarIcon(viewModel: viewModel)
+        MenuBarIcon(viewModel: viewModel, messageModel: messageModel)
     }
 }
 
@@ -104,10 +104,25 @@ private func quitButton() -> some View {
     }.keyboardShortcut("Q", modifiers: .command)
 }
 
-private struct MenuBarIcon: View {
+/// The menu bar extra's label. The extra has no isInserted binding, so the label lives as long as the app. That makes
+/// it the view that opens the config diagnostics window: SwiftUI documents Observation tracking for a View's body,
+/// not for the App's or a Scene's body
+struct MenuBarIcon: View {
     let viewModel: TrayMenuModel
+    let messageModel: MessageModel
+    @Environment(\.openWindow) private var openWindow: OpenWindowAction
 
     var body: some View {
+        // initial: the message may be set before the label first appears (a config error at startup)
+        icon.onChange(of: messageModel.message, initial: true) { _, message in
+            if message != nil {
+                openWindow(id: messageWindowId)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var icon: some View {
         let granted = viewModel.axPermissionStatus == .granted
         if granted && viewModel.isEnabled {
             MenuBarLabel(viewModel: viewModel)
