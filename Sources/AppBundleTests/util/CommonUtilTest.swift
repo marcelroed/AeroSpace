@@ -209,6 +209,14 @@ struct CommonUtilTest: AeroSpaceTestSuite {
         assertEquals(JSONEncoder.aeroSpaceDefault.encodeToString(["b": 1, "a": 2]), "{\n  \"a\" : 2,\n  \"b\" : 1\n}")
         assertEquals(JSONEncoder.aeroSpaceDefault.encodeToString("a/b"), "\"a/b\"")
     }
+
+    @Test
+    func testCompletableFutureBlockingGetTimesOut() {
+        let future = CompletableFuture<Int>()
+        assertNil(future.blockingGet(deadline: .now() + .milliseconds(10)))
+        future.complete(42)
+        assertEquals(future.blockingGet(deadline: .now() + .seconds(5)), 42)
+    }
 }
 
 private class Base {}

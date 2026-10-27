@@ -9,8 +9,9 @@ final class CompletableFuture<T: Sendable>: Sendable {
         semaphore.signal()
     }
 
-    func blockingGet() -> T {
-        semaphore.wait()
+    /// nil if the future isn't completed by the deadline
+    func blockingGet(deadline: DispatchTime) -> T? {
+        guard semaphore.wait(timeout: deadline) == .success else { return nil }
         return unsafe value.orDie("semaphore should have been signaled")
     }
 }

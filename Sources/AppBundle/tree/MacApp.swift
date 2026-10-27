@@ -1,6 +1,10 @@
 import AppKit
 import Common
 
+/// How long quitting waits for one AX call of an app. After an app's first timeout, its remaining windows are skipped:
+/// they stay where AeroSpace hid them, but a hung app can't stop AeroSpace from exiting
+private let terminationAxTimeout: DispatchTimeInterval = .seconds(2)
+
 // Potential alternative implementation
 // https://github.com/swiftlang/swift-evolution/blob/main/proposals/0392-custom-actor-executors.md
 // (only available since macOS 14)
@@ -16,6 +20,7 @@ final class MacApp: AbstractApp {
     var lastNativeFocusedWindowId: UInt32? = nil
     private var thread: Thread?
     private var setFrameJobs: [UInt32: RunLoopJob] = [:]
+    private var terminationWaitTimedOut = false // See terminationAxTimeout
     @MainActor private static var focusJob: RunLoopJob? = nil
 
     /*conforms*/ var name: String? { nsApp.localizedName }
@@ -154,7 +159,7 @@ final class MacApp: AbstractApp {
     func setAxFrameForTermination(_ windowId: UInt32, _ topLeft: CGPoint?, _ size: CGSize?) {
         setFrameJobs.removeValue(forKey: windowId)?.cancel()
         // A dying thread would never run the job. See isDyingThread
-        guard let thread, !isDyingThread(thread) else { return }
+        guard !terminationWaitTimedOut, let thread, !isDyingThread(thread) else { return }
         let semaphore = DispatchSemaphore(value: 0)
         // Not withWindowAsync: it skips the body if the window is already gone from `windows`, and the wait would never end
         thread.runInLoopAsync(job: RunLoopJob(.nonCancellable)) { [axApp, windows] job in
@@ -164,7 +169,9 @@ final class MacApp: AbstractApp {
                 try setFrame(window.ax, topLeft, size, job)
             }
         }
-        semaphore.wait()
+        if semaphore.wait(timeout: .now() + terminationAxTimeout) == .timedOut {
+            terminationWaitTimedOut = true
+        }
     }
 
     func getAxWindowsCount(_ cm: CancellationMode) async throws -> Int? {
@@ -180,13 +187,17 @@ final class MacApp: AbstractApp {
     }
 
     func getAxRectForTermination(_ windowId: UInt32) -> Rect? {
-        guard let thread, !isDyingThread(thread) else { return nil } // See setAxFrameForTermination
+        guard !terminationWaitTimedOut, let thread, !isDyingThread(thread) else { return nil } // See setAxFrameForTermination
         let future = CompletableFuture<Rect?>()
         // Not withWindowAsync: see setAxFrameForTermination. Complete on every path
         thread.runInLoopAsync(job: RunLoopJob(.nonCancellable)) { [windows] job in
             future.complete(windows.threadGuarded[windowId].flatMap { try? AppBundle.getAxRect(window: $0.ax, job: job) })
         }
-        return future.blockingGet()
+        guard let rect = future.blockingGet(deadline: .now() + terminationAxTimeout) else {
+            terminationWaitTimedOut = true
+            return nil
+        }
+        return rect
     }
 
     func isWindowHeuristic(_ windowId: UInt32, _ windowLevel: MacOsWindowLevel?, _ cm: CancellationMode) async throws -> Bool {
