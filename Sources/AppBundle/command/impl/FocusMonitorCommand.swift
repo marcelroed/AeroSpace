@@ -18,22 +18,30 @@ extension MonitorTarget {
         switch self {
             case .direction(let direction):
                 guard let (monitorsInDirection, index) = currentMonitor.findRelativeMonitor(inDirection: direction) else {
-                    return .failure("Should never happen. Can't find the current monitor")
+                    // No screens (e.g., during display reconfiguration): currentMonitor is the fake mainMonitorInfo
+                    if !hasScreens { return .failure("Can't find monitors in direction \(direction) while there are no screens") }
+                    return .failure(bugPrompt("Should never happen. Can't find the current monitor"))
                 }
                 return (wrapAround ? monitorsInDirection.get(wrappingIndex: index) : monitorsInDirection.getOrNil(atIndex: index))
                     .toResult("No monitors in direction \(direction)")
             case .relative(let nextPrev):
                 let monitors = sortedMonitorInfos
                 guard let curIndex = monitors.firstIndex(where: { $0.rect.topLeftCorner == currentMonitor.rect.topLeftCorner }) else {
-                    return .failure("Can't find current monitor")
+                    // No screens (e.g., during display reconfiguration): currentMonitor is the fake mainMonitorInfo
+                    if !hasScreens { return .failure("Can't find the \(nextPrev) monitor while there are no screens") }
+                    return .failure(bugPrompt("Should never happen. Can't find the current monitor"))
                 }
                 let targetIndex = nextPrev == .next ? curIndex + 1 : curIndex - 1
                 return (wrapAround ? monitors.get(wrappingIndex: targetIndex) : monitors.getOrNil(atIndex: targetIndex))
                     .toResult("Can't find target monitor")
             case .patterns(let patterns):
                 let monitors = sortedMonitorInfos
-                return patterns.lazy.compactMap { $0.resolveMonitor(sortedMonitors: monitors) }.first
-                    .toResult("None of the monitors match the pattern(s)")
+                guard let targetMonitor = patterns.lazy.compactMap({ $0.resolveMonitor(sortedMonitors: monitors) }).first else {
+                    // No screens (e.g., during display reconfiguration): there are no monitors to match
+                    if !hasScreens { return .failure("Can't find monitors that match the pattern(s) while there are no screens") }
+                    return .failure("None of the monitors match the pattern(s)")
+                }
+                return .success(targetMonitor)
         }
     }
 }

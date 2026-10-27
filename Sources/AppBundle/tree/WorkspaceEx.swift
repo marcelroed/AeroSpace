@@ -50,7 +50,13 @@ extension Workspace {
             if result != nil { die(dieMessage, file: file, line: line, column: column, function: function) }
             result = child
         }
-        return result ?? create()
+        if let result { return result }
+        // bind() marks the new container as the most recent child. Restore the previous one, so that a plain read
+        // doesn't make mostRecentWindowRecursive end in the new empty container
+        let mostRecentChildBefore = mostRecentChild
+        let created = create()
+        mostRecentChildBefore?.markAsMostRecentChild()
+        return created
     }
 
     var forceAssignedMonitor: MonitorInfo? {

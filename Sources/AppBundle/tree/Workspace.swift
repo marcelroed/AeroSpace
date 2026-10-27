@@ -57,7 +57,15 @@ final class Workspace: TreeNode, NonLeafTreeNodeObject, Hashable, Comparable {
     }
 
     nonisolated static func < (lhs: Workspace, rhs: Workspace) -> Bool {
-        lhs.nameLogicalSegments < rhs.nameLogicalSegments
+        // Names that differ only in leading zeros ("1", "01") have equal segments. Order them by name to keep the order total.
+        // A single pass over the segments, because Workspace.all sorts on every call
+        let a = lhs.nameLogicalSegments
+        let b = rhs.nameLogicalSegments
+        for i in 0 ..< min(a.count, b.count) {
+            if a[i] < b[i] { return true }
+            if b[i] < a[i] { return false }
+        }
+        return a.count != b.count ? a.count < b.count : lhs.name < rhs.name
     }
 
     override func getWeight(_ targetOrientation: Orientation) -> CGFloat {
@@ -82,16 +90,18 @@ final class Workspace: TreeNode, NonLeafTreeNodeObject, Hashable, Comparable {
         for name in config.persistentWorkspaces {
             _ = get(byName: name) // Make sure that all persistent workspaces are "cached"
         }
-        workspaceNameToWorkspace = workspaceNameToWorkspace.filter { (_, workspace: Workspace) in
-            config.persistentWorkspaces.contains(workspace.name) ||
+        // Remove in place. Reading focus can insert into workspaceNameToWorkspace, assigning a filtered copy would drop it
+        for (name, workspace) in workspaceNameToWorkspace {
+            let isUsed = config.persistentWorkspaces.contains(workspace.name) ||
                 !workspace.isEffectivelyEmpty ||
                 workspace.isVisible ||
                 workspace.name == focus.workspace.name
+            if !isUsed { workspaceNameToWorkspace.removeValue(forKey: name) }
         }
     }
 
     nonisolated static func == (lhs: Workspace, rhs: Workspace) -> Bool {
-        check((lhs === rhs) == (lhs.name == rhs.name), "lhs: \(lhs) rhs: \(rhs)")
+        check((lhs === rhs) == (lhs.name == rhs.name), "lhs: \(lhs.name) rhs: \(rhs.name)")
         return lhs === rhs
     }
 
@@ -123,11 +133,13 @@ extension MonitorInfo {
         }
         // Monitor configuration data race: self is a stale snapshot, and its rect doesn't match any
         // current monitor (may happen during display sleep/wake reconfiguration). Recursing doesn't
-        // converge in this case (it overflows the stack). Fall back to the closest current monitor
+        // converge in this case (it overflows the stack). Fall back to the closest current monitor.
+        // The map is empty only if no screen was seen yet (AeroSpace started while there were no screens). Don't read
+        // focus then: the lazy initializer of _focus gets here, and reading focus would re-enter it (crash)
         return screenPointToVisibleWorkspace
             .minBy { (rect.topLeftCorner - $0.key).vectorLength }?
             .value
-            ?? focus.workspace
+            ?? getStubWorkspace(for: self)
     }
 
     @MainActor
@@ -169,6 +181,9 @@ extension CGPoint {
 @MainActor
 private func rearrangeWorkspacesOnMonitors() {
     let newScreens = monitorInfos.map(\.rect.topLeftCorner)
+    // No screens (e.g., during display reconfiguration). Keep the current arrangement until the screens come back.
+    // Otherwise, every visible workspace is forgotten, and the screens get stub workspaces when they come back
+    if newScreens.isEmpty { return }
     var newScreenToOldScreenMapping: [CGPoint: CGPoint] = [:]
     for (oldScreen, _) in screenPointToVisibleWorkspace {
         guard let newScreen = newScreens.minBy({ ($0 - oldScreen).vectorLength }) else { continue }
@@ -193,6 +208,6 @@ private func rearrangeWorkspacesOnMonitors() {
         }
         let stubWorkspace = getStubWorkspace(forPoint: newScreen)
         check(newScreen.setActiveWorkspace(stubWorkspace),
-              "getStubWorkspace generated incompatible stub workspace (\(stubWorkspace)) for the monitor (\(newScreen)")
+              "getStubWorkspace generated incompatible stub workspace (\(stubWorkspace.description)) for the monitor (\(newScreen))")
     }
 }

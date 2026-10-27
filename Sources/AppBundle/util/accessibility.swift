@@ -69,9 +69,10 @@ enum Ax {
         WritableAttrImpl(
             key: key,
             getter: {
+                // The app can return a value of any type. AXValueGetValue returns false for an AXValue of another type
+                guard CFGetTypeID($0) == AXValueGetTypeID() else { return nil }
                 var raw = zero
-                check(unsafe AXValueGetValue($0 as! AXValue, type, &raw))
-                return raw
+                return unsafe AXValueGetValue($0 as! AXValue, type, &raw) ? raw : nil
             },
             setter: {
                 var value = $0
@@ -82,7 +83,7 @@ enum Ax {
 
     static let parentWindowRecursive = ReadableAttrImpl<AXUIElement>(
         key: kAXWindowAttribute,
-        getter: { ($0 as! AXUIElement) },
+        getter: { CFGetTypeID($0) == AXUIElementGetTypeID() ? ($0 as! AXUIElement) : nil },
     )
     static let titleAttr = readableString(kAXTitleAttribute)
     static let roleAttr = readableString(kAXRoleAttribute)
@@ -116,21 +117,25 @@ enum Ax {
 
 let kAXAeroSynthetic = "Aero.synthetic"
 
-private func castToAxUiElementMock(_ a: AnyObject) -> any AxUiElementMock {
-    isUnitTest ? axUiElementMockFromTestDump(a) : a as! AXUIElement
+// `as! AXUIElement` doesn't check anything at runtime (it's a CoreFoundation type). Check the type ID instead
+private func castToAxUiElementMock(_ a: AnyObject) -> (any AxUiElementMock)? {
+    if isUnitTest { return axUiElementMockFromTestDump(a) }
+    return CFGetTypeID(a) == AXUIElementGetTypeID() ? (a as! AXUIElement) : nil
 }
 
 typealias WindowIdAndAxUiElement = (windowId: UInt32, ax: AXUIElement)
 typealias WindowIdAndAxUiElementMock = (windowId: UInt32, ax: any AxUiElementMock)
 
 private func windowOrNil(_ obj: AnyObject) -> WindowIdAndAxUiElementMock? {
-    let potentialWindow = castToAxUiElementMock(obj)
+    guard let potentialWindow = castToAxUiElementMock(obj) else { return nil }
     // Filter out non-window objects (e.g. Finder's desktop)
     return potentialWindow.containingWindowId().map { ($0, potentialWindow) }
 }
 
 private func axWindowOrNil(_ any: Any) -> WindowIdAndAxUiElement? {
-    let potentialWindow = any as AnyObject as! AXUIElement
+    let object = any as AnyObject
+    guard CFGetTypeID(object) == AXUIElementGetTypeID() else { return nil }
+    let potentialWindow = object as! AXUIElement
     // Filter out non-window objects (e.g. Finder's desktop)
     return potentialWindow.containingWindowId().map { ($0, potentialWindow) }
 }

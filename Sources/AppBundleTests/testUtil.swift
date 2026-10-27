@@ -47,6 +47,8 @@ func setUpWorkspacesForTests() {
 
     global_layoutForNextDetectedWindow = nil
     _prevFocusedWorkspaceName = nil
+    resetFocusHistoryForTests()
+    lastKnownNativeFocusedWindowId = nil
     activeMode = mainModeId
     TrayMenuModel.shared.isEnabled = true
     currentlyManipulatedWithMouseWindowId = nil

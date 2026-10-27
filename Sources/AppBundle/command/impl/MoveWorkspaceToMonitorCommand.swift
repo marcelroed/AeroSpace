@@ -30,7 +30,7 @@ func moveWorkspace(_ workspace: Workspace, to monitor: MonitorInfo, stubbing pre
         let stubWorkspace = getStubWorkspace(for: prevMonitor)
         check(
             prevMonitor.setActiveWorkspace(stubWorkspace),
-            "getStubWorkspace generated incompatible stub workspace (\(stubWorkspace)) for the monitor (\(prevMonitor)",
+            "getStubWorkspace generated incompatible stub workspace (\(stubWorkspace.description)) for the monitor (\(prevMonitor))",
         )
     }
     return true

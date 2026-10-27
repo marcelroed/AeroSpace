@@ -8,7 +8,7 @@ struct TriggerBindingCommandTest: AeroSpaceTestSuite {
     @Test
     func testParse() {
         testParseSingleCommandSucc("trigger-binding foo --mode main", TriggerBindingCmdArgs(rawArgs: []).copy(\.binding, .initialized("foo")).copy(\._mode, "main"))
-        testParseCommandFail("trigger-binding foo", msg: "--mode flag is mandatory")
+        testParseCommandFail("trigger-binding foo", msg: "ERROR: --mode flag is mandatory")
         testParseCommandFail("trigger-binding", msg: "ERROR: Argument \'<binding>\' is mandatory")
     }
 
@@ -23,5 +23,17 @@ struct TriggerBindingCommandTest: AeroSpaceTestSuite {
             TriggerBindingCmdArgs(rawArgs: []).copy(\.binding, .initialized("--fail-if-noop")).copy(\._mode, "main"),
         )
         testParseCommandFail("trigger-binding --mode main --", msg: "ERROR: Argument '<binding>' is mandatory")
+    }
+
+    @Test
+    func testUnknownMode_listsAvailableModesSorted() async {
+        // Ten modes, so that the dictionary order can't match the sorted order by chance (RB-13)
+        let modeNames = ["main", "service", "resize", "move", "a", "z", "b", "y", "c", "x"]
+        config.modes = Dictionary(uniqueKeysWithValues: modeNames.map { ($0, Mode(bindings: [:])) })
+
+        let result = await parseCommand("trigger-binding alt-h --mode unknown").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result.exitCode.rawValue, 2)
+        assertEquals(result.stdout, [])
+        assertEquals(result.stderr, ["Mode 'unknown' doesn't exist. Available modes: a,b,c,main,move,resize,service,x,y,z"])
     }
 }

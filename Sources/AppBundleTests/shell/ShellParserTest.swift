@@ -40,6 +40,17 @@ struct ShellParserTest: AeroSpaceTestSuite {
     }
 
     @Test
+    func testParserOnlyNewlinesAndComments() {
+        assertSucc("\n".lexAndParseShell(), .empty)
+        assertSucc("\n\n".lexAndParseShell(), .empty)
+        assertSucc("# only a comment\n".lexAndParseShell(), .empty)
+        assertSucc("    # first comment\n    # second comment\n".lexAndParseShell(), .empty)
+        assertSucc("# comment\nfoo".lexAndParseShell(), "foo")
+        assertSucc("\n\nfoo bar\n".lexAndParseShell(), .cmd("foo", "bar"))
+        assertFail("\n;".lexAndParseShell(), "Line 2 Column 1: Expected at least one word. Got: ;")
+    }
+
+    @Test
     func testParserSingleCommand() {
         assertSucc("foo".lexAndParseShell(), "foo")
         assertSucc("foo bar".lexAndParseShell(), .cmd("foo", "bar"))
@@ -91,6 +102,14 @@ struct ShellParserTest: AeroSpaceTestSuite {
         assertSucc("(a && b) || c".lexAndParseShell(), .or(.and("a", "b"), "c"))
         assertSucc("a && (b || c)".lexAndParseShell(), .and("a", .or("b", "c")))
         assertSucc("(a || b) && (c || d)".lexAndParseShell(), .and(.or("a", "b"), .or("c", "d")))
+    }
+
+    @Test
+    func testParserParensStartingWithNewlines() {
+        assertSucc("(\n  foo\n)".lexAndParseShell(), "foo")
+        assertSucc("( # comment\n  a;\n  b\n)".lexAndParseShell(), .seq("a", "b"))
+        assertSucc("a && (\n\n  b || c\n)".lexAndParseShell(), .and("a", .or("b", "c")))
+        assertFail("(\n)".lexAndParseShell(), "Line 2 Column 1: Expected at least one word. Got: )")
     }
 
     @Test

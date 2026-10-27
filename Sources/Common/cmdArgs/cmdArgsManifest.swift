@@ -51,6 +51,6 @@ func initSubcommands() -> [String: SubCommandParser] {
     }
     // Deprecated aliases
     result["move-through"] = SubCommandParser(MoveCmdArgs.init)
-    result["move-workspace-to-display"] = SubCommandParser(MoveWorkspaceToMonitorCmdArgs.init) // Unlike move-workspace-to-monitor, accepts --wrap-around with <monitor-pattern>
+    result["move-workspace-to-display"] = SubCommandParser(parseMoveWorkspaceToMonitorCmdArgs)
     return result
 }

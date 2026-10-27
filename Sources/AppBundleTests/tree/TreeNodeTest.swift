@@ -88,4 +88,31 @@ struct TreeNodeTest: AeroSpaceTestSuite {
         workspace.normalizeContainers()
         assertTrue(workspace.rootTilingContainer.children.singleOrNil() is TestWindow)
     }
+
+    @Test
+    func testCreatingSpecialContainersOnReadKeepsMostRecentWindow() {
+        // RB-03: reading a missing container created it as the most recent child, so toLiveFocus() fell back to the first window
+        let workspace = Workspace.get(byName: name)
+        TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
+        assertEquals(workspace.toLiveFocus().windowOrNil?.windowId, 2)
+
+        _ = workspace.floatingWindowsContainer
+        assertEquals(workspace.toLiveFocus().windowOrNil?.windowId, 2)
+        _ = workspace.macOsNativeFullscreenWindowsContainer
+        assertEquals(workspace.toLiveFocus().windowOrNil?.windowId, 2)
+        _ = workspace.macOsNativeHiddenAppsWindowsContainer
+        assertEquals(workspace.toLiveFocus().windowOrNil?.windowId, 2)
+    }
+
+    @Test
+    func testCreatingRootTilingContainerOnReadKeepsMostRecentWindow() {
+        let workspace = Workspace.get(byName: name)
+        TestWindow.new(id: 1, parent: workspace.floatingWindowsContainer)
+        TestWindow.new(id: 2, parent: workspace.floatingWindowsContainer)
+        assertEquals(workspace.toLiveFocus().windowOrNil?.windowId, 2)
+
+        _ = workspace.rootTilingContainer
+        assertEquals(workspace.toLiveFocus().windowOrNil?.windowId, 2)
+    }
 }

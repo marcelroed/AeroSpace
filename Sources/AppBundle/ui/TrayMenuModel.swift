@@ -120,9 +120,10 @@ struct TrayItem: Hashable, Identifiable {
     let isActive: Bool
     let hasFullscreenWindows: Bool
     var systemImageName: String? {
-        // System image type is only valid for numbers 0 to 50 and single capital char workspace name
+        // System image type is only valid for numbers 0 to 50 (also 00 to 09) and single capital char workspace name.
+        // Int(name) also accepts names such as "+5", "-0" and "005", which have no system image
         let isSupported = if let number = Int(name) {
-            (0 ... 50).contains(number)
+            (0 ... 50).contains(number) && name.count <= 2 && name.allSatisfy(\.isWholeNumber)
         } else {
             name.count == 1 && validLetters.contains(name)
         }

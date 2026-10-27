@@ -8,14 +8,22 @@ let signposter = OSSignposter(subsystem: aeroSpaceAppId, category: .pointsOfInte
 let myPid = NSRunningApplication.current.processIdentifier
 let lockScreenAppBundleId = "com.apple.loginwindow"
 
-func interceptTermination(_ _signal: Int32) {
-    signal(_signal, { (signal: Int32) in
-        check(Thread.current.isMainThread)
-        Task.startUnstructured { @MainActor in
+@MainActor private var signalSources: [any DispatchSourceSignal] = [] // A released source stops delivering the signal
+
+@MainActor
+func interceptTermination(_ sig: Int32) {
+    // A signal handler may only call async-signal-safe functions, and it runs on any thread.
+    // Ignore the signal instead (the dispatch source still sees it), and handle it on the main queue
+    signal(sig, SIG_IGN)
+    let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+    source.setEventHandler {
+        MainActor.assumeIsolated {
             terminationHandler?.beforeTermination()
-            exit(signal)
         }
-    } as sig_t)
+        exit(sig)
+    }
+    source.resume()
+    signalSources.append(source)
 }
 
 @MainActor
@@ -34,8 +42,8 @@ private struct AppServerTerminationHandler: TerminationHandler {
             let monitorVisibleRect = monitor.visibleRect
             let windowSize = window.lastFloatingSize ?? CGSize(width: monitorVisibleRect.width, height: monitorVisibleRect.height)
             let point = CGPoint(
-                x: (monitorVisibleRect.width - windowSize.width) / 2,
-                y: (monitorVisibleRect.height - windowSize.height) / 2,
+                x: monitorVisibleRect.topLeftX + (monitorVisibleRect.width - windowSize.width) / 2,
+                y: monitorVisibleRect.topLeftY + (monitorVisibleRect.height - windowSize.height) / 2,
             )
             window.macApp.setAxFrameForTermination(window.windowId, point, windowSize)
         }
@@ -91,7 +99,8 @@ extension CGPoint {
 
     var vectorLength: CGFloat { sqrt(x * x + y * y) }
 
-    var monitorApproximation: MonitorInfo { monitorInfos.minByOrDie { distance(toOuterFrame: $0.rect) } }
+    // Fall back to mainMonitorInfo if there are no screens (e.g., during display reconfiguration) to avoid crash
+    var monitorApproximation: MonitorInfo { monitorInfos.minBy { distance(toOuterFrame: $0.rect) } ?? mainMonitorInfo }
 
     var withYAxisFlipped: CGPoint {
         consuming get {

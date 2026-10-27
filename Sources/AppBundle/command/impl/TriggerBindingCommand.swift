@@ -15,7 +15,7 @@ struct TriggerBindingCommand: Command {
             }
         } else {
             .fail(io.err("Mode '\(args.mode)' doesn't exist. " +
-                    "Available modes: \(config.modes.keys.joined(separator: ","))"))
+                    "Available modes: \(config.modes.keys.sorted().joined(separator: ","))"))
         }
     }
 }

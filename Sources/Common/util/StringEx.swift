@@ -36,16 +36,19 @@ extension [String] {
         if isEmpty {
             return ""
         }
-        var remainingLen = maxLength
-        let separatorCount = separator.count
         var result: String = first.orDie()
+        if result.count > maxLength {
+            return result.prefix(maxLength) + trailing
+        }
+        var remainingLen = maxLength - result.count
+        let separatorCount = separator.count
         for _elem in self.dropFirst() {
             let elemCount = separatorCount + _elem.count
             if remainingLen < elemCount / 2 {
                 return result + separator + trailing
             }
             let elem = separator + _elem
-            if elemCount < remainingLen {
+            if elemCount <= remainingLen {
                 result += elem
                 remainingLen -= elemCount
             } else {
@@ -62,7 +65,7 @@ extension [[String]] {
         return self.map { (row: [String]) in
             zip(row.enumerated(), pads)
                 .map { (elem: (Int, String), pad: Int) in
-                    elem.0 != row.count - 1 ? elem.1.padding(toLength: pad, withPad: " ", startingAt: 0) : elem.1
+                    elem.0 != row.count - 1 ? elem.1 + String(repeating: " ", count: pad - elem.1.count) : elem.1
                 }
                 .joined(separator: columnSeparator)
         }

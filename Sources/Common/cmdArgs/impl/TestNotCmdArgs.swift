@@ -8,7 +8,8 @@ public struct TestNotCmdArgs: CmdArgs {
 }
 
 func parseTestNotCmdArgs(_ args: StrArrSlice) -> ParsedCmd<TestNotCmdArgs> {
-    parseSpecificCmdArgs(TestCmdArgs(rawArgs: args), args).map {
-        TestNotCmdArgs(rawArgs: args).copy(\.testArgs, $0)
+    switch parseSpecificCmdArgs(TestCmdArgs(rawArgs: args), args) {
+        case .help: .help(TestNotCmdArgs.parser.kind.help)
+        case let parsed: parsed.map { TestNotCmdArgs(rawArgs: args).copy(\.testArgs, $0) }
     }
 }

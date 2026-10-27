@@ -51,6 +51,9 @@ private struct FrozenFocus: AeroAny, Equatable, Sendable {
 @MainActor var focus: LiveFocus { _focus.live }
 
 @MainActor func setFocus(to newFocus: LiveFocus) -> Bool {
+    // No screens (e.g., during display reconfiguration): workspaceMonitor is the fake mainMonitorInfo, so don't assign
+    // workspaces to monitors. Visible workspaces keep their monitors meanwhile, and they can still be focused
+    if !hasScreens && !newFocus.workspace.isVisible { return false }
     let oldFrozenFocus = _focus // Read it before newFocus.frozen. _focus is lazily initialized
     let newFrozenFocus = newFocus.frozen
     if oldFrozenFocus == newFrozenFocus { return true }
@@ -61,7 +64,7 @@ private struct FrozenFocus: AeroAny, Equatable, Sendable {
     }
 
     _focus = newFrozenFocus
-    let status = newFocus.workspace.workspaceMonitor.setActiveWorkspace(newFocus.workspace)
+    let status = !hasScreens || newFocus.workspace.workspaceMonitor.setActiveWorkspace(newFocus.workspace)
 
     newFocus.windowOrNil?.markAsMostRecentChild()
     return status
@@ -101,12 +104,21 @@ extension Workspace {
 @MainActor private var _prevFocus: FrozenFocus? = nil
 @MainActor var prevFocus: LiveFocus? { _prevFocus?.live.takeIf { $0 != focus } }
 
+/// Tests only: forget the focus history of the previous test
+@MainActor func resetFocusHistoryForTests() {
+    _prevFocus = nil
+    _lastKnownFocus = _focus // Otherwise, the next checkOnFocusChangedCallbacks restores _prevFocus from it
+}
+
 @MainActor private var onFocusChangedRecursionGuard = false
 // Should be called in refreshSession
 @MainActor func checkOnFocusChangedCallbacks_nonCancellable() async {
     if refreshSessionEvent?.isStartup == true {
         return
     }
+    // No screens (e.g., during display reconfiguration): the focused monitor is unknown. Keep the last known focus and
+    // defer the callbacks until the screens come back. Otherwise, they fire twice: now and when the screens come back
+    if !hasScreens { return }
     let focus = focus
     let frozenFocus = focus.frozen
     let lastKnownFocus = _lastKnownFocus

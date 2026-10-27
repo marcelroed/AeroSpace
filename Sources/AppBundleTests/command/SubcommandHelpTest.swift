@@ -21,8 +21,8 @@ struct SubcommandHelpTest: AeroSpaceTestSuite {
     @Test
     func testExecAndForgetHelp() {
         // The server shell treats everything after exec-and-forget as a bash script, the CLI doesn't know the subcommand
-        assertEquals(parsedArgs("exec-and-forget --help", as: ExecAndForgetCmdArgs.self)?.description, "exec-and-forget  --help")
-        assertEquals(parsedArgs("exec-and-forget -h", as: ExecAndForgetCmdArgs.self)?.description, "exec-and-forget  -h")
+        assertEquals(parsedArgs("exec-and-forget --help", as: ExecAndForgetCmdArgs.self)?.description, "exec-and-forget --help")
+        assertEquals(parsedArgs("exec-and-forget -h", as: ExecAndForgetCmdArgs.self)?.description, "exec-and-forget -h")
         assertEquals(parseCmdArgs(["exec-and-forget", "--help"].slice).errorOrNil, "Unrecognized subcommand 'exec-and-forget'")
         assertEquals(
             parseCommand("exec-and-forget --help", allowExecAndForget: false, allowEval: true).errorOrNil,
@@ -31,9 +31,10 @@ struct SubcommandHelpTest: AeroSpaceTestSuite {
     }
 
     @Test
-    func testDeprecatedMoveWorkspaceToDisplaySkipsWrapAroundCheck() {
-        assertEquals(parsedArgs("move-workspace-to-display --wrap-around main", as: MoveWorkspaceToMonitorCmdArgs.self)?.wrapAround, true)
-        assertEquals(parseCommand("move-workspace-to-monitor --wrap-around main").errorOrNil, "--wrap-around is incompatible with <monitor-pattern> argument")
+    func testDeprecatedMoveWorkspaceToDisplayChecksWrapAround() {
+        for subcommand in ["move-workspace-to-display", "move-workspace-to-monitor"] {
+            assertEquals(parseCommand("\(subcommand) --wrap-around main").errorOrNil, "ERROR: --wrap-around is incompatible with <monitor-pattern> argument")
+        }
     }
 }
 
@@ -216,10 +217,10 @@ private let expectedHelp: [(subcommand: String, help: String)] = [
         """,
     ),
     (
-        "test-not", // Known bug: test-not prints the usage of test
+        "test-not",
         """
-        USAGE: test [-h|--help] <lhs> = <rhs>
-           OR: test [-h|--help] <lhs> ~= <rhs>
+        USAGE: test-not [-h|--help] <lhs> = <rhs>
+           OR: test-not [-h|--help] <lhs> ~= <rhs>
         """,
     ),
     ("trigger-binding", "USAGE: trigger-binding [-h|--help] --mode <mode-id> [--] <binding>"),

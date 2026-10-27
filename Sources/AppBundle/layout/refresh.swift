@@ -30,6 +30,10 @@ func runHeavyCompleteRefreshSession(
     let state = signposter.beginInterval(#function, "event: \(event) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug ?? "nil")")
     defer { signposter.endInterval(#function, state) }
     if !TrayMenuModel.shared.isEnabled { return }
+    // No screens (e.g., during display reconfiguration). Skip the session: the model and the layout would be refreshed
+    // against the fake mainMonitorInfo. The next session catches up when the screens come back
+    if !hasScreens { return }
+    startWindowLevelCacheSession()
     do {
         try await $refreshSessionEvent.withValue(event) {
             try await syncFocusFromMacOs()
@@ -62,6 +66,7 @@ func runLightSession<T>(
     defer { signposter.endInterval(#function, state) }
     activeRefreshTask?.cancel() // Give priority to runSession
     activeRefreshTask = nil
+    startWindowLevelCacheSession()
     return try await $refreshSessionEvent.withValue(event) {
         try await syncFocusFromMacOs()
         let focusBefore = focus.windowOrNil
@@ -116,6 +121,10 @@ func refreshModel_nonCancellable() async {
 private func refresh() async throws {
     // Garbage collect terminated apps and windows before working with all windows
     let mapping = try await MacApp.refreshAllAndGetAliveWindowIds(frontmostAppBundleId: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
+    // The screens may disappear at the suspension point above (e.g. display reconfiguration on wake). Then garbage
+    // collecting a window would save the closed-windows cache with every workspace on the fake mainMonitorInfo, and
+    // restoring it would move them all to the main monitor. Leave the windows to a session that runs with screens
+    if !hasScreens { return }
     let aliveWindowIds = mapping.values.flatMap { $0 }.toSet()
 
     for window in MacWindow.allWindows {
@@ -149,12 +158,20 @@ enum OptimalHideCorner {
 private func layoutWorkspaces() async throws {
     if !TrayMenuModel.shared.isEnabled {
         for workspace in Workspace.all {
+            // No screens: don't lay the windows out against the fake mainMonitorInfo. AeroSpace can't be disabled while there
+            // are no screens (EnableCommand), so the windows were unhidden when it was disabled, unless the screens vanished
+            // during that session. Then the next `enable off` with screens unhides them. Checked per workspace, because the
+            // screens can vanish during an await
+            if !hasScreens { return }
             workspace.allLeafWindowsRecursive.forEach { ($0 as! MacWindow).unhideFromCorner() } // todo as!
             try await workspace.layoutWorkspace() // Unhide tiling windows from corner
         }
         return
     }
     let monitors = monitorInfos
+    // No screens (e.g., the screens disappeared in the middle of the refresh session). Don't hide windows in the corners of
+    // a monitor that doesn't exist
+    if monitors.isEmpty { return }
     var monitorToOptimalHideCorner: [CGPoint: OptimalHideCorner] = [:]
     for monitor in monitors {
         let xOff = monitor.width * 0.1
@@ -182,6 +199,8 @@ private func layoutWorkspaces() async throws {
 
     // to reduce flicker, first unhide visible workspaces, then hide invisible ones
     for monitor in monitors {
+        // The screens may also disappear at the suspension points below. Then workspaceMonitor is the fake mainMonitorInfo
+        if !hasScreens { return }
         let workspace = monitor.activeWorkspace
         workspace.allLeafWindowsRecursive.forEach { ($0 as! MacWindow).unhideFromCorner() } // todo as!
         try await workspace.layoutWorkspace()
@@ -189,6 +208,8 @@ private func layoutWorkspaces() async throws {
     for workspace in Workspace.all where !workspace.isVisible {
         let corner = monitorToOptimalHideCorner[workspace.workspaceMonitor.rect.topLeftCorner] ?? .bottomRightCorner
         for window in workspace.allLeafWindowsRecursive {
+            // Same. hideInCorner would also remember the window position relative to the fake monitor
+            if !hasScreens { return }
             try await (window as! MacWindow).hideInCorner(corner) // todo as!
         }
     }

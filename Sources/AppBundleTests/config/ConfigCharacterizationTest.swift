@@ -49,6 +49,26 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
     }
 
     @Test
+    func testBindingWithCommentedOutCommands() {
+        let result = parseConfig(
+            """
+            [mode.main.binding]
+                alt-a = '''
+                    # workspace a
+                '''
+                alt-b = '''
+                    # Go to workspace b
+                    workspace b
+                '''
+            """,
+        )
+        assertEquals(result.errors, [])
+        let bindings = result.config.modes[mainModeId]?.bindings ?? [:]
+        assertEquals(bindings["alt-a"]?.commands.shellOfCommandsDescription, "")
+        assertEquals(bindings["alt-b"]?.commands.shellOfCommandsDescription, "workspace b")
+    }
+
+    @Test
     func testDynamicGapValueOfWrongScalarType() {
         let result = parseConfig(
             """
@@ -139,8 +159,7 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
         assertEquals(parseConfig("key-mapping.foo = 1").strErrors, ["[ERROR] key-mapping.foo: Unknown key"])
         assertEquals(parseConfig("exec = 1").strErrors, ["[ERROR] exec: Expected type is 'Table'. But actual type is 'Int'"])
         assertEquals(parseConfig("exec.foo = 1").strErrors, ["[ERROR] exec.foo: Unknown key"])
-        // RB-23: the expected type is 'Table'
-        assertEquals(parseConfig("exec.env-vars = 1").strErrors, ["[ERROR] exec.env-vars: Expected type is 'Array'. But actual type is 'Int'"])
+        assertEquals(parseConfig("exec.env-vars = 1").strErrors, ["[ERROR] exec.env-vars: Expected type is 'Table'. But actual type is 'Int'"])
         assertEquals(
             parseConfig("workspace-to-monitor-force-assignment = 1").strErrors,
             ["[ERROR] workspace-to-monitor-force-assignment: Expected type is 'Table'. But actual type is 'Int'"],

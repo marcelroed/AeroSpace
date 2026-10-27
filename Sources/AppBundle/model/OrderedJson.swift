@@ -28,13 +28,17 @@ enum OrderedJson: Encodable, Equatable { // todo rename to Dto (data transfer ob
         }
     }
 
-    static func newOrDieRecursive(_ value: Any?) -> OrderedJson {
+    /// nil if the value contains something that `OrderedJson` can't represent (e.g. a non-integer number)
+    static func newOrNilRecursive(_ value: Any?) -> OrderedJson? {
         switch value {
-            case let value as [String: Any?]: .dict(OrderedDictionary(uniqueKeysWithValues: value.mapValues(newOrDieRecursive)))
-            case let value as [Any?]: .array(value.map(newOrDieRecursive))
+            case let value as [String: Any?]:
+                let dict = value.compactMapValues(newOrNilRecursive)
+                return dict.count == value.count ? .dict(OrderedDictionary(uniqueKeysWithValues: dict)) : nil
+            case let value as [Any?]:
+                let array = value.compactMap(newOrNilRecursive)
+                return array.count == value.count ? .array(array) : nil
             default:
-                newScalarOrNil(value)
-                    ?? dieT("Can't parse \(String(describing: value)) (\(Swift.type(of: value))) to JSON")
+                return newScalarOrNil(value)
         }
     }
 
@@ -43,7 +47,7 @@ enum OrderedJson: Encodable, Equatable { // todo rename to Dto (data transfer ob
             case let value as Int64: .int(value)
             case let value as Int: .int(Int64(value))
             case let value as UInt32: .int(Int64(value))
-            case let value as UInt: .int(Int64(value))
+            case let value as UInt: Int64(exactly: value).map { .int($0) } // nil above Int64.max instead of trapping
             case let value as Bool: .bool(value)
             case let value as String: .string(value)
             case nil, is NSNull: .null
@@ -68,8 +72,6 @@ enum OrderedJson: Encodable, Equatable { // todo rename to Dto (data transfer ob
             case .string(let x): x
         }
     }
-
-    var asDictOrDie: JsonDict { asDictOrNil.orDie("\(self) is not a dict") }
 
     var asInt64OrNil: Int64? {
         if case .int(let value) = self { value } else { nil }

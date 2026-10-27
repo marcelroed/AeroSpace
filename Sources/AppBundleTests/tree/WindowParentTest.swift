@@ -87,13 +87,13 @@ struct WindowParentTest: AeroSpaceTestSuite {
         for command in ["layout h_tiles", "layout accordion", "layout vertical"] {
             await assertRun(command, exitCode: 2, stderr: ["The window is non-tiling"])
         }
-        await assertRun("layout floating", exitCode: 0, stderr: ["Already in the requested floating mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
+        await assertRun("layout floating", exitCode: 0, stderr: ["Already in the requested floating mode. Tip: use --fail-if-noop to exit with non-zero code"])
 
         await assertRun("layout floating tiling", exitCode: 0, stderr: [])
         assertEquals(workspace.layoutDescription, .workspace([.h_tiles([.window(1), .window(2)]), .floatingWindowsContainer([])]))
         assertEquals(floating.lastFloatingSize, CGSize(width: 100, height: 50))
 
-        await assertRun("layout tiling", exitCode: 0, stderr: ["Already in the requested tiling mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
+        await assertRun("layout tiling", exitCode: 0, stderr: ["Already in the requested tiling mode. Tip: use --fail-if-noop to exit with non-zero code"])
         await assertRun("layout v_accordion", exitCode: 0)
         assertEquals(workspace.rootTilingContainer.layoutDescription, .v_accordion([.window(1), .window(2)]))
 

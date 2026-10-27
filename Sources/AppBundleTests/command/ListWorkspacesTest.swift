@@ -18,7 +18,7 @@ struct ListWorkspacesTest: AeroSpaceTestSuite {
         assertNil(parseCommand("list-workspaces --focused --monitor 2").cmdOrNil)
         assertNotNil(parseCommand("list-workspaces --all --format %{workspace}").cmdOrNil)
         assertEquals(parseCommand("list-workspaces --all --format %{workspace} --count").errorOrNil, "ERROR: Conflicting options: --count, --format")
-        assertEquals(parseCommand("list-workspaces --empty").errorOrNil, "Mandatory option is not specified (--all|--focused|--monitor)")
+        assertEquals(parseCommand("list-workspaces --empty").errorOrNil, "ERROR: Mandatory option is not specified (--all|--focused|--monitor)")
         assertEquals(parseCommand("list-workspaces --all --focused --monitor mouse").errorOrNil, "ERROR: Conflicting options: --all, --focused, --monitor")
     }
 
@@ -28,6 +28,17 @@ struct ListWorkspacesTest: AeroSpaceTestSuite {
         TestWindow.new(id: 2, parent: Workspace.get(byName: "b").rootTilingContainer)
         // Initial focused workspace "setUpWorkspacesForTests" is included; sort uses logical segments.
         await assertRun("list-workspaces --all", exitCode: 0, stdout: ["a", "b", "setUpWorkspacesForTests"], stderr: [])
+    }
+
+    @Test
+    func testRunAll_namesThatDifferOnlyInLeadingZerosAreOrderedByName() async {
+        #expect(Workspace.get(byName: "01") < Workspace.get(byName: "1"))
+        #expect(!(Workspace.get(byName: "1") < Workspace.get(byName: "01")))
+        TestWindow.new(id: 1, parent: Workspace.get(byName: "1").rootTilingContainer)
+        TestWindow.new(id: 2, parent: Workspace.get(byName: "01").rootTilingContainer)
+        TestWindow.new(id: 3, parent: Workspace.get(byName: "001").rootTilingContainer)
+        let result = await parseCommand("list-workspaces --all").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result.stdout, ["001", "01", "1", "setUpWorkspacesForTests"])
     }
 
     @Test

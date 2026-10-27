@@ -34,5 +34,8 @@ extension ParsedCmd where T: CmdArgs {
         flatMap { this in !predicate(this) ? .cmd(this) : .failure(msg()) }
     }
 
-    public static func failure(_ msg: String) -> Self { .failure(CmdParsingFailure(msg, T.ExitCodeType.fail.rawValue)) }
+    /// A validation failure after the args are parsed. Formatted like the arg-parser errors
+    public static func failure(_ msg: String) -> Self { .failure([msg]) }
+
+    static func failure(_ errors: [String]) -> Self { .failure(CmdParsingFailure(errors.joinErrors(), T.ExitCodeType.fail.rawValue)) }
 }

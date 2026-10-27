@@ -31,7 +31,8 @@ struct ListWindowsCommand: Command {
                 if monitors.isEmpty { return .fail }
                 workspaces = workspaces.filter { monitors.contains($0.workspaceMonitor.rect.topLeftCorner) }
             }
-            windows = workspaces.flatMap(\.allLeafWindowsRecursive)
+            // A Set iterates in a random order. Windows that tie in the final sort keep workspace order, then tree order
+            windows = workspaces.sorted().flatMap(\.allLeafWindowsRecursive)
             if let pid = args.filteringOptions.pidFilter {
                 windows = windows.filter { $0.app.pid == pid }
             }

@@ -37,11 +37,11 @@ extension ConfigCmdArgs {
 func parseConfigCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ConfigCmdArgs> {
     parseSpecificCmdArgs(ConfigCmdArgs(commonState: .init(args)), args)
         .flatMap { raw in
-            var conflicting: Set<String> = []
-            if raw.keyNameToGet != nil { conflicting.insert("--get") }
-            if raw.majorKeys { conflicting.insert("--major-keys") }
-            if raw.allKeys { conflicting.insert("--all-keys") }
-            if raw.configPath { conflicting.insert("--config-path") }
+            var conflicting: [String] = []
+            if raw.keyNameToGet != nil { conflicting.append("--get") }
+            if raw.majorKeys { conflicting.append("--major-keys") }
+            if raw.allKeys { conflicting.append("--all-keys") }
+            if raw.configPath { conflicting.append("--config-path") }
             return switch conflicting.count {
                 case 1: .cmd(raw)
                 case 0: .failure("Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)")

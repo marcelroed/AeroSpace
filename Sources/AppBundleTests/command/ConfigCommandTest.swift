@@ -19,27 +19,38 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
 
         assertEquals(
             parseCommand("config").errorOrNil,
-            "Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)",
+            "ERROR: Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)",
         )
         // --keys/--json alone still trigger the mandatory-flag check first because they don't
         // contribute to the mandatory-flag set.
         assertEquals(
             parseCommand("config --keys").errorOrNil,
-            "Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)",
+            "ERROR: Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)",
         )
         assertEquals(
             parseCommand("config --json").errorOrNil,
-            "Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)",
+            "ERROR: Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)",
         )
-        assertEquals(parseCommand("config --major-keys --keys").errorOrNil, "--keys flag requires --get flag")
-        assertEquals(parseCommand("config --major-keys --json").errorOrNil, "--json flag requires --get flag")
+        assertEquals(parseCommand("config --major-keys --keys").errorOrNil, "ERROR: --keys flag requires --get flag")
+        assertEquals(parseCommand("config --major-keys --json").errorOrNil, "ERROR: --json flag requires --get flag")
 
-        // Two mandatory flags are mutually exclusive. The collection of conflicting flag names
-        // comes from a Set so we can't rely on the order, only the message shape.
-        let conflictErr = parseCommand("config --major-keys --all-keys").errorOrNil
-        assertTrue(conflictErr?.hasPrefix("Conflicting flags are specified:") == true)
-        assertTrue(conflictErr?.contains("--major-keys") == true)
-        assertTrue(conflictErr?.contains("--all-keys") == true)
+        // Two mandatory flags are mutually exclusive
+        assertEquals(parseCommand("config --major-keys --all-keys").errorOrNil, "ERROR: Conflicting flags are specified: --major-keys, --all-keys")
+    }
+
+    @Test
+    func testParse_conflictingFlagsAreListedInFixedOrder() {
+        // Every combination of two or more mandatory flags, passed in reverse order. The flags used to be collected
+        // in a Set, whose order is random. The eleven combinations make an unordered collection fail reliably (RB-13)
+        let flags: [(name: String, args: String)] =
+            [("--get", "--get foo"), ("--major-keys", "--major-keys"), ("--all-keys", "--all-keys"), ("--config-path", "--config-path")]
+        for mask in 0 ..< (1 << flags.count) where mask.nonzeroBitCount >= 2 {
+            let combination = flags.indices.filter { mask & (1 << $0) != 0 }.map { flags[$0] }
+            assertEquals(
+                parseCommand("config " + combination.reversed().map(\.args).joined(separator: " ")).errorOrNil,
+                "ERROR: Conflicting flags are specified: " + combination.map(\.name).joined(separator: ", "),
+            )
+        }
     }
 
     @Test
@@ -55,9 +66,17 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
         ]
         let result = await assertRun("config --major-keys", exitCode: 0, stderr: [])
         // The whole listing comes back as one stdout entry separated by newlines.
-        // Dict iteration order isn't stable, so sort before asserting.
-        let lines = (result.stdout.singleOrNil() ?? "").split(separator: "\n").map(String.init).sorted()
-        assertEquals(lines, [".", "mode", "mode.main.binding", "mode.service.binding"])
+        assertEquals(result.stdout, [".\nmode\nmode.main.binding\nmode.service.binding"])
+    }
+
+    @Test
+    func testMajorKeys_sortedOutput() async {
+        // Ten modes, so that the dictionary order can't match the sorted order by chance (RB-13)
+        config.modes = manyModes()
+        let result = await parseCommand("config --major-keys").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result.exitCode.rawValue, 0)
+        assertEquals(result.stderr, [])
+        assertEquals(result.stdout, [([".", "mode"] + manyModeNames.sorted().map { "mode.\($0).binding" }).joined(separator: "\n")])
     }
 
     @Test
@@ -66,6 +85,21 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
 
         // Single mode + single binding => dict iteration order doesn't affect the output.
         await assertRun("config --all-keys", exitCode: 0, stdout: [".\nmode\nmode.main\nmode.main.binding\nmode.main.binding.alt-h"], stderr: [])
+    }
+
+    @Test
+    func testAllKeys_sortedOutput() async {
+        let command = parseCommand("focus left").cmdOrDie
+        let bindings = [HotkeyBinding(.option, .k, command), HotkeyBinding(.option, .h, command), HotkeyBinding(.option, .j, command)]
+        config.modes = manyModes(bindings: Dictionary(uniqueKeysWithValues: bindings.map { ($0.descriptionWithKeyCode, $0) }))
+
+        let result = await parseCommand("config --all-keys").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result.exitCode.rawValue, 0)
+        assertEquals(result.stderr, [])
+        let expected = [".", "mode"] + manyModeNames.sorted().flatMap { mode in
+            ["mode.\(mode)", "mode.\(mode).binding"] + ["alt-h", "alt-j", "alt-k"].map { "mode.\(mode).binding.\($0)" }
+        }
+        assertEquals(result.stdout, [expected.joined(separator: "\n")])
     }
 
     @Test
@@ -115,6 +149,19 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
     }
 
     @Test
+    func testGetMode_keysJson_sortedOutput() async {
+        config.modes = manyModes()
+        let expected = JSONEncoder.aeroSpaceDefault.encodeToString(
+            OrderedJson.array(manyModeNames.sorted().map { .string($0) }),
+        )
+
+        let result = await parseCommand("config --get mode --keys --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result.exitCode.rawValue, 0)
+        assertEquals(result.stderr, [])
+        assertEquals(result.stdout, [expected])
+    }
+
+    @Test
     func testGetScalar() async {
         let command = bindAltHToFocusLeft()
 
@@ -125,12 +172,11 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
     func testGetScalar_keys_fails() async {
         let command = bindAltHToFocusLeft()
 
-        // The error message interpolates the enum directly, yielding the default Swift case repr.
         await assertRun(
             "config --get mode.main.binding.alt-h --keys",
             exitCode: 2,
             stdout: [],
-            stderr: ["--keys flag cannot be applied to scalar object 'string(\"\(command.shellOfCommandsDescription)\")'"],
+            stderr: ["--keys flag cannot be applied to scalar object '\(command.shellOfCommandsDescription)'"],
         )
     }
 
@@ -266,4 +312,11 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
         config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
         return command
     }
+}
+
+/// Enough modes that a dictionary order can't match the sorted order by chance
+private let manyModeNames = ["main", "service", "resize", "move", "a", "z", "b", "y", "c", "x"]
+
+private func manyModes(bindings: [String: HotkeyBinding] = [:]) -> [String: Mode] {
+    Dictionary(uniqueKeysWithValues: manyModeNames.map { ($0, Mode(bindings: bindings)) })
 }

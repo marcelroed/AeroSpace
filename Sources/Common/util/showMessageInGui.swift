@@ -6,10 +6,17 @@ func showMessageInGui(filenameIfConsoleApp: String, title: String, message: Stri
     if isCli {
         print(titleAndMessage)
     } else {
-        let cachesDir = URL(filePath: "/tmp/bobko.aerospace/")
-        Result { try FileManager.default.createDirectory(at: cachesDir, withIntermediateDirectories: true) }.getOrDie()
+        // Per-user directory: a directory in the shared /tmp may belong to another user.
+        // Don't die if writing fails: dieT calls this function, dying here would recurse forever
+        let cachesDir = FileManager.default.temporaryDirectory.appending(component: "bobko.aerospace")
         let file = cachesDir.appending(component: filenameIfConsoleApp)
-        Result { try (titleAndMessage + "\n").write(to: file, atomically: true, encoding: .utf8) }.getOrDie()
+        do {
+            try FileManager.default.createDirectory(at: cachesDir, withIntermediateDirectories: true)
+            try (titleAndMessage + "\n").write(to: file, atomically: true, encoding: .utf8)
+        } catch {
+            eprint("Can't write \(file.path): \(error)")
+            return
+        }
 
         file.absoluteURL.open(with: URL(filePath: "/System/Applications/Utilities/Console.app"))
     }

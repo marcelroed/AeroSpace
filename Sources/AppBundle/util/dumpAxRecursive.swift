@@ -58,6 +58,8 @@ func prettyValue(_ value: Any?, recursionDepth: Int) -> OrderedJson {
         return .int(value)
     }
     if let value {
+        // Strings, AXValues and other values get here too. `as! AXUIElement` alone wouldn't check the type
+        guard CFGetTypeID(value as AnyObject) == AXUIElementGetTypeID() else { return .string(String(describing: value)) }
         let ax = value as! AXUIElement
         if ax.get(Ax.roleAttr) == kAXButtonRole {
             return .dict(dumpAxRecursive(ax, .button, recursionDepth: recursionDepth))

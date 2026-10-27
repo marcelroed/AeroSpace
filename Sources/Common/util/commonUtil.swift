@@ -1,6 +1,7 @@
 import AppKit
 import Darwin
 import Foundation
+import os
 
 public let socketPath = "/tmp/\(aeroSpaceAppId)-\(unixUserName).sock"
 public let unixUserName = NSUserName()
@@ -12,6 +13,15 @@ public var refreshSessionEvent: RefreshSessionEvent? = nil
 @TaskLocal
 private var recursionDetectorDuringTermination = false
 
+/// Threads that entered `dieT`. Such a thread never runs its run loop again: an AX app thread waits in `MainActor.runSync`
+/// until `beforeTermination` returns, so `beforeTermination` must not wait for a job on it
+private let dyingThreads = OSAllocatedUnfairLock(initialState: Set<ObjectIdentifier>())
+
+public func isDyingThread(_ thread: Thread) -> Bool {
+    let id = ObjectIdentifier(thread)
+    return dyingThreads.withLock { $0.contains(id) }
+}
+
 public func bugPrompt(
     _ __message: String = "",
     isDie: Bool = false,
@@ -22,6 +32,10 @@ public func bugPrompt(
 ) -> String {
     let _message = __message.contains("\n") ? "\n" + __message.prefixLines(with: "    ") : __message
     let thread = Thread.current
+    // AppKit doesn't document NSScreen as thread-safe, and the dying thread is often an AX thread
+    let notMainThread = "n/a (not main thread)"
+    let monitorCount = thread.isMainThread ? NSScreen.screens.count.description : notMainThread
+    let screensHaveSeparateSpaces = thread.isMainThread ? NSScreen.screensHaveSeparateSpaces.description : notMainThread
     return """
         Please report to:
             https://github.com/nikitabobko/AeroSpace/discussions/categories/potential-bugs
@@ -40,8 +54,8 @@ public func bugPrompt(
         recursionDetectorDuringTermination: \(recursionDetectorDuringTermination)
         cli: \(isCli)
         die: \(isDie)
-        Monitor count: \(NSScreen.screens.count)
-        Displays have separate spaces: \(NSScreen.screensHaveSeparateSpaces)
+        Monitor count: \(monitorCount)
+        Displays have separate spaces: \(screensHaveSeparateSpaces)
 
         Stacktrace:
         \(getStringStacktrace())
@@ -55,6 +69,8 @@ public func dieT<T>(
     column: Int = #column,
     function: String = #function,
 ) -> T {
+    let id = ObjectIdentifier(Thread.current)
+    dyingThreads.withLock { _ = $0.insert(id) }
     let message = bugPrompt(__message, isDie: true, file: file, line: line, column: column, function: function)
     if !isUnitTest && isServer {
         showMessageInGui(
@@ -145,8 +161,9 @@ public func check(
     }
 }
 
-// Computed once: XCTest is either loaded before any code reads this (test runner), or never loaded at all
-public let isUnitTest: Bool = NSClassFromString("XCTestCase") != nil
+// The test target defines this class (AppBundleTests/SwiftTestingSupport.swift). Whether XCTest is loaded depends on
+// the test runner. Computed once: code under test runs only after the test bundle, and so the class, is loaded
+public let isUnitTest: Bool = NSClassFromString("AeroSpaceUnitTestMarker") != nil
 
 extension CaseIterable where Self: RawRepresentable, RawValue == String {
     public static var cliArgsCases: [String] { allCases.map(\.rawValue) }

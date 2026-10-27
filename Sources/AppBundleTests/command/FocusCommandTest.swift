@@ -35,16 +35,16 @@ final class FocusCommandTest: XCTestCase {
         )
         assertEquals(
             parseCommand("focus --window-id 42 --ignore-floating").errorOrNil,
-            "--window-id is incompatible with other options",
+            "ERROR: --window-id is incompatible with other options",
         )
         assertEquals(
             parseCommand("focus --boundaries all-monitors-outer-frame dfs-next").errorOrNil,
-            "(dfs-next|dfs-prev) only supports --boundaries workspace",
+            "ERROR: (dfs-next|dfs-prev) only supports --boundaries workspace",
         )
 
         assertEquals(
             parseCommand("focus --window-id 42 --wrap-around").errorOrNil,
-            "--window-id is incompatible with other options",
+            "ERROR: --window-id is incompatible with other options",
         )
         assertEquals(
             parseCommand("focus left --boundaries-action wrap-around-the-workspace --wrap-around").errorOrNil,
@@ -52,11 +52,11 @@ final class FocusCommandTest: XCTestCase {
         )
         assertEquals(
             parseCommand("focus dfs-next --fail-if-fullscreen").errorOrNil,
-            "--fail-if-fullscreen/--fail-if-macos-native-fullscreen require using (left|down|up|right) argument",
+            "ERROR: --fail-if-fullscreen/--fail-if-macos-native-fullscreen require using (left|down|up|right) argument",
         )
         assertEquals(
             parseCommand("focus --fail-if-macos-native-fullscreen --window-id 42").errorOrNil,
-            "--window-id is incompatible with other options",
+            "ERROR: --window-id is incompatible with other options",
         )
         assertNil(parseCommand("focus --fail-if-fullscreen --fail-if-macos-native-fullscreen left").errorOrNil)
     }
@@ -72,9 +72,9 @@ final class FocusCommandTest: XCTestCase {
         assertEquals(parseCommand("focus foo").errorOrNil, "ERROR: Can't parse 'foo'.\n       Possible values: (left|down|up|right|dfs-next|dfs-prev)")
         assertEquals(
             parseCommand("focus --boundaries-action wrap-around-all-monitors dfs-next").errorOrNil,
-            "workspace and wrap-around-all-monitors is an invalid combination of values",
+            "ERROR: workspace and wrap-around-all-monitors is an invalid combination of values",
         )
-        assertEquals(parseCommand("focus --dfs-index 0 left").errorOrNil, "--dfs-index is incompatible with other options")
+        assertEquals(parseCommand("focus --dfs-index 0 left").errorOrNil, "ERROR: --dfs-index is incompatible with other options")
     }
 
     func testFailIfFullscreen() async {
@@ -407,5 +407,36 @@ final class FocusCommandTest: XCTestCase {
 
         assertEquals(workspace.floatingWindows.map(\.windowId).sorted(), [3, 4])
         assertEquals(workspace.rootTilingContainer.layoutDescription, .h_accordion([.window(1), .window(2)]))
+    }
+
+    func testFocusAcrossMonitors_noScreens_failsWithoutBugPrompt() async {
+        Workspace.get(byName: name).rootTilingContainer.apply {
+            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
+            TestWindow.new(id: 2, parent: $0)
+        }
+        // No screens (e.g., during display reconfiguration) is a normal state, not a bug (RB-40)
+        let result = await $noScreensForTests.withValue(true) {
+            await parseCommand("focus --boundaries all-monitors-outer-frame left").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        }
+        assertEquals(result, CmdResult(stdout: [], stderr: ["Can't focus across monitors while there are no screens"], exitCode: .fail))
+        assertEquals(focus.windowOrNil?.windowId, 1)
+    }
+
+    func testFocusDfsRelative_noWindow_failsWithMessage() async {
+        assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
+
+        let result = await parseCommand("focus dfs-next").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result, CmdResult(stdout: [], stderr: [noWindowIsFocused], exitCode: .fail))
+    }
+
+    func testFocusDfsRelative_ignoredFloatingWindow_failsWithMessage() async {
+        let workspace = Workspace.get(byName: name)
+        TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        let floating = TestWindow.new(id: 2, parent: workspace.floatingWindowsContainer, rect: Rect(topLeftX: 0, topLeftY: 0, width: 100, height: 100))
+        assertEquals(floating.focusWindow(), true)
+
+        let result = await parseCommand("focus --ignore-floating dfs-prev").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result, CmdResult(stdout: [], stderr: ["The window isn't part of the workspace tree"], exitCode: .fail))
+        assertEquals(focus.windowOrNil?.windowId, 2)
     }
 }

@@ -7,10 +7,10 @@ final class ListWindowsTest: XCTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
 
     func testParse() {
-        assertEquals(parseCommand("list-windows --pid 1").errorOrNil, "Mandatory option is not specified (--focused|--all|--monitor|--workspace)")
+        assertEquals(parseCommand("list-windows --pid 1").errorOrNil, "ERROR: Mandatory option is not specified (--focused|--all|--monitor|--workspace)")
         assertNil(parseCommand("list-windows --workspace M --pid 1").errorOrNil)
-        assertEquals(parseCommand("list-windows --pid 1 --focused").errorOrNil, "--focused conflicts with other \"filtering\" flags")
-        assertEquals(parseCommand("list-windows --pid 1 --all").errorOrNil, "--all conflicts with \"filtering\" flags. Please use '--monitor all' instead of '--all' alias")
+        assertEquals(parseCommand("list-windows --pid 1 --focused").errorOrNil, "ERROR: --focused conflicts with other \"filtering\" flags")
+        assertEquals(parseCommand("list-windows --pid 1 --all").errorOrNil, "ERROR: --all conflicts with \"filtering\" flags. Please use '--monitor all' instead of '--all' alias")
         assertNil(parseCommand("list-windows --all").errorOrNil)
         assertEquals(parseCommand("list-windows --all --workspace M").errorOrNil, "ERROR: Conflicting options: --all, --workspace")
         assertEquals(parseCommand("list-windows --all --focused").errorOrNil, "ERROR: Conflicting options: --all, --focused")
@@ -28,8 +28,8 @@ final class ListWindowsTest: XCTestCase {
 
         // --json
         assertEquals(parseCommand("list-windows --all --count --json").errorOrNil, "ERROR: Conflicting options: --count, --json")
-        assertEquals(parseCommand("list-windows --all --format '%{right-padding}' --json").errorOrNil, "%{right-padding} interpolation variable is not allowed when --json is used")
-        assertEquals(parseCommand("list-windows --all --format '%{window-title} |' --json").errorOrNil, "Only interpolation variables and spaces are allowed in \'--format\' when \'--json\' is used")
+        assertEquals(parseCommand("list-windows --all --format '%{right-padding}' --json").errorOrNil, "ERROR: %{right-padding} interpolation variable is not allowed when --json is used")
+        assertEquals(parseCommand("list-windows --all --format '%{window-title} |' --json").errorOrNil, "ERROR: Only interpolation variables and spaces are allowed in \'--format\' when \'--json\' is used")
         assertNil(parseCommand("list-windows --all --format '%{window-title}' --json").errorOrNil)
     }
 
@@ -91,6 +91,32 @@ final class ListWindowsTest: XCTestCase {
         TestWindow.new(id: 2, parent: Workspace.get(byName: "b").rootTilingContainer)
         let result = await assertRun("list-windows --all --format '%{window-id}'", exitCode: 0, stderr: [])
         assertEquals(result.stdout.sorted(), ["1", "2"])
+    }
+
+    func testRunAll_windowsOfTheSameAppAndTitleAreOrderedByWorkspace() async {
+        // The title isn't fetched for this format, so all the windows tie on the app name and the title. The windows
+        // are collected from a Set of workspaces, whose order is random, and ten of them make it fail reliably (RB-13).
+        // The IDs go down while the workspaces go up (in logical order: w2 < w10), so ordering by ID fails too
+        for index: UInt32 in (1 ... 10).reversed() {
+            TestWindow.new(id: 11 - index, parent: Workspace.get(byName: "w\(index)").rootTilingContainer)
+        }
+        let result = await parseCommand("list-windows --all --format '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result.exitCode.rawValue, 0)
+        assertEquals(result.stdout, (1 ... 10).reversed().map(String.init))
+    }
+
+    func testRunWorkspace_windowsOfTheSameAppAndTitleAreInTreeOrder() async {
+        // Tree order differs from ID order. Within one workspace, tied windows are listed in tree order (RB-13)
+        Workspace.get(byName: "a").rootTilingContainer.apply {
+            TestWindow.new(id: 3, parent: $0)
+            TilingContainer.newVTiles(parent: $0, adaptiveWeight: 1).apply {
+                TestWindow.new(id: 1, parent: $0)
+            }
+            TestWindow.new(id: 2, parent: $0)
+        }
+        let result = await parseCommand("list-windows --workspace a --format '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result.exitCode.rawValue, 0)
+        assertEquals(result.stdout, ["3", "1", "2"])
     }
 
     func testRunCount() async {

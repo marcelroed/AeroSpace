@@ -33,7 +33,7 @@ struct SwiftTestingSupportSecondSuiteTest {
     }
 }
 
-// No global state trait: XCTest isn't needed to run Swift Testing tests, but isUnitTest detects tests by XCTest
+// No global state trait (it checks isUnitTest itself)
 @Suite
 struct IsUnitTestTest {
     @Test

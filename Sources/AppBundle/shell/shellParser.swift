@@ -1,6 +1,6 @@
 import Common
 
-// Root = Seq? EndOfInput
+// Root = "\n"* Seq? EndOfInput
 //
 // EndOfInput = /$/
 //
@@ -11,7 +11,7 @@ import Common
 // And = Pipe ("&&" Pipe)*
 //
 // Pipe
-//   = "(" Seq ")"
+//   = "(" "\n"* Seq ")"
 //   | Cmd ("|" Cmd)*
 //
 // Cmd = Word+
@@ -24,8 +24,9 @@ extension String {
 
 func parseShell(_ tokens: [LexerToken]) -> ResOrStr<Shell<[String]>> {
     Result { () throws(String) in
-        if tokens.count == 1, tokens[0].payload == .end { return .empty }
         var index = 0
+        while tokens[index].payload == .newline { index += 1 } // Skip leading empty lines and comment lines
+        if tokens[index].payload == .end { return .empty }
         let result = try parseShellSeq(&index, tokens)
         let token = tokens[index]
         if token.payload != .end {
@@ -76,6 +77,7 @@ private func parseShellAnd(_ index: inout Int, _ tokens: [LexerToken]) throws(St
 private func parseShellPipe(_ index: inout Int, _ tokens: [LexerToken]) throws(String) -> Shell<[String]> {
     if tokens[index].payload == .lParen {
         index += 1
+        while tokens[index].payload == .newline { index += 1 } // Skip empty lines and comment lines, like at the top level
         let result = try parseShellSeq(&index, tokens)
         if tokens[index].payload != .rParen {
             throw "\(tokens[index].location): Expected ')'. Got: \(tokens[index].payload.description.singleQuoted)"

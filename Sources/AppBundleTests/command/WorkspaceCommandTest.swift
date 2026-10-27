@@ -12,10 +12,10 @@ final class WorkspaceCommandTest: XCTestCase {
         assertEquals(parseCommand("workspace").errorOrNil, "ERROR: Argument '(<workspace-name>|next|prev)' is mandatory")
         testParseSingleCommandSucc("workspace next", WorkspaceCmdArgs(target: .relative(.next)))
         testParseSingleCommandSucc("workspace --auto-back-and-forth W", WorkspaceCmdArgs(target: .direct(.parse("W").getOrDie()), autoBackAndForth: true))
-        assertEquals(parseCommand("workspace --wrap-around W").errorOrNil, "--wrapAround requires using (next|prev) argument")
-        assertEquals(parseCommand("workspace --auto-back-and-forth next").errorOrNil, "--auto-back-and-forth is incompatible with (next|prev)")
+        assertEquals(parseCommand("workspace --wrap-around W").errorOrNil, "ERROR: --wrap-around requires using (next|prev) argument")
+        assertEquals(parseCommand("workspace --auto-back-and-forth next").errorOrNil, "ERROR: --auto-back-and-forth is incompatible with (next|prev)")
         testParseSingleCommandSucc("workspace next --wrap-around", WorkspaceCmdArgs(target: .relative(.next), wrapAround: true))
-        assertEquals(parseCommand("workspace --stdin foo").errorOrNil, "--stdin and --no-stdin require using (next|prev) argument")
+        assertEquals(parseCommand("workspace --stdin foo").errorOrNil, "ERROR: --stdin and --no-stdin require using (next|prev) argument")
         testParseSingleCommandSucc("workspace --stdin next", WorkspaceCmdArgs(target: .relative(.next)).copy(\.commonState.explicitStdinFlag, true))
         testParseSingleCommandSucc("workspace --no-stdin next", WorkspaceCmdArgs(target: .relative(.next)).copy(\.commonState.explicitStdinFlag, false))
     }

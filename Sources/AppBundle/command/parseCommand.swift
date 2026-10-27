@@ -6,7 +6,10 @@ func parseCommand(
     allowEval: Bool,
 ) -> ParsedCmd<Shell<any Command>> {
     if allowExecAndForget && raw.starts(with: "exec-and-forget") {
-        return .cmd(.cmd(ExecAndForgetCommand(args: ExecAndForgetCmdArgs(bashScript: raw.removePrefix("exec-and-forget")))))
+        let bashScript = raw.removePrefix("exec-and-forget")
+        if bashScript.first?.isWhitespace ?? true { // Don't take `exec-and-forgetfoo` for `exec-and-forget foo`
+            return .cmd(.cmd(ExecAndForgetCommand(args: ExecAndForgetCmdArgs(bashScript: bashScript))))
+        }
     }
     return switch raw.lexAndParseShell() {
         case .success(let it):

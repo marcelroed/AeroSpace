@@ -9,8 +9,8 @@ struct MoveNodeToMonitorCommandTest: AeroSpaceTestSuite {
     func testParse() {
         testParseSingleCommandSucc("move-node-to-monitor next", MoveNodeToMonitorCmdArgs(target: .relative(.next)))
         testParseSingleCommandSucc("move-node-to-monitor --fail-if-noop main", MoveNodeToMonitorCmdArgs(target: .patterns([.main])).copy(\.failIfNoop, true))
-        assertEquals(parseCommand("move-node-to-monitor --fail-if-noop next").errorOrNil, "--fail-if-noop is incompatible with (left|down|up|right|next|prev)")
-        assertEquals(parseCommand("move-node-to-monitor --fail-if-noop left").errorOrNil, "--fail-if-noop is incompatible with (left|down|up|right|next|prev)")
+        assertEquals(parseCommand("move-node-to-monitor --fail-if-noop next").errorOrNil, "ERROR: --fail-if-noop is incompatible with (left|down|up|right|next|prev)")
+        assertEquals(parseCommand("move-node-to-monitor --fail-if-noop left").errorOrNil, "ERROR: --fail-if-noop is incompatible with (left|down|up|right|next|prev)")
     }
 
     @Test

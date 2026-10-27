@@ -78,6 +78,12 @@ struct ParseEnvVariablesTest: AeroSpaceTestSuite {
         ).strErrors
         assertEquals(errors, ["[ERROR] exec.env-vars.PWD: Changing 'PWD' is not allowed"])
     }
+
+    @Test
+    func testEnvVarsOfWrongType() {
+        let errors = parseConfig("exec.env-vars = 1").strErrors
+        assertEquals(errors, ["[ERROR] exec.env-vars: Expected type is 'Table'. But actual type is 'Int'"])
+    }
 }
 
 private func testSucInterpolation(

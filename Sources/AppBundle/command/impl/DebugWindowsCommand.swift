@@ -42,6 +42,7 @@ struct DebugWindowsCommand: Command {
                 debugWindowsLog = [:]
                 return .succ
             case .notRecording:
+                guard let target = args.resolveTargetOrReportError(env, io) else { return .fail }
                 debugWindowsState = .recording
                 debugWindowsLog = [:]
                 io.out(
@@ -52,7 +53,6 @@ struct DebugWindowsCommand: Command {
                     """,
                 )
                 // Make sure that the Terminal window that started the recording is recorded first
-                guard let target = args.resolveTargetOrReportError(env, io) else { return .fail }
                 if let window = target.windowOrNil {
                     do {
                         try await debugWindowsIfRecording(window, .nonCancellable)
@@ -116,10 +116,11 @@ private func dumpWindowDebugInfo(_ window: Window, _ cm: CancellationMode) async
 @MainActor
 func debugWindowsIfRecording(_ window: Window, _ cm: CancellationMode) async throws {
     guard debugWindowsState == .recording else { return }
-    if debugWindowsLog.count > debugWindowsLimit {
+    if debugWindowsLog.keys.contains(window.windowId) { return }
+    if debugWindowsLog.count >= debugWindowsLimit {
         debugWindowsState = .recordingAborted
         debugWindowsLog = [:]
+        return
     }
-    if debugWindowsLog.keys.contains(window.windowId) { return }
     debugWindowsLog[window.windowId] = try await dumpWindowDebugInfo(window, cm)
 }

@@ -11,7 +11,7 @@ struct EnableCommandTest: AeroSpaceTestSuite {
         testParseSingleCommandSucc("enable off", EnableCmdArgs(rawArgs: [], targetState: .off))
         testParseSingleCommandSucc("enable toggle", EnableCmdArgs(rawArgs: [], targetState: .toggle))
         testParseSingleCommandSucc("enable --fail-if-noop on", EnableCmdArgs(rawArgs: [], targetState: .on).copy(\.failIfNoop, true))
-        assertEquals(parseCommand("enable toggle --fail-if-noop").errorOrNil, "--fail-if-noop is incompatible with 'toggle' argument")
+        assertEquals(parseCommand("enable toggle --fail-if-noop").errorOrNil, "ERROR: --fail-if-noop is incompatible with 'toggle' argument")
         assertEquals(parseCommand("enable foo").errorOrNil, "ERROR: Can't parse 'foo'.\n       Possible values: (on|off|toggle)")
         assertEquals(parseCommand("enable").errorOrNil, "ERROR: Argument '(on|off|toggle)' is mandatory")
     }

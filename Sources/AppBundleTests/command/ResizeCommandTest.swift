@@ -25,6 +25,14 @@ final class ResizeCommandTest: XCTestCase {
         testParseCommandFail("resize smart foo", msg: "ERROR: <number> argument must be a number")
     }
 
+    func testParseCommand_acceptsAtMostOneSign() {
+        // RB-33: UInt(...) accepts a sign too, so `+-10` and `++10` used to mean `+10`
+        testParseCommandFail("resize smart +-10", msg: "ERROR: <number> argument must be a number", exitCode: 2)
+        testParseCommandFail("resize smart ++10", msg: "ERROR: <number> argument must be a number", exitCode: 2)
+        testParseCommandFail("resize smart +-0", msg: "ERROR: <number> argument must be a number", exitCode: 2)
+        testParseCommandFail("resize smart +", msg: "ERROR: <number> argument must be a number", exitCode: 2)
+    }
+
     func testWidthAdd_growsTargetShrinksSiblings() async {
         let (window1, window2, window3) = setUpThreeWindows()
 
@@ -126,7 +134,34 @@ final class ResizeCommandTest: XCTestCase {
             TestWindow.new(id: 2, parent: $0)
         }
 
-        await assertRun("resize height +2", exitCode: 2)
+        await assertRun("resize height +2", exitCode: 2, stderr: ["Can't resize: the window isn't inside a vertical tiles container"]) // Not "floating windows"
+    }
+
+    func testSmart_accordionParent_returnsFail() async {
+        let root = Workspace.get(byName: name).rootTilingContainer
+        root.layout = .accordion
+        assertEquals(TestWindow.new(id: 1, parent: root).focusWindow(), true)
+        TestWindow.new(id: 2, parent: root)
+
+        await assertRun("resize smart +2", exitCode: 2, stderr: ["Can't resize: the window isn't inside a tiles container"])
+    }
+
+    func testFloatingWindow_returnsFail() async {
+        let workspace = Workspace.get(byName: name)
+        assertEquals(TestWindow.new(id: 1, parent: workspace.floatingWindowsContainer).focusWindow(), true)
+        TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
+
+        await assertRun(
+            "resize width +2",
+            exitCode: 2,
+            stderr: ["resize command doesn't support floating windows yet https://github.com/nikitabobko/AeroSpace/issues/9"],
+        )
+    }
+
+    func testNoWindow_returnsFail() async {
+        assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
+
+        await assertRun("resize width +2", exitCode: 2, stderr: [noWindowIsFocused])
     }
 
     func testSingleChildParent_failsCleanly() async {
@@ -134,7 +169,7 @@ final class ResizeCommandTest: XCTestCase {
         let window = TestWindow.new(id: 1, parent: Workspace.get(byName: name).rootTilingContainer, adaptiveWeight: 4)
         assertEquals(window.focusWindow(), true)
 
-        await assertRun("resize width +2", exitCode: 2)
+        await assertRun("resize width +2", exitCode: 2, stderr: ["Can't resize: there are no other tiling windows to the left or right"]) // RB-67
         assertEquals(window.hWeight, 4)
     }
 

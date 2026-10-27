@@ -70,7 +70,6 @@ struct CommonUtilTest: AeroSpaceTestSuite {
         assertEquals([[1]].transposed(), [[1]])
         assertEquals([[1, 2, 3], [4, 5, 6]].transposed(), [[1, 4], [2, 5], [3, 6]])
         assertEquals([[Int]]([[], []]).transposed(), [])
-        assertEquals([[1], [2, 3]].transposed(), [[1, 2]]) // The first row defines the column count
     }
 
     @Test
@@ -84,21 +83,31 @@ struct CommonUtilTest: AeroSpaceTestSuite {
             [["a", "b"], ["cc", "d"]].toPaddingTable(columnSeparator: "   "),
             ["a    b", "cc   d"],
         )
+        // Characters made of several UTF-16 code units (a combining accent, emoji) are padded by Character count
+        assertEquals(
+            [["e\u{301}", "x"], ["🙂🙂", "y"], ["abc", "z"]].toPaddingTable(),
+            ["e\u{301}   | x", "🙂🙂  | y", "abc | z"],
+        )
     }
 
     @Test
     func testJoinTruncating() {
-        let arr = ["aaa", "bbb", "ccc"]
+        let arr = ["aaa", "bbb", "ccc"] // "aaa, bbb, ccc" is 13 characters long
         assertEquals([String]().joinTruncating(separator: ", ", length: 0), "")
-        assertEquals(["a"].joinTruncating(separator: ", ", length: 0), "a")
+        assertEquals(["a"].joinTruncating(separator: ", ", length: 1), "a")
+        assertEquals(["abc"].joinTruncating(separator: ", ", length: 2), "ab…") // The first element counts too
         assertEquals(arr.joinTruncating(separator: ", ", length: 100), "aaa, bbb, ccc")
-        assertEquals(arr.joinTruncating(separator: ", ", length: 12), "aaa, bbb, ccc")
-        assertEquals(arr.joinTruncating(separator: ", ", length: 10), "aaa, bbb, ccc…")
-        assertEquals(arr.joinTruncating(separator: ", ", length: 6), "aaa, bbb, …")
-        assertEquals(arr.joinTruncating(separator: ", ", length: 5), "aaa, bbb…")
-        assertEquals(arr.joinTruncating(separator: ", ", length: 4), "aaa, bb…")
-        assertEquals(arr.joinTruncating(separator: ", ", length: 1), "aaa, …")
-        assertEquals(["x", "yyyy"].joinTruncating(separator: "|", length: 2, trailing: "..."), "x|y...")
+        assertEquals(arr.joinTruncating(separator: ", ", length: 13), "aaa, bbb, ccc") // Fits exactly: no ellipsis
+        assertEquals(arr.joinTruncating(separator: ", ", length: 12), "aaa, bbb, cc…")
+        assertEquals(arr.joinTruncating(separator: ", ", length: 10), "aaa, bbb, …")
+        assertEquals(arr.joinTruncating(separator: ", ", length: 8), "aaa, bbb, …")
+        assertEquals(arr.joinTruncating(separator: ", ", length: 6), "aaa, b…")
+        assertEquals(arr.joinTruncating(separator: ", ", length: 5), "aaa, …")
+        assertEquals(arr.joinTruncating(separator: ", ", length: 4), "aaa, …")
+        assertEquals(arr.joinTruncating(separator: ", ", length: 1), "a…")
+        assertEquals(["aaa", "bbb"].joinTruncating(separator: ", ", length: 8), "aaa, bbb") // Fits exactly: no ellipsis
+        assertEquals(["x", "yyyy"].joinTruncating(separator: "|", length: 2, trailing: "..."), "x|...")
+        assertEquals(["x", "yyyy"].joinTruncating(separator: "|", length: 4, trailing: "..."), "x|yy...")
     }
 
     @Test

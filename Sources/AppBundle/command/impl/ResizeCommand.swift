@@ -22,7 +22,16 @@ struct ResizeCommand: Command {
         let node = candidates.first(where: { ($0.parent as? TilingContainer)?.orientation == orientation })
         // node was picked by its parent's orientation, so parent.orientation == orientation
         guard let node, let parent = node.parent as? TilingContainer else {
-            return .fail(io.err("resize command doesn't support floating windows yet https://github.com/nikitabobko/AeroSpace/issues/9"))
+            guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
+            if window.isFloating {
+                return .fail(io.err("resize command doesn't support floating windows yet https://github.com/nikitabobko/AeroSpace/issues/9"))
+            }
+            let container = switch orientation {
+                case .h: "horizontal tiles container"
+                case .v: "vertical tiles container"
+                case nil: "tiles container"
+            }
+            return .fail(io.err("Can't resize: the window isn't inside a \(container)"))
         }
         let diff: CGFloat = switch args.units.val {
             case .set(let unit): CGFloat(unit) - node.getWeight(parent.orientation)
@@ -30,7 +39,9 @@ struct ResizeCommand: Command {
             case .subtract(let unit): -CGFloat(unit)
         }
 
-        guard let childDiff = diff.div(parent.children.count - 1) else { return .fail }
+        guard let childDiff = diff.div(parent.children.count - 1) else {
+            return .fail(io.err("Can't resize: there are no other tiling windows \(parent.orientation == .h ? "to the left or right" : "above or below")"))
+        }
         for child in parent.children where child != node {
             child.setWeight(parent.orientation, child.getWeight(parent.orientation) - childDiff)
         }

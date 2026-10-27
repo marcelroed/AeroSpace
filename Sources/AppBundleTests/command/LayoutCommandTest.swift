@@ -12,21 +12,21 @@ final class LayoutCommandTest: XCTestCase {
         assertNil(parseCommand("layout floating tiling").errorOrNil)
         assertNil(parseCommand("layout --window-id 1 horizontal vertical").errorOrNil)
 
-        testParseCommandFail("layout --root accordion tiling", msg: "layout command: --root and tiling|floating are incompatible")
+        testParseCommandFail("layout --root accordion tiling", msg: "ERROR: layout command: --root and tiling|floating are incompatible")
         testParseSingleCommandSucc(
             "layout --root accordion tiles",
             LayoutCmdArgs(rawArgs: [], toggleBetween: [.accordion, .tiles]).copy(\.root, true),
         )
-        testParseCommandFail("layout --workspace 2 tiles", msg: "--workspace flag requires using an explicit --root flag")
+        testParseCommandFail("layout --workspace 2 tiles", msg: "ERROR: --workspace flag requires using an explicit --root flag")
         testParseCommandFail("layout --workspace 2 --window-id 2 tiles", msg: "ERROR: Conflicting options: --window-id, --workspace")
-        testParseCommandFail("layout --fail-if-noop accordion tiling", msg: "--fail-if-noop allows only one <target-layout> argument")
+        testParseCommandFail("layout --fail-if-noop accordion tiling", msg: "ERROR: --fail-if-noop allows only one <target-layout> argument")
 
         testParseSingleCommandSucc(
             "layout --for-next-detected-window floating",
             LayoutCmdArgs(rawArgs: [], toggleBetween: [.floating]).copy(\.forNextDetectedWindow, true),
         )
-        testParseCommandFail("layout --for-next-detected-window floating tiling", msg: layoutCommandForNextDetectedWindowFlagIncompatibilityMsg)
-        testParseCommandFail("layout --for-next-detected-window accordion", msg: layoutCommandForNextDetectedWindowFlagIncompatibilityMsg)
+        testParseCommandFail("layout --for-next-detected-window floating tiling", msg: "ERROR: " + layoutCommandForNextDetectedWindowFlagIncompatibilityMsg)
+        testParseCommandFail("layout --for-next-detected-window accordion", msg: "ERROR: " + layoutCommandForNextDetectedWindowFlagIncompatibilityMsg)
         testParseCommandFail("layout --for-next-detected-window --window-id 1 floating", msg: "ERROR: Conflicting options: --for-next-detected-window, --window-id")
         testParseCommandFail("layout --for-next-detected-window --workspace 2 floating", msg: "ERROR: Conflicting options: --for-next-detected-window, --workspace")
         testParseCommandFail("layout --for-next-detected-window --root floating", msg: "ERROR: Conflicting options: --for-next-detected-window, --root")
@@ -159,7 +159,7 @@ final class LayoutCommandTest: XCTestCase {
             TestWindow.new(id: 2, parent: $0)
         }
 
-        await assertRun("layout h_tiles", exitCode: 0, stderr: ["Already in the requested h_tiles mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
+        await assertRun("layout h_tiles", exitCode: 0, stderr: ["Already in the requested h_tiles mode. Tip: use --fail-if-noop to exit with non-zero code"])
         assertEquals(root.layoutDescription, .h_tiles([.window(1), .window(2)]))
     }
 
@@ -189,7 +189,7 @@ final class LayoutCommandTest: XCTestCase {
             "layout h_tiles",
             env: .defaultEnv.withWorkspaceName(name),
             exitCode: 0,
-            stderr: ["Already in the requested h_tiles mode. Tip: use --fail-if-noop to exit with non-zero exit code"],
+            stderr: ["Already in the requested h_tiles mode. Tip: use --fail-if-noop to exit with non-zero code"],
         )
         assertEquals(workspace.rootTilingContainer.layout, .tiles)
         assertEquals(workspace.rootTilingContainer.orientation, .h)
@@ -207,7 +207,7 @@ final class LayoutCommandTest: XCTestCase {
             "layout tiling",
             env: .defaultEnv.withWorkspaceName(name),
             exitCode: 0,
-            stderr: ["Already in the requested tiling mode. Tip: use --fail-if-noop to exit with non-zero exit code"],
+            stderr: ["Already in the requested tiling mode. Tip: use --fail-if-noop to exit with non-zero code"],
         )
         assertTrue(workspace.isEffectivelyEmpty)
     }
@@ -390,7 +390,7 @@ final class LayoutCommandTest: XCTestCase {
         }
         assertEquals(root.layoutDescription, .h_tiles([.window(1), .window(2)]))
 
-        await assertRun("layout --root h_tiles", exitCode: 0, stderr: ["Already in the requested h_tiles mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
+        await assertRun("layout --root h_tiles", exitCode: 0, stderr: ["Already in the requested h_tiles mode. Tip: use --fail-if-noop to exit with non-zero code"])
         assertEquals(root.layoutDescription, .h_tiles([.window(1), .window(2)]))
     }
 
@@ -410,7 +410,7 @@ final class LayoutCommandTest: XCTestCase {
                     let isNoop = expectedLayout == startLayout && expectedOrientation == startOrientation
 
                     let result = await parseCommand("layout \(description)").cmdOrDie.run(.defaultEnv, .emptyStdin)
-                    let noopMsg = "Already in the requested \(description) mode. Tip: use --fail-if-noop to exit with non-zero exit code"
+                    let noopMsg = "Already in the requested \(description) mode. Tip: use --fail-if-noop to exit with non-zero code"
                     assertEquals(result, CmdResult(stdout: [], stderr: isNoop ? [noopMsg] : [], exitCode: Int32ExitCode(rawValue: 0)), additionalMsg: msg)
                     assertEquals(root.layout, expectedLayout, additionalMsg: msg)
                     assertEquals(root.orientation, expectedOrientation, additionalMsg: msg)

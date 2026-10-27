@@ -76,7 +76,7 @@ struct AxDumpJsonTest: AeroSpaceTestSuite {
             ),
             options: [.json5Allowed],
         )
-        let dump = OrderedJson.newOrDieRecursive(raw).asDictOrDie
+        let dump = try #require(OrderedJson.newOrNilRecursive(raw)?.asDictOrNil)
         assertEquals(dump["AXEnabled"], .int(1))
         assertEquals(dump["AXFocused"], .int(0))
         assertEquals(dump["AXTitle"], .string("a/b"))

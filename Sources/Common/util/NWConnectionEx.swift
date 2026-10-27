@@ -21,9 +21,10 @@ extension NWConnection {
             stateUpdateHandler = { state in
                 let error: NWError?
                 switch state {
-                    case .cancelled, .preparing, .setup: return
+                    case .preparing, .setup: return
                     case .ready: error = nil
                     case .failed(let e), .waiting(let e): error = e
+                    case .cancelled: error = .posix(.ECANCELED)
                     @unknown default: die("Unknown NWConnection.State: \(state)")
                 }
                 // Make sure to resume continuation only once

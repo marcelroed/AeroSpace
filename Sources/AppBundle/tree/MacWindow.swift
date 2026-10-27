@@ -100,6 +100,9 @@ final class MacWindow: Window {
         // Don't accidentally override prevUnhiddenProportionalPositionInsideWorkspaceRect in case of subsequent `hideInCorner` calls
         if !isHiddenInCorner {
             guard let windowRect = try await getAxRect(.cancellable) else { return }
+            // The screens may disappear at the suspension point above. Don't remember the position relative to the fake
+            // mainMonitorInfo, the window would come back at the wrong place
+            if !hasScreens { return }
             // Check for isHiddenInCorner for the second time because of the suspension point above
             if !isHiddenInCorner {
                 let topLeftCorner = windowRect.topLeftCorner
@@ -211,23 +214,29 @@ private func unbindAndGetBindingDataForNewTilingWindow(_ workspace: Workspace, w
 
 @MainActor
 func runOnWindowDetected(ifConventional window: Window) async {
-    switch window.parent?.cases {
-        case .tilingContainer, .floatingWindowsContainer, .macosMinimizedWindowsContainer,
-             .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer:
-            let layout = global_layoutForNextDetectedWindow
-            global_layoutForNextDetectedWindow = nil
-            func applyLayoutForNextDetectedWindow() async {
-                if let layout {
-                    await LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [layout]))
-                        .run(.defaultEnv.withWindowId(window.windowId), .emptyStdin)
-                }
-            }
-            // The layout is applied both before and after the on-window-detected callbacks on purpose
-            await applyLayoutForNextDetectedWindow()
-            _ = await onWindowDetected(.defaultEnv, CmdIo.emptyStdinIgnoringOut, window)
-            await applyLayoutForNextDetectedWindow()
-        case .macosPopupWindowsContainer, .workspace, nil:
-            break
+    guard window.shouldRunOnWindowDetected else { return }
+    let layout = global_layoutForNextDetectedWindow
+    global_layoutForNextDetectedWindow = nil
+    func applyLayoutForNextDetectedWindow() async {
+        if let layout {
+            await LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [layout]))
+                .run(.defaultEnv.withWindowId(window.windowId), .emptyStdin)
+        }
+    }
+    // The layout is applied both before and after the on-window-detected callbacks on purpose
+    await applyLayoutForNextDetectedWindow()
+    _ = await onWindowDetected(.defaultEnv, CmdIo.emptyStdinIgnoringOut, window)
+    await applyLayoutForNextDetectedWindow()
+}
+
+extension Window {
+    /// on-window-detected callbacks skip popups and unbound windows
+    var shouldRunOnWindowDetected: Bool {
+        switch parent?.cases {
+            case .tilingContainer, .floatingWindowsContainer, .macosMinimizedWindowsContainer,
+                 .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer: true
+            case .macosPopupWindowsContainer, .workspace, nil: false
+        }
     }
 }
 

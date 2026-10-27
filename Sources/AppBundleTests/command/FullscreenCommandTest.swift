@@ -7,8 +7,8 @@ import Testing
 struct FullscreenCommandTest: AeroSpaceTestSuite {
     @Test
     func testParse() {
-        assertEquals(parseCommand("fullscreen off --no-outer-gaps").errorOrNil, "--no-outer-gaps is incompatible with 'off' argument")
-        assertEquals(parseCommand("fullscreen --fail-if-noop").errorOrNil, "--fail-if-noop requires 'on' or 'off' argument")
+        assertEquals(parseCommand("fullscreen off --no-outer-gaps").errorOrNil, "ERROR: --no-outer-gaps is incompatible with 'off' argument")
+        assertEquals(parseCommand("fullscreen --fail-if-noop").errorOrNil, "ERROR: --fail-if-noop requires 'on' or 'off' argument")
         assertEquals(parseCommand("fullscreen foo").errorOrNil, "ERROR: Can't parse 'foo'. Possible values: on|off")
     }
 

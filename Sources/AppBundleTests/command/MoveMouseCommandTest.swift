@@ -20,7 +20,7 @@ struct MoveMouseCommandTest: AeroSpaceTestSuite {
         )
         assertEquals(
             parseCommand("move-mouse --fail-if-noop window-force-center").errorOrNil,
-            "--fail-if-noop is only compatible with window-lazy-center or monitor-lazy-center",
+            "ERROR: --fail-if-noop is only compatible with window-lazy-center or monitor-lazy-center",
         )
     }
 }

@@ -46,8 +46,9 @@ struct FocusCommand: Command {
                 }
             case .dfsRelative(let nextPrev):
                 let windows = target.workspace.rootTilingContainer.allLeafWindowsRecursive
-                guard let currentIndex = windows.firstIndex(where: { $0 == target.windowOrNil }) else {
-                    return .fail
+                guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
+                guard let currentIndex = windows.firstIndex(of: window) else {
+                    return .fail(io.err("The window isn't part of the workspace tree")) // E.g. a floating window with --ignore-floating
                 }
                 let targetIndex = currentIndex + nextPrev.indexOffset
                 if let windowToFocus = windows.getOrNil(atIndex: targetIndex) {
@@ -74,6 +75,8 @@ struct FocusCommand: Command {
         case .workspace: wrappedMonitor = nil
         case .allMonitorsOuterFrame:
             guard let (monitors, index) = target.workspace.workspaceMonitor.findRelativeMonitor(inDirection: direction) else {
+                // No screens (e.g., during display reconfiguration): the monitor of the workspace is the fake mainMonitorInfo
+                if !hasScreens { return .fail(io.err("Can't focus across monitors while there are no screens")) }
                 return .fail(io.err(bugPrompt("Should never happen. Can't find the current monitor")))
             }
             if let targetMonitor = monitors.getOrNil(atIndex: index) {
@@ -91,7 +94,7 @@ struct FocusCommand: Command {
             }
             return .from(bool: windowToFocus.focusWindow())
         case .wrapAroundAllMonitors:
-            guard let wrappedMonitor else { return .fail(io.err("Must be discarded by args parser")) } // --boundaries workspace
+            guard let wrappedMonitor else { return .fail(io.err(bugPrompt("Must be discarded by args parser"))) } // --boundaries workspace
             wrappedMonitor.activeWorkspace.findLeafWindowRecursive(snappedTo: direction.opposite)?.markAsMostRecentChild()
             return .from(bool: wrappedMonitor.activeWorkspace.focusWorkspace())
     }

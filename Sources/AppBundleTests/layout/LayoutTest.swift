@@ -20,7 +20,7 @@ struct LayoutTest: AeroSpaceTestSuite {
         for (i, window) in windows.enumerated() {
             let x = CGFloat(640 * i)
             assertEquals(window.setAxFrameHistory, [frame(x, 0, 640, 1079)])
-            assertRects(window, physical: rect(x, 0, 640, 1079), virtual: rect(x, 0, 640, 1079))
+            assertRects(window, physical: rect(x, 0, 640, 1079), virtual: rect(x, 0, 640, 1080))
             assertEquals(window.hWeight, 640)
         }
     }
@@ -41,18 +41,18 @@ struct LayoutTest: AeroSpaceTestSuite {
         assertRects(root, physical: rect(10, 20, 1900, 1040), virtual: rect(10, 20, 1900, 1041))
 
         assertEquals(w1.setAxFrameHistory, [frame(10, 20, 640, 1040)])
-        assertRects(w1, physical: rect(10, 20, 640, 1040), virtual: rect(10, 20, 650, 1040))
+        assertRects(w1, physical: rect(10, 20, 640, 1040), virtual: rect(10, 20, 650, 1041))
         assertEquals(w1.hWeight, 650)
 
-        assertRects(container, physical: rect(670, 20, 1240, 1040), virtual: rect(660, 20, 1250, 1040))
+        assertRects(container, physical: rect(670, 20, 1240, 1040), virtual: rect(660, 20, 1250, 1041))
         assertEquals(container.hWeight, 1250)
 
         assertEquals(w2.setAxFrameHistory, [frame(670, 20, 1240, 514)])
-        assertRects(w2, physical: rect(670, 20, 1240, 514), virtual: rect(660, 20, 1240, 519))
+        assertRects(w2, physical: rect(670, 20, 1240, 514), virtual: rect(660, 20, 1250, 519)) // The virtual width of the container
         assertEquals(w2.vWeight, 519)
 
         assertEquals(w3.setAxFrameHistory, [frame(670, 544, 1240, 516)])
-        assertRects(w3, physical: rect(670, 544, 1240, 516), virtual: rect(660, 539, 1240, 521))
+        assertRects(w3, physical: rect(670, 544, 1240, 516), virtual: rect(660, 539, 1250, 521))
         assertEquals(w3.vWeight, 521)
     }
 
@@ -73,7 +73,7 @@ struct LayoutTest: AeroSpaceTestSuite {
         assertRects(workspace, physical: rect(100, 0, 1800, 1079), virtual: rect(100, 0, 1800, 1080))
         assertEquals(w1.setAxFrameHistory, [frame(100, 0, 880, 1079)])
         assertEquals(w2.setAxFrameHistory, [frame(1020, 0, 880, 1079)])
-        assertRects(w2, physical: rect(1020, 0, 880, 1079), virtual: rect(1000, 0, 900, 1079))
+        assertRects(w2, physical: rect(1020, 0, 880, 1079), virtual: rect(1000, 0, 900, 1080))
     }
 
     @Test
@@ -164,10 +164,10 @@ struct LayoutTest: AeroSpaceTestSuite {
         try await workspace.layoutWorkspace()
 
         assertEquals(w1.setAxFrameHistory, [frame(0, 0, 960, 1079)])
-        assertRects(accordion, physical: rect(960, 0, 960, 1079), virtual: rect(960, 0, 960, 1079))
+        assertRects(accordion, physical: rect(960, 0, 960, 1079), virtual: rect(960, 0, 960, 1080))
         assertEquals(w2.setAxFrameHistory, [frame(960, 0, 960, 1069)])
         assertEquals(w3.setAxFrameHistory, [frame(960, 10, 960, 1069)])
-        assertRects(w3, physical: rect(960, 10, 960, 1069), virtual: rect(960, 0, 960, 1079))
+        assertRects(w3, physical: rect(960, 10, 960, 1069), virtual: rect(960, 0, 960, 1080))
     }
 
     @Test
@@ -183,7 +183,7 @@ struct LayoutTest: AeroSpaceTestSuite {
         assertEquals(w1.setAxFrameHistory, [frame(5, 5, 955, 1069)])
         assertEquals(w2.setAxFrameHistory, [frame(5, 5, 1910, 1070)])
         assertNil(w2.lastAppliedLayoutPhysicalRect)
-        assertEquals(w2.lastAppliedLayoutVirtualRect.map(cg), rect(960, 5, 955, 1069))
+        assertEquals(w2.lastAppliedLayoutVirtualRect.map(cg), rect(960, 5, 955, 1070))
         assertTrue(w2.isFullscreen)
 
         w2.noOuterGapsInFullscreen = true
@@ -195,7 +195,7 @@ struct LayoutTest: AeroSpaceTestSuite {
         try await workspace.layoutWorkspace()
         assertFalse(w1.isFullscreen)
         assertEquals(w1.setAxFrameHistory.last, frame(5, 5, 955, 1069))
-        assertRects(w1, physical: rect(5, 5, 955, 1069), virtual: rect(5, 5, 955, 1069))
+        assertRects(w1, physical: rect(5, 5, 955, 1069), virtual: rect(5, 5, 955, 1070))
     }
 
     @Test

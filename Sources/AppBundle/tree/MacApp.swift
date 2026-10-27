@@ -153,17 +153,18 @@ final class MacApp: AbstractApp {
 
     func setAxFrameForTermination(_ windowId: UInt32, _ topLeft: CGPoint?, _ size: CGSize?) {
         setFrameJobs.removeValue(forKey: windowId)?.cancel()
+        // A dying thread would never run the job. See isDyingThread
+        guard let thread, !isDyingThread(thread) else { return }
         let semaphore = DispatchSemaphore(value: 0)
-        let job = withWindowAsync(windowId, .nonCancellable) { [axApp] window, job in
+        // Not withWindowAsync: it skips the body if the window is already gone from `windows`, and the wait would never end
+        thread.runInLoopAsync(job: RunLoopJob(.nonCancellable)) { [axApp, windows] job in
+            defer { semaphore.signal() }
+            guard let window = windows.threadGuarded[windowId] else { return }
             try? disableAnimations(app: axApp.threadGuarded, job) {
-                try setFrame(window, topLeft, size, job)
+                try setFrame(window.ax, topLeft, size, job)
             }
-            semaphore.signal()
         }
-        switch job.isCancelled {
-            case true: return
-            case false: semaphore.wait()
-        }
+        semaphore.wait()
     }
 
     func getAxWindowsCount(_ cm: CancellationMode) async throws -> Int? {
@@ -179,14 +180,13 @@ final class MacApp: AbstractApp {
     }
 
     func getAxRectForTermination(_ windowId: UInt32) -> Rect? {
+        guard let thread, !isDyingThread(thread) else { return nil } // See setAxFrameForTermination
         let future = CompletableFuture<Rect?>()
-        let job = withWindowAsync(windowId, .nonCancellable) { window, job in
-            future.complete(try AppBundle.getAxRect(window: window, job: job))
+        // Not withWindowAsync: see setAxFrameForTermination. Complete on every path
+        thread.runInLoopAsync(job: RunLoopJob(.nonCancellable)) { [windows] job in
+            future.complete(windows.threadGuarded[windowId].flatMap { try? AppBundle.getAxRect(window: $0.ax, job: job) })
         }
-        return switch job.isCancelled {
-            case true: nil
-            case false: future.blockingGet()
-        }
+        return future.blockingGet()
     }
 
     func isWindowHeuristic(_ windowId: UInt32, _ windowLevel: MacOsWindowLevel?, _ cm: CancellationMode) async throws -> Bool {

@@ -62,8 +62,14 @@ var mainMonitorInfo: MonitorInfo {
     )
 }
 
+/// Test-only: `true` simulates the absence of screens (`NSScreen.screens` is briefly empty during display reconfiguration)
+@TaskLocal var noScreensForTests = false
+
+/// Same as `!monitorInfos.isEmpty`, but cheap (`monitorInfos` reads `NSScreen.visibleFrame`, which is slow)
+var hasScreens: Bool { isUnitTest ? !noScreensForTests : !NSScreen.screens.isEmpty }
+
 var monitorInfos: [MonitorInfo] {
-    if isUnitTest { return [testMonitorInfo] }
+    if isUnitTest { return noScreensForTests ? [] : [testMonitorInfo] }
     let screens = NSScreen.screens
     guard let main = mainScreen(screens) else { return [] }
     let mainMonitorHeight = main.value.frame.height

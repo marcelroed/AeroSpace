@@ -34,7 +34,7 @@ func parseExecConfig(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inou
 
 private func parseEnvVariables(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> [String: String] {
     guard let table = raw.asDictOrNil else {
-        c.errors.append(expectedActualTypeDiagnostic(expected: .array, actual: raw.tomlType, backtrace))
+        c.errors.append(expectedActualTypeDiagnostic(expected: .table, actual: raw.tomlType, backtrace))
         return [:]
     }
     let mutated = table.keys

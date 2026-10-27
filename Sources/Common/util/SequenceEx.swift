@@ -29,10 +29,6 @@ extension Sequence {
         return .cmd(result)
     }
 
-    @inlinable public func minByOrDie(_ selector: (Self.Element) -> some Comparable) -> Self.Element {
-        minBy(selector) ?? dieT("Empty sequence")
-    }
-
     @inlinable public func minBy(_ selector: (Self.Element) -> some Comparable) -> Self.Element? {
         self.min(by: { a, b in selector(a) < selector(b) })
     }

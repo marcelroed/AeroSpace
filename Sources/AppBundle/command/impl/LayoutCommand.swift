@@ -41,7 +41,7 @@ struct LayoutCommand: Command {
             ?? args.toggleBetween.val.first.orDie()
         if subject.matches(targetDescription) {
             return .noop(io, failIfNoop: args.failIfNoop, "Already in the requested \(targetDescription.rawValue) mode. " +
-                "Tip: use --fail-if-noop to exit with non-zero exit code")
+                "Tip: use --fail-if-noop to exit with non-zero code")
         }
         switch targetDescription {
             case .h_accordion, .v_accordion, .h_tiles, .v_tiles, .accordion, .tiles, .horizontal, .vertical:

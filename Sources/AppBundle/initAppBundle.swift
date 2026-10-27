@@ -11,8 +11,11 @@ import Foundation
         if isDebug {
             await toggleReleaseServerIfDebug(.off)
             interceptTermination(SIGINT)
-            interceptTermination(SIGKILL)
         }
+        // No screens (e.g. AeroSpace was started during display reconfiguration). The startup sessions below would
+        // return early, and nothing would replay them: a regular session would register the existing windows later.
+        // Wait for the screens here, before the hotkeys (config), the server and the observers can start a session
+        while !hasScreens { try? await Task.sleep(for: .milliseconds(100)) }
 
         await bootstrapConfig_nonCancellable()
         _ = await reloadConfig_nonCancellable()
@@ -98,7 +101,7 @@ private func initServerArgs() {
                 // Usually it's '-NSDocumentRevisionsDebugMode NO'/'-NSDocumentRevisionsDebugMode YES'
                 while args.getOrNil(atIndex: index)?.starts(with: "-") == false { index += 1 }
             default:
-                exit(EXIT_CODE_TWO, err: "Unrecognized flag \(args.first.orDie().singleQuoted)")
+                exit(EXIT_CODE_TWO, err: "Unrecognized flag \(current.singleQuoted)")
         }
     }
     if let path = serverArgs.configLocation, !FileManager.default.fileExists(atPath: path) {

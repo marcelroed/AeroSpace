@@ -13,7 +13,7 @@ struct ConfigCommand: Command {
                 let out = """
                     .
                     mode
-                    \(config.modes.keys.map { "mode.\($0).binding" }.joined(separator: "\n"))
+                    \(config.modes.keys.sorted().map { "mode.\($0).binding" }.joined(separator: "\n"))
                     """
                 return .succ(io.out(out))
             case .allKeys:
@@ -43,9 +43,9 @@ extension String {
     if args.keys {
         switch configMap {
             case .string, .int, .bool, .null:
-                return .fail(io.err("--keys flag cannot be applied to scalar object '\(configMap)'"))
+                return .fail(io.err("--keys flag cannot be applied to scalar object '\(configMap.scalarDescription.orDie())'"))
             case .dict(let dict):
-                configMap = .array(dict.keys.map { .string($0) })
+                configMap = .array(dict.keys.sorted().map { .string($0) })
             case .array(let array):
                 configMap = .array((0 ..< array.count).map { .int($0) })
         }
@@ -111,7 +111,7 @@ extension OrderedJson {
         switch self {
             case .string, .int, .bool, .null: break
             case .dict(let dict):
-                for (key, value) in dict {
+                for (key, value) in dict.sorted(by: { $0.key < $1.key }) {
                     let path = path == "." ? key : path + "." + key
                     value.dumpAllKeysRecursive(path: path, result: &result)
                 }

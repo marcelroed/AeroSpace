@@ -9,11 +9,7 @@ struct RunCallbackCommand: Command {
         guard let target = args.resolveTargetOrReportError(env, io) else { return .fail }
         switch args.callback.val {
             case .onWindowDetected where args.forEveryWindow:
-                var exitCode = Int32ExitCode.succ
-                for window in MacWindow.allWindows {
-                    exitCode = await onWindowDetected(env, io, window)
-                }
-                return exitCode
+                return await onWindowDetected(env, io, forEvery: MacWindow.allWindows)
             case .onWindowDetected:
                 guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
                 return await onWindowDetected(env, io, window)
@@ -23,4 +19,14 @@ struct RunCallbackCommand: Command {
                 return await onFocusedMonitorChanged(env, io, target)
         }
     }
+}
+
+/// `windows` is a parameter because tests can't create a `MacWindow`
+@MainActor func onWindowDetected(_ env: CmdEnv, _ io: CmdIo, forEvery windows: [Window]) async -> Int32ExitCode {
+    var exitCode = Int32ExitCode.succ
+    for window in windows.sortedBy({ $0.windowId }) where window.shouldRunOnWindowDetected {
+        let windowExitCode = await onWindowDetected(env, io, window)
+        if exitCode == .succ { exitCode = windowExitCode } // Report the first failure
+    }
+    return exitCode
 }

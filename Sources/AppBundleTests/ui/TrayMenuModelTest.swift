@@ -114,13 +114,32 @@ final class TrayMenuModelTest: XCTestCase {
         assertEquals(imageName("0"), "0.square")
         assertEquals(imageName("50", isActive: true), "50.square.fill")
         assertEquals(imageName("05"), "05.square")
+        assertEquals(imageName("00", .mode), "00.circle")
         assertEquals(imageName("51"), nil)
         assertEquals(imageName("-1"), nil)
+        // Int() accepts these, but there are no such symbols
+        assertEquals(imageName("+5"), nil)
+        assertEquals(imageName("-0"), nil)
+        assertEquals(imageName("005"), nil)
+        assertEquals(imageName("050"), nil)
         assertEquals(imageName("A"), "a.square")
         assertEquals(imageName("Z", .mode), "z.circle")
         assertEquals(imageName("a"), nil)
         assertEquals(imageName("AB"), nil)
         assertEquals(imageName("1A"), nil)
         assertEquals(imageName("é"), nil)
+    }
+
+    func testSystemImageNameIsAnExistingSymbol() {
+        let numbers = (0 ... 60).flatMap { [String($0), "0\($0)", "00\($0)", "+\($0)", "-\($0)"] }
+        let letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".map(String.init)
+        for name in numbers + letters {
+            for (type, isActive) in [(TrayItemType.mode, true), (.workspace, true), (.workspace, false)] {
+                let item = TrayItem(type: type, name: name, isActive: isActive, hasFullscreenWindows: false)
+                if let imageName = item.systemImageName, NSImage(systemSymbolName: imageName, accessibilityDescription: nil) == nil {
+                    fail("Workspace '\(name)' maps to '\(imageName)', which isn't an SF Symbol")
+                }
+            }
+        }
     }
 }
