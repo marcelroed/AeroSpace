@@ -37,10 +37,10 @@ struct AxUiElementWindowTypeTest: AeroSpaceTestSuite {
     }
 }
 
-private let axDumpsDir = projectRoot.appending(path: "./axDumps")
+nonisolated private let axDumpsDir = projectRoot.appending(path: "./axDumps")
 
 /// Paths relative to `axDumpsDir`
-private func axDumpPaths() throws -> [String] {
+nonisolated private func axDumpPaths() throws -> [String] {
     try FileManager.default.subpathsOfDirectory(atPath: axDumpsDir.path())
         .filter { !axDumpsDir.appending(path: $0).isDirectory && !$0.hasSuffix(".md") }
         .sorted()
@@ -117,7 +117,7 @@ extension NSApplication.ActivationPolicy {
     }
 }
 
-extension URL {
+nonisolated extension URL {
     var isDirectory: Bool {
         (try? resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
     }

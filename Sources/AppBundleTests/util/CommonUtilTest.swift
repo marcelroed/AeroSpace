@@ -219,5 +219,5 @@ struct CommonUtilTest: AeroSpaceTestSuite {
     }
 }
 
-private class Base {}
-private final class Derived: Base {}
+nonisolated private class Base {}
+nonisolated private final class Derived: Base {}

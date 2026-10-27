@@ -2,8 +2,10 @@
 import Common
 import XCTest
 
+nonisolated final class ConfigTest: XCTestCase {} // XCTestCase's initializers are nonisolated
+
 @MainActor
-final class ConfigTest: XCTestCase {
+extension ConfigTest {
     func testParseI3Config() {
         let toml = try! String(contentsOf: projectRoot.appending(component: "docs/config-examples/i3-like-config-example.toml"), encoding: .utf8)
         let result = parseConfig(toml)

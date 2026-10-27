@@ -1,5 +1,4 @@
 import SwiftUI
-import Common
 
 enum AppearanceTheme {
     case light

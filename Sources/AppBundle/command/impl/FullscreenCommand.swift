@@ -22,4 +22,4 @@ struct FullscreenCommand: Command {
     }
 }
 
-let noWindowIsFocused = "No window is focused"
+nonisolated let noWindowIsFocused = "No window is focused"

@@ -1,6 +1,6 @@
 import AppKit
 
-enum AxUiElementWindowType: String {
+nonisolated enum AxUiElementWindowType: String {
     case window
     case dialog
     /// Not even a real window
@@ -16,7 +16,7 @@ enum AxUiElementWindowType: String {
 }
 
 // Covered by tests in ./axDumps in the repo root
-extension AxUiElementMock {
+nonisolated extension AxUiElementMock {
     // 'isDialogHeuristic' function name is referenced in the guide
     func isDialogHeuristic(
         _ id: KnownBundleId?,

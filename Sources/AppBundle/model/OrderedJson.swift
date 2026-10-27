@@ -2,7 +2,7 @@ import AppKit
 import Common
 import OrderedCollections
 
-enum OrderedJson: Encodable, Equatable { // todo rename to Dto (data transfer object)
+nonisolated enum OrderedJson: Encodable, Equatable { // todo rename to Dto (data transfer object)
     // vector
     case dict(JsonDict)
     case array(JsonArray)

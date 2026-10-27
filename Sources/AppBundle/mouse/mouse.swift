@@ -1,7 +1,7 @@
 import AppKit
 
 @MainActor var currentlyManipulatedWithMouseWindowId: UInt32? = nil
-var isLeftMouseButtonDown: Bool { NSEvent.pressedMouseButtons == 1 }
+nonisolated var isLeftMouseButtonDown: Bool { NSEvent.pressedMouseButtons == 1 }
 
 @MainActor
 func isManipulatedWithMouse(_ window: Window) async throws -> Bool {
@@ -11,8 +11,8 @@ func isManipulatedWithMouse(_ window: Window) async throws -> Bool {
         .andAsync { @Sendable @MainActor in try await getNativeFocusedWindow(.cancellable) == window }
 }
 
-/// The AX callback for the window moved/resized notifications
-func onMouseManipulationAxNotif(
+/// The AX callback for the window moved/resized notifications. Runs on the AX thread
+nonisolated func onMouseManipulationAxNotif(
     ax: AXUIElement,
     notif: CFString,
     _ task: LatestTaskSlot,

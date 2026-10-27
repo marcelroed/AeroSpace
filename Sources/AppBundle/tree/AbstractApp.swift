@@ -1,7 +1,7 @@
 import Common
 
 protocol AbstractApp: AnyObject, Hashable, AeroAny {
-    var pid: Int32 { get }
+    nonisolated var pid: Int32 { get }
     var rawAppBundleId: String? { get }
 
     @MainActor func getFocusedWindow(_ cm: CancellationMode) async throws -> Window?
@@ -11,7 +11,7 @@ protocol AbstractApp: AnyObject, Hashable, AeroAny {
 }
 
 extension AbstractApp {
-    static func == (lhs: Self, rhs: Self) -> Bool {
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
         if lhs.pid == rhs.pid {
             check(lhs === rhs)
             return true
@@ -21,7 +21,7 @@ extension AbstractApp {
         }
     }
 
-    func hash(into hasher: inout Hasher) {
+    nonisolated func hash(into hasher: inout Hasher) {
         hasher.combine(pid)
     }
 }

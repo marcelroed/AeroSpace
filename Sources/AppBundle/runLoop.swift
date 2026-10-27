@@ -1,8 +1,9 @@
 import Common
 import Foundation
-import os
+import Synchronization
 
-extension Thread {
+// Jobs run on the AX app threads
+nonisolated extension Thread {
     @discardableResult
     func runInLoopAsync(
         job: RunLoopJob,
@@ -40,7 +41,7 @@ extension Thread {
     }
 }
 
-private final class RunLoopAction: NSObject, Sendable {
+nonisolated private final class RunLoopAction: NSObject, Sendable {
     private let _action: @Sendable (RunLoopJob) -> ()
     let job: RunLoopJob
     private let autoCheckCancelled: Bool
@@ -59,13 +60,12 @@ private final class RunLoopAction: NSObject, Sendable {
     }
 }
 
-final class RunLoopJob: Sendable, AeroAny {
-    // Alternative: In macOS 15, it's possible to use `Atomic<Bool>` from `Synchronization` module
-    private let _isCancelled = OSAllocatedUnfairLock(initialState: false)
-    var isCancelled: Bool { _isCancelled.withLock { $0 } }
+nonisolated final class RunLoopJob: Sendable, AeroAny {
+    private let _isCancelled = Atomic(false)
+    var isCancelled: Bool { _isCancelled.load(ordering: .sequentiallyConsistent) }
     func cancel() {
         if cm == .nonCancellable { return }
-        _isCancelled.withLock { $0 = true }
+        _isCancelled.store(true, ordering: .sequentiallyConsistent)
     }
 
     let cm: CancellationMode

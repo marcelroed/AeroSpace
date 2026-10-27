@@ -40,7 +40,7 @@ func getWindowLevel(for windowId: UInt32) -> MacOsWindowLevel? {
     return result[windowId]
 }
 
-enum MacOsWindowLevel: Sendable, Equatable {
+nonisolated enum MacOsWindowLevel: Sendable, Equatable {
     case normalWindow
     case alwaysOnTopWindow
     case unknown(windowLevel: Int)

@@ -7,14 +7,15 @@ private let terminationAxTimeout: DispatchTimeInterval = .seconds(2)
 
 // Potential alternative implementation
 // https://github.com/swiftlang/swift-evolution/blob/main/proposals/0392-custom-actor-executors.md
-final class MacApp: AbstractApp {
-    /*conforms*/ let pid: Int32
+/// Main actor, except for the closures that run on the app's AX thread (`thread`). They are `@Sendable` and nonisolated,
+/// and only capture the thread-guarded values
+final class MacApp: nonisolated AbstractApp { // nonisolated: Hashable compares the pid
+    /*conforms*/ nonisolated let pid: Int32
     /*conforms*/ let rawAppBundleId: String?
     let appId: KnownBundleId?
     let nsApp: NSRunningApplication
     private let axApp: ThreadGuardedValue<AXUIElement>
-    private let appAxSubscriptions: ThreadGuardedValue<[AxSubscription]> // keep subscriptions in memory
-    private let windows: ThreadGuardedValue<[UInt32: AxWindow]> = .init([:])
+    private let windows: ThreadGuardedValue<[UInt32: AxWindow]>
     private var windowsCount = 0
     var lastNativeFocusedWindowId: UInt32? = nil
     private var thread: Thread?
@@ -33,17 +34,16 @@ final class MacApp: AbstractApp {
 
     private init(
         _ nsApp: NSRunningApplication,
-        _ axApp: AXUIElement,
-        _ axSubscriptions: [AxSubscription],
+        _ axApp: ThreadGuardedValue<AXUIElement>,
+        _ windows: ThreadGuardedValue<[UInt32: AxWindow]>,
         _ thread: Thread,
     ) {
         self.nsApp = nsApp
-        self.axApp = .init(axApp)
+        self.axApp = axApp
         self.pid = nsApp.processIdentifier
         self.rawAppBundleId = nsApp.bundleIdentifier
         self.appId = nsApp.bundleIdentifier.flatMap { KnownBundleId.init(rawValue: $0) }
-        assert(!axSubscriptions.isEmpty)
-        self.appAxSubscriptions = .init(axSubscriptions)
+        self.windows = windows
         self.thread = thread
     }
 
@@ -76,25 +76,26 @@ final class MacApp: AbstractApp {
                 let job = RunLoopJob(.cancellable)
                 let subscriptions = (try? unsafe AxSubscription.bulkSubscribe(nsApp, axApp, job, handlers)) ?? []
                 let isGood = !subscriptions.isEmpty
-                let app = isGood ? MacApp(nsApp, axApp, subscriptions, Thread.current) : nil
-
-                let appAxSubscriptionsThreadGuarded = app?.appAxSubscriptions
-                let windowsThreadGuarded = app?.windows
-                let axAppThreadGuarded = app?.axApp
+                // A thread-guarded value belongs to the thread that creates it. The main actor creates the MacApp
+                let axAppThreadGuarded = ThreadGuardedValue(axApp)
+                let appAxSubscriptionsThreadGuarded = ThreadGuardedValue(subscriptions) // The thread keeps them in memory
+                let windowsThreadGuarded = ThreadGuardedValue<[UInt32: AxWindow]>([:])
+                let thread = Thread.current
 
                 Task.startUnstructured { @MainActor in
-                    allAppsMap[pid] = app
+                    allAppsMap[pid] = isGood
+                        ? MacApp(nsApp, axAppThreadGuarded, windowsThreadGuarded, thread)
+                        : nil
                     wipPids[pid] = nil
                     await wip.signalToAll()
                 }
                 if isGood {
                     CFRunLoopRun()
-
-                    // Destroy AX objects in reverse order of their creation
-                    appAxSubscriptionsThreadGuarded?.destroy()
-                    windowsThreadGuarded?.destroy()
-                    axAppThreadGuarded?.destroy()
                 }
+                // Destroy AX objects in reverse order of their creation
+                appAxSubscriptionsThreadGuarded.destroy()
+                windowsThreadGuarded.destroy()
+                axAppThreadGuarded.destroy()
             }
         }
         thread.name = "AxAppThread \(nsApp.idForDebug)"
@@ -374,7 +375,7 @@ final class MacApp: AbstractApp {
     }
 }
 
-private final class AxWindow {
+nonisolated private final class AxWindow {
     let windowId: UInt32
     let ax: AXUIElement
     // periphery:ignore
@@ -398,7 +399,7 @@ private final class AxWindow {
     }
 }
 
-extension [UInt32: AxWindow] {
+nonisolated extension [UInt32: AxWindow] {
     @discardableResult
     fileprivate mutating func getOrRegisterAxWindow(windowId id: UInt32, _ axWindow: AXUIElement, _ nsApp: NSRunningApplication, _ job: RunLoopJob) throws -> AxWindow? {
         if let existing = self[id] { return existing }
@@ -416,14 +417,14 @@ extension [UInt32: AxWindow] {
     }
 }
 
-private func getAxRect(window: AXUIElement, job: RunLoopJob) throws -> Rect? {
+nonisolated private func getAxRect(window: AXUIElement, job: RunLoopJob) throws -> Rect? {
     guard let topLeftCorner = window.get(Ax.topLeftCornerAttr) else { return nil }
     try job.checkCancellation()
     guard let size = window.get(Ax.sizeAttr) else { return nil }
     return Rect(topLeftX: topLeftCorner.x, topLeftY: topLeftCorner.y, width: size.width, height: size.height)
 }
 
-private func setFrame(_ window: AXUIElement, _ topLeft: CGPoint?, _ size: CGSize?, _ job: RunLoopJob) throws {
+nonisolated private func setFrame(_ window: AXUIElement, _ topLeft: CGPoint?, _ size: CGSize?, _ job: RunLoopJob) throws {
     // Set size and then the position. The order is important https://github.com/nikitabobko/AeroSpace/issues/143
     //                                                        https://github.com/nikitabobko/AeroSpace/issues/335
     if let size { window.set(Ax.sizeAttr, size) }
@@ -436,7 +437,7 @@ private func setFrame(_ window: AXUIElement, _ topLeft: CGPoint?, _ size: CGSize
 // Some undocumented magic
 // References: https://github.com/koekeishiya/yabai/commit/3fe4c77b001e1a4f613c26f01ea68c0f09327f3a
 //             https://github.com/rxhanson/Rectangle/pull/285
-private func disableAnimations<T>(app: AXUIElement, _ job: RunLoopJob, _ body: () throws -> T) throws -> T {
+nonisolated private func disableAnimations<T>(app: AXUIElement, _ job: RunLoopJob, _ body: () throws -> T) throws -> T {
     let wasEnabled = app.get(Ax.enhancedUserInterfaceAttr) == true
     if wasEnabled {
         app.set(Ax.enhancedUserInterfaceAttr, false)

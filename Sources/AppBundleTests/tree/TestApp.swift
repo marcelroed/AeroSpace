@@ -1,8 +1,8 @@
 @testable import AppBundle
 import Common
 
-final class TestApp: AbstractApp {
-    let pid: Int32
+final class TestApp: nonisolated AbstractApp {
+    nonisolated let pid: Int32
     let rawAppBundleId: String?
     let name: String?
     let execPath: String? = nil

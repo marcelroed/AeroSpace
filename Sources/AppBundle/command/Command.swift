@@ -14,7 +14,7 @@ protocol Command: AeroAny, Sendable {
 
 extension Command {
     /// Command types and their args types are 1:1, so comparing the args compares the commands
-    nonisolated func equals(_ other: any Command) -> Bool { args.equals(other.args) }
+    func equals(_ other: any Command) -> Bool { args.equals(other.args) }
 }
 
 extension Command {

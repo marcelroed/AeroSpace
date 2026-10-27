@@ -1,9 +1,10 @@
 import AppKit
 import Common
 
-private let resizeWithMouseTask = LatestTaskSlot()
+nonisolated private let resizeWithMouseTask = LatestTaskSlot()
 
-func resizedObs(_: AXObserver, ax: AXUIElement, notif: CFString, _: UnsafeMutableRawPointer?) {
+/// AXObserver callback. Runs on the AX thread
+nonisolated func resizedObs(_: AXObserver, ax: AXUIElement, notif: CFString, _: UnsafeMutableRawPointer?) {
     onMouseManipulationAxNotif(ax: ax, notif: notif, resizeWithMouseTask, resizeWithMouse)
 }
 

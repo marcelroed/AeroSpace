@@ -3,10 +3,10 @@ import Common
 import Foundation
 import os
 
-let signposter = OSSignposter(subsystem: aeroSpaceAppId, category: .pointsOfInterest)
+nonisolated let signposter = OSSignposter(subsystem: aeroSpaceAppId, category: .pointsOfInterest)
 
 let myPid = NSRunningApplication.current.processIdentifier
-let lockScreenAppBundleId = "com.apple.loginwindow"
+nonisolated let lockScreenAppBundleId = "com.apple.loginwindow"
 
 @MainActor private var signalSources: [any DispatchSourceSignal] = [] // A released source stops delivering the signal
 
@@ -49,8 +49,8 @@ private struct AppServerTerminationHandler: TerminationHandler {
         }
         if isDebug {
             let semaphore = DispatchSemaphore(value: 0)
-            // Use Task.detached to avoid inheriting @MainActor.
-            // If @MainActor was inherited, it would cause a deadlock
+            // Use Task.detached to avoid inheriting @MainActor, and a nonisolated function.
+            // On the main actor, it would cause a deadlock
             Task.detached {
                 await toggleReleaseServerIfDebug(.on)
                 semaphore.signal()
@@ -125,18 +125,18 @@ extension CGFloat {
 }
 
 #if DEBUG
-    let isDebug = true
+    nonisolated let isDebug = true
 #else
-    let isDebug = false
+    nonisolated let isDebug = false
 #endif
 
-func checkCancellation(_ cm: CancellationMode = .cancellable) throws(CancellationError) {
+nonisolated func checkCancellation(_ cm: CancellationMode = .cancellable) throws(CancellationError) {
     if cm == .cancellable && Task.isCancelled {
         throw CancellationError()
     }
 }
 
-enum CancellationMode: Equatable, Sendable {
+nonisolated enum CancellationMode: Equatable, Sendable {
     case cancellable
     case nonCancellable
 }

@@ -2,8 +2,10 @@
 import Common
 import XCTest
 
+nonisolated final class TestCommandTest: XCTestCase {} // XCTestCase's initializers are nonisolated
+
 @MainActor
-final class TestCommandTest: XCTestCase {
+extension TestCommandTest {
     override func setUp() async throws { setUpWorkspacesForTests() }
 
     func testParse() {

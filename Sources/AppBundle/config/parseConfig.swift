@@ -426,7 +426,7 @@ func parseBool(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigP
     raw.asBoolOrNil.toResult(expectedActualTypeDiagnostic(expected: .bool, actual: raw.tomlType, backtrace))
 }
 
-struct ConfigBacktrace: CustomStringConvertible, Equatable {
+nonisolated struct ConfigBacktrace: CustomStringConvertible, Equatable { // Part of ConfigParseDiagnostic, an Error
     private var path: [TomlBacktraceItem] = []
 
     static func rootKey(_ key: String) -> Self { Self(path: [.key(key)]) }
@@ -452,7 +452,7 @@ struct ConfigBacktrace: CustomStringConvertible, Equatable {
     }
 }
 
-enum TomlBacktraceItem: Equatable {
+nonisolated enum TomlBacktraceItem: Equatable {
     case key(String)
     case index(Int)
 

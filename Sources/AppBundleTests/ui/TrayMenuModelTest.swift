@@ -4,8 +4,10 @@ import Combine
 import Common
 import XCTest
 
+nonisolated final class TrayMenuModelTest: XCTestCase {} // XCTestCase's initializers are nonisolated
+
 @MainActor
-final class TrayMenuModelTest: XCTestCase {
+extension TrayMenuModelTest {
     override func setUp() async throws { setUpWorkspacesForTests() }
 
     func testUpdateTrayText_mainMode() {

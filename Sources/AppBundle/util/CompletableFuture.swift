@@ -1,6 +1,7 @@
 import Dispatch
 
-final class CompletableFuture<T: Sendable>: Sendable {
+/// Completed on an AX thread
+nonisolated final class CompletableFuture<T: Sendable>: Sendable {
     nonisolated(unsafe) private var value: T?
     private let semaphore = DispatchSemaphore(value: 0)
 

@@ -1,7 +1,7 @@
 import AppKit
 import Common
 
-func dumpAxRecursive(_ ax: AXUIElement, _ kind: AxKind, recursionDepth: Int = 0) -> OrderedJson.JsonDict {
+nonisolated func dumpAxRecursive(_ ax: AXUIElement, _ kind: AxKind, recursionDepth: Int = 0) -> OrderedJson.JsonDict {
     if recursionDepth > 5 {
         return [
             "dumpAxRecursive infinite recursion": .bool(true),
@@ -43,13 +43,13 @@ func dumpAxRecursive(_ ax: AXUIElement, _ kind: AxKind, recursionDepth: Int = 0)
     return result
 }
 
-enum AxKind: Hashable {
+nonisolated enum AxKind: Hashable {
     case button
     case window
     case app
 }
 
-func prettyValue(_ value: Any?, recursionDepth: Int) -> OrderedJson {
+nonisolated func prettyValue(_ value: Any?, recursionDepth: Int) -> OrderedJson {
     if let arr = value as? [Any?] {
         return .array(arr.map { prettyValue($0, recursionDepth: recursionDepth) })
     }
@@ -75,7 +75,7 @@ func prettyValue(_ value: Any?, recursionDepth: Int) -> OrderedJson {
     return .null
 }
 
-private let globalIgnore: Set<String> = [
+nonisolated private let globalIgnore: Set<String> = [
     "AXChildren", // too verbose
     "AXChildrenInNavigationOrder", // too verbose
     "AXFocusableAncestor", // infinite recursion
@@ -83,7 +83,7 @@ private let globalIgnore: Set<String> = [
     kAXRoleDescriptionAttribute, // localized - not helpful
 ]
 
-private let kindSpecificIgnore: [AxKind: Set<String>] = [
+nonisolated private let kindSpecificIgnore: [AxKind: Set<String>] = [
     .button: [
         "AXFrame",
         kAXEditedAttribute,
@@ -98,7 +98,7 @@ private let kindSpecificIgnore: [AxKind: Set<String>] = [
     ],
 ]
 
-extension AXError {
+nonisolated extension AXError {
     fileprivate var repr: String {
         switch self {
             case .actionUnsupported: "actionUnsupported"

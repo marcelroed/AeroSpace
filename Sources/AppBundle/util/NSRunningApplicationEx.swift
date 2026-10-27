@@ -1,6 +1,6 @@
 import AppKit
 
-extension NSRunningApplication {
+nonisolated extension NSRunningApplication {
     var idForDebug: String {
         "PID: \(processIdentifier) ID: \(bundleIdentifier ?? executableURL?.description ?? "")"
     }

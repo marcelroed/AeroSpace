@@ -1,6 +1,6 @@
 import Common
 import Foundation
-import os
+import Synchronization
 import Testing
 
 // Migrating an XCTest class to Swift Testing:
@@ -18,7 +18,7 @@ import Testing
 /// AeroSpace keeps its model in `@MainActor` globals. Swift Testing runs tests in parallel, and `@MainActor` async tests
 /// of different suites interleave at suspension points (`.serialized` only serializes the tests of one suite).
 /// The trait gives every test case exclusive access to the global state and resets the state before it runs.
-struct AeroSpaceGlobalStateTrait: SuiteTrait, TestTrait, TestScoping {
+nonisolated struct AeroSpaceGlobalStateTrait: SuiteTrait, TestTrait, TestScoping {
     var isRecursive: Bool { true } // Provide the scope for every test case of the suite, including nested suites
 
     @concurrent
@@ -65,13 +65,13 @@ extension AeroSpaceTestSuite {
     }
 }
 
-private let globalStateLock = GlobalStateLock()
+nonisolated private let globalStateLock = GlobalStateLock()
 
-/// FIFO async mutex. `Synchronization.Mutex` requires macOS 15, and a blocking lock would block Swift Testing's threads
-private final class GlobalStateLock: Sendable {
+/// FIFO async mutex. A blocking lock would block Swift Testing's threads
+nonisolated private final class GlobalStateLock: Sendable {
     @TaskLocal static var isHeldByCurrentTask = false
 
-    private let state = OSAllocatedUnfairLock(initialState: (isLocked: false, waiters: [CheckedContinuation<Void, Never>]()))
+    private let state = Mutex((isLocked: false, waiters: [CheckedContinuation<Void, Never>]()))
 
     func lock() async {
         await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in

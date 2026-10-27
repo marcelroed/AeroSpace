@@ -13,8 +13,10 @@ private func assertPrimitive(_ actual: Result<Primitive, InterVarExpansionError>
     }
 }
 
+nonisolated final class FormatTest: XCTestCase {} // XCTestCase's initializers are nonisolated
+
 @MainActor
-final class FormatTest: XCTestCase {
+extension FormatTest {
     override func setUp() async throws { setUpWorkspacesForTests() }
 
     func testAeroObjKind() {

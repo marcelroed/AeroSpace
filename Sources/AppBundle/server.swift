@@ -17,7 +17,8 @@ func startUnixSocketServer() {
     listener.start(queue: .global())
 }
 
-func toggleReleaseServerIfDebug(_ state: ToggleEnum) async {
+/// nonisolated: the termination handler blocks the main thread until it finishes
+nonisolated func toggleReleaseServerIfDebug(_ state: ToggleEnum) async {
     if serverArgs.isReadOnly || !isDebug { return }
     let socketFile = "/tmp/\(stableAeroSpaceAppId)-\(unixUserName).sock"
     let connection = NWConnection(to: NWEndpoint.unix(path: socketFile), using: .tcp)
@@ -31,9 +32,10 @@ func toggleReleaseServerIfDebug(_ state: ToggleEnum) async {
     _ = await connection.readNonAtomic()
 }
 
-private let serverVersionAndHash = "\(aeroSpaceAppVersion) \(gitHash)"
+nonisolated private let serverVersionAndHash = "\(aeroSpaceAppVersion) \(gitHash)"
 
-private func newConnection(_ connection: NWConnection) async { // todo add exit codes
+/// Runs off the main actor: the connection I/O doesn't wait for the main thread
+nonisolated private func newConnection(_ connection: NWConnection) async { // todo add exit codes
     func answerToClient(exitCode: Int32, stdout: String = "", stderr: String = "") async {
         let ans = ServerAnswer(exitCode: exitCode, stdout: stdout, stderr: stderr, serverVersionAndHash: serverVersionAndHash)
         _ = await connection.writeAtomic(ans)

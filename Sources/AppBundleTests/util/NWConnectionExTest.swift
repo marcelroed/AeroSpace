@@ -5,7 +5,7 @@ import Network
 import os
 import XCTest
 
-final class NWConnectionExTest: XCTestCase {
+nonisolated final class NWConnectionExTest: XCTestCase {
     func testHandshakeAndRoundTrip() async throws {
         let server = try await TestSocketServer.start(serverVersion: SOCKET_PROTOCOL_VERSION)
         defer { server.stop() }
@@ -94,7 +94,7 @@ final class NWConnectionExTest: XCTestCase {
 }
 
 /// Never marks the connection ready, so it stays in .preparing
-private final class NeverReadyFramer: NWProtocolFramerImplementation {
+nonisolated private final class NeverReadyFramer: NWProtocolFramerImplementation {
     static let definition = NWProtocolFramer.Definition(implementation: NeverReadyFramer.self)
     static var label: String { "NeverReady" }
     init(framer: NWProtocolFramer.Instance) {}
@@ -107,10 +107,10 @@ private final class NeverReadyFramer: NWProtocolFramerImplementation {
 }
 
 /// $TMPDIR can be too long for a unix socket path (sun_path is capped at 104 bytes). Like the real socketPath, use /tmp
-private func testSocketPath() -> String { "/tmp/aerospace-test-\(UUID().uuidString.prefix(8)).sock" }
+nonisolated private func testSocketPath() -> String { "/tmp/aerospace-test-\(UUID().uuidString.prefix(8)).sock" }
 
 /// Returns nil if `body` doesn't finish in time. `body` can't be cancelled and keeps running in that case
-private func withTimeout<T: Sendable>(seconds: Int, _ body: @escaping @Sendable () async -> T) async -> T? {
+nonisolated private func withTimeout<T: Sendable>(seconds: Int, _ body: @escaping @Sendable () async -> T) async -> T? {
     await withCheckedContinuation { cont in
         let isDone = OSAllocatedUnfairLock(initialState: false)
         let resume: @Sendable (T?) -> Void = { result in
@@ -128,7 +128,7 @@ private func withTimeout<T: Sendable>(seconds: Int, _ body: @escaping @Sendable 
 
 /// Mirrors the handshake of the real server (server.swift): read client version, answer with own version, then
 /// answer each request
-private final class TestSocketServer: Sendable {
+nonisolated private final class TestSocketServer: Sendable {
     let path: String
     private let listener: NWListener
 

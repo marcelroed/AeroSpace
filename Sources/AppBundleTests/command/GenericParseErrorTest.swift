@@ -35,9 +35,9 @@ struct GenericParseErrorTest: AeroSpaceTestSuite {
     }
 }
 
-private let layoutPossibleValues = "(accordion|tiles|horizontal|vertical|h_accordion|v_accordion|h_tiles|v_tiles|tiling|floating)"
+nonisolated private let layoutPossibleValues = "(accordion|tiles|horizontal|vertical|h_accordion|v_accordion|h_tiles|v_tiles|tiling|floating)"
 
-private let parseFailures: [(command: String, msg: String)] = [
+nonisolated private let parseFailures: [(command: String, msg: String)] = [
     // Unknown flag stops the parsing
     ("close --bogus", "ERROR: Unknown flag '--bogus'"),
     ("close --bogus --also-bogus", "ERROR: Unknown flag '--bogus'"),

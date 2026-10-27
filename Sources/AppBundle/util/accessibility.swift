@@ -25,18 +25,19 @@ private func resetAccessibility() {
     _ = try? Process.run(URL(filePath: "/usr/bin/tccutil"), arguments: ["reset", "Accessibility", aeroSpaceAppId])
 }
 
-protocol ReadableAttr: Sendable {
+// The AX attributes are read and written on the AX app threads
+nonisolated protocol ReadableAttr: Sendable {
     associatedtype T
     var getter: @Sendable (AnyObject) -> T? { get }
     var key: String { get }
 }
 
-protocol WritableAttr: ReadableAttr, Sendable {
+nonisolated protocol WritableAttr: ReadableAttr, Sendable {
     var setter: @Sendable (T) -> CFTypeRef? { get }
 }
 
 // Attribute names: kAX*Attribute constants in ApplicationServices/HIServices/AXAttributeConstants.h
-enum Ax {
+nonisolated enum Ax {
     struct ReadableAttrImpl<T>: ReadableAttr {
         var key: String
         var getter: @Sendable (AnyObject) -> T?
@@ -115,10 +116,10 @@ enum Ax {
     static let minimizeButtonAttr = readableAxUiElementMock(kAXMinimizeButtonAttribute)
 }
 
-let kAXAeroSynthetic = "Aero.synthetic"
+nonisolated let kAXAeroSynthetic = "Aero.synthetic"
 
 // `as! AXUIElement` doesn't check anything at runtime (it's a CoreFoundation type). Check the type ID instead
-private func castToAxUiElementMock(_ a: AnyObject) -> (any AxUiElementMock)? {
+nonisolated private func castToAxUiElementMock(_ a: AnyObject) -> (any AxUiElementMock)? {
     if isUnitTest { return axUiElementMockFromTestDump(a) }
     return CFGetTypeID(a) == AXUIElementGetTypeID() ? (a as! AXUIElement) : nil
 }
@@ -126,13 +127,13 @@ private func castToAxUiElementMock(_ a: AnyObject) -> (any AxUiElementMock)? {
 typealias WindowIdAndAxUiElement = (windowId: UInt32, ax: AXUIElement)
 typealias WindowIdAndAxUiElementMock = (windowId: UInt32, ax: any AxUiElementMock)
 
-private func windowOrNil(_ obj: AnyObject) -> WindowIdAndAxUiElementMock? {
+nonisolated private func windowOrNil(_ obj: AnyObject) -> WindowIdAndAxUiElementMock? {
     guard let potentialWindow = castToAxUiElementMock(obj) else { return nil }
     // Filter out non-window objects (e.g. Finder's desktop)
     return potentialWindow.containingWindowId().map { ($0, potentialWindow) }
 }
 
-private func axWindowOrNil(_ any: Any) -> WindowIdAndAxUiElement? {
+nonisolated private func axWindowOrNil(_ any: Any) -> WindowIdAndAxUiElement? {
     let object = any as AnyObject
     guard CFGetTypeID(object) == AXUIElementGetTypeID() else { return nil }
     let potentialWindow = object as! AXUIElement
@@ -140,7 +141,7 @@ private func axWindowOrNil(_ any: Any) -> WindowIdAndAxUiElement? {
     return potentialWindow.containingWindowId().map { ($0, potentialWindow) }
 }
 
-extension AXUIElement: AxUiElementMock {
+nonisolated extension AXUIElement: AxUiElementMock {
     func get<Attr: ReadableAttr>(_ attr: Attr) -> Attr.T? {
         let state = signposter.beginInterval(#function, "attr: \(attr.key) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug ?? "nil")")
         defer { signposter.endInterval(#function, state) }

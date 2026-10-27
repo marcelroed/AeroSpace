@@ -142,7 +142,8 @@ private func refresh() async throws {
     Workspace.garbageCollectUnusedWorkspaces()
 }
 
-func refreshObs(_: AXObserver, _: AXUIElement, notif: CFString, _: UnsafeMutableRawPointer?) {
+/// AXObserver callback. Runs on the AX thread
+nonisolated func refreshObs(_: AXObserver, _: AXUIElement, notif: CFString, _: UnsafeMutableRawPointer?) {
     let notif = notif as String
     Task.startUnstructured { @MainActor in
         if !TrayMenuModel.shared.isEnabled { return }

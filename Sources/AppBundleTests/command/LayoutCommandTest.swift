@@ -181,6 +181,6 @@ nonisolated private let tilingDescriptions: [LayoutCommandTest.TilingDescription
     .init(name: "vertical", orientation: "v", layout: nil),
 ]
 
-private func alreadyIn(_ mode: String) -> CmdOutput {
+nonisolated private func alreadyIn(_ mode: String) -> CmdOutput {
     CmdOutput(stderr: ["Already in the requested \(mode) mode. Tip: use --fail-if-noop to exit with non-zero code"])
 }

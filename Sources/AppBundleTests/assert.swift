@@ -10,34 +10,34 @@ import XCTest
 // Every helper takes the caller's source location, so failures point at the call site rather than at this file.
 // `#_sourceLocation` can't be used as the default argument: it would require `import Testing` in every caller.
 
-func assertTrue(_ actual: Bool, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
+nonisolated func assertTrue(_ actual: Bool, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
     assertEquals(actual, true, fileID: fileID, filePath: filePath, line: line, column: column)
 }
 
-func assertFalse(_ actual: Bool, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
+nonisolated func assertFalse(_ actual: Bool, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
     assertEquals(actual, false, fileID: fileID, filePath: filePath, line: line, column: column)
 }
 
 // Because assertEquals default messages are unreadable!
-func assertNotEquals<T>(_ actual: T, _ expected: T, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) where T: Equatable {
+nonisolated func assertNotEquals<T>(_ actual: T, _ expected: T, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) where T: Equatable {
     if actual == expected {
         failExpectedActual("not \(expected)", actual, fileID: fileID, filePath: filePath, line: line, column: column)
     }
 }
 
-func assertNil(_ actual: Any?, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
+nonisolated func assertNil(_ actual: Any?, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
     if let actual {
         failExpectedActual("nil", actual, fileID: fileID, filePath: filePath, line: line, column: column)
     }
 }
 
-func assertNotNil(_ actual: Any?, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
+nonisolated func assertNotNil(_ actual: Any?, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
     if actual == nil {
         failExpectedActual("not nil", "nil", fileID: fileID, filePath: filePath, line: line, column: column)
     }
 }
 
-func assertEquals<T>(
+nonisolated func assertEquals<T>(
     _ actual: T,
     _ expected: T,
     additionalMsg: String? = nil,
@@ -51,14 +51,14 @@ func assertEquals<T>(
     }
 }
 
-func assertSucc<T>(_ actual: Result<T, some Any>, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
+nonisolated func assertSucc<T>(_ actual: Result<T, some Any>, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
     switch actual {
         case .failure: failExpectedActual("Result.success", actual, fileID: fileID, filePath: filePath, line: line, column: column)
         case .success: break
     }
 }
 
-func assertSucc<T>(
+nonisolated func assertSucc<T>(
     _ actual: Result<T, some Any>,
     _ expected: T,
     fileID: String = #fileID,
@@ -72,7 +72,7 @@ func assertSucc<T>(
     }
 }
 
-func assertFail<F>(
+nonisolated func assertFail<F>(
     _ actual: Result<some Any, F>,
     _ expected: F? = nil,
     fileID: String = #fileID,
@@ -116,7 +116,7 @@ func testParseCommandHelp(_ command: String, fileID: String = #fileID, filePath:
     }
 }
 
-func failExpectedActual(
+nonisolated func failExpectedActual(
     _ expected: Any?,
     _ actual: Any?,
     additionalMsg: String? = nil,
@@ -142,7 +142,7 @@ func failExpectedActual(
 }
 
 /// Framework-agnostic replacement for `XCTFail`
-func fail(_ msg: String, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
+nonisolated func fail(_ msg: String, fileID: String = #fileID, filePath: StaticString = #filePath, line: Int = #line, column: Int = #column) {
     if Test.current == nil {
         XCTFail(msg, file: filePath, line: UInt(line))
     } else {

@@ -1,4 +1,4 @@
-enum KnownBundleId: String {
+nonisolated enum KnownBundleId: String {
     case _1password = "com.1password.1password"
     case activityMonitor = "com.apple.ActivityMonitor"
     case alacritty = "org.alacritty"

@@ -1,9 +1,10 @@
 import AppKit
 import Common
 
-private let moveWithMouseTask = LatestTaskSlot()
+nonisolated private let moveWithMouseTask = LatestTaskSlot()
 
-func movedObs(_: AXObserver, ax: AXUIElement, notif: CFString, _: UnsafeMutableRawPointer?) {
+/// AXObserver callback. Runs on the AX thread
+nonisolated func movedObs(_: AXObserver, ax: AXUIElement, notif: CFString, _: UnsafeMutableRawPointer?) {
     onMouseManipulationAxNotif(ax: ax, notif: notif, moveWithMouseTask, moveWithMouse)
 }
 

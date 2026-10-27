@@ -2,7 +2,8 @@ import AppKit
 import Common
 
 enum GlobalObserver {
-    private static func onNotif(_ notification: Notification) {
+    // NotificationCenter calls these with a nonisolated closure type, even on the main queue
+    nonisolated private static func onNotif(_ notification: Notification) {
         // Third line of defence against lock screen window. See: closedWindowsCache
         // Second and third lines of defence are technically needed only to avoid potential flickering
         if (notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier == lockScreenAppBundleId {
@@ -18,7 +19,7 @@ enum GlobalObserver {
         }
     }
 
-    private static func onHideApp(_ notification: Notification) {
+    nonisolated private static func onHideApp(_ notification: Notification) {
         let notifName = notification.name.rawValue
         Task.startUnstructured { @MainActor in
             guard let token: RunSessionGuard = .isServerEnabled else { return }

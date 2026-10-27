@@ -23,6 +23,7 @@ private struct ConfigFileWatcher: ~Copyable {
     }
 }
 
+// periphery:ignore - assign-only: the value keeps the watcher alive
 @MainActor private var currentWatcher: ConfigFileWatcher? = nil
 @MainActor private var debounceTask: Task<Void, any Error>? = nil
 

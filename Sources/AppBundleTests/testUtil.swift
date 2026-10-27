@@ -3,7 +3,7 @@ import AppKit
 import Common
 import HotKey
 
-let projectRoot: URL = {
+nonisolated let projectRoot: URL = {
     var url = URL(filePath: #filePath).absoluteURL
     check(FileManager.default.fileExists(atPath: url.path))
     while !FileManager.default.fileExists(atPath: url.appending(component: "Package.swift").path) {

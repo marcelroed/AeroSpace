@@ -38,7 +38,7 @@ struct SubcommandHelpTest: AeroSpaceTestSuite {
     }
 }
 
-private let expectedHelp: [(subcommand: String, help: String)] = [
+nonisolated private let expectedHelp: [(subcommand: String, help: String)] = [
     ("balance-sizes", "USAGE: balance-sizes [-h|--help] [--workspace <workspace>]"),
     ("close", "USAGE: close [-h|--help] [--quit-if-last-window] [--window-id <window-id>]"),
     ("close-all-windows-but-current", "USAGE: close-all-windows-but-current [-h|--help] [--quit-if-last-window]"),
