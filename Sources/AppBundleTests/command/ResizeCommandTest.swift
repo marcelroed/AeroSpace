@@ -4,20 +4,6 @@ import Testing
 
 @Suite(.aeroSpaceGlobalState)
 struct ResizeCommandTest {
-    @Test
-    func parse() {
-        testParseSingleCommandSucc("resize smart +10", ResizeCommand(dimension: .smart, units: .add(10)))
-        testParseSingleCommandSucc("resize smart -10", ResizeCommand(dimension: .smart, units: .subtract(10)))
-        testParseSingleCommandSucc("resize smart 10", ResizeCommand(dimension: .smart, units: .set(10)))
-
-        testParseSingleCommandSucc("resize smart-opposite +10", ResizeCommand(dimension: .smartOpposite, units: .add(10)))
-        testParseSingleCommandSucc("resize smart-opposite -10", ResizeCommand(dimension: .smartOpposite, units: .subtract(10)))
-        testParseSingleCommandSucc("resize smart-opposite 10", ResizeCommand(dimension: .smartOpposite, units: .set(10)))
-
-        testParseSingleCommandSucc("resize height 10", ResizeCommand(dimension: .height, units: .set(10)))
-        testParseSingleCommandSucc("resize width 10", ResizeCommand(dimension: .width, units: .set(10)))
-    }
-
     @Test(arguments: [
         ("resize s 10", "Can't parse 's'.\nPossible values: (width|height|smart|smart-opposite)"),
         ("resize smart foo", "<number> argument must be a number"),

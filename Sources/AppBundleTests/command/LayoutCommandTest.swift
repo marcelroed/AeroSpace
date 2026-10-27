@@ -4,25 +4,6 @@ import Testing
 
 @Suite(.aeroSpaceGlobalState)
 struct LayoutCommandTest {
-    @Test
-    func parse() async {
-        for command in ["layout v_tiles h_tiles", "layout tiling", "layout floating tiling", "layout --window-id 1 horizontal vertical"] {
-            expectEqual(parseCommand(command).errorOrNil, nil)
-        }
-        testParseSingleCommandSucc(
-            "layout --root accordion tiles",
-            LayoutCommand(toggleBetween: NonEmptyArray(.accordion, [.tiles]), root: true),
-        )
-        testParseSingleCommandSucc(
-            "layout --for-next-detected-window floating",
-            LayoutCommand(toggleBetween: NonEmptyArray(.floating), forNextDetectedWindow: true),
-        )
-        for command in ["layout --for-next-detected-window floating tiling", "layout --for-next-detected-window accordion"] {
-            let output = await runCmd(command)
-            expectEqual(output, .fail(LayoutCommand.forNextDetectedWindowFlagIncompatibilityMsg))
-        }
-    }
-
     @Test(arguments: [
         ("layout --root accordion tiling", "layout command: --root and tiling|floating are incompatible"),
         ("layout --workspace 2 tiles", "--workspace flag requires using an explicit --root flag"),
@@ -32,6 +13,8 @@ struct LayoutCommandTest {
         ("layout --for-next-detected-window --workspace 2 floating", "Conflicting options: --for-next-detected-window, --workspace"),
         ("layout --for-next-detected-window --root floating", "Conflicting options: --for-next-detected-window, --root"),
         ("layout --for-next-detected-window --fail-if-noop floating", "Conflicting options: --fail-if-noop, --for-next-detected-window"),
+        ("layout --for-next-detected-window floating tiling", "layout command: --for-next-detected-window allows only one tiling|floating <target-layout> argument"),
+        ("layout --for-next-detected-window accordion", "layout command: --for-next-detected-window allows only one tiling|floating <target-layout> argument"),
     ] as [(String, String)])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
@@ -39,28 +22,30 @@ struct LayoutCommandTest {
     }
 
     @Test(arguments: [
-        ("h_tiles(*1 2)", "layout vertical", "v_tiles(*1 2)"),
-        ("h_tiles(*1 2)", "layout accordion", "h_accordion(*1 2)"),
-        ("h_tiles(*1 2)", "layout v_accordion", "v_accordion(*1 2)"),
         // Toggles to the first layout that doesn't match
-        ("h_tiles(*1 2)", "layout h_tiles h_accordion", "h_accordion(*1 2)"),
-        ("h_tiles(*1 2)", "layout floating", "h_tiles(2) floating(*1)"),
-        ("h_tiles() floating(*1)", "layout tiling", "h_tiles(*1)"),
-        ("h_tiles() floating(*1)", "layout floating tiling", "h_tiles(*1)"),
-        ("h_tiles(*1)", "layout floating tiling", "h_tiles() floating(*1)"),
+        ("h_tiles(*1 2)", "layout h_tiles h_accordion", .ok, "h_accordion(*1 2)"),
+        ("h_tiles(*1 2)", "layout floating", .ok, "h_tiles(2) floating(*1)"),
+        ("h_tiles() floating(*1)", "layout tiling", .ok, "h_tiles(*1)"),
+        ("h_tiles() floating(*1)", "layout floating tiling", .ok, "h_tiles(*1)"),
+        ("h_tiles(*1)", "layout floating tiling", .ok, "h_tiles() floating(*1)"),
         // --root changes the root container instead of the parent of the window
-        ("h_tiles(v_tiles(*1) 2)", "layout --root v_accordion", "v_accordion(v_tiles(*1) 2)"),
-        ("h_tiles(v_tiles(*1) 2)", "layout --root h_tiles h_accordion", "h_accordion(v_tiles(*1) 2)"),
-        ("h_tiles() floating(*1)", "layout --root v_accordion", "v_accordion() floating(*1)"),
+        ("h_tiles(v_tiles(*1) 2)", "layout --root v_accordion", .ok, "v_accordion(v_tiles(*1) 2)"),
+        ("h_tiles(v_tiles(*1) 2)", "layout --root h_tiles h_accordion", .ok, "h_accordion(v_tiles(*1) 2)"),
+        ("h_tiles() floating(*1)", "layout --root v_accordion", .ok, "v_accordion() floating(*1)"),
         // Without --root, it fails: "Can't change layout for macOS minimized, fullscreen…"
-        ("h_tiles() macos_fullscreen(*1)", "layout --root v_accordion", "v_accordion() macos_fullscreen(*1)"),
+        ("h_tiles() macos_fullscreen(*1)", "layout --root v_accordion", .ok, "v_accordion() macos_fullscreen(*1)"),
         // Changes nothing until a window is detected
-        ("h_tiles(*1)", "layout floating --for-next-detected-window", "h_tiles(*1)"),
-    ] as [(String, String, String)])
-    func succeeds(before: String, command: String, after: String) async {
+        ("h_tiles(*1)", "layout floating --for-next-detected-window", .ok, "h_tiles(*1)"),
+        // Already in the requested layout
+        ("h_tiles(*1 2)", "layout h_tiles", alreadyIn("h_tiles"), "h_tiles(*1 2)"),
+        ("h_tiles(*1 2)", "layout tiling", alreadyIn("tiling"), "h_tiles(*1 2)"),
+        ("h_tiles(*1 2)", "layout --root h_tiles", alreadyIn("h_tiles"), "h_tiles(*1 2)"),
+        ("h_tiles() floating(*1)", "layout floating", alreadyIn("floating"), "h_tiles() floating(*1)"),
+    ] as [(String, String, CmdOutput, String)])
+    func succeeds(before: String, command: String, expected: CmdOutput, after: String) async {
         setUpTree(before)
         let output = await runCmd(command)
-        expectEqual(output, .ok)
+        expectEqual(output, expected)
         expectEqual(describeTree(), after)
     }
 
@@ -76,19 +61,6 @@ struct LayoutCommandTest {
         let output = await runCmd(command)
         expectEqual(output, .ok)
         expectEqual(describeTree(), tree.after)
-    }
-
-    @Test(arguments: [
-        ("h_tiles(*1 2)", "layout h_tiles", alreadyIn("h_tiles")),
-        ("h_tiles(*1 2)", "layout tiling", alreadyIn("tiling")),
-        ("h_tiles(*1 2)", "layout --root h_tiles", alreadyIn("h_tiles")),
-        ("h_tiles() floating(*1)", "layout floating", alreadyIn("floating")),
-    ] as [(String, String, CmdOutput)])
-    func noop(tree: String, command: String, expected: CmdOutput) async {
-        setUpTree(tree)
-        let output = await runCmd(command)
-        expectEqual(output, expected)
-        expectEqual(describeTree(), tree)
     }
 
     /// AEROSPACE_WORKSPACE names the empty focused workspace. A non-visible empty workspace would be garbage collected
@@ -124,7 +96,7 @@ struct LayoutCommandTest {
         let startParts = start.split(separator: "_").map { String($0) }
         let expected = "\(description.orientation ?? startParts[0])_\(description.layout ?? startParts[1])"
         let output = await runCmd("layout \(description.name)")
-        expectEqual(output, (expected == start ? alreadyIn(description.name) : .ok))
+        expectEqual(output, (expected == start ? alreadyIn(description.aliasOf ?? description.name) : .ok))
         expectEqual(describeTree(), "\(expected)(*1 2)")
     }
 
@@ -178,6 +150,8 @@ struct LayoutCommandTest {
         let name: String
         let orientation: String?
         let layout: String?
+        /// The description that a deprecated name stands for
+        var aliasOf: String? = nil
 
         var testDescription: String { name }
     }
@@ -192,6 +166,9 @@ nonisolated private let tilingDescriptions: [LayoutCommandTest.TilingDescription
     .init(name: "tiles", orientation: nil, layout: "tiles"),
     .init(name: "horizontal", orientation: "h", layout: nil),
     .init(name: "vertical", orientation: "v", layout: nil),
+    .init(name: "list", orientation: nil, layout: "tiles", aliasOf: "tiles"),
+    .init(name: "h_list", orientation: "h", layout: "tiles", aliasOf: "h_tiles"),
+    .init(name: "v_list", orientation: "v", layout: "tiles", aliasOf: "v_tiles"),
 ]
 
 nonisolated private func alreadyIn(_ mode: String) -> CmdOutput {

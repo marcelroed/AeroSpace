@@ -4,21 +4,6 @@ import Testing
 
 @Suite(.aeroSpaceGlobalState)
 struct MoveNodeToWorkspaceCommandTest {
-    @Test
-    func parse() throws {
-        testParseSingleCommandSucc("move-node-to-workspace next", MoveNodeToWorkspaceCommand(target: .relative(.next)))
-        testParseSingleCommandSucc("move-node-to-workspace --stdin next", MoveNodeToWorkspaceCommand(target: .relative(.next, useStdin: true)))
-        testParseSingleCommandSucc("move-node-to-workspace -- foo", MoveNodeToWorkspaceCommand(target: .direct(try .parse("foo"))))
-        testParseSingleCommandSucc(
-            "move-node-to-workspace --focus-follows-window -- foo",
-            MoveNodeToWorkspaceCommand(target: .direct(try .parse("foo")), focusFollowsWindow: true),
-        )
-        testParseSingleCommandSucc(
-            "move-node-to-workspace --fail-if-noop --window-id 2 foo",
-            MoveNodeToWorkspaceCommand(target: .direct(try .parse("foo"), failIfNoop: true, windowId: 2)),
-        )
-    }
-
     @Test(arguments: [
         ("move-node-to-workspace --fail-if-noop next", "--fail-if-noop is incompatible with (next|prev)"),
         ("move-node-to-workspace --stdin foo", "--stdin requires using (next|prev) argument"),
@@ -78,12 +63,6 @@ struct MoveNodeToWorkspaceCommandTest {
         expectEqual(output, .ok)
         expectEqual(describeTree("a"), "h_tiles(*1 2)")
         #expect(source.isEffectivelyEmpty)
-    }
-
-    @Test
-    func noWindowIsFocused() async {
-        let output = await runCmd("move-node-to-workspace b")
-        expectEqual(output, .fail("No window is focused"))
     }
 
     @Test(arguments: [

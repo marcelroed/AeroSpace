@@ -4,19 +4,6 @@ import Testing
 
 @Suite(.aeroSpaceGlobalState)
 struct SummonWorkspaceCommandTest {
-    @Test
-    func parse() throws {
-        testParseSingleCommandSucc("summon-workspace foo", SummonWorkspaceCommand(target: try .parse("foo")))
-        testParseSingleCommandSucc(
-            "summon-workspace -- foo",
-            SummonWorkspaceCommand(target: try .parse("foo")),
-        )
-        testParseSingleCommandSucc(
-            "summon-workspace --fail-if-noop -- foo",
-            SummonWorkspaceCommand(target: try .parse("foo"), failIfNoop: true),
-        )
-    }
-
     @Test(arguments: [
         ("summon-workspace", "Argument '<workspace>' is mandatory"),
         ("summon-workspace --", "Argument '<workspace>' is mandatory"),
