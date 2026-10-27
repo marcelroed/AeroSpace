@@ -223,6 +223,21 @@ struct FocusCommandTest {
         expectEqual(output, .ok)
         expectEqual(describeTree(), "h_accordion(*1 2) floating(3 4)")
     }
+
+    /// Workspace a is `h_tiles(*1 2)`, b is `h_tiles(3)`. Each command runs on the state that the previous one left, and the
+    /// focus check that the session runs after each command remembers the previous focus
+    @Test(arguments: focusBackAndForthCases)
+    func focusBackAndForth(steps: [(command: String, expected: CmdOutput, focused: WindowId)]) async {
+        setUpTree("h_tiles(*1 2)", workspace: "a")
+        setUpTree("h_tiles(3)", workspace: "b")
+        await checkOnFocusChangedCallbacks_nonCancellable()
+        for (command, expected, focused) in steps {
+            let output = await runCmd(command)
+            expectEqual(output, expected, "\(command)")
+            await checkOnFocusChangedCallbacks_nonCancellable()
+            expectEqual(focus.windowOrNil?.windowId, focused, "after '\(command)'")
+        }
+    }
 }
 
 /// The tiles fill the 1920x1080 test monitor, and floating window 4 is above window 1: focus sees it as the first tiling
@@ -238,3 +253,10 @@ private func setUpFloatingWindowAboveTiles(_ spec: String) -> Workspace {
     testWindow(4).rect = rect(100, 100, 200, 200)
     return workspace
 }
+
+nonisolated private let focusBackAndForthCases: [[(command: String, expected: CmdOutput, focused: WindowId)]] = [
+    [("focus right", .ok, 2), ("focus-back-and-forth", .ok, 1), ("focus-back-and-forth", .ok, 2)],
+    [("workspace b", .ok, 3), ("focus-back-and-forth", .ok, 1)],
+    // The previous window closed. Its workspace's focus is the current focus
+    [("focus right", .ok, 2), ("close --window-id 1", .ok, 2), ("focus-back-and-forth", .fail("Prev window has been closed"), 2)],
+]
