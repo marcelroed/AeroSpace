@@ -94,7 +94,7 @@ struct MoveCommand: nonisolated Command {
                         focusFollowsWindow: focus.windowOrNil == window,
                         windowId: window.windowId,
                     )
-                    return try await moveNodeToMonitor.run(cx)
+                    return try await delegate(to: moveNodeToMonitor, cx)
                 }
         }
         switch boundariesAction {

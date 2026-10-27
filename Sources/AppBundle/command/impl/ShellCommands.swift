@@ -140,7 +140,7 @@ struct RunCallbackCommand: nonisolated Command {
             case .onFocusedMonitorChanged:
                 exitCode = await onFocusedMonitorChanged(cx.env, cx.io, target)
         }
-        if exitCode != EXIT_CODE_ZERO { throw CmdFail(nil, exitCode: exitCode) }
+        try CmdFail.passThrough(exitCode)
     }
 }
 
@@ -225,8 +225,7 @@ struct EvalCommand: nonisolated Command {
         } catch {
             throw CmdFail(error.message)
         }
-        let exitCode = await shell.run(cx.env, cx.io)
-        if exitCode != EXIT_CODE_ZERO { throw CmdFail(nil, exitCode: exitCode) }
+        try CmdFail.passThrough(await shell.run(cx.env, cx.io))
     }
 }
 
@@ -295,8 +294,7 @@ struct TriggerBindingCommand: nonisolated Command {
             throw "Binding '\(binding)' is not presented in mode '\(mode)'"
         }
         // refreshSession is not needed since commands are already run in refreshSession
-        let exitCode = await match.commands.run(cx.env, cx.io)
-        if exitCode != EXIT_CODE_ZERO { throw CmdFail(nil, exitCode: exitCode) }
+        try CmdFail.passThrough(await match.commands.run(cx.env, cx.io))
     }
 }
 

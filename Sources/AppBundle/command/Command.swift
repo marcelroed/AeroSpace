@@ -29,9 +29,12 @@ nonisolated struct SourceWords: Equatable, Sendable, ExpressibleByArrayLiteral {
 /// rather than a failure
 struct CmdFail: Error, Equatable, ExpressibleByStringInterpolation {
     let message: String?
+    /// Never EXIT_CODE_ZERO
     let exitCode: Int32
 
-    init(_ message: String?, exitCode: Int32 = EXIT_CODE_TWO) {
+    init(_ message: String?) { self.init(message, exitCode: EXIT_CODE_TWO) }
+
+    private init(_ message: String?, exitCode: Int32) {
         self.message = message
         self.exitCode = exitCode
     }
@@ -41,6 +44,11 @@ struct CmdFail: Error, Equatable, ExpressibleByStringInterpolation {
     /// Fail without a message: the command has already explained, or `--fail-if-noop` asked for silence
     static let silent = CmdFail(nil)
     static let no = CmdFail(nil, exitCode: 1)
+
+    /// Makes the exit code of a nested shell (`eval`, a callback, a binding) the exit code of the command
+    static func passThrough(_ exitCode: Int32) throws(CmdFail) {
+        if exitCode != EXIT_CODE_ZERO { throw CmdFail(nil, exitCode: exitCode) }
+    }
 }
 
 /// What a running command sees: the client's environment, its stdin, and where its output goes
@@ -81,20 +89,18 @@ struct CmdContext {
 nonisolated let noWindowIsFocused = "No window is focused"
 
 extension Command {
-    /// Runs the command, and turns its failure into stderr and an exit code
-    func run(_ env: CmdEnv, _ io: CmdIo) async -> Int32 {
-        do {
-            try await run(CmdContext(env: env, io: io))
-            return EXIT_CODE_ZERO
-        } catch {
-            if let message = error.message { io.stderr.append(message) }
-            return error.exitCode
-        }
-    }
-
+    /// Runs the command like a shell of one command: Shell resets the closed-windows cache and refreshes the model
     @discardableResult
     func run(_ env: CmdEnv, _ stdin: consuming CmdStdin) async -> CmdResult {
         await Shell.cmd(self).run(env, stdin)
+    }
+
+    /// Runs `command` as a part of this command, in `cx`. The only way for a command to run another command outside of
+    /// a Shell: `command` gets no closed-windows cache reset and no model refresh of its own. The Shell that runs this
+    /// command decides by this command's flag, so the flag must be true whenever the flag of `command` is
+    func delegate<C: Command>(to command: C, _ cx: CmdContext) async throws(CmdFail) {
+        assert(Self.resetsClosedWindowsCache || !C.resetsClosedWindowsCache, "\(Self.self) delegates to \(C.self), which resets the closed-windows cache")
+        try await command.run(cx)
     }
 
     var shouldResetClosedWindowsCache: Bool { Self.resetsClosedWindowsCache }

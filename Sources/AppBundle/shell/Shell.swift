@@ -88,7 +88,7 @@ extension Shell where T == any Command {
         switch self {
             case .empty: return EXIT_CODE_ZERO
             case .cmd(let command):
-                let exitCode = await command.run(env, io)
+                let exitCode = await runReportingFailure(command, env, io)
                 if command.shouldResetClosedWindowsCache { resetClosedWindowsCache() }
                 await refreshModel_nonCancellable()
                 return exitCode
@@ -111,6 +111,17 @@ extension Shell where T == any Command {
         let io = CmdIo(stdin: stdin)
         let exitCode = await run(env, io)
         return CmdResult(stdout: io.stdout, stderr: io.stderr, exitCode: exitCode)
+    }
+}
+
+/// Runs the command, and turns its failure into stderr and an exit code
+private func runReportingFailure(_ command: any Command, _ env: CmdEnv, _ io: CmdIo) async -> Int32 {
+    do {
+        try await command.run(CmdContext(env: env, io: io))
+        return EXIT_CODE_ZERO
+    } catch {
+        if let message = error.message { io.stderr.append(message) }
+        return error.exitCode
     }
 }
 

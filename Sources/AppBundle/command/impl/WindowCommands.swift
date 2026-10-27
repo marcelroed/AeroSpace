@@ -59,8 +59,12 @@ struct CloseAllWindowsButCurrentCommand: nonisolated Command {
         guard let focused = target.windowOrNil else { throw "Empty workspace" }
         var failed = false
         for window in target.workspace.allLeafWindowsRecursive where window != focused {
-            let close = CloseCommand(quitIfLastWindow: quitIfLastWindow)
-            failed = await close.run(cx.env.withWindowId(window.windowId), cx.io) != EXIT_CODE_ZERO || failed
+            do {
+                try await delegate(to: CloseCommand(quitIfLastWindow: quitIfLastWindow), CmdContext(env: cx.env.withWindowId(window.windowId), io: cx.io))
+            } catch {
+                if let message = error.message { cx.err(message) }
+                failed = true
+            }
         }
         if failed { throw .silent }
     }

@@ -81,7 +81,7 @@ struct WorkspaceCommand: nonisolated Command {
             case .direct(let name, let whenFocused):
                 workspaceName = name.raw
                 if whenFocused == .backAndForth && focusedWs.name == workspaceName {
-                    return try WorkspaceBackAndForthCommand().run(cx)
+                    return try await delegate(to: WorkspaceBackAndForthCommand(), cx)
                 }
                 failIfNoop = whenFocused == .fail
         }
