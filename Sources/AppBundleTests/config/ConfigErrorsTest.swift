@@ -24,7 +24,6 @@ struct ConfigErrorsTest {
         expectEqual(bindings["alt-b"]?.commands.shellOfCommandsDescription, "workspace b")
     }
 
-
     @Test(.aeroSpaceGlobalState) // Resolves the patterns against the monitors
     func testResolvedGaps() {
         let result = parseConfig(
@@ -47,7 +46,6 @@ struct ConfigErrorsTest {
         expectEqual(gaps.outer.top, 6)
         expectEqual(gaps.outer.right, 7)
     }
-
 
     @Test
     func testLegacyMatcherDebugJson() {
@@ -86,7 +84,6 @@ struct ConfigErrorsTest {
             ]),
         ])
     }
-
 
     /// A per-monitor value with an unusable rule keeps the default. Only `inner.horizontal` is ever usable in these rows
     @Test(arguments: [
@@ -186,8 +183,33 @@ struct ConfigErrorsTest {
             "[ERROR] a: Unknown top-level key",
             "[ERROR] b: Unknown top-level key", // 'z' is dropped, so it isn't also unknown
         ]),
+        // The error paths quote keys like TOML
+        ("'a.b' = 1\n'x\"y' = 2\ngaps.outer.left = [{ monitor.'test monitor' = true }, 1]", [
+            #"[ERROR] "a.b": Unknown top-level key"#,
+            #"[ERROR] gaps.outer.left[0].monitor."test monitor": Expected type is 'Int'. But actual type is 'Bool'"#,
+            #"[ERROR] "x\"y": Unknown top-level key"#,
+        ]),
+        // Two settings that don't fit
+        (
+            """
+            enable-normalization-flatten-containers = true
+            [mode.main.binding]
+            [mode.foo.binding]
+                alt-s = 'split horizontal'
+            """,
+            [
+                """
+                [ERROR] The config contains:
+                1. usage of 'split' command
+                2. enable-normalization-flatten-containers = true
+                These two settings don't play nicely together. 'split' command has no effect when enable-normalization-flatten-containers is enabled.
+
+                My recommendation: keep the normalizations enabled, and prefer 'join-with' over 'split'.
+                """,
+            ],
+        ),
     ] as [(String, [String])])
-    func typeErrors(toml: String, errors: [String]) {
+    func parseErrors(toml: String, errors: [String]) {
         expectEqual(parseConfig(toml).strErrors, errors)
     }
 
@@ -218,8 +240,24 @@ struct ConfigErrorsTest {
         expectEqual(result.config.workspaceToMonitorForceAssignment, ["y": []])
     }
 
-    /// A binding with an invalid command is dropped, and so is a callback
+    /// A binding with an invalid key, modifiers or command is dropped, and so is a callback. `bindings`: those of the main
+    /// mode, nil if there is no main mode
     @Test(arguments: [
+        ("mode.main = {}", [], [], ""),
+        ("[mode.foo.binding]\n    alt-h = 'focus left'", ["[ERROR] mode: Please specify 'main' mode"], nil, ""),
+        (
+            """
+            [mode.main.binding]
+                alt-hh = 'focus left'
+                aalt-j = 'focus down'
+                alt-k = 'focus up'
+            """,
+            [
+                "[ERROR] mode.main.binding.aalt-j: Can't parse modifiers in 'aalt-j' binding",
+                "[ERROR] mode.main.binding.alt-hh: Can't parse the key in 'alt-hh' binding",
+            ],
+            ["alt-k"], "",
+        ),
         (
             """
             [mode.main.binding]
@@ -238,7 +276,7 @@ struct ConfigErrorsTest {
         (
             "on-focus-changed = ['bogus', 'focus --help']",
             ["[ERROR] on-focus-changed[0]: Unrecognized subcommand 'bogus'", "[ERROR] on-focus-changed[1]: \(CmdKind.focus.help)"],
-            [], "",
+            nil, "",
         ),
         (
             """
@@ -253,11 +291,11 @@ struct ConfigErrorsTest {
             ],
             [], "",
         ),
-    ] as [(String, [String], [String], String)])
-    func commandErrors(toml: String, errors: [String], bindings: [String], onFocusChanged: String) {
+    ] as [(String, [String], [String]?, String)])
+    func commandErrors(toml: String, errors: [String], bindings: [String]?, onFocusChanged: String) {
         let result = parseConfig(toml)
         expectEqual(result.strErrors, errors)
-        expectEqual(result.config.modes[mainModeId]?.bindings.keys.sorted() ?? [], bindings)
+        expectEqual(result.config.modes[mainModeId]?.bindings.keys.sorted(), bindings)
         expectEqual(result.config.onFocusChanged.shellOfCommandsDescription, onFocusChanged)
     }
 }
