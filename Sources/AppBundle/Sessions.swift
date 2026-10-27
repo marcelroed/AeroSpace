@@ -31,12 +31,15 @@ import Common
 /// - AX read of a command: a single read of ``Platform`` (`AxApp.run`), awaited. Nothing preempts it.
 /// - Placement: `AxApp.postPlacements`, a generation per window. Preempted by a newer placement, attribute write or
 ///   close of the window.
-/// - Native focus (slow path): `LivePlatform.focus` posts it with a global generation. Preempted by a newer one.
-/// - App registration: one pending task per pid (`LivePlatform.pendingRegistrations`). A failed one backs off 1–60 s.
-///   Nothing preempts it.
+/// - Native focus on the app's thread (the slow path, or either path in the app's shown job): a global generation
+///   (`LivePlatform.nativeFocus`). Preempted by a newer native focus.
+/// - App registration: one pending task per pid (`LivePlatform.pendingRegistrations`). A failed one backs off 1–60 s
+///   (``RegistrationBackoffs``). Nothing preempts it.
 /// - Order within an app: FIFO on its actor's thread (posts and awaited calls share one queue). Per layout, two jobs:
-///   the visible workspaces' placements, then the parks; then the focus. The parks wait before their first write for
-///   every app's shown placements of the layout, at most 200 ms (`ShownJobs`). Nothing preempts it.
+///   the shown job (the visible workspaces' placements, then the native focus of the app's window, then a wait of at
+///   most 100 ms until the window server shows the tiles it unparked), then the parks, which wait before their first
+///   write for every app's shown job of the layout, at most 200 ms (`ShownJobs`). A focus outside a layout's shown job
+///   is posted after them (slow path) or runs from main at once (fast path). Nothing preempts it.
 ///
 /// A cancelled heavy refresh stops at its next observe read or at the end of P1, and skips P4. Nothing is queued for
 /// retry: the tree is the desired state, and every heavy refresh lays out every window again.
