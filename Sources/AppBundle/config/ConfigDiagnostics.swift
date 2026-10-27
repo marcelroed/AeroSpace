@@ -19,16 +19,9 @@ struct ConfigParseDiagnostic: Equatable, Sendable {
 /// The single sink every decoder reports into. The append order is the order users see
 struct Diagnostics: Sendable {
     private(set) var errors: [ConfigParseDiagnostic] = []
-    /// TOML syntax error, unreadable or ambiguous file: the config must not be applied
-    private(set) var isFatal = false
 
     mutating func error(_ path: ConfigBacktrace, _ message: String) {
         errors.append(ConfigParseDiagnostic(path, message))
-    }
-
-    mutating func fatal(_ message: String) {
-        isFatal = true
-        error(.emptyRoot, message)
     }
 
     /// The success value, or nil after reporting the failure at `path`

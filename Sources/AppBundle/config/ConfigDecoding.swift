@@ -76,14 +76,13 @@ func decodeTable<S>(_ raw: OrderedJson, into target: inout S, _ fields: [String:
     return isUsable
 }
 
-/// The root table with sorted keys. A syntax error is fatal. Values of unsupported types are reported and dropped
-func decodeTomlRoot(_ rawToml: String, _ d: inout Diagnostics) -> OrderedJson.JsonDict {
+/// The root table with sorted keys, or the syntax error. Values of unsupported types are reported and dropped
+func decodeTomlRoot(_ rawToml: String, _ d: inout Diagnostics) -> ResOrStr<OrderedJson.JsonDict> {
     do {
         let dict: [String: Any] = try .init(try TOMLTable(source: rawToml))
-        return tomlToOrderedJson(dict, .emptyRoot, &d)?.asDictOrNil ?? [:]
+        return .success(tomlToOrderedJson(dict, .emptyRoot, &d)?.asDictOrNil ?? [:])
     } catch {
-        d.fatal(error.description)
-        return [:]
+        return .failure(error.description)
     }
 }
 

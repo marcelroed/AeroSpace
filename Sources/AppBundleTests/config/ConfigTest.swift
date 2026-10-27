@@ -18,7 +18,7 @@ struct ConfigTest {
     func testEmptyConfig() {
         let result = parseConfig("")
         #expect(result.errors == [])
-        #expect(result.allowReloadConfig)
+        #expect(!result.isFatal)
         #expect(result.config.persistentWorkspaces == [])
     }
 
@@ -61,7 +61,7 @@ struct ConfigTest {
             indent-for-nested-containers-with-the-same-orientation = 30
             """,
         )
-        #expect(result.allowReloadConfig)
+        #expect(!result.isFatal)
         #expect(result.strErrors == [
             "[ERROR] after-login-command: Unknown top-level key",
             "[ERROR] config-version: Unknown top-level key",
@@ -84,7 +84,7 @@ struct ConfigTest {
     @Test
     func testDropBindings() {
         let result = parseConfig("mode.main = {}")
-        #expect(result.allowReloadConfig)
+        #expect(!result.isFatal)
         #expect(result.errors == [])
         #expect(result.config.modes[mainModeId]?.bindings.isEmpty == true)
     }
@@ -198,7 +198,7 @@ struct ConfigTest {
 
     @Test
     func testConfigParseError() {
-        #expect(!parseConfig("true").allowReloadConfig)
+        #expect(parseConfig("true").isFatal)
         #expect(parseConfig("true").strErrors == ["[ERROR] (Line 1) Syntax error: missing =."])
 
         #expect(parseConfig("\n1").strErrors == ["[ERROR] (Line 2) Syntax error: missing =."])
@@ -540,7 +540,7 @@ struct ConfigTest {
     func testMissingValueIsSyntaxErrorThatPreventsReload() {
         // The TOML root is always a table, so a TOML syntax error is the only way to get no root table
         let result = parseConfig("a = ")
-        #expect(!result.allowReloadConfig)
+        #expect(result.isFatal)
         #expect(result.strErrors == ["[ERROR] (Line 1) Syntax error: syntax error."])
     }
 
@@ -590,5 +590,15 @@ struct ConfigTest {
 extension ParseConfigResult {
     var strErrors: [String] {
         errors.map(\.description)
+    }
+
+    var isFatal: Bool {
+        if case .fatal = self { true } else { false }
+    }
+
+    var config: Config {
+        if case .parsed(let config, _) = self { return config }
+        Issue.record("Expected a parsed config, got \(strErrors)")
+        return Config()
     }
 }

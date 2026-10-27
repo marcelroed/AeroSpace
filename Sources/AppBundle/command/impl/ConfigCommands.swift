@@ -218,8 +218,8 @@ func reloadConfig_nonCancellable(
             ? nil
             : Message(body: "Failed to parse \(url.absoluteURL.path.singleQuoted). \(errors.count) error(s)\n\n\(errors.joined(separator: "\n\n"))")
     }
-    if parsed.allowReloadConfig && !args.dryRun {
-        applyConfig(parsed.config, url: url)
+    if case .parsed(let newConfig, _) = parsed, !args.dryRun {
+        applyConfig(newConfig, url: url)
     }
     if !args.dryRun {
         // Re-arm even if the reload failed. The watcher follows the file, not the path, and an atomic save replaces the file
@@ -238,7 +238,7 @@ private func applyConfig(_ newConfig: Config, url: URL) {
     syncFocusFollowsMouse(config)
 }
 
-/// Finds and parses the config. A fatal result (ambiguous or unreadable file, TOML syntax error) must not be applied
+/// Finds and parses the config
 func loadConfig(forceUrl: URL?) -> (url: URL, result: ParseConfigResult) {
     let url: URL
     if let forceUrl {

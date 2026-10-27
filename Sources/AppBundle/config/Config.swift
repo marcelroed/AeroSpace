@@ -2,11 +2,11 @@ import Common
 import OrderedCollections
 
 let defaultConfig: Config = {
-    let parsedConfig = parseConfig(Result { try String(contentsOf: defaultConfigUrl, encoding: .utf8) }.getOrDie())
-    if !parsedConfig.errors.isEmpty {
-        die("Can't parse default config: \(parsedConfig.errors)")
+    let parsed = parseConfig(Result { try String(contentsOf: defaultConfigUrl, encoding: .utf8) }.getOrDie())
+    guard case .parsed(let config, errors: []) = parsed else {
+        die("Can't parse default config: \(parsed.errors)")
     }
-    return parsedConfig.config
+    return config
 }()
 var config: Config = defaultConfig // todo move to Ctx?
 

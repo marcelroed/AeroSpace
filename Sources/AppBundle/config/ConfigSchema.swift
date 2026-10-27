@@ -39,23 +39,27 @@ private let rootFields: [String: Field<Config>] = [
     "on-window-detected": Field(\.onWindowDetected, decodeWindowRules),
 ]
 
-struct ParseConfigResult {
-    let config: Config
-    let diagnostics: Diagnostics
+enum ParseConfigResult {
+    /// An ambiguous or unreadable file, or a TOML syntax error: there is no config to apply
+    case fatal(String)
+    /// The keys with errors keep their defaults. The config is applied even if there are errors
+    case parsed(Config, errors: [ConfigParseDiagnostic])
 
-    var errors: [ConfigParseDiagnostic] { diagnostics.errors }
-    var allowReloadConfig: Bool { !diagnostics.isFatal }
-
-    static func fatal(_ message: String) -> Self {
-        var d = Diagnostics()
-        d.fatal(message)
-        return ParseConfigResult(config: Config(), diagnostics: d)
+    var errors: [ConfigParseDiagnostic] {
+        switch self {
+            case .fatal(let message): [ConfigParseDiagnostic(.emptyRoot, message)]
+            case .parsed(_, let errors): errors
+        }
     }
 }
 
 func parseConfig(_ rawToml: String) -> ParseConfigResult {
     var d = Diagnostics()
-    let root = decodeTomlRoot(rawToml, &d)
+    let root: OrderedJson.JsonDict
+    switch decodeTomlRoot(rawToml, &d) {
+        case .success(let it): root = it
+        case .failure(let syntaxError): return .fatal(syntaxError)
+    }
     var config = Config()
     // The order is pinned: the sorted root keys, key-mapping, then mode (bindings resolve through key-mapping)
     decodeTable(.dict(root), into: &config, rootFields, .emptyRoot, &d)
@@ -69,7 +73,7 @@ func parseConfig(_ rawToml: String) -> ParseConfigResult {
     if config.enableNormalizationFlattenContainers && bindingCommands.contains(where: { $0 is SplitCommand }) {
         d.error(.emptyRoot, splitAndFlattenConflictMessage) // todo Make 'split' + flatten normalization prettier
     }
-    return ParseConfigResult(config: config, diagnostics: d)
+    return .parsed(config, errors: d.errors)
 }
 
 private let splitAndFlattenConflictMessage = """
