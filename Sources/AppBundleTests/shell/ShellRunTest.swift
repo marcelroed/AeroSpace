@@ -2,119 +2,137 @@
 import Common
 import Testing
 
-@MainActor
 @Suite(.aeroSpaceGlobalState)
 struct ShellRunTest: AeroSpaceTestSuite {
     @Test
     func testOrFirstSucceeds_shortCircuits() async {
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
+        #expect(Workspace.get(byName: "a").focusWorkspace())
 
-        await assertRun("true || workspace b", exitCode: 0)
-        assertEquals(focus.workspace.name, "a")
+        let output = await runCmd("true || workspace b")
+        #expect(output == .ok)
+        #expect(focus.workspace.name == "a")
     }
 
     @Test
     func testOrFirstFails_runsNext() async {
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
+        #expect(Workspace.get(byName: "a").focusWorkspace())
 
-        await assertRun("false || workspace b", exitCode: 0)
-        assertEquals(focus.workspace.name, "b")
+        let output = await runCmd("false || workspace b")
+        #expect(output == .ok)
+        #expect(focus.workspace.name == "b")
     }
 
     @Test
     func testOrAllFail_returnsLastExitCode() async {
-        await assertRun("false || false || false", exitCode: 1)
+        let output = await runCmd("false || false || false")
+        #expect(output == CmdOutput(exitCode: 1))
     }
 
     @Test
     func testOrChainStopsOnFirstSuccess() async {
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
+        #expect(Workspace.get(byName: "a").focusWorkspace())
 
-        await assertRun("false || workspace b || workspace c", exitCode: 0)
-        assertEquals(focus.workspace.name, "b")
+        let output = await runCmd("false || workspace b || workspace c")
+        #expect(output == .ok)
+        #expect(focus.workspace.name == "b")
     }
 
     @Test
     func testAndFirstFails_shortCircuits() async {
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
+        #expect(Workspace.get(byName: "a").focusWorkspace())
 
-        await assertRun("false && workspace b", exitCode: 1)
-        assertEquals(focus.workspace.name, "a")
+        let output = await runCmd("false && workspace b")
+        #expect(output == CmdOutput(exitCode: 1))
+        #expect(focus.workspace.name == "a")
     }
 
     @Test
     func testAndAllSucceed_returnsZero() async {
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
+        #expect(Workspace.get(byName: "a").focusWorkspace())
 
-        await assertRun("true && workspace b", exitCode: 0)
-        assertEquals(focus.workspace.name, "b")
+        let output = await runCmd("true && workspace b")
+        #expect(output == .ok)
+        #expect(focus.workspace.name == "b")
     }
 
     @Test
     func testAndChainStopsOnFirstFailure() async {
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
+        #expect(Workspace.get(byName: "a").focusWorkspace())
 
-        await assertRun("workspace b && false && workspace c", exitCode: 1)
-        assertEquals(focus.workspace.name, "b")
+        let output = await runCmd("workspace b && false && workspace c")
+        #expect(output == CmdOutput(exitCode: 1))
+        #expect(focus.workspace.name == "b")
     }
 
     @Test
     func testAndReturnsLastSuccessExitCode() async {
-        await assertRun("true && true && true", exitCode: 0)
+        let output = await runCmd("true && true && true")
+        #expect(output == .ok)
     }
 
     @Test
     func testSeqRunsAllRegardlessOfExitCode() async {
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
+        #expect(Workspace.get(byName: "a").focusWorkspace())
 
-        await assertRun("false; workspace b", exitCode: 0)
-        assertEquals(focus.workspace.name, "b")
+        let output = await runCmd("false; workspace b")
+        #expect(output == .ok)
+        #expect(focus.workspace.name == "b")
     }
 
     @Test
     func testSeqReturnsLastCommandExitCode() async {
-        await assertRun("true; false", exitCode: 1)
+        var output = await runCmd("true; false")
+        #expect(output == CmdOutput(exitCode: 1))
 
-        await assertRun("false; true", exitCode: 0)
+        output = await runCmd("false; true")
+        #expect(output == .ok)
     }
 
     @Test
     func testSeqConcatenatesStdout() async {
-        await assertRun("echo -- foo; echo -- bar; echo -- baz", exitCode: 0, stdout: ["foo", "bar", "baz"])
+        let output = await runCmd("echo -- foo; echo -- bar; echo -- baz")
+        #expect(output == CmdOutput(stdout: ["foo", "bar", "baz"]))
     }
 
     @Test
     func testPipeForwardsStdoutAsStdin() async {
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
+        #expect(Workspace.get(byName: "a").focusWorkspace())
 
-        await assertRun("echo -- a b c | workspace --stdin next", exitCode: 0)
-        assertEquals(focus.workspace.name, "b")
+        let output = await runCmd("echo -- a b c | workspace --stdin next")
+        #expect(output == .ok)
+        #expect(focus.workspace.name == "b")
     }
 
     @Test
     func testPipeReturnsOnlyLastStdout() async {
-        await assertRun("echo -- foo | echo -- bar", exitCode: 0, stdout: ["bar"])
+        let output = await runCmd("echo -- foo | echo -- bar")
+        #expect(output == CmdOutput(stdout: ["bar"]))
     }
 
     @Test
     func testPipeForwardsIntermediateStderr() async {
-        await assertRun("echo --stderr -- err1 | echo -- out2", exitCode: 0, stdout: ["out2"], stderr: ["err1"])
+        let output = await runCmd("echo --stderr -- err1 | echo -- out2")
+        #expect(output == CmdOutput(stdout: ["out2"], stderr: ["err1"]))
     }
 
     @Test
     func testPipePipefailReturnsRightmostNonZero() async {
-        await assertRun("false | true", exitCode: 1)
+        var output = await runCmd("false | true")
+        #expect(output == CmdOutput(exitCode: 1))
 
-        await assertRun("true | false", exitCode: 1)
+        output = await runCmd("true | false")
+        #expect(output == CmdOutput(exitCode: 1))
 
-        await assertRun("true | true", exitCode: 0)
+        output = await runCmd("true | true")
+        #expect(output == .ok)
     }
 
     @Test
     func testPipeForwardsOriginalStdin() async {
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
+        #expect(Workspace.get(byName: "a").focusWorkspace())
 
-        await assertRun("workspace --stdin next | echo -- done", stdin: "a\nb\nc\n", exitCode: 0, stdout: ["done"])
-        assertEquals(focus.workspace.name, "b")
+        let output = await runCmd("workspace --stdin next | echo -- done", stdin: "a\nb\nc\n")
+        #expect(output == CmdOutput(stdout: ["done"]))
+        #expect(focus.workspace.name == "b")
     }
 }
