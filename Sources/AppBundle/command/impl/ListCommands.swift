@@ -125,6 +125,7 @@ nonisolated enum MonitorId: Equatable, Sendable {
     case focused
     case all
     case mouse
+    /// 0-based
     case index(Int)
 
     /// The values of `--monitor`
@@ -132,7 +133,11 @@ nonisolated enum MonitorId: Equatable, Sendable {
         let possibleValues = "<monitor> possible values: (<monitor-id>|focused|mouse|all)"
         if raw.isEmpty { throw "<monitor>... is mandatory. \(possibleValues)" }
         return try raw.map { (monitor) throws(CmdParseError) in
-            if let index = Int(monitor) { return .index(index - 1) }
+            if let id = Int(monitor) {
+                // `id - 1` traps on Int.min, and a trap in the parser crashes the server
+                guard id >= 1 else { throw "Monitor IDs use 1-based indexing. Values less than 1 are illegal" }
+                return .index(id - 1)
+            }
             switch monitor {
                 case "mouse": return .mouse
                 case "all": return .all

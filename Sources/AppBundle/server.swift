@@ -75,9 +75,10 @@ private enum RequestOutcome {
 private func handle(_ request: ClientRequest) async -> RequestOutcome {
     let command: any Command
     do throws(CmdParseError) {
-        var (kind, args) = try parseSubcommand(request.args)
-        if kind == .subscribe { return .subscribe(try SubscribeArgs.parse(&args)) }
-        command = try parseCommand(request.args)
+        switch try parseRequest(request.args) {
+            case .command(let it): command = it
+            case .subscribe(let args): return .subscribe(args)
+        }
     } catch {
         return switch error {
             case .help(let kind): .answer(exitCode: EXIT_CODE_ZERO, stdout: kind.help)

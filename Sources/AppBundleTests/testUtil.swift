@@ -126,6 +126,24 @@ func runCmd(_ command: String, stdin: String = "", windowIdEnv: UInt32? = nil, w
     }
 }
 
+/// Parses `args` the way the server parses a CLI request, and runs the command like `runCmd`
+func runCliArgs(_ args: [String], stdin: String = "") async -> CmdOutput {
+    let command: any Command
+    do throws(CmdParseError) {
+        switch try parseRequest(args) {
+            case .command(let it): command = it
+            case .subscribe: return .ok
+        }
+    } catch {
+        return switch error {
+            case .help(let kind): CmdOutput(stdout: [kind.help])
+            case .invalid(let msg): CmdOutput(stderr: [msg], exitCode: EXIT_CODE_TWO)
+        }
+    }
+    let result = await command.run(CmdEnv(windowId: nil, workspaceName: nil), CmdStdin(stdin))
+    return CmdOutput(stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode)
+}
+
 extension HotkeyBinding {
     init(_ modifiers: NSEvent.ModifierFlags, _ keyCode: Key, _ commands: Shell<any Command>) {
         let descriptionWithKeyNotation = modifiers.isEmpty

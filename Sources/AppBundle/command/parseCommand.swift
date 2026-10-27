@@ -15,6 +15,20 @@ func parseShell(_ raw: String, allowExecAndForget: Bool, allowEval: Bool) throws
     }
 }
 
+/// What the args of a CLI request ask for
+enum ParsedRequest {
+    case command(any Command)
+    /// Not a command: it holds the connection open
+    case subscribe(SubscribeArgs)
+}
+
+/// Parses the args of a CLI request. They are untrusted: no input may trap, since the server would crash
+func parseRequest(_ args: [String]) throws(CmdParseError) -> ParsedRequest {
+    var (kind, cursor) = try parseSubcommand(args)
+    if kind == .subscribe { return .subscribe(try SubscribeArgs.parse(&cursor)) }
+    return .command(try parseCommand(args))
+}
+
 /// Parses the words of one command: the subcommand and its args
 func parseCommand(_ words: [String]) throws(CmdParseError) -> any Command {
     let (kind, cursor) = try parseSubcommand(words)

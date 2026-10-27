@@ -29,11 +29,21 @@ extension String {
     }
 }
 
+/// The parser recurses once per group, and everything that walks a `Shell` (run, map, description, deinit) recurses once
+/// per operator, since a chain nests to the left. The input comes from the CLI too (`eval`), so both are bounded: a
+/// stack overflow would crash the server
+let maxShellGroupNesting = 100
+let maxShellOperators = 1000
+
 /// Recursive descent: `parse(op)` parses the grammar rule of `op`, whose operands are the rule of the next higher precedence.
 /// A chain nests to the left: `a && b && c` is `(a && b) && c`
 private struct ShellParser {
     let tokens: [LexerToken]
     var index = 0
+    private var groupNesting = 0
+    private var operators = 0
+
+    init(tokens: [LexerToken]) { self.tokens = tokens }
 
     var peek: LexerToken { tokens[index] }
 
@@ -50,6 +60,7 @@ private struct ShellParser {
     private mutating func parseChain(_ op: ShellOp, separator: LexerToken.Payload) throws(CmdParseError) -> Shell<[String]> {
         var result = try parseOperand(of: op)
         while peek.payload == separator {
+            try countOperator()
             index += 1
             result = .op(op, result, try parseOperand(of: op))
         }
@@ -67,6 +78,7 @@ private struct ShellParser {
             while peek.payload.isSeqSeparator { index += 1 }
             // FIRST(Or) = FIRST(And) = FIRST(Pipe) = { "(" } ∪ FIRST(Cmd) = { "(", Word }
             if peek.payload.isWord || peek.payload == .lParen {
+                try countOperator()
                 result = .op(.seq, result, try parse(.or))
             }
         }
@@ -77,7 +89,17 @@ private struct ShellParser {
         while peek.payload == .newline { index += 1 }
     }
 
+    private mutating func countOperator() throws(CmdParseError) {
+        operators += 1
+        if operators > maxShellOperators { throw "\(peek.location): More than \(maxShellOperators) operators in one expression" }
+    }
+
     private mutating func parseGroup() throws(CmdParseError) -> Shell<[String]> {
+        if groupNesting == maxShellGroupNesting {
+            throw "\(peek.location): Parentheses are nested deeper than \(maxShellGroupNesting) levels"
+        }
+        groupNesting += 1
+        defer { groupNesting -= 1 }
         index += 1
         skipNewlines() // Like at the top level
         let result = try parse(.seq)
