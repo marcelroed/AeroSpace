@@ -31,47 +31,32 @@ extension String {
     fileprivate func toKeyPath() -> Result<[String], String> {
         if self == "." { return .success([]) }
         if isEmpty { return .failure("Invalid empty key") }
-        if self.contains("..") { return .failure("Invalid key '\(self)'") }
-        if self.hasSuffix(".") { return .failure("Invalid key '\(self)'") }
-        return .success(self.split(separator: ".", omittingEmptySubsequences: false).map(String.init))
+        if contains("..") || hasSuffix(".") { return .failure("Invalid key '\(self)'") }
+        return .success(split(separator: ".", omittingEmptySubsequences: false).map(String.init))
     }
 }
 
+/// `buildConfigMap()` contains only dicts and strings, and `--keys` turns a dict into an array of strings
 private func getKey(_ io: CmdIo, args: ConfigCmdArgs, key: String) -> BinaryExitCode {
     guard let keyPath = key.toKeyPath().getOrNil(appendErrorTo: &io.stderr) else { return .fail }
     guard var configMap = buildConfigMap().find(keyPath: keyPath.slice).getOrNil(appendErrorTo: &io.stderr) else { return .fail }
     if args.keys {
-        switch configMap {
-            case .string, .int, .bool, .null:
-                return .fail(io.err("--keys flag cannot be applied to scalar object '\(configMap.scalarDescription.orDie())'"))
-            case .dict(let dict):
-                configMap = .array(dict.keys.sorted().map { .string($0) })
-            case .array(let array):
-                configMap = .array((0 ..< array.count).map { .int($0) })
+        guard let dict = configMap.asDictOrNil else {
+            return .fail(io.err("--keys flag cannot be applied to scalar object '\(configMap.scalarDescription.orDie())'"))
         }
+        configMap = .array(dict.keys.sorted().map { .string($0) })
     }
     if args.json {
         return switch JSONEncoder.aeroSpaceDefault.encodeToString(configMap) {
             case let json?: .succ(io.out(json))
             case nil: .fail(io.err("Can't convert json Data to String"))
         }
-    } else {
-        switch configMap {
-            case .string, .int, .bool, .null:
-                return .succ(io.out(configMap.scalarDescription.orDie()))
-            case .dict:
-                let msg = "Complicated objects can be printed only with --json flag. Alternatively, you can try to inspect keys of the object with --keys flag"
-                return .fail(io.err(msg))
-            case .array(let array):
-                let plainArray: Result<[String], String> = array.mapAllOrFailure {
-                    $0.scalarDescription.toResult("Printing array of non-string objects is supported only with --json flag." +
-                        "Alternatively, you can try to inspect keys of the object with --keys flag")
-                }
-                return switch plainArray {
-                    case .success(let array): .succ(io.out(array.sorted().joined(separator: "\n")))
-                    case .failure(let error): .fail(io.err(error))
-                }
-        }
+    }
+    return switch configMap {
+        case .dict:
+            .fail(io.err("Complicated objects can be printed only with --json flag. Alternatively, you can try to inspect keys of the object with --keys flag"))
+        case .array(let keys): .succ(io.out(keys.compactMap(\.asStringOrNil).sorted().joined(separator: "\n")))
+        case .string, .int, .bool, .null: .succ(io.out(configMap.scalarDescription.orDie()))
     }
 }
 
@@ -129,12 +114,12 @@ extension Shell<any Command> {
 }
 
 func buildConfigMap() -> OrderedJson {
-    let mode = config.modes.mapValues { (mode: Mode) -> OrderedJson in
-        var keyNotationToScript: OrderedJson.JsonDict = [:]
+    let modes = config.modes.mapValues { mode in
+        var bindings: OrderedJson.JsonDict = [:]
         for binding in mode.bindings.values {
-            keyNotationToScript[binding.descriptionWithKeyNotation] = .string(binding.commands.shellOfCommandsDescription)
+            bindings[binding.descriptionWithKeyNotation] = .string(binding.commands.shellOfCommandsDescription)
         }
-        return .dict(["binding": .dict(keyNotationToScript)])
+        return OrderedJson.dict(["binding": .dict(bindings)])
     }
-    return .dict(["mode": .dict(OrderedJson.JsonDict(uniqueKeysWithValues: mode))])
+    return .dict(["mode": .dict(OrderedJson.JsonDict(uniqueKeysWithValues: modes))])
 }
