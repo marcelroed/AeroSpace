@@ -81,6 +81,8 @@ struct FocusCommand: Command {
         case .allMonitorsOuterFrame:
             let currentMonitor = target.workspace.workspaceMonitor
             guard let (monitors, index) = currentMonitor.findRelativeMonitor(inDirection: direction) else {
+                // No screens (e.g., during display reconfiguration): the monitor of the workspace is the fake mainMonitorInfo
+                if !hasScreens { return .fail(io.err("Can't focus across monitors while there are no screens")) }
                 return .fail(io.err(bugPrompt("Should never happen. Can't find the current monitor")))
             }
 

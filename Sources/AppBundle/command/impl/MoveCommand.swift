@@ -58,6 +58,8 @@ struct MoveCommand: Command {
             return applyBoundariesAction(window, workspace, args, direction)
         case .allMonitorsOuterFrame:
             guard let (monitors, index) = window.nodeMonitor?.findRelativeMonitor(inDirection: direction) else {
+                // No screens (e.g., during display reconfiguration): the monitor of the window is the fake mainMonitorInfo
+                if !hasScreens { return .fail(io.err("Can't move the window across monitors while there are no screens")) }
                 return .fail(io.err(bugPrompt("Should never happen. Can't find the current monitor")))
             }
 

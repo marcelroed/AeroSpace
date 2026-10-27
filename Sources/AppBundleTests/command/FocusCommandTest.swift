@@ -299,6 +299,19 @@ final class FocusCommandTest: XCTestCase {
         assertEquals(focus.windowOrNil?.windowId, 1)
     }
 
+    func testFocusAcrossMonitors_noScreens_failsWithoutBugPrompt() async {
+        Workspace.get(byName: name).rootTilingContainer.apply {
+            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
+            TestWindow.new(id: 2, parent: $0)
+        }
+        // No screens (e.g., during display reconfiguration) is a normal state, not a bug (RB-40)
+        let result = await $noScreensForTests.withValue(true) {
+            await parseCommand("focus --boundaries all-monitors-outer-frame left").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        }
+        assertEquals(result, CmdResult(stdout: [], stderr: ["Can't focus across monitors while there are no screens"], exitCode: .fail))
+        assertEquals(focus.windowOrNil?.windowId, 1)
+    }
+
     func testFocusDfsRelative_noWindow_failsWithMessage() async {
         assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
 
