@@ -17,6 +17,8 @@ import Common
 //   `h_tiles(1:2 v_tiles:3(4 5))`. The default is 1. `describeTree(weights: true)` prints the weights.
 // - `macos_minimized(...)` and `macos_popup(...)` put windows into the global containers of minimized and popup windows.
 //   They aren't part of any workspace, so `describeTree` doesn't print them.
+// - Several workspaces: `setUpTree(spec, workspace: "b")` and `describeTree("b")`. The tests have a single monitor, so
+//   the DSL has no syntax for monitors.
 //
 // Binding a node makes it the most recent child of its parent, so the last child is the most recent one, except on the
 // path to the focused window: focusing it makes it the most recent window. In the focused workspace, the focused window

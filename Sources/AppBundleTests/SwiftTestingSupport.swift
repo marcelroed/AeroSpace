@@ -3,13 +3,15 @@ import Foundation
 import os
 import Testing
 
-// Migrating an XCTest class to Swift Testing (keep the test bodies unchanged, so upstream changes still merge):
+// Migrating an XCTest class to Swift Testing:
 // - `import XCTest` -> `import Testing` (plus `import AppKit` if the file used AppKit types that XCTest re-exported)
-// - `final class FooTest: XCTestCase` -> `@Suite(.aeroSpaceGlobalState) struct FooTest: AeroSpaceTestSuite`
-//   (keep `@MainActor`; drop `.aeroSpaceGlobalState` only if the suite can't touch the global state at all)
+// - `final class FooTest: XCTestCase` -> `@Suite(.aeroSpaceGlobalState) struct FooTest` (keep `@MainActor`; drop
+//   `.aeroSpaceGlobalState` only if the suite can't touch the global state at all). `AeroSpaceTestSuite` provides
+//   XCTest's `name` for the tests that use it as a workspace name
 // - drop `override func setUp() async throws { setUpWorkspacesForTests() }`
-// - add `@Test` on its own line above every `func testFoo()`
-// - `XCTAssert*`/`XCTFail` -> the helpers in assert.swift, `#expect` or `#require`
+// - add `@Test` on its own line above every test function, `@Test(arguments:)` for the cases of a table
+// - `XCTAssert*`/`XCTFail` and the helpers in assert.swift -> `#expect` or `#require`
+// - run commands with `runCmd` (testUtil.swift), build and check trees with the tree DSL (treeDsl.swift)
 
 /// Swift Testing counterpart of XCTest's `override func setUp() async throws { setUpWorkspacesForTests() }`.
 ///
