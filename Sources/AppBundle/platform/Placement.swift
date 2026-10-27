@@ -80,8 +80,9 @@ nonisolated struct PlacementState {
         switch placement {
             case .frame(_, let topLeft, let size):
                 // Every present reads where the window is, so a window that the app or the user moved goes back. It writes
-                // only a window that isn't there: each write makes the app lay out the window again
-                let isThere = window.rect().map { $0.isAt(topLeft: topLeft, size: size) } == true
+                // only a window that isn't there: each write makes the app lay out the window again. A parked window is in
+                // its corner: it isn't there, no need to read it
+                let isThere = parkedAt == nil && window.rect().map { $0.isAt(topLeft: topLeft, size: size) } == true
                 if isThere || window.setFrame(topLeft: topLeft, size: size) {
                     parkedAt = nil
                 }

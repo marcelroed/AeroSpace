@@ -35,8 +35,8 @@ struct WorkspaceCommandTest {
     }
 
     /// The AX work of a switch: each window of the shown workspace gets one frame write, each window of the hidden one is
-    /// parked once (a write of its position), and no window gets both. Each placement reads the window's frame first. A
-    /// layout without changes only reads
+    /// parked once (a write of its position), and no window gets both. Each placement reads the window's frame first, but
+    /// a parked one: it's in its corner. A layout without changes only reads
     @Test
     func switchingWorkspacesWritesTheShownWindowsAndParksTheHiddenOnes() async {
         setUpTree("h_tiles(1 2)", workspace: "a")
@@ -54,9 +54,9 @@ struct WorkspaceCommandTest {
         expectEqual(fake.calls(of: .park).map(\.windowId), [1, 2])
         expectEqual(fake.calls(of: .frame).map(\.windowId), [3, 1, 2]) // 3's tile, then 1 and 2 in their corner
         expectEqual(([1, 2, 3] as [WindowId]).map { fake.isParked($0) }, [true, true, false])
-        // The tile is read to compare it with its frame, the parks read where the windows were to put them back there
-        expectEqual(fake.calls(of: .axRead).map(\.windowId), [3, 1, 2])
-        expectEqual(fake.calls.count, 3 + 2 + 3)
+        // The parks read where the windows were to put them back there. Tile 3 was parked: it's written without a read
+        expectEqual(fake.calls(of: .axRead).map(\.windowId), [1, 2])
+        expectEqual(fake.calls.count, 3 + 2 + 2)
 
         fake.resetCalls()
         world.platform.apply(placements())
