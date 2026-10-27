@@ -21,8 +21,16 @@ struct NWConnectionExTest {
         expectEqual(answer, ServerAnswer(exitCode: 0, stdout: "list-workspaces --all", stderr: "windowId=Optional(42)", serverVersionAndHash: "test-server"))
     }
 
-    @Test(arguments: [(.closeMidAnswer, false), (.closeWithoutAnswer, true)] as [(TestSocketServer.Behavior, Bool)])
-    func readFailsWhenPeerCloses(behavior: TestSocketServer.Behavior, closesBeforeTheFrame: Bool) async throws {
+    /// How a read of the answer ends when the server doesn't answer with a frame. A read after the end of the stream
+    /// must not spin (RB-08). The end of a subscription comes before a frame: `.endOfStream`
+    @Test(arguments: [
+        (.closeMidAnswer, .closed),
+        (.closeWithoutAnswer, .endOfStream),
+        // Like `aerospace --version` when the main thread of AeroSpace.app is stuck
+        (.neverAnswer, .timeout),
+        (.legacyServer, .legacyProtocol),
+    ] as [(TestSocketServer.Behavior, ReadOutcome)])
+    func readFrameOutcome(behavior: TestSocketServer.Behavior, expected: ReadOutcome) async throws {
         let server = try await TestSocketServer.start(behavior)
         defer { server.stop() }
         let connection = NWConnection(to: .unix(path: server.path), using: .tcp)
@@ -31,43 +39,18 @@ struct NWConnectionExTest {
         await expectEqual(connection.initConnection().error, nil)
         let request = ClientRequest(args: ["list-workspaces", "--all"], stdin: "", windowId: nil, workspace: nil)
         await expectEqual(connection.writeAtomic(request).error, nil)
-        // A read after the end of the stream must not spin (RB-08). The end of a subscription comes before a frame
-        switch await withTimeout(seconds: 5, { await connection.readFrame() }) {
-            case .failure(.endOfStream) where closesBeforeTheFrame, .failure(.closed) where !closesBeforeTheFrame: break
-            case let other: Issue.record("Got \(other.map { "\($0)" } ?? "a timeout")")
+        let read = await withTimeout(seconds: expected == .timeout ? 1 : 5) { await connection.readFrame() }
+        let outcome: ReadOutcome? = switch read {
+            case nil: .timeout
+            case .failure(.closed): .closed
+            case .failure(.endOfStream): .endOfStream
+            case .failure(.legacyProtocol): .legacyProtocol
+            case .success, .failure(.tooLarge), .failure(.network): nil
         }
+        expectEqual(outcome, expected, "\(String(describing: read))")
     }
 
-    @Test
-    func readOfServerThatDoesntAnswerTimesOut() async throws {
-        let server = try await TestSocketServer.start(.neverAnswer)
-        defer { server.stop() }
-        let connection = NWConnection(to: .unix(path: server.path), using: .tcp)
-        defer { connection.cancel() }
-
-        await expectEqual(connection.initConnection().error, nil)
-        let request = ClientRequest(args: [], stdin: "", windowId: nil, workspace: nil)
-        await expectEqual(connection.writeAtomic(request).error, nil)
-        // Like `aerospace --version` when the main thread of AeroSpace.app is stuck
-        let answer = await withTimeout(seconds: 1) { await connection.readFrame() }
-        #expect(answer == nil)
-    }
-
-    @Test
-    func clientDetectsServerOfLegacyProtocol() async throws {
-        let server = try await TestSocketServer.start(.legacyServer)
-        defer { server.stop() }
-        let connection = NWConnection(to: .unix(path: server.path), using: .tcp)
-        defer { connection.cancel() }
-
-        await expectEqual(connection.initConnection().error, nil)
-        let request = ClientRequest(args: ["list-workspaces", "--all"], stdin: "", windowId: nil, workspace: nil)
-        await expectEqual(connection.writeAtomic(request).error, nil)
-        switch await withTimeout(seconds: 5, { await connection.readFrame() }) {
-            case .failure(.legacyProtocol): break
-            case let other: Issue.record("Expected .legacyProtocol, got \(other.map { "\($0)" } ?? "a timeout")")
-        }
-    }
+    nonisolated enum ReadOutcome: Equatable { case closed, endOfStream, timeout, legacyProtocol }
 
     @Test
     func frameLongerThanMaxSizeIsNotRead() async throws {
