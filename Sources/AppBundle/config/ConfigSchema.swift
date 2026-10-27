@@ -100,27 +100,29 @@ private let decodeStringArray: Decode<[String]> = { raw, path, d in
     return result
 }
 
-/// A command string, or an array of command strings that run in sequence. An unusable value becomes the empty command
+/// A command string, or an array of command strings that run in sequence. Unusable if any element is
 let decodeShellOfCommands: Decode<Shell<any Command>> = { raw, path, d in
     if let string = raw.asStringOrNil {
         return parseCommandForConfig(string, allowExecAndForget: true, path, &d)
-    } else if let array = raw.asArrayOrNil {
-        let commands = array.enumerated().compactMap { index, elem in
-            decodeString(elem, path + .index(index), &d).map { parseCommandForConfig($0, allowExecAndForget: true, path + .index(index), &d) }
-        }
-        return .compound(.seq, commands)
-    } else {
-        d.typeMismatch(path, expected: .string, .array, actual: raw)
-        return .empty
     }
+    guard let array = raw.asArrayOrNil else {
+        d.typeMismatch(path, expected: .string, .array, actual: raw)
+        return nil
+    }
+    // Decode every element to report all of their errors
+    let commands = array.enumerated().map { index, elem in
+        decodeString(elem, path + .index(index), &d).flatMap { parseCommandForConfig($0, allowExecAndForget: true, path + .index(index), &d) }
+    }
+    return commands.contains { $0 == nil } ? nil : .compound(.seq, commands.compactMap { $0 })
 }
 
-func parseCommandForConfig(_ raw: String, allowExecAndForget: Bool, _ path: ConfigBacktrace, _ d: inout Diagnostics) -> Shell<any Command> {
+/// `nil` if `raw` doesn't parse
+func parseCommandForConfig(_ raw: String, allowExecAndForget: Bool, _ path: ConfigBacktrace, _ d: inout Diagnostics) -> Shell<any Command>? {
     do {
         return try parseShell(raw, allowExecAndForget: allowExecAndForget, allowEval: false)
     } catch {
         d.error(path, error.message)
-        return .empty
+        return nil
     }
 }
 

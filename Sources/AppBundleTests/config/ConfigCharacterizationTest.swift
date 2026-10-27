@@ -277,4 +277,22 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
         #expect(result.config.modes[mainModeId]?.bindings.keys.sorted() == ["alt-k"])
         #expect(parseConfig("on-focus-changed = ['bogus', 'focus --help']").strErrors == ["[ERROR] on-focus-changed[0]: Unrecognized subcommand 'bogus'", "[ERROR] on-focus-changed[1]: \(focusHelp)"])
     }
+
+    @Test
+    func testCommandArrayWithBadElementIsDropped() {
+        let result = parseConfig(
+            """
+            on-focus-changed = ['focus left', 1]
+            [mode.main.binding]
+                alt-a = ['focus left', 1, 'bogus']
+            """,
+        )
+        #expect(result.strErrors == [
+            "[ERROR] on-focus-changed[1]: Expected type is 'String'. But actual type is 'Int'",
+            "[ERROR] mode.main.binding.alt-a[1]: Expected type is 'String'. But actual type is 'Int'",
+            "[ERROR] mode.main.binding.alt-a[2]: Unrecognized subcommand 'bogus'",
+        ])
+        #expect(result.config.modes[mainModeId]?.bindings.isEmpty == true)
+        #expect(result.config.onFocusChanged.flatten().isEmpty)
+    }
 }

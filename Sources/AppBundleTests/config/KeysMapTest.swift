@@ -134,4 +134,20 @@ struct KeysMapTest: AeroSpaceTestSuite {
         #expect(result.strErrors == ["[ERROR] mode.main.binding.shift-alt-h: 'alt-shift-h' Binding redeclaration"])
         #expect(result.config.modes[mainModeId]?.bindings["alt-shift-h"]?.descriptionWithKeyNotation == "shift-alt-h")
     }
+
+    @Test
+    func testBindingRedeclarationOfDroppedBinding() {
+        let result = parseConfig(
+            """
+            [mode.main.binding]
+                alt-shift-h = 'focus left'
+                shift-alt-h = 'bogus'
+            """,
+        )
+        #expect(result.strErrors == [
+            "[ERROR] mode.main.binding.shift-alt-h: 'alt-shift-h' Binding redeclaration",
+            "[ERROR] mode.main.binding.shift-alt-h: Unrecognized subcommand 'bogus'",
+        ])
+        #expect(result.config.modes[mainModeId]?.bindings["alt-shift-h"]?.descriptionWithKeyNotation == "alt-shift-h")
+    }
 }

@@ -19,10 +19,12 @@ struct HotkeyBinding: Equatable, Sendable {
         self.modifiers = modifiers
         self.keyCode = keyCode
         self.commands = commands
-        self.descriptionWithKeyCode = modifiers.isEmpty
-            ? keyCode.toString()
-            : modifiers.toString() + "-" + keyCode.toString()
+        self.descriptionWithKeyCode = Self.descriptionWithKeyCode(modifiers, keyCode)
         self.descriptionWithKeyNotation = descriptionWithKeyNotation
+    }
+
+    static func descriptionWithKeyCode(_ modifiers: NSEvent.ModifierFlags, _ keyCode: Key) -> String {
+        modifiers.isEmpty ? keyCode.toString() : modifiers.toString() + "-" + keyCode.toString()
     }
 
     static func == (lhs: HotkeyBinding, rhs: HotkeyBinding) -> Bool {
@@ -48,22 +50,22 @@ func decodeModes(_ raw: OrderedJson, _ path: ConfigBacktrace, _ mapping: [String
     return result
 }
 
-/// A binding with a bad key or modifiers is dropped. A binding whose command doesn't parse is kept with the empty command
+/// A binding with a bad key, modifiers or command is dropped: the key stays with the apps.
+/// A redeclaration is reported even if one of the two bindings is dropped. The later of two usable bindings wins
 private func decodeBindings(_ raw: OrderedJson, _ path: ConfigBacktrace, _ mapping: [String: Key], _ d: inout Diagnostics) -> [String: HotkeyBinding]? {
     guard let table = decodeDict(raw, path, &d) else { return nil }
     var result: [String: HotkeyBinding] = [:]
+    var declared: Set<String> = []
     for (notation, rawCommand) in table {
         let path = path + .key(notation)
         guard let (modifiers, key) = parseBinding(notation, path, mapping, &d) else { continue }
-        let errorCount = d.errors.count
-        let commands = decodeShellOfCommands(rawCommand, path, &d) ?? .empty
-        // A binding that would do nothing must not take the key away from the apps
-        if d.errors.count != errorCount { continue }
-        let binding = HotkeyBinding(modifiers, key, commands, descriptionWithKeyNotation: notation)
-        if result.keys.contains(binding.descriptionWithKeyCode) {
-            d.error(path, "'\(binding.descriptionWithKeyCode)' Binding redeclaration")
+        let descriptionWithKeyCode = HotkeyBinding.descriptionWithKeyCode(modifiers, key)
+        if !declared.insert(descriptionWithKeyCode).inserted {
+            d.error(path, "'\(descriptionWithKeyCode)' Binding redeclaration")
         }
-        result[binding.descriptionWithKeyCode] = binding
+        if let commands = decodeShellOfCommands(rawCommand, path, &d) {
+            result[descriptionWithKeyCode] = HotkeyBinding(modifiers, key, commands, descriptionWithKeyNotation: notation)
+        }
     }
     return result
 }

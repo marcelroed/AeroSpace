@@ -95,7 +95,7 @@ func onWindowDetected(_ env: CmdEnv, _ io: CmdIo, _ window: Window) async -> Int
 }
 
 private let callbackFields: [String: Field<WindowDetectedCallback>] = [
-    "if": Field(\.matcher, decodeMatcher),
+    "if": .ignored, // Decoded in decodeWindowRule: an omitted 'if' and an unusable one differ
     "check-further-callbacks": Field(\.checkFurtherCallbacks, decodeBool),
     "run": Field(\.run, decodeShellOfCommands),
 ]
@@ -118,10 +118,9 @@ private let decodeMatcher: Decode<WindowDetectedCallbackMatcher> = { raw, path, 
     switch raw {
         case .dict:
             var matcher = LegacyWindowDetectedCallbackMatcher()
-            decodeTable(raw, into: &matcher, legacyMatcherFields, path, &d)
-            return .legacy(matcher)
+            return decodeTable(raw, into: &matcher, legacyMatcherFields, path, &d) ? .legacy(matcher) : nil
         case .string(let raw):
-            return .command(parseCommandForConfig(raw, allowExecAndForget: false, path, &d))
+            return parseCommandForConfig(raw, allowExecAndForget: false, path, &d).map(WindowDetectedCallbackMatcher.command)
         default:
             // Intentionally skip Table type from the list of expected types
             d.typeMismatch(path, expected: .string, actual: raw)
@@ -132,19 +131,24 @@ private let decodeMatcher: Decode<WindowDetectedCallbackMatcher> = { raw, path, 
 /// A rule with any error is dropped
 private func decodeWindowRule(_ raw: OrderedJson, _ path: ConfigBacktrace, _ d: inout Diagnostics) -> WindowDetectedCallback? {
     guard let table = decodeDict(raw, path, &d) else { return nil }
-    let errorCount = d.errors.count
     var rule = WindowDetectedCallback(run: .empty)
-    decodeTable(raw, into: &rule, callbackFields, path, &d)
-    // An 'if' that fails to decode leaves the empty matcher too, but it has its own error
-    let ifPath = path + .key("if")
-    let ifFailed = d.errors[errorCount...].contains { $0.backtrace == ifPath }
-    if rule.matcher == .command(.empty) && !ifFailed && !rule.checkFurtherCallbacks {
+    var isUsable = decodeTable(raw, into: &rule, callbackFields, path, &d)
+    // An omitted 'if' is the empty command. `nil`: the 'if' is unusable, and its error is reported
+    let matcher = table["if"].map { decodeMatcher($0, path + .key("if"), &d) } ?? .command(.empty)
+    if let matcher {
+        rule.matcher = matcher
+    } else {
+        isUsable = false
+    }
+    if matcher == .command(.empty) && !rule.checkFurtherCallbacks {
         let msg = "Omitting 'if' is error prone. You can use `if = 'true'` to preserve the previous behavior.\n" +
             "But heads up! You may have missed 'check-further-callbacks = true'"
         d.error(path, msg)
+        isUsable = false
     }
     if table["run"] == nil {
         d.error(path, "'run' is mandatory key")
+        isUsable = false
     }
-    return d.errors.count == errorCount ? rule : nil
+    return isUsable ? rule : nil
 }

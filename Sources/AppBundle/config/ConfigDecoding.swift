@@ -2,7 +2,8 @@ import Common
 import TOMLDecoder
 
 /// Every config decoder has this shape. `nil` means the value is unusable and the target keeps its default;
-/// the reason is already recorded in the diagnostics
+/// the reason is already recorded in the diagnostics. Only a collection whose elements are independent (modes,
+/// bindings, window rules, force assignments, key and env tables) reports its bad elements and keeps the rest
 typealias Decode<T> = (OrderedJson, ConfigBacktrace, inout Diagnostics) -> T?
 
 func expect<T>(_ type: TomlType, _ extract: @escaping (OrderedJson) -> T?) -> Decode<T> {
@@ -26,21 +27,26 @@ func decodeParsed<T>(_ convert: @escaping (String) -> ResOrStr<T>) -> Decode<T> 
 
 /// How one key of a TOML table is decoded into a field of `S`
 struct Field<S> {
-    fileprivate let apply: (inout S, OrderedJson, ConfigBacktrace, inout Diagnostics) -> Void
+    /// False if the value is unusable
+    fileprivate let apply: (inout S, OrderedJson, ConfigBacktrace, inout Diagnostics) -> Bool
 
-    private init(apply: @escaping (inout S, OrderedJson, ConfigBacktrace, inout Diagnostics) -> Void) {
+    private init(apply: @escaping (inout S, OrderedJson, ConfigBacktrace, inout Diagnostics) -> Bool) {
         self.apply = apply
     }
 
     init<T>(_ keyPath: WritableKeyPath<S, T>, _ decode: @escaping Decode<T>) {
         apply = { target, raw, path, d in
-            if let value = decode(raw, path, &d) { target[keyPath: keyPath] = value }
+            guard let value = decode(raw, path, &d) else { return false }
+            target[keyPath: keyPath] = value
+            return true
         }
     }
 
     init<T>(_ keyPath: WritableKeyPath<S, T?>, _ decode: @escaping Decode<T>) {
         apply = { target, raw, path, d in
-            if let value = decode(raw, path, &d) { target[keyPath: keyPath] = value }
+            guard let value = decode(raw, path, &d) else { return false }
+            target[keyPath: keyPath] = value
+            return true
         }
     }
 
@@ -50,19 +56,24 @@ struct Field<S> {
     }
 
     /// A known key that is decoded elsewhere
-    static var ignored: Self { Field { _, _, _, _ in } }
+    static var ignored: Self { Field { _, _, _, _ in true } }
 }
 
-func decodeTable<S>(_ raw: OrderedJson, into target: inout S, _ fields: [String: Field<S>], _ path: ConfigBacktrace, _ d: inout Diagnostics) {
-    guard let table = decodeDict(raw, path, &d) else { return }
+/// Decodes every key, even after an error. False if `raw` isn't a table, a key is unknown, or a value is unusable
+@discardableResult
+func decodeTable<S>(_ raw: OrderedJson, into target: inout S, _ fields: [String: Field<S>], _ path: ConfigBacktrace, _ d: inout Diagnostics) -> Bool {
+    guard let table = decodeDict(raw, path, &d) else { return false }
+    var isUsable = true
     for (key, value) in table {
         let path = path + .key(key)
         if let field = fields[key] {
-            field.apply(&target, value, path, &d)
+            isUsable = field.apply(&target, value, path, &d) && isUsable
         } else {
             d.error(path, path.isRootKey ? "Unknown top-level key" : "Unknown key")
+            isUsable = false
         }
     }
+    return isUsable
 }
 
 /// The root table with sorted keys. A syntax error is fatal. Values of unsupported types are reported and dropped
