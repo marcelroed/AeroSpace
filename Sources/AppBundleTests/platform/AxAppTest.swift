@@ -6,8 +6,8 @@ import Synchronization
 import Testing
 
 // The actor and its executor without AX: the bodies are plain closures, and nothing subscribes. Creating an AxApp creates
-// an app AXUIElement, which makes no AX call
-@Suite
+// an app AXUIElement, which makes no AX call. Serialized: a test sets `isTerminating`, which every AxApp reads
+@Suite(.serialized)
 struct AxAppTest {
     @Test
     func postsAndAwaitedCallsRunInFifoOrderOnTheAppThread() async throws {
@@ -124,6 +124,29 @@ struct AxAppTest {
         expectEqual(outcome, "cancelled") // While the app is still hung
         gate.signal()
         await app.run { _ in } // After the abandoned call's job
+        expectEqual(log.items, [])
+    }
+
+    /// Once termination starts, a read that runs on the app's thread returns without running its body: the restore job
+    /// waits behind it (R2a L2)
+    @Test
+    func terminationSkipsTheBodiesOfTheReads() async {
+        let app = AxApp(pid: 0, threadName: "AxAppTest")
+        let log = Log<String>()
+        isTerminating.store(true, ordering: .sequentiallyConsistent)
+        defer { isTerminating.store(false, ordering: .sequentiallyConsistent) }
+
+        let run: Int? = await app.run { _ in
+            log.append("run")
+            return 1
+        }
+        let call: Int? = try? await app.call { _, _ in
+            log.append("call")
+            return 1
+        }
+
+        expectEqual(run, nil)
+        expectEqual(call, nil)
         expectEqual(log.items, [])
     }
 

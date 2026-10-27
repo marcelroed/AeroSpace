@@ -45,12 +45,17 @@ actor AxApp {
         }
     }
 
-    /// An awaited read that waits for the app, however long it takes (P7)
-    func run<T: Sendable>(_ body: @Sendable (isolated AxApp) -> T) -> T { body(self) }
+    /// An awaited read that waits for the app, however long it takes (P7). nil without running `body` once termination
+    /// started: the restore job waits behind it (R2a L2)
+    func run<T: Sendable>(_ body: @Sendable (isolated AxApp) -> T?) -> T? {
+        if isTerminating.load(ordering: .sequentiallyConsistent) { return nil }
+        return body(self)
+    }
 
     /// An awaited read that the caller can abandon, so that a hung app can't hold a refresh (P7). On cancellation it
     /// throws right away. The body is skipped if it hasn't started yet; otherwise it runs to the end here and its result
-    /// is dropped. The body can poll `isAbandoned` to stop early, but must then leave the actor's state unchanged
+    /// is dropped. The body can poll `isAbandoned` to stop early, but must then leave the actor's state unchanged.
+    /// Termination abandons it too: the restore job waits behind it (R2a L2)
     nonisolated func call<T: Sendable>(
         _ body: @escaping @Sendable (isolated AxApp, _ isAbandoned: () -> Bool) -> T,
     ) async throws(CancellationError) -> T {
@@ -60,8 +65,11 @@ actor AxApp {
             await withCheckedContinuation { continuation in
                 box.suspend(continuation)
                 post { app in
+                    func isTerminatingNow() -> Bool { isTerminating.load(ordering: .sequentiallyConsistent) }
                     if box.isResolved { return } // Cancelled before the body started: skip the AX calls
-                    box.resolve(.success(body(app) { box.isResolved }))
+                    if isTerminatingNow() { return box.resolve(.failure(CancellationError())) }
+                    let value = body(app) { box.isResolved || isTerminatingNow() }
+                    box.resolve(isTerminatingNow() ? .failure(CancellationError()) : .success(value))
                 }
             }
         } onCancel: {
