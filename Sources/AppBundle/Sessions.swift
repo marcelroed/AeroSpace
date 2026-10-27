@@ -17,21 +17,26 @@ import Common
 /// - Focus follows mouse neither tidies (its callbacks' commands do) nor lays out.
 /// - The startup's own heavy refresh doesn't present: the startup's light session does.
 ///
-/// How concurrent work coalesces. The code follows this table:
-///
-/// | Work                          | Mechanism                                             | Preempted by                          |
-/// |-------------------------------|-------------------------------------------------------|---------------------------------------|
-/// | Heavy refresh                 | `heavy`, a ``LatestTaskSlot``                         | A newer heavy refresh, a light session: P1 stops, P3 runs to the end, P4 is skipped |
-/// | Startup heavy refresh         | Awaited in ``startup(_:)``, outside the slot; it skips P4 | Nothing                           |
-/// | Light session                 | Runs at once in its caller's task, cancels `heavy`    | — (but see the next row)              |
-/// | ffm, mouse move, mouse resize | One ``LatestTaskSlot`` per kind around its session    | A newer event of the same kind        |
-/// | AX read of a heavy refresh    | An observe read of ``Platform`` (`AxApp.call`): abandonable | Cancellation of the heavy refresh: it returns at once |
-/// | Listing of a heavy refresh    | A deadline per app (``ListingDeadlines``): an app that misses it doesn't answer, and isn't asked again until its listing returns | Cancellation of the heavy refresh before the deadline |
-/// | AX read of a command          | A single read of ``Platform`` (`AxApp.run`): awaited  | —                                     |
-/// | Placement                     | `AxApp.postPlacements`: a generation per window       | A newer placement, attribute write or close of it |
-/// | Native focus (slow path)      | A post with a global generation (`LivePlatform.focus`) | A newer native focus                 |
-/// | App registration              | One pending task per pid (`LivePlatform.pendingRegistrations`); a failed one backs off 1–60 s | — |
-/// | Order within an app           | FIFO on its actor's thread (posts and awaited calls share one queue): two jobs per layout: the visible workspaces' placements, then the parks, which wait before their first write for every app's shown placements of the layout, at most 200 ms (`ShownJobs`); then focus | — |
+/// How concurrent work coalesces. The code follows this list: each kind of work, how it runs, and what preempts it.
+/// - Heavy refresh: `heavy`, a ``LatestTaskSlot``. Preempted by a newer heavy refresh or a light session: P1 stops, P3
+///   runs to the end, P4 is skipped.
+/// - Startup heavy refresh: awaited in ``startup(_:)``, outside the slot. It skips P4. Nothing preempts it.
+/// - Light session: runs at once in its caller's task, and cancels `heavy`. Nothing preempts it, but see the next item.
+/// - Focus follows mouse, mouse move, mouse resize: one ``LatestTaskSlot`` per kind around its session. Preempted by a
+///   newer event of the same kind.
+/// - AX read of a heavy refresh: an observe read of ``Platform`` (`AxApp.call`), abandonable. Preempted by the heavy
+///   refresh's cancellation: it returns at once.
+/// - Listing of a heavy refresh: a deadline per app (``ListingDeadlines``). An app that misses it doesn't answer, and
+///   isn't asked again until its listing returns. Preempted by the heavy refresh's cancellation before the deadline.
+/// - AX read of a command: a single read of ``Platform`` (`AxApp.run`), awaited. Nothing preempts it.
+/// - Placement: `AxApp.postPlacements`, a generation per window. Preempted by a newer placement, attribute write or
+///   close of the window.
+/// - Native focus (slow path): `LivePlatform.focus` posts it with a global generation. Preempted by a newer one.
+/// - App registration: one pending task per pid (`LivePlatform.pendingRegistrations`). A failed one backs off 1–60 s.
+///   Nothing preempts it.
+/// - Order within an app: FIFO on its actor's thread (posts and awaited calls share one queue). Per layout, two jobs:
+///   the visible workspaces' placements, then the parks; then the focus. The parks wait before their first write for
+///   every app's shown placements of the layout, at most 200 ms (`ShownJobs`). Nothing preempts it.
 ///
 /// A cancelled heavy refresh stops at its next observe read or at the end of P1, and skips P4. Nothing is queued for
 /// retry: the tree is the desired state, and every heavy refresh lays out every window again.
