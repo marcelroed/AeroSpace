@@ -57,14 +57,16 @@ final class FakePlatform: Platform {
         return focused.flatMap { id in answering(id).map { FocusedWindow(app: $0.app, windowId: id) } }
     }
 
-    func classify(_ ids: [WindowId]) -> [WindowId: DetectedWindow] {
+    func classify(_ windows: [AppInfo: [WindowId]]) -> [WindowId: DetectedWindow] {
+        let ids = windows.values.flatMap(\.self).sorted()
         calls.append(.classify(ids))
         return ids.reduce(into: [:]) { result, id in
             if let window = answering(id) { result[id] = DetectedWindow(kind: window.kind, rect: window.rect) }
         }
     }
 
-    func nativeFacts(_ ids: [WindowId]) -> [WindowId: NativeFacts] {
+    func nativeFacts(_ windows: [AppInfo: [WindowId]]) -> [WindowId: NativeFacts] {
+        let ids = windows.values.flatMap(\.self).sorted()
         calls.append(.nativeFacts(ids))
         return ids.reduce(into: [:]) { result, id in result[id] = answering(id)?.facts }
     }
@@ -274,7 +276,7 @@ enum PlatformCall: Equatable {
         }
     }
 
-    /// nil for the batch reads
+    /// nil for the batch reads. They log their windows sorted
     var windowId: WindowId? {
         switch self {
             case .observedRect(let id), .rect(let id), .title(let id), .facts(let id), .kind(let id), .debugInfo(let id),

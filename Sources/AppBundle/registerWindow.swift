@@ -5,7 +5,7 @@ import AppKit
 @discardableResult
 func registerWindow(_ windowId: WindowId, _ app: AppInfo) async throws(CancellationError) -> Window {
     if let existing = Window.get(byId: windowId) { return existing }
-    let detected = try await world.platform.classify([windowId])[windowId]
+    let detected = try await world.platform.classify([app: [windowId]])[windowId]
     let rect = detected?.rect
     let type = detected?.kind ?? .window
     // After the suspension points above: they can change the monitors and the focus

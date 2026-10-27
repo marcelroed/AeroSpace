@@ -9,7 +9,7 @@ func normalizeLayoutReason() async throws(CancellationError) {
 
 private func validateStillPopups() async throws(CancellationError) {
     for case let popup as Window in macosPopupWindowsContainer.children {
-        guard let kind = try await world.platform.classify([popup.windowId])[popup.windowId]?.kind, kind != .popup else { continue }
+        guard let kind = try await world.platform.classify([popup.app: [popup.windowId]])[popup.windowId]?.kind, kind != .popup else { continue }
         // The popup may have closed or moved at the suspension point above
         if popup.parent !== macosPopupWindowsContainer { continue }
         popup.relayoutWindow(on: focus.workspace, as: kind)
@@ -20,7 +20,7 @@ private func validateStillPopups() async throws(CancellationError) {
 private func _normalizeLayoutReason(workspace: Workspace, windows: [Window]) async throws(CancellationError) {
     for window in windows {
         guard let parent = window.parent as? Container else { continue }
-        let facts = try await world.platform.nativeFacts([window.windowId])[window.windowId]
+        let facts = try await world.platform.nativeFacts([window.app: [window.windowId]])[window.windowId]
         let isMacosFullscreen = facts?.isFullscreen == true
         let isMacosMinimized = facts?.isMinimized == true
         // The window may have closed or moved, and the workspace may be gone, at the suspension point above

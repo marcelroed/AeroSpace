@@ -6,9 +6,6 @@ import Synchronization
 /// registration backs off after a failure (RB-113). The termination registry lets a die off the main thread reach the apps
 final class LivePlatform: Platform {
     private var apps: [pid_t: LiveApp] = [:]
-    /// The app of every window that a read returned, for the calls keyed by window. A registered window also knows its app
-    /// (``liveApp(of:)``), so only a window between its read and its registration depends on this map
-    private var windowApps: [WindowId: pid_t] = [:]
     /// Registrations in progress. Everyone who asks for the app meanwhile awaits the same task
     private var pendingRegistrations: [pid_t: Task<Void, Never>] = [:]
     /// Internal for tests
@@ -102,22 +99,15 @@ final class LivePlatform: Platform {
         } catch {
             throw CancellationError() // The only error of the reads and of the registration
         }
-        // A cancelled refresh must not replace the map: a light session may have mapped a new window meanwhile
-        try checkCancellation()
         var result: [AppWindows] = []
-        let noAnswerPids: Set<pid_t> = alive.filter { $0.value == nil && apps[$0.key] != nil }.keys.toSet()
-        var windowApps: [WindowId: pid_t] = self.windowApps.filter { noAnswerPids.contains($0.value) }
         for pid in scanOrder { // The order of NSWorkspace's apps: a new window's order doesn't depend on the apps' answers
             guard let app = apps[pid], let answer = alive[pid] else { continue } // Not registered, or terminated meanwhile
             guard let rawIds = answer else {
                 result.append(.noAnswer(app.info))
                 continue
             }
-            let ids = rawIds.map(WindowId.init(raw:))
-            result.append(.listed(app.info, ids))
-            for id in ids { windowApps[id] = pid }
+            result.append(.listed(app.info, rawIds.map(WindowId.init(raw:))))
         }
-        self.windowApps = windowApps
         return result
     }
 
@@ -128,14 +118,13 @@ final class LivePlatform: Platform {
               let raw = try await ax.call({ app, _ in app.focusedWindowId() })
         else { return nil }
         let id = WindowId(raw: raw)
-        windowApps[id] = app.info.pid
         app.lastNativeFocusedWindowId = id
         return FocusedWindow(app: app.info, windowId: id)
     }
 
-    func classify(_ ids: [WindowId]) async throws(CancellationError) -> [WindowId: DetectedWindow] {
+    func classify(_ windows: [AppInfo: [WindowId]]) async throws(CancellationError) -> [WindowId: DetectedWindow] {
         let levels = onScreenWindowLevels()
-        return try await observe(ids) { app in
+        return try await observe(windows) { app in
             let classifier = app.classifier
             return { @Sendable axApp, raws in
                 let activationPolicy = classifier.nsApp.activationPolicy // An XPC: once per app
@@ -148,8 +137,8 @@ final class LivePlatform: Platform {
         }
     }
 
-    func nativeFacts(_ ids: [WindowId]) async throws(CancellationError) -> [WindowId: NativeFacts] {
-        try await observe(ids) { _ in
+    func nativeFacts(_ windows: [AppInfo: [WindowId]]) async throws(CancellationError) -> [WindowId: NativeFacts] {
+        try await observe(windows) { _ in
             { @Sendable axApp, raws in raws.compactMap { raw in axApp.nativeFacts(raw).map { (raw, $0) } } }
         }
     }
@@ -311,8 +300,9 @@ final class LivePlatform: Platform {
 
     // MARK: The registry
 
+    /// The app of a registered window
     private func liveApp(of id: WindowId) -> LiveApp? {
-        (windowApps[id] ?? world.windows[id]?.app.pid).flatMap { apps[$0] }
+        world.windows[id].flatMap { apps[$0.app.pid] }
     }
 
     /// - `isBulkScan`: the refresh's scan of all apps. It skips an app whose registration failed recently (RB-113). A
@@ -395,22 +385,22 @@ final class LivePlatform: Platform {
     private func destroy(_ app: LiveApp) {
         let pid = app.info.pid
         apps.removeValue(forKey: pid)
-        windowApps = windowApps.filter { $0.value != pid }
         terminationApps.withLock { _ = $0.removeValue(forKey: pid) }
         app.ax = nil
     }
 
     /// An observe read: one abandonable call per app (see ``AxApp/call(_:)``), the apps in parallel. `read` makes the body for
     /// an app's windows on main; the body runs on the app's thread. A window whose app is gone, or that the body skips, is
-    /// missing from the result
+    /// missing from the result. The caller tells each window's app: a window that isn't registered yet has no other route
+    /// to it
     private func observe<T: Sendable>(
-        _ ids: [WindowId],
+        _ windows: [AppInfo: [WindowId]],
         _ read: (LiveApp) -> @Sendable (isolated AxApp, [UInt32]) -> [(UInt32, T)],
     ) async throws(CancellationError) -> [WindowId: T] {
         var calls: [(AxApp, [UInt32], @Sendable (isolated AxApp, [UInt32]) -> [(UInt32, T)])] = []
-        for (pid, appIds) in Dictionary(grouping: ids, by: { windowApps[$0] }) {
-            guard let pid, let app = apps[pid], let ax = app.ax else { continue }
-            calls.append((ax, appIds.map(\.raw), read(app)))
+        for (app, ids) in windows {
+            guard let app = apps[app.pid], let ax = app.ax else { continue }
+            calls.append((ax, ids.map(\.raw), read(app)))
         }
         do {
             return try await withThrowingTaskGroup(of: [(UInt32, T)].self) { group in

@@ -58,8 +58,8 @@ final class Window: TreeNode, Hashable {
     }
 
     func closeAxWindow() {
+        world.platform.close(windowId) // First: the platform finds the window's app through the registered window
         garbageCollect(skipClosedWindowsCache: true)
-        world.platform.close(windowId)
     }
 }
 

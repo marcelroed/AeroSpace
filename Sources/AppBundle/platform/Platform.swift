@@ -33,10 +33,11 @@ protocol Platform: AnyObject, Sendable {
 
     /// The windows of every registered app; registers the new apps. An app that is missing terminated
     func listWindows() async throws(CancellationError) -> [AppWindows]
-    /// The kind and the frame of each window. A window that is gone is missing
-    func classify(_ ids: [WindowId]) async throws(CancellationError) -> [WindowId: DetectedWindow]
+    /// The kind and the frame of each window, keyed by its app: the app of a new window is known only from the listing. A
+    /// window that is gone is missing
+    func classify(_ windows: [AppInfo: [WindowId]]) async throws(CancellationError) -> [WindowId: DetectedWindow]
     /// A window that is gone is missing
-    func nativeFacts(_ ids: [WindowId]) async throws(CancellationError) -> [WindowId: NativeFacts]
+    func nativeFacts(_ windows: [AppInfo: [WindowId]]) async throws(CancellationError) -> [WindowId: NativeFacts]
     /// The focused window of the frontmost app; registers the app. Abandonable unlike D3's session read: the light session
     /// that preempts a heavy one must not wait for a hung frontmost app
     func focusedWindow() async throws(CancellationError) -> FocusedWindow?
