@@ -363,6 +363,33 @@ struct ReconcileTest {
         expectEqual(fake.calls(of: .park).map(\.windowId), [2])
     }
 
+    /// An app moves its window while a heavy refresh is held in its listing. The refresh's P4 reads the window after the
+    /// event and moves it back, so the event doesn't restart the refresh, unless AeroSpace doesn't know the window (the
+    /// listing may have missed it)
+    @Test(arguments: [(.moved(windowId: 1), 1), (.resized(windowId: 1), 1), (.moved(windowId: 3), 2)] as [(AxEvent, Int)])
+    func anAppsMoveDuringAHeavyRefreshRestartsItOnlyForAnUnknownWindow(event: AxEvent, expectedListings: Int) async {
+        setUpTree("h_tiles(*1 2)")
+        testWindow(1).rect = rect(0, 0, 100, 100)
+        fake.focused = 1
+        await heavyRefresh()
+        let tile = testWindow(1).rect
+        let gate = Gate()
+        var listings = 0
+        fake.beforeListing = { _ in
+            listings += 1
+            await gate.wait()
+        }
+        world.sessions.scheduleHeavy(.ax("test"))
+        await gate.untilWaiting()
+
+        testWindow(1).rect = rect(100, 100, 500, 500)
+        await world.sessions.onAxEvent(event)
+        gate.open()
+        for _ in 0 ..< 100 where !world.sessions.isHeavyIdle { await Task.yield() }
+        expectEqual(listings, expectedListings)
+        expectEqual(testWindow(1).rect, tile)
+    }
+
     @Test
     func aLightSessionRegistersTheNewFocusedWindowBeforeItsBody() async throws {
         setUpTree("h_tiles(*1)")

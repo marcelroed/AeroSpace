@@ -128,7 +128,9 @@ final class Sessions {
     /// observer fired: every event except a mouse drag refreshes all apps.
     /// - Ignored while AeroSpace is disabled.
     /// - `.moved` / `.resized` of the window that the user drags or resizes with the mouse: a light session follows the
-    ///   mouse (one ``LatestTaskSlot`` per kind). Any other event, e.g. a window that the layout moved: a heavy refresh.
+    ///   mouse (one ``LatestTaskSlot`` per kind). Of another window, e.g. one that the layout or the app moved: a heavy
+    ///   refresh, unless one is scheduled or running and AeroSpace knows the window.
+    /// - Any other event: a heavy refresh.
     func onAxEvent(_ event: AxEvent) async {
         guard let token: RunSessionGuard = .isServerEnabled else { return }
         let sessionEvent: RefreshSessionEvent = .ax("\(event)")
@@ -149,8 +151,13 @@ final class Sessions {
         _ token: RunSessionGuard,
         _ manipulateWithMouse: @escaping (Window) async throws -> (),
     ) async {
-        guard let windowId, let window = Window.get(byId: windowId), await isManipulatedWithMouse(window) else {
-            scheduleHeavy(event)
+        // A window that AeroSpace doesn't know may be one that the running heavy refresh's listing missed
+        guard let windowId, let window = Window.get(byId: windowId) else { return scheduleHeavy(event) }
+        guard await isManipulatedWithMouse(window) else {
+            // A heavy refresh that is scheduled or running posts P4's placements in the main actor turn in which its slot
+            // goes idle, so they read the window's frame after this event: a restart would only repeat P1's reads (and the
+            // layout's own writes come back as these events)
+            if isHeavyIdle { scheduleHeavy(event) }
             return
         }
         slot.replace { [self] in
