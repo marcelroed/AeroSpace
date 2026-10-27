@@ -7,7 +7,8 @@ open class TreeNode: Equatable, AeroAny {
     private(set) final var children: [TreeNode] = []
     fileprivate(set) final weak var parent: NonLeafTreeNodeObject? = nil
     private var adaptiveWeight: CGFloat
-    private let _mruChildren: MruStack<TreeNode> = MruStack()
+    /// The most recent child of a node is the child with the highest stamp. See ``markAsMostRecentChild()``
+    private var mruStamp: UInt64 = 0
     // Usages:
     // - resize with mouse
     // - makeFloatingWindowsSeenAsTiling in focus command
@@ -99,7 +100,6 @@ open class TreeNode: Equatable, AeroAny {
 
         let index = parent.children.firstIndex(of: self) ?? dieT("Can't find child in its parent")
         parent.children.remove(at: index)
-        check(parent._mruChildren.remove(self))
         self.parent = nil
         if recordStacktrace {
             unboundStacktrace = getStringStacktrace()
@@ -108,15 +108,22 @@ open class TreeNode: Equatable, AeroAny {
         return BindingData(parent: parent, adaptiveWeight: adaptiveWeight, index: index)
     }
 
+    /// Makes the node the most recent child of its parent, and the parent the most recent child of its parent, and so on.
+    /// Every bind does it, so every child has a stamp, and siblings never share one: one call gives one node per level
+    /// the same new stamp
     func markAsMostRecentChild() {
-        guard let parent else { return }
-        parent._mruChildren.pushOrRaise(self)
-        parent.markAsMostRecentChild()
+        mruClock += 1
+        var node: TreeNode? = self
+        while let current = node {
+            current.mruStamp = mruClock
+            node = current.parent
+        }
     }
 
-    var mostRecentChild: TreeNode? { _mruChildren.mostRecent ?? children.last }
+    var mostRecentChild: TreeNode? { children.max { $0.mruStamp < $1.mruStamp } }
 
-    var mruChildren: MruStack<TreeNode> { _mruChildren }
+    /// The children, the most recent first
+    var mruChildren: [TreeNode] { children.sorted { $0.mruStamp > $1.mruStamp } }
 
     @discardableResult
     func unbindFromParent() -> BindingData {
@@ -127,6 +134,8 @@ open class TreeNode: Equatable, AeroAny {
         lhs === rhs
     }
 }
+
+@MainActor private var mruClock: UInt64 = 0
 
 let WEIGHT_DOESNT_MATTER = CGFloat(-2)
 /// Splits containers evenly if tiling.

@@ -81,4 +81,23 @@ struct TreeNodeTest {
         _ = workspace.rootTilingContainer
         #expect(workspace.toLiveFocus().windowOrNil?.windowId == 2)
     }
+
+    @Test
+    func mostRecentChildIsTheLastMarkedOne() {
+        let workspace = setUpTree("h_tiles(1 v_tiles(2 3) 4)", workspace: "a")
+        let root = workspace.rootTilingContainer
+        let container = testWindow(2).parent.orDie()
+        #expect(root.mostRecentChild === testWindow(4)) // Binding marks the node: the last bound child is the most recent
+        #expect(container.mruChildren.map { ($0 as? Window)?.windowId } == [3, 2])
+
+        testWindow(2).markAsMostRecentChild() // Marks the whole chain of parents
+        #expect(root.mostRecentChild === container)
+        #expect(container.mruChildren.map { ($0 as? Window)?.windowId } == [2, 3])
+        #expect(root.mruChildren.map { ($0 as? Window)?.windowId } == [nil, 4, 1])
+        #expect(workspace.mostRecentWindowRecursive?.windowId == 2)
+
+        testWindow(2).unbindFromParent()
+        #expect(container.mostRecentChild === testWindow(3))
+        #expect(container.mruChildren.count == 1)
+    }
 }
