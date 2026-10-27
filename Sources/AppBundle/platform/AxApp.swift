@@ -105,7 +105,7 @@ actor AxApp {
     /// calls, once it's stale or termination starts. The batch's jobs wait for each other, see ``ShownJobs``
     nonisolated func postPlacements(_ placements: [Placement], _ job: PlacementJob) {
         let generations: [UInt64] = self.generations.withLock { generations in placements.map { generations.bump($0.windowId.raw) } }
-        if case .shown(let shownJobs) = job {
+        if case .shown(let shownJobs, _) = job {
             shownJobs.posted()
         }
         post { app in app.place(placements, generations, job) }
@@ -220,9 +220,9 @@ actor AxApp {
         return .facts(NativeFacts(isFullscreen: isFullscreen, isMinimized: !isFullscreen && isMinimized))
     }
 
-    /// See ``postPlacements(_:_:)``. A shown job writes, waits until the window server shows the tiles it unparked, lets
-    /// the parks go, and only then turns the animations back on: the parks don't wait for that, and a move that the app
-    /// makes late is still a jump
+    /// See ``postPlacements(_:_:)``. A shown job writes, gives the native focus it carries, waits until the window server
+    /// shows the tiles it unparked, lets the parks go, and only then turns the animations back on: the parks don't wait for
+    /// that, and a move that the app makes late is still a jump
     private func place(_ placements: [Placement], _ generations: [UInt64], _ job: PlacementJob) {
         let beforeFirstWrite: (() -> Void)? = if case .parks(let shownJobs) = job { shownJobs.wait } else { nil }
         let animations = AnimationsOff(element, beforeFirstWrite: beforeFirstWrite)
@@ -242,7 +242,8 @@ actor AxApp {
                 unparkedTiles.append(UnparkedTile(windowId: windowId, cornerX: cornerX, isCurrent: isCurrent))
             }
         }
-        if case .shown(let shownJobs) = job {
+        if case .shown(let shownJobs, let focus) = job {
+            focus?(self)
             waitUntilOnScreen(unparkedTiles, until: min(.now() + onScreenWaitLimit, shownJobs.deadline))
             shownJobs.ended()
         }
@@ -282,7 +283,7 @@ actor AxApp {
         window.setFrame(topLeft: frame.topLeft, size: frame.size)
     }
 
-    /// The slow path of native focus (LivePlatform.focus has the fast path, #101)
+    /// The slow path of the native focus (#101, LivePlatform's `nativeFocus(_:)` picks it)
     func focus(_ windowId: UInt32, _ nsApp: NSRunningApplication) {
         guard let window = windows[windowId]?.ax else { return }
         // Raise firstly to make sure that by the time we activate the app, the window would be already on top
@@ -353,10 +354,11 @@ nonisolated struct WindowGenerations {
     }
 }
 
-/// An app's job of a batch (``LivePlatform/apply(_:)``)
+/// An app's job of a batch (``LivePlatform/apply(_:focus:)``)
 nonisolated enum PlacementJob: Sendable {
-    /// The shown workspaces' placements. The job ends once the window server shows the tiles it unparked
-    case shown(ShownJobs)
+    /// The shown workspaces' placements. Right after its writes, the job gives the native focus that it carries (see
+    /// ``LivePlatform/apply(_:focus:)``). It ends once the window server shows the tiles it unparked
+    case shown(ShownJobs, focus: (@Sendable (isolated AxApp) -> Void)?)
     /// The parks. Before its first write, the job waits for the shown jobs
     case parks(waitingFor: ShownJobs)
 }

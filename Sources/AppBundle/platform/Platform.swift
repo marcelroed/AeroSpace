@@ -60,8 +60,9 @@ protocol Platform: AnyObject, Sendable {
 
     // MARK: Effects
 
-    /// Applies the placements in order. A newer placement of a window makes its pending older one stale
-    func apply(_ batch: [Placement])
+    /// Applies the placements in order. A newer placement of a window makes its pending older one stale. Then gives `focus`
+    /// the native focus, as ``focus(_:)``: on LivePlatform, right after its app's own placement writes
+    func apply(_ batch: [Placement], focus: WindowId?)
     /// The window's size now is its floating size (``PlacementState/lastFloatingSize``)
     func rememberFloatingSize(_ id: WindowId)
     func restoreFloatingSize(_ id: WindowId)

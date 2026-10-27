@@ -147,7 +147,7 @@ final class FakePlatform: Platform {
 
     // MARK: Effects
 
-    func apply(_ batch: [Placement]) {
+    func apply(_ batch: [Placement], focus: WindowId?) {
         for placement in batch {
             switch placement {
                 case .frame: break // Its write is the log entry
@@ -159,6 +159,7 @@ final class FakePlatform: Platform {
             guard let window = windows[id] else { continue }
             window.placement.apply(placement, to: FakeAxWindow(id: id, window: window, platform: self))
         }
+        if let focus { self.focus(focus) }
     }
 
     func rememberFloatingSize(_ id: WindowId) {
@@ -236,6 +237,11 @@ final class FakePlatform: Platform {
         calls.append(call)
         onRead?(call)
     }
+}
+
+extension Platform {
+    /// A batch without a native focus
+    func apply(_ batch: [Placement]) { apply(batch, focus: nil) }
 }
 
 /// A window of ``FakePlatform`` for ``PlacementState``: each AX read and frame write goes into the call log, and the

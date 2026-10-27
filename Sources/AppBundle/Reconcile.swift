@@ -273,13 +273,13 @@ enum Reconcile {
 
     // MARK: P4 present
 
-    /// P4: the layout of every workspace, the native focus if the focus differs from `nativeFocusBaseline`, then the
+    /// P4: the layout of every workspace with the native focus if the focus differs from `nativeFocusBaseline`, then the
     /// tray. A cancelled session presents nothing. `isLayout` false: focus-follows-mouse doesn't lay out
     static func present(nativeFocusBaseline: Window?, isLayout: Bool = true) throws(CancellationError) {
         try checkCancellation()
-        if isLayout { world.platform.apply(placements()) }
+        let batch: [Placement] = isLayout ? placements() : []
         let focused = focus.windowOrNil
-        if focused != nativeFocusBaseline { focused?.nativeFocus() }
+        world.platform.apply(batch, focus: focused == nativeFocusBaseline ? nil : focused?.windowId)
         updateTrayText()
         world.ui.refreshSecureInputPanel()
     }

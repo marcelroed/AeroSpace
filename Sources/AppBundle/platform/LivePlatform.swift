@@ -206,8 +206,13 @@ final class LivePlatform: Platform {
     /// Two jobs per app: its shown workspaces' placements, then its parks, each in the batch's order. The apps run their
     /// jobs in parallel, so a parks job waits, before its first write, until the window server shows the tiles that every
     /// shown job unparked (at most ``parkWaitLimit``): a window leaves for its corner only once the windows that replace it
-    /// are on screen, see ``ShownJobs``
-    func apply(_ batch: [Placement]) {
+    /// are on screen, see ``ShownJobs``.
+    ///
+    /// The native focus runs in the shown job of its app, right after the writes. An activation that reaches the app
+    /// before them keeps its main thread busy: cmux then takes ~10 ms for the size write and ~30 ms for the position write
+    /// instead of ~1 ms each, and shows ~80 ms after the command instead of ~33 ms. Not after the on-screen wait either:
+    /// the focus would wait for the app's lag (cmux: ~25 ms). Without a shown job of its app, the focus runs as ``focus(_:)``
+    func apply(_ batch: [Placement], focus: WindowId?) {
         var shown: [pid_t: (ax: AxApp, placements: [Placement])] = [:]
         var parks: [pid_t: (ax: AxApp, placements: [Placement])] = [:]
         for placement in batch {
@@ -218,12 +223,17 @@ final class LivePlatform: Platform {
                 shown[app.info.pid, default: (ax, [])].placements.append(placement)
             }
         }
+        let nativeFocus = focus.flatMap(nativeFocus)
         let shownJobs = ShownJobs(deadline: .now() + parkWaitLimit)
-        for (ax, placements) in shown.values {
-            ax.postPlacements(placements, .shown(shownJobs))
+        for (pid, (ax, placements)) in shown {
+            let focus = nativeFocus.flatMap { $0.app.info.pid == pid ? $0.run : nil }
+            ax.postPlacements(placements, .shown(shownJobs, focus: focus))
         }
         for (ax, placements) in parks.values {
             ax.postPlacements(placements, .parks(waitingFor: shownJobs))
+        }
+        if let nativeFocus, shown[nativeFocus.app.info.pid] == nil {
+            nativeFocus.runAlone()
         }
     }
 
@@ -240,24 +250,24 @@ final class LivePlatform: Platform {
     }
 
     func focus(_ id: WindowId) {
-        if serverArgs.isReadOnly { return }
+        nativeFocus(id)?.runAlone()
+    }
+
+    /// Decides the window's native focus now. nil in `--read-only` mode, or once its app is gone
+    private func nativeFocus(_ id: WindowId) -> NativeFocus? {
+        if serverArgs.isReadOnly { return nil }
         // Bump first: a focus posted earlier for another window must not run, even if this window's app is gone
         let generation = nativeFocusGeneration.wrappingAdd(1, ordering: .sequentiallyConsistent).newValue
-        guard let app = liveApp(of: id) else { return }
+        guard let app = liveApp(of: id) else { return nil }
         // Performance optimization. If possible avoid doing AX requests
         // (important for apps which are slow at responding even such basic AX requests. E.g. Godot)
         // Beware of the macOS bug: https://github.com/nikitabobko/AeroSpace/issues/101
-        if (!NSScreen.screensHaveSeparateSpaces || world.monitors.all.count == 1) &&
+        let activatesOnly = (!NSScreen.screensHaveSeparateSpaces || world.monitors.all.count == 1) &&
             (app.lastNativeFocusedWindowId == id || app.windowsCount == 1)
-        {
-            app.nsApp.activateForNativeFocus()
-        } else {
-            let raw = id.raw
-            app.ax?.post { [nsApp = app.nsApp] app in
-                if nativeFocusGeneration.load(ordering: .sequentiallyConsistent) == generation {
-                    app.focus(raw, nsApp)
-                }
-            }
+        let raw = id.raw
+        return NativeFocus(app: app, activatesOnly: activatesOnly) { @Sendable [nsApp = app.nsApp] axApp in
+            if nativeFocusGeneration.load(ordering: .sequentiallyConsistent) != generation { return }
+            if activatesOnly { nsApp.activateForNativeFocus() } else { axApp.focus(raw, nsApp) }
         }
     }
 
@@ -453,8 +463,26 @@ nonisolated private func eachUntilAbandoned<T>(_ raws: [UInt32], _ isAbandoned: 
     return result
 }
 
-/// The latest-wins slot of the native focus's slow path: a newer focus request makes a pending one stale
+/// The latest-wins slot of a native focus that runs on its app's thread: a newer focus request makes a pending one stale
 nonisolated private let nativeFocusGeneration: Atomic<UInt64> = Atomic(0)
+
+/// A native focus that main decided, see ``LivePlatform/apply(_:focus:)``
+private struct NativeFocus {
+    let app: LiveApp
+    /// The fast path (#101): the activation alone focuses the window, with no AX call
+    let activatesOnly: Bool
+    /// On the app's thread, in its shown job or posted alone
+    let run: @Sendable (isolated AxApp) -> Void
+
+    /// Without a shown job of the app: the fast path activates it from main at once
+    func runAlone() {
+        if activatesOnly {
+            app.nsApp.activateForNativeFocus()
+        } else {
+            app.ax?.post(run)
+        }
+    }
+}
 
 /// How long the parks of a batch wait for the apps that show windows, from the batch's post: a slow or hung app doesn't
 /// hold the other apps' windows in place for long. A parks job holds its app's thread while it waits, so the limit stays

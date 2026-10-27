@@ -169,7 +169,7 @@ struct AxAppTest {
         defer { gate.signal() }
         hung.post { _ in gate.wait() }
         let shownJobs = ShownJobs(deadline: .now() + .seconds(10))
-        hung.postPlacements([], .shown(shownJobs))
+        hung.postPlacements([], .shown(shownJobs, focus: nil))
         let target = ParkTarget(corner: .bottomRightCorner, monitor: testMonitor, monitors: NonEmptyArray(testMonitor), isFloating: false, isZoom: false)
         parker.postPlacements([.park(1, target)], .parks(waitingFor: shownJobs)) // The parker has no window 1
 
@@ -194,7 +194,7 @@ struct AxAppTest {
             log.append("the slow app wrote")
         }
         let shownJobs = ShownJobs(deadline: .now() + .seconds(10))
-        slow.postPlacements([], .shown(shownJobs))
+        slow.postPlacements([], .shown(shownJobs, focus: nil))
         parker.post { _ in
             shownJobs.wait()
             log.append("the parker writes")
@@ -208,10 +208,33 @@ struct AxAppTest {
         hung.post { _ in hungGate.wait() }
         let start: DispatchTime = .now()
         let shownJobsWithAHungApp = ShownJobs(deadline: start + .milliseconds(100))
-        hung.postPlacements([], .shown(shownJobsWithAHungApp))
+        hung.postPlacements([], .shown(shownJobsWithAHungApp, focus: nil))
         await parker.run { _ in shownJobsWithAHungApp.wait() }
         let waited = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
         #expect(waited >= 100_000_000 && waited < 5_000_000_000, "waited \(waited) ns")
+    }
+
+    /// The native focus runs on its app's thread inside the app's shown job: after the app's earlier jobs and the job's
+    /// writes (pid-0 apps have none), before the parks may go. A slow focus shows it: the parker would go meanwhile
+    @Test
+    func aShownJobGivesTheNativeFocusBeforeTheParksMayGo() async throws {
+        let focused = AxApp(pid: 0, threadName: "Focused")
+        let parker = AxApp(pid: 0, threadName: "Parker")
+        let log = Log<String>()
+        let shownJobs = ShownJobs(deadline: .now() + .seconds(10))
+
+        focused.post { _ in log.append("an earlier job") }
+        focused.postPlacements([], .shown(shownJobs, focus: { @Sendable _ in
+            Thread.sleep(forTimeInterval: 0.05)
+            log.append("the focus on \(Thread.current.name ?? "")")
+        }))
+        parker.post { _ in
+            shownJobs.wait()
+            log.append("the parks go")
+        }
+
+        try await waitUntil { log.items.count == 3 }
+        expectEqual(log.items, ["an earlier job", "the focus on Focused", "the parks go"])
     }
 
     @Test
