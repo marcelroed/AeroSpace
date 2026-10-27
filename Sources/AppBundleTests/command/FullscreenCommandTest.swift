@@ -52,6 +52,23 @@ struct FullscreenCommandTest {
         expectEqual(testWindow(1)[keyPath: isFullscreen], row.isFullscreen)
     }
 
+    /// On moves the window to the fullscreen windows of its workspace. Off moves it where a new window goes, or, if a refresh
+    /// saw that macOS made it fullscreen, back to the kind of container that it was in then
+    @Test(arguments: [
+        ("h_tiles(*1 2)", LayoutReason.standard, "on", "h_tiles(2) macos_fullscreen(*1)"),
+        ("h_tiles(2) macos_fullscreen(*1)", .standard, "off", "h_tiles(2 *1)"),
+        ("h_tiles(2) macos_fullscreen(*1)", .macos(prevParentKind: .floating), "off", "h_tiles(2) floating(*1)"),
+    ] as [(String, LayoutReason, String, String)])
+    func macosNativeFullscreen(before: String, layoutReason: LayoutReason, onOff: String, after: String) async {
+        setUpTree(before)
+        let window = testWindow(1)
+        window.isMacosFullscreenForTest = onOff == "off" // What macOS reports before the command
+        window.layoutReason = layoutReason
+        expectEqual(await runCmd("macos-native-fullscreen \(onOff)"), .ok)
+        expectEqual(fake.calls(of: .setNative), [.setNative(1, .fullscreen(onOff == "on"))])
+        expectEqual(describeTree(), after)
+    }
+
     @Test
     func macosNativeMinimizeMovesTheWindowOutOfTheWorkspace() async {
         setUpTree("h_tiles(*1 2)")
