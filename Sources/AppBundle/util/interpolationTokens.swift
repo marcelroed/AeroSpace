@@ -1,39 +1,44 @@
 import Common
 
 extension String {
-    /// The tokens of a string with interpolation variables: `%{window-id}` in a format, `${HOME}` in an exec env variable
+    /// The tokens of a string with interpolation variables: `%{window-id}` in a format, `${HOME}` in an exec env variable.
+    /// Linear: the state holds no text, the current literal or variable name grows in place
     nonisolated func rawInterpolationTokens(interpolationChar: Character) throws(CmdParseError) -> [InterToken<String>] {
-        var mode: InterpolationParserState = .stringLiteral(currLiteral: "")
+        var state: InterpolationParserState = .stringLiteral
+        var buffer = "" // The current literal, or the current variable name
         var result: [InterToken<String>] = []
-        for char: Character? in (Array(self) + [nil]) {
-            switch (mode, char) { // State machine
-                case (.stringLiteral(let literal), interpolationChar):
-                    mode = .interpolationCharEncountered(prevLiteral: literal)
-                case (.stringLiteral(let literal), let char?):
-                    mode = .stringLiteral(currLiteral: literal + String(char))
-                case (.stringLiteral(let literal), nil):
-                    result.append(.literal(literal))
-                case (.interpolationCharEncountered(let literal), "{"):
-                    mode = .interpolationVariable(currVariable: "")
-                    result.append(.literal(literal))
-                case (.interpolationCharEncountered(let literal), interpolationChar):
-                    mode = .interpolationCharEncountered(prevLiteral: literal + String(interpolationChar))
-                case (.interpolationCharEncountered(let literal), let char?):
-                    mode = .stringLiteral(currLiteral: literal + String(interpolationChar) + String(char))
-                case (.interpolationCharEncountered(let literal), nil):
-                    result.append(.literal(literal + String(interpolationChar)))
-                case (.interpolationVariable(let value), "}"):
-                    result.append(.interVar(value))
-                    mode = .stringLiteral(currLiteral: "")
-                case (.interpolationVariable(let value), "{"):
-                    throw "Can't parse '\(value + "{")' inside interpolation (Open curly brace is invalid character)"
-                case (.interpolationVariable(let value), interpolationChar):
-                    throw "Can't parse '\(value + .init(interpolationChar))' inside interpolation ('\(interpolationChar)' is disallowed character)"
-                case (.interpolationVariable(let value), let char?):
-                    mode = .interpolationVariable(currVariable: value + .init(char))
-                case (.interpolationVariable, nil):
-                    throw "Unbalanced curly braces"
+        for char in self {
+            switch (state, char) { // State machine
+                case (.stringLiteral, interpolationChar):
+                    state = .interpolationCharEncountered
+                case (.stringLiteral, _):
+                    buffer.append(char)
+                case (.interpolationCharEncountered, "{"):
+                    result.append(.literal(buffer))
+                    buffer = ""
+                    state = .interpolationVariable
+                case (.interpolationCharEncountered, interpolationChar):
+                    buffer.append(interpolationChar)
+                case (.interpolationCharEncountered, _):
+                    buffer.append(interpolationChar)
+                    buffer.append(char)
+                    state = .stringLiteral
+                case (.interpolationVariable, "}"):
+                    result.append(.interVar(buffer))
+                    buffer = ""
+                    state = .stringLiteral
+                case (.interpolationVariable, "{"):
+                    throw "Can't parse '\(buffer + "{")' inside interpolation (Open curly brace is invalid character)"
+                case (.interpolationVariable, interpolationChar):
+                    throw "Can't parse '\(buffer + String(interpolationChar))' inside interpolation ('\(interpolationChar)' is disallowed character)"
+                case (.interpolationVariable, _):
+                    buffer.append(char)
             }
+        }
+        switch state {
+            case .stringLiteral: result.append(.literal(buffer))
+            case .interpolationCharEncountered: result.append(.literal(buffer + String(interpolationChar)))
+            case .interpolationVariable: throw "Unbalanced curly braces"
         }
         return result.filter { $0 != .literal("") }
     }
@@ -45,7 +50,8 @@ nonisolated enum InterToken<T>: Equatable, Sendable where T: Equatable, T: Senda
 }
 
 nonisolated private enum InterpolationParserState {
-    case stringLiteral(currLiteral: String)
-    case interpolationCharEncountered(prevLiteral: String)
-    case interpolationVariable(currVariable: String)
+    case stringLiteral
+    /// The interpolation char isn't in the buffer yet: it starts a variable if `{` follows
+    case interpolationCharEncountered
+    case interpolationVariable
 }

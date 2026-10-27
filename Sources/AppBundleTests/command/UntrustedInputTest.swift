@@ -100,4 +100,17 @@ struct UntrustedInputTest {
         let chainOutput = await runCliArgs(["eval", chain])
         #expect(chainOutput == CmdOutput(stdout: ["b"]))
     }
+
+    @Test
+    func longInterpolationTakesLinearTime() throws {
+        // `echo`, `test`, `--format` and exec env tokenize at parse time, on the main thread. A quadratic tokenizer took 6.5 s for 1M chars
+        let literal: String = String(repeating: "a%b%%", count: 100_000)
+        let variable: String = String(repeating: "x", count: 500_000)
+        var tokens: [InterToken<String>] = []
+        let elapsed: Duration = try ContinuousClock().measure {
+            tokens = try (literal + "%{\(variable)}").rawInterpolationTokens(interpolationChar: "%")
+        }
+        #expect(tokens == [.literal(literal), .interVar(variable)] as [InterToken<String>])
+        #expect(elapsed < .seconds(1))
+    }
 }
