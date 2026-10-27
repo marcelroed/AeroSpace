@@ -7,9 +7,8 @@ private struct Subscriber {
     let events: Set<ServerEventType>
 }
 
-@MainActor private var subscribers: [UUID: Subscriber] = [:]
+private var subscribers: [UUID: Subscriber] = [:]
 
-@MainActor
 func handleSubscribeAndWaitTillError(_ connection: NWConnection, _ args: SubscribeCmdArgs) async {
     let id = UUID()
     subscribers[id] = Subscriber(connection: connection, events: args.events)
@@ -49,7 +48,7 @@ private let jsonEncoder: JSONEncoder = {
 }()
 
 func broadcastEvent(_ event: ServerEvent) {
-    Task.startUnstructured { @MainActor in
+    Task.startUnstructured {
         for (id, subscriber) in subscribers {
             guard subscriber.events.contains(event.eventType) else { continue }
             if await subscriber.connection.writeAtomic(event, jsonEncoder).error != nil {

@@ -25,7 +25,6 @@ struct MoveNodeToWorkspaceCommand: Command {
     }
 }
 
-@MainActor
 func moveWindowToWorkspace(_ window: Window, _ targetWorkspace: Workspace, _ io: CmdIo, focusFollowsWindow: Bool, failIfNoop: Bool, index: Int = INDEX_BIND_LAST) -> BinaryExitCode {
     if window.nodeWorkspace == targetWorkspace {
         return .noop(io, failIfNoop: failIfNoop, "Window '\(window.windowId)' already belongs to workspace '\(targetWorkspace.name)'. Tip: use --fail-if-noop to exit with non-zero code")

@@ -2,7 +2,7 @@ import AppKit
 import Common
 import Foundation
 
-@MainActor public func initAppBundle() {
+public func initAppBundle() {
     Task.startUnstructured {
         initTerminationHandler()
         unsafe _isCli = false
@@ -38,7 +38,7 @@ import Foundation
     }
 }
 
-@MainActor private func bootstrapConfig_nonCancellable() async {
+private func bootstrapConfig_nonCancellable() async {
     let result = await reloadConfig_nonCancellable(forceConfigUrl: defaultConfigUrl)
     let msg = """
         Can't load default config. Your installation is probably corrupted.
@@ -49,7 +49,6 @@ import Foundation
     check(result.isOk, msg)
 }
 
-@MainActor
 private func smartLayoutAtStartup() {
     let root = focus.workspace.rootTilingContainer
     root.layout = root.children.count <= 3 ? .tiles : .accordion

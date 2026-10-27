@@ -1,18 +1,17 @@
 import AppKit
 import Common
 
-@MainActor private var workspaceNameToWorkspace: [String: Workspace] = [:]
+private var workspaceNameToWorkspace: [String: Workspace] = [:]
 
-@MainActor private var screenPointToPrevVisibleWorkspace: [CGPoint: String] = [:]
-@MainActor private var screenPointToVisibleWorkspace: [CGPoint: Workspace] = [:]
-@MainActor private var visibleWorkspaceToScreenPoint: [Workspace: CGPoint] = [:]
+private var screenPointToPrevVisibleWorkspace: [CGPoint: String] = [:]
+private var screenPointToVisibleWorkspace: [CGPoint: Workspace] = [:]
+private var visibleWorkspaceToScreenPoint: [Workspace: CGPoint] = [:]
 
 // The returned workspace must be invisible and it must belong to the requested monitor
-@MainActor func getStubWorkspace(for monitor: MonitorInfo) -> Workspace {
+func getStubWorkspace(for monitor: MonitorInfo) -> Workspace {
     getStubWorkspace(forPoint: monitor.rect.topLeftCorner)
 }
 
-@MainActor
 private func getStubWorkspace(forPoint point: CGPoint) -> Workspace {
     if let prev = screenPointToPrevVisibleWorkspace[point].map({ Workspace.get(byName: $0) }),
        !prev.isVisible && prev.workspaceMonitor.rect.topLeftCorner == point && prev.forceAssignedMonitor == nil
@@ -119,7 +118,6 @@ extension Workspace {
 }
 
 extension MonitorInfo {
-    @MainActor
     var activeWorkspace: Workspace {
         if let existing = screenPointToVisibleWorkspace[rect.topLeftCorner] {
             return existing
@@ -142,13 +140,11 @@ extension MonitorInfo {
             ?? getStubWorkspace(for: self)
     }
 
-    @MainActor
     func setActiveWorkspace(_ workspace: Workspace) -> Bool {
         rect.topLeftCorner.setActiveWorkspace(workspace)
     }
 }
 
-@MainActor
 func gcMonitors() {
     if screenPointToVisibleWorkspace.count != monitorInfos.count {
         rearrangeWorkspacesOnMonitors()
@@ -156,7 +152,6 @@ func gcMonitors() {
 }
 
 extension CGPoint {
-    @MainActor
     fileprivate func setActiveWorkspace(_ workspace: Workspace) -> Bool {
         if let forceAssigned = workspace.forceAssignedMonitor, forceAssigned.rect.topLeftCorner != self {
             return false
@@ -178,7 +173,6 @@ extension CGPoint {
     }
 }
 
-@MainActor
 private func rearrangeWorkspacesOnMonitors() {
     let newScreens = monitorInfos.map(\.rect.topLeftCorner)
     // No screens (e.g., during display reconfiguration). Keep the current arrangement until the screens come back.

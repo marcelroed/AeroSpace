@@ -21,7 +21,7 @@ final class MacApp: nonisolated AbstractApp { // nonisolated: Hashable compares 
     private var thread: Thread?
     private var setFrameJobs: [UInt32: RunLoopJob] = [:]
     private var terminationWaitTimedOut = false // See terminationAxTimeout
-    @MainActor private static var focusJob: RunLoopJob? = nil
+    private static var focusJob: RunLoopJob? = nil
 
     /*conforms*/ var name: String? { nsApp.localizedName }
     /*conforms*/ var execPath: String? { nsApp.executableURL?.path }
@@ -29,8 +29,8 @@ final class MacApp: nonisolated AbstractApp { // nonisolated: Hashable compares 
 
     // todo think if it's possible to integrate this global mutable state to https://github.com/nikitabobko/AeroSpace/issues/1215
     //      and make deinitialization automatic in deinit
-    @MainActor static var allAppsMap: [pid_t: MacApp] = [:]
-    @MainActor private static var wipPids: [pid_t: AwaitableOneTimeBroadcastLatch] = [:]
+    static var allAppsMap: [pid_t: MacApp] = [:]
+    private static var wipPids: [pid_t: AwaitableOneTimeBroadcastLatch] = [:]
 
     private init(
         _ nsApp: NSRunningApplication,
@@ -47,7 +47,6 @@ final class MacApp: nonisolated AbstractApp { // nonisolated: Hashable compares 
         self.thread = thread
     }
 
-    @MainActor
     @discardableResult
     static func getOrRegister(_ nsApp: NSRunningApplication, pid: pid_t? = nil) async throws -> MacApp? {
         let pid = pid ?? nsApp.processIdentifier
@@ -127,7 +126,7 @@ final class MacApp: nonisolated AbstractApp { // nonisolated: Hashable compares 
         return try await MacWindow.getOrRegister(windowId: windowId, macApp: self)
     }
 
-    @MainActor func nativeFocus(_ windowId: UInt32) {
+    func nativeFocus(_ windowId: UInt32) {
         if serverArgs.isReadOnly { return }
         MacApp.focusJob?.cancel()
         // Performance optimization. If possible avoid doing AX requests
@@ -260,7 +259,6 @@ final class MacApp: nonisolated AbstractApp { // nonisolated: Hashable compares 
         }
     }
 
-    @MainActor
     static func refreshAllAndGetAliveWindowIds(frontmostAppBundleId: String?) async throws -> [MacApp: [UInt32]] {
         for (_, app) in MacApp.allAppsMap { // gc dead apps
             try checkCancellation()
@@ -347,7 +345,7 @@ final class MacApp: nonisolated AbstractApp { // nonisolated: Hashable compares 
     }
 
     private func destroy() async {
-        _ = await Task.startUnstructured { @MainActor [pid] in _ = MacApp.allAppsMap.removeValue(forKey: pid) }.result
+        _ = await Task.startUnstructured { [pid] in _ = MacApp.allAppsMap.removeValue(forKey: pid) }.result
         for (_, job) in setFrameJobs {
             job.cancel()
         }

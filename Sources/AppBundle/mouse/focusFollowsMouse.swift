@@ -1,9 +1,9 @@
 import AppKit
 
-@MainActor private var focusFollowsMouseMonitor: Any? = nil
-@MainActor private let focusFollowsTask = LatestTaskSlot()
+private var focusFollowsMouseMonitor: Any? = nil
+private let focusFollowsTask = LatestTaskSlot()
 
-@MainActor func syncFocusFollowsMouse(_ config: Config) {
+func syncFocusFollowsMouse(_ config: Config) {
     if config.focusFollowsMouse.enabled == (focusFollowsMouseMonitor != nil) {
         return
     }

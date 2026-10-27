@@ -8,7 +8,7 @@ struct ReadConfigResult {
     let configUrl: URL
     let parseConfigResult: ParseConfigResult
 
-    @MainActor static func fatal(configUrl: URL, message: String) -> Self {
+    static func fatal(configUrl: URL, message: String) -> Self {
         ReadConfigResult(
             configUrl: configUrl,
             parseConfigResult: ParseConfigResult(
@@ -20,7 +20,6 @@ struct ReadConfigResult {
     }
 }
 
-@MainActor
 func readConfig(forceConfigUrl: URL?) -> ReadConfigResult {
     let configUrl: URL
     if let forceConfigUrl {
@@ -238,7 +237,7 @@ struct ParseConfigResult {
     var allowReloadConfig: Bool { errors.allSatisfy { !$0.preventConfigReload } }
 }
 
-@MainActor func parseConfig(_ rawToml: String) -> ParseConfigResult {
+func parseConfig(_ rawToml: String) -> ParseConfigResult {
     var c = ConfigParserContext(errors: [], warnings: [])
     let rawTable = parseTomlRootTable(rawToml, &c.errors)
 

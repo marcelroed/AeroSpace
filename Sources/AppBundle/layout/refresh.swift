@@ -1,16 +1,14 @@
 import AppKit
 import Common
 
-@MainActor
 private var activeRefreshTask: Task<(), any Error>? = nil
 
-@MainActor
 func scheduleCancellableCompleteRefreshSession(
     _ event: RefreshSessionEvent,
     optimisticallyPreLayoutWorkspaces: Bool = false,
 ) {
     activeRefreshTask?.cancel()
-    activeRefreshTask = Task.startUnstructured { @MainActor in
+    activeRefreshTask = Task.startUnstructured {
         try checkCancellation()
         await runHeavyCompleteRefreshSession(
             event,
@@ -20,7 +18,6 @@ func scheduleCancellableCompleteRefreshSession(
     }
 }
 
-@MainActor
 func runHeavyCompleteRefreshSession(
     _ event: RefreshSessionEvent,
     assumeCancellable: Bool,
@@ -56,7 +53,6 @@ func runHeavyCompleteRefreshSession(
     }
 }
 
-@MainActor
 func runLightSession<T>(
     _ event: RefreshSessionEvent,
     _: RunSessionGuard,
@@ -79,7 +75,7 @@ func runLightSession<T>(
 
         // Runs at the next suspension point, so the layout dispatches the frames of the visible windows first
         // (updateTrayText does launchservicesd IPC), and the tray doesn't wait for the AX calls that the layout awaits
-        Task.startUnstructured { @MainActor in
+        Task.startUnstructured {
             updateTrayText()
             SecureInputPanel.shared.refresh()
         }
@@ -93,9 +89,7 @@ func runLightSession<T>(
 }
 
 struct RunSessionGuard: Sendable {
-    @MainActor
     static var isServerEnabled: RunSessionGuard? { TrayMenuModel.shared.isEnabled ? forceRun : nil }
-    @MainActor
     static func isServerEnabled(orIsEnableCommand command: (any Command)?) -> RunSessionGuard? {
         command is EnableCommand ? .forceRun : .isServerEnabled
     }
@@ -103,7 +97,6 @@ struct RunSessionGuard: Sendable {
     private init() {}
 }
 
-@MainActor
 func refreshModel_nonCancellable() async {
     if refreshSessionEvent?.isFocusFollowsMouse == true {
         await checkOnFocusChangedCallbacks_nonCancellable()
@@ -117,7 +110,6 @@ func refreshModel_nonCancellable() async {
     }
 }
 
-@MainActor
 private func refresh() async throws {
     // Garbage collect terminated apps and windows before working with all windows
     let mapping = try await MacApp.refreshAllAndGetAliveWindowIds(frontmostAppBundleId: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
@@ -155,7 +147,6 @@ enum OptimalHideCorner {
     case bottomLeftCorner, bottomRightCorner
 }
 
-@MainActor
 private func layoutWorkspaces() async throws {
     if !TrayMenuModel.shared.isEnabled {
         for workspace in Workspace.all {

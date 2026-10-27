@@ -13,14 +13,14 @@ final class MacosHiddenAppsWindowsContainer: TreeNode, NonLeafTreeNodeObject {
     }
 }
 
-@MainActor let macosMinimizedWindowsContainer = MacosMinimizedWindowsContainer()
+let macosMinimizedWindowsContainer = MacosMinimizedWindowsContainer()
 final class MacosMinimizedWindowsContainer: TreeNode, NonLeafTreeNodeObject {
     fileprivate init() {
         super.init(unboundRootWithAdaptiveWeight: 1)
     }
 }
 
-@MainActor let macosPopupWindowsContainer = MacosPopupWindowsContainer()
+let macosPopupWindowsContainer = MacosPopupWindowsContainer()
 /// The container for macOS objects that are windows from AX perspective but from human perspective they are not even
 /// dialogs. E.g. Sonoma (macOS 14) keyboard layout switch
 final class MacosPopupWindowsContainer: TreeNode, NonLeafTreeNodeObject {

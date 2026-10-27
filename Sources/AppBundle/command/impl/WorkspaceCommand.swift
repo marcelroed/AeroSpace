@@ -33,7 +33,7 @@ struct WorkspaceCommand: Command {
     }
 }
 
-@MainActor func getNextPrevWorkspace(current: Workspace, isNext: Bool, wrapAround: Bool, stdin: String?) -> ResOrStr<Workspace> {
+func getNextPrevWorkspace(current: Workspace, isNext: Bool, wrapAround: Bool, stdin: String?) -> ResOrStr<Workspace> {
     Result { () throws(String) in
         let stdinWorkspaces: [WorkspaceName] = try stdin?.split(whereSeparator: \.isWhitespace)
             .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }

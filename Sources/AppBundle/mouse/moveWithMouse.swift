@@ -8,7 +8,6 @@ nonisolated func movedObs(_: AXObserver, ax: AXUIElement, notif: CFString, _: Un
     onMouseManipulationAxNotif(ax: ax, notif: notif, moveWithMouseTask, moveWithMouse)
 }
 
-@MainActor
 func moveWithMouse(_ window: Window) async throws { // todo cover with tests
     resetClosedWindowsCache()
     switch window.parent {
@@ -18,7 +17,6 @@ func moveWithMouse(_ window: Window) async throws { // todo cover with tests
     }
 }
 
-@MainActor
 private func moveFloatingWindow(_ window: Window) async throws {
     guard let targetWorkspace = try await window.getCenter(.cancellable)?.monitorApproximation.activeWorkspace else { return }
     guard let workspace = window.nodeWorkspace else { return }
@@ -27,7 +25,6 @@ private func moveFloatingWindow(_ window: Window) async throws {
     }
 }
 
-@MainActor
 private func moveTilingWindow(_ window: Window) {
     currentlyManipulatedWithMouseWindowId = window.windowId
     window.lastAppliedLayoutPhysicalRect = nil
@@ -54,7 +51,6 @@ private func moveTilingWindow(_ window: Window) {
     }
 }
 
-@MainActor
 func swapWindows(mruDominant window1: Window, _ window2: Window) {
     if window1 == window2 { return }
 
@@ -66,7 +62,6 @@ func swapWindows(mruDominant window1: Window, _ window2: Window) {
 }
 
 extension CGPoint {
-    @MainActor
     func findWindowRecursively(
         in tree: TilingContainer,
         virtual: Bool,
@@ -80,7 +75,6 @@ extension CGPoint {
         return _findWindowRecursively(in: tree, virtual: virtual)
     }
 
-    @MainActor
     private func _findWindowRecursively(in tree: TilingContainer, virtual: Bool) -> Window? {
         let point = self
         let target: TreeNode? = switch tree.layout {

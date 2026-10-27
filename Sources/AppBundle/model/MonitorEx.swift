@@ -1,5 +1,4 @@
 extension MonitorInfo {
-    @MainActor
     var visibleRectPaddedByOuterGaps: Rect { visibleRectPadded(by: ResolvedGaps(gaps: config.gaps, monitor: self)) }
 
     func visibleRectPadded(by gaps: ResolvedGaps) -> Rect {

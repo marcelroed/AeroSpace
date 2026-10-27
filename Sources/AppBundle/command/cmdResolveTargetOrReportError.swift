@@ -1,7 +1,6 @@
 import Common
 
 extension CmdArgs {
-    @MainActor
     func resolveTargetOrReportError(_ env: CmdEnv, _ io: CmdIo) -> LiveFocus? {
         // Flags
         if let windowId {
@@ -22,7 +21,6 @@ extension CmdArgs {
     }
 
     /// For the commands that need a window: the target's window
-    @MainActor
     func resolveWindowOrReportError(_ env: CmdEnv, _ io: CmdIo, noWindowMsg: String = noWindowIsFocused) -> Window? {
         guard let target = resolveTargetOrReportError(env, io) else { return nil }
         guard let window = target.windowOrNil else {
@@ -33,7 +31,6 @@ extension CmdArgs {
     }
 }
 
-@MainActor
 private func windowFocusOrReportError(_ windowId: UInt32, _ source: String, _ io: CmdIo) -> LiveFocus? {
     guard let window = Window.get(byId: windowId) else {
         io.err("Invalid <window-id> \(windowId) \(source)")

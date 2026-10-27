@@ -13,7 +13,7 @@ private struct ConfigFileWatcher: ~Copyable {
             eventMask: [.write, .delete, .rename, .revoke],
             queue: .main,
         )
-        source.setEventHandler { MainActor.assumeIsolated { onChange() } }
+        source.setEventHandler { onChange() } // On the main queue, so the closure is main actor isolated
         source.setCancelHandler { [fd] in close(fd) }
         source.activate()
     }
@@ -24,12 +24,12 @@ private struct ConfigFileWatcher: ~Copyable {
 }
 
 // periphery:ignore - assign-only: the value keeps the watcher alive
-@MainActor private var currentWatcher: ConfigFileWatcher? = nil
-@MainActor private var debounceTask: Task<Void, any Error>? = nil
+private var currentWatcher: ConfigFileWatcher? = nil
+private var debounceTask: Task<Void, any Error>? = nil
 
 private let debounceDelay: Duration = .milliseconds(200)
 
-@MainActor func syncConfigFileWatcher() {
+func syncConfigFileWatcher() {
     currentWatcher = nil
     if !config.autoReloadConfig { return }
     currentWatcher = ConfigFileWatcher(url: configUrl) {

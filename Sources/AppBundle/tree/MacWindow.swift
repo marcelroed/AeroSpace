@@ -182,7 +182,6 @@ extension Window {
 }
 
 // The function is private because it's unsafe. It leaves the window in unbound state
-@MainActor
 private func unbindAndGetBindingDataForNewWindow(_ windowId: UInt32, _ macApp: MacApp, _ workspace: Workspace, window: Window?, _ cm: CancellationMode) async throws -> BindingData {
     let windowLevel = getWindowLevel(for: windowId)
     return switch try await macApp.getAxUiElementWindowType(windowId, windowLevel, cm) {
@@ -193,7 +192,6 @@ private func unbindAndGetBindingDataForNewWindow(_ windowId: UInt32, _ macApp: M
 }
 
 // The function is private because it's unsafe. It leaves the window in unbound state
-@MainActor
 private func unbindAndGetBindingDataForNewTilingWindow(_ workspace: Workspace, window: Window?) -> BindingData {
     window?.unbindFromParent() // It's important to unbind to get correct data from below
     let mruWindow = workspace.mostRecentWindowRecursive
@@ -212,7 +210,6 @@ private func unbindAndGetBindingDataForNewTilingWindow(_ workspace: Workspace, w
     }
 }
 
-@MainActor
 func runOnWindowDetected(ifConventional window: Window) async {
     guard window.shouldRunOnWindowDetected else { return }
     let layout = global_layoutForNextDetectedWindow
@@ -240,7 +237,6 @@ extension Window {
     }
 }
 
-@MainActor
 func onWindowDetected(_ env: CmdEnv, _ io: CmdIo, _ window: Window) async -> Int32ExitCode {
     broadcastEvent(.windowDetected(
         windowId: window.windowId,
@@ -259,7 +255,6 @@ func onWindowDetected(_ env: CmdEnv, _ io: CmdIo, _ window: Window) async -> Int
 }
 
 extension WindowDetectedCallback {
-    @MainActor
     func matches(_ window: Window) async -> Bool {
         switch self.matcher {
             case .legacy(let matcher):

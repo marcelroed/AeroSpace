@@ -70,14 +70,14 @@ struct LayoutCommand: Command {
     }
 }
 
-@MainActor var global_layoutForNextDetectedWindow: LayoutCmdArgs.LayoutDescription? = nil
+var global_layoutForNextDetectedWindow: LayoutCmdArgs.LayoutDescription? = nil
 
 /// What the layout command changes
 private enum LayoutSubject {
     case tilingContainer(TilingContainer) // The window's tiling parent, or the workspace's root container
     case floatingWindow(Window)
 
-    @MainActor func matches(_ description: LayoutCmdArgs.LayoutDescription) -> Bool {
+    func matches(_ description: LayoutCmdArgs.LayoutDescription) -> Bool {
         guard case .tilingContainer(let container) = self else { return description == .floating }
         return switch description {
             case .tiling: true

@@ -2,7 +2,6 @@ import AppKit
 import Common
 import ServiceManagement
 
-@MainActor
 func syncStartAtLogin() {
     cleanupPlistFromPrevVersions()
     let service = SMAppService.mainApp

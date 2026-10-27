@@ -1,4 +1,3 @@
-@MainActor
 func normalizeLayoutReason() async throws {
     for workspace in Workspace.all {
         let windows: [Window] = workspace.allLeafWindowsRecursive
@@ -8,7 +7,6 @@ func normalizeLayoutReason() async throws {
     try await validateStillPopups()
 }
 
-@MainActor
 private func validateStillPopups() async throws {
     for node in macosPopupWindowsContainer.children {
         let popup = (node as! MacWindow)
@@ -20,7 +18,6 @@ private func validateStillPopups() async throws {
     }
 }
 
-@MainActor
 private func _normalizeLayoutReason(workspace: Workspace, windows: [Window]) async throws {
     for window in windows {
         let (isMacosFullscreen, isMacosMinimized) = try await window.getMacosFullscreenAndMinimized(.cancellable)
@@ -49,7 +46,6 @@ private func _normalizeLayoutReason(workspace: Workspace, windows: [Window]) asy
     }
 }
 
-@MainActor
 func exitMacOsNativeUnconventionalState(
     window: Window,
     prevParentKind: NonLeafTreeNodeKind,

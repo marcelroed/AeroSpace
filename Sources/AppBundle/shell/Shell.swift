@@ -86,7 +86,7 @@ extension Shell where T == any Command {
 // 3. on-window-detected callback
 // 4. Tray icon buttons
 extension Shell where T == any Command {
-    @MainActor func run(_ env: CmdEnv, _ io: CmdIo) async -> Int32ExitCode {
+    func run(_ env: CmdEnv, _ io: CmdIo) async -> Int32ExitCode {
         switch self {
             case .empty: return Int32ExitCode(rawValue: EXIT_CODE_ZERO)
             case .cmd(let command):
@@ -101,7 +101,7 @@ extension Shell where T == any Command {
         }
     }
 
-    @discardableResult @MainActor func run(_ env: CmdEnv, _ stdin: consuming CmdStdin) async -> CmdResult {
+    @discardableResult func run(_ env: CmdEnv, _ stdin: consuming CmdStdin) async -> CmdResult {
         let io = CmdIo(stdin: stdin)
         let exitCode = await run(env, io)
         return CmdResult(stdout: io.stdout, stderr: io.stderr, exitCode: exitCode)
@@ -109,7 +109,7 @@ extension Shell where T == any Command {
 }
 
 /// Runs `commands` in order and stops after the first exit code for which `stop` is true
-@MainActor private func runSequentially(_ commands: [Shell<any Command>], _ env: CmdEnv, _ io: CmdIo, initial: Int32, stop: (Int32) -> Bool) async -> Int32ExitCode {
+private func runSequentially(_ commands: [Shell<any Command>], _ env: CmdEnv, _ io: CmdIo, initial: Int32, stop: (Int32) -> Bool) async -> Int32ExitCode {
     var exitCode = Int32ExitCode(rawValue: initial)
     for command in commands {
         exitCode = await command.run(env, io)
@@ -122,7 +122,7 @@ extension Shell where T == any Command {
 /// For long-running or streaming commands this would matter, but AeroSpace's commands are short and synchronous, so this is fine
 ///
 /// The semantics is similar to 'set -o pipefail'
-@MainActor private func runShellPipe(_ commands: [Shell<any Command>], _ env: CmdEnv, _ originalIo: CmdIo) async -> Int32ExitCode {
+private func runShellPipe(_ commands: [Shell<any Command>], _ env: CmdEnv, _ originalIo: CmdIo) async -> Int32ExitCode {
     var rightmostNonZeroExitCode = Int32ExitCode(rawValue: EXIT_CODE_ZERO)
     var io = CmdIo(forwardingStdinOf: originalIo)
     var lastStdout = [String]()

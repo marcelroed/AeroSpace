@@ -27,7 +27,7 @@ struct ListWorkspacesCommand: Command {
 }
 
 extension [MonitorId] {
-    @MainActor func resolveMonitors(_ io: CmdIo) -> Set<CGPoint> {
+    func resolveMonitors(_ io: CmdIo) -> Set<CGPoint> {
         var requested: Set<CGPoint> = []
         let sortedMonitors = sortedMonitorInfos
         for id in self {
@@ -44,7 +44,7 @@ extension [MonitorId] {
 }
 
 extension MonitorId {
-    @MainActor func resolve(_ io: CmdIo, sortedMonitors: [MonitorInfo]) -> [MonitorInfo] {
+    func resolve(_ io: CmdIo, sortedMonitors: [MonitorInfo]) -> [MonitorInfo] {
         switch self {
             case .focused:
                 return [focus.workspace.workspaceMonitor]

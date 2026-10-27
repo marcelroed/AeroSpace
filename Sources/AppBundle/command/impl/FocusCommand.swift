@@ -64,7 +64,7 @@ struct FocusCommand: Command {
     }
 }
 
-@MainActor private func hitWorkspaceBoundaries(
+private func hitWorkspaceBoundaries(
     _ target: LiveFocus,
     _ io: CmdIo,
     _ args: FocusCmdArgs,
@@ -100,7 +100,7 @@ struct FocusCommand: Command {
     }
 }
 
-@MainActor private func makeFloatingWindowsSeenAsTiling(workspace: Workspace) async -> [FloatingWindowData] {
+private func makeFloatingWindowsSeenAsTiling(workspace: Workspace) async -> [FloatingWindowData] {
     let mruBefore = workspace.mostRecentWindowRecursive
     defer {
         mruBefore?.markAsMostRecentChild()
@@ -146,7 +146,7 @@ struct FocusCommand: Command {
     return floatingWindows
 }
 
-@MainActor private func restoreFloatingWindows(floatingWindows: [FloatingWindowData], workspace: Workspace) {
+private func restoreFloatingWindows(floatingWindows: [FloatingWindowData], workspace: Workspace) {
     let mruBefore = workspace.mostRecentWindowRecursive
     defer {
         mruBefore?.markAsMostRecentChild()

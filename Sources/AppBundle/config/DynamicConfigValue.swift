@@ -14,7 +14,7 @@ extension DynamicConfigValue: Sendable where Value: Sendable {}
 
 extension DynamicConfigValue {
     /// - Parameter sortedMonitors: evaluated only for per-monitor values
-    @MainActor func getValue(for monitor: MonitorInfo, sortedMonitors: @autoclosure () -> [MonitorInfo]) -> Value {
+    func getValue(for monitor: MonitorInfo, sortedMonitors: @autoclosure () -> [MonitorInfo]) -> Value {
         switch self {
             case .constant(let value): return value
             case .perMonitor(let array, let defaultValue):

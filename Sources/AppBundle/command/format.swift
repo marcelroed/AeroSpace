@@ -46,7 +46,6 @@ enum AeroObj {
 }
 
 extension [AeroObj] {
-    @MainActor
     func format(_ format: [InterToken<InterVar>]) -> Result<[String], [InterVarExpansionError]> {
         var cellTable: [[Cell<String>]] = []
         for obj in self {
@@ -135,7 +134,7 @@ private struct Cell<T> {
 }
 
 extension FormatVar {
-    @MainActor func expandFormatVar(obj: AeroObj) -> Result<Primitive, InterVarExpansionError> {
+    func expandFormatVar(obj: AeroObj) -> Result<Primitive, InterVarExpansionError> {
         switch (obj, self) {
             case (.window(let w), .workspace):
                 return w.window.nodeWorkspace.flatMap(AeroObj.workspace).map(expandFormatVar) ?? .success(.string("NULL-WORKSPACE"))
@@ -203,7 +202,7 @@ enum InterVarExpansionError: LocalizedError, CustomStringConvertible {
 }
 
 extension PlainInterVar {
-    @MainActor func expandFormatVar() -> Result<Primitive, InterVarExpansionError> {
+    func expandFormatVar() -> Result<Primitive, InterVarExpansionError> {
         switch self {
             case .newline: .success(.string("\n"))
             case .tab: .success(.string("\t"))
@@ -214,7 +213,7 @@ extension PlainInterVar {
 }
 
 extension InterVar {
-    @MainActor func expandFormatVar(obj: AeroObj) -> Result<Primitive, InterVarExpansionError> {
+    func expandFormatVar(obj: AeroObj) -> Result<Primitive, InterVarExpansionError> {
         switch self {
             case .formatVar(let it): it.expandFormatVar(obj: obj)
             case .plainInterVar(let it): it.expandFormatVar()
@@ -227,7 +226,7 @@ func unknownInterpolationVariable(variable: String, _ obj: AeroObj) -> String {
         "Possible values:\n\(getAvailableInterVars(for: obj.kind).joined(separator: "\n").prefixLines(with: "  "))"
 }
 
-@MainActor private func toLayoutString(tc: TilingContainer) -> String {
+private func toLayoutString(tc: TilingContainer) -> String {
     switch (tc.layout, tc.orientation) {
         case (.tiles, .h): return LayoutCmdArgs.LayoutDescription.h_tiles.rawValue
         case (.tiles, .v): return LayoutCmdArgs.LayoutDescription.v_tiles.rawValue
@@ -236,7 +235,7 @@ func unknownInterpolationVariable(variable: String, _ obj: AeroObj) -> String {
     }
 }
 
-@MainActor private func toLayoutResult(w: Window) -> Result<Primitive, InterVarExpansionError> {
+private func toLayoutResult(w: Window) -> Result<Primitive, InterVarExpansionError> {
     guard let parent = w.parent else { return .failure(.other("NULL-PARENT")) }
     return switch getChildParentRelation(child: w, parent: parent) {
         case .tiling(let tc): .success(.string(toLayoutString(tc: tc)))

@@ -12,7 +12,7 @@ struct FrozenContainer: Sendable {
     let orientation: Orientation
     let weight: CGFloat
 
-    @MainActor init(_ container: TilingContainer) {
+    init(_ container: TilingContainer) {
         children = container.children.map {
             switch $0.tilingTreeNodeCasesOrDie() {
                 case .window(let w): .window(FrozenWindow(w))
@@ -29,12 +29,12 @@ struct FrozenWindow: Sendable {
     let id: UInt32
     let weight: CGFloat
 
-    @MainActor init(_ window: Window) {
+    init(_ window: Window) {
         id = window.windowId
         weight = getWeightOrNil(window) ?? 1
     }
 }
 
-@MainActor private func getWeightOrNil(_ node: TreeNode) -> CGFloat? {
+private func getWeightOrNil(_ node: TreeNode) -> CGFloat? {
     ((node.parent as? TilingContainer)?.orientation).map { node.getWeight($0) }
 }

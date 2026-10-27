@@ -20,7 +20,6 @@ struct MoveWorkspaceToMonitorCommand: Command {
 }
 
 /// Shows `workspace` on `monitor` and a stub workspace on `prevMonitor`. Returns false with an error if force assignment forbids it
-@MainActor
 func moveWorkspace(_ workspace: Workspace, to monitor: MonitorInfo, stubbing prevMonitor: MonitorInfo?, _ io: CmdIo) -> Bool {
     guard monitor.setActiveWorkspace(workspace) else {
         io.err("Can't move workspace '\(workspace.name)' to monitor '\(monitor.name)'. workspace-to-monitor-force-assignment doesn't allow it")

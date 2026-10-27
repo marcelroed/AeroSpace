@@ -43,7 +43,6 @@ enum GlobalObserver {
         }
     }
 
-    @MainActor
     static func initObserver() {
         let nc = NSWorkspace.shared.notificationCenter
         nc.addObserver(forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main, using: onNotif)

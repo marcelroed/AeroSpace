@@ -23,7 +23,7 @@ struct ReloadConfigResult {
     let stderr: String
 }
 
-@MainActor func reloadConfig_nonCancellable(
+func reloadConfig_nonCancellable(
     args: ReloadConfigCmdArgs = ReloadConfigCmdArgs(rawArgs: []),
     forceConfigUrl: URL? = nil,
 ) async -> ReloadConfigResult {

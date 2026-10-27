@@ -3,9 +3,9 @@ import Common
 import Foundation
 import HotKey
 
-@MainActor private var hotkeys: [String: HotKey] = [:]
+private var hotkeys: [String: HotKey] = [:]
 
-@MainActor func resetHotKeys() {
+func resetHotKeys() {
     // Explicitly unregister all hotkeys. We cannot always rely on destruction of the HotKey object to trigger
     // unregistration because we might be running inside a hotkey handler that is keeping its HotKey object alive.
     for (_, key) in hotkeys {
@@ -25,8 +25,8 @@ extension HotKey {
     }
 }
 
-@MainActor var activeMode: String? = mainModeId
-@MainActor func activateMode_nonCancellable(_ targetMode: String?) async {
+var activeMode: String? = mainModeId
+func activateMode_nonCancellable(_ targetMode: String?) async {
     let targetBindings = targetMode.flatMap { config.modes[$0] }?.bindings ?? [:]
     for binding in targetBindings.values where hotkeys[binding.descriptionWithKeyCode] == nil {
         hotkeys[binding.descriptionWithKeyCode] = HotKey(key: binding.keyCode, modifiers: binding.modifiers, keyDownHandler: {

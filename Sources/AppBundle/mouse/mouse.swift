@@ -1,9 +1,8 @@
 import AppKit
 
-@MainActor var currentlyManipulatedWithMouseWindowId: UInt32? = nil
+var currentlyManipulatedWithMouseWindowId: UInt32? = nil
 nonisolated var isLeftMouseButtonDown: Bool { NSEvent.pressedMouseButtons == 1 }
 
-@MainActor
 func isManipulatedWithMouse(_ window: Window) async throws -> Bool {
     try await (!window.isHiddenInCorner && // Don't allow to resize/move windows of hidden workspaces
         isLeftMouseButtonDown &&

@@ -2,7 +2,6 @@ import Common
 
 extension FormattedListCmdArgs {
     /// Prints `list` according to `--format` and `--json`
-    @MainActor
     func printList(_ list: [AeroObj], _ io: CmdIo) -> BinaryExitCode {
         if json {
             return switch list.formatToJson(format, ignoreRightPaddingVar: _format.isEmpty) {

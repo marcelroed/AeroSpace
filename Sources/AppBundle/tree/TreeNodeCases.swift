@@ -102,7 +102,7 @@ enum ChildParentRelation: Equatable {
 }
 
 /// The legal edges of the tree. Any other child-parent pair is illegal
-@MainActor func getChildParentRelation(child: TreeNode, parent: NonLeafTreeNodeObject) -> ChildParentRelation {
+func getChildParentRelation(child: TreeNode, parent: NonLeafTreeNodeObject) -> ChildParentRelation {
     switch (child.nodeCases, parent.cases) {
         case (.window, .tilingContainer(let container)), (.tilingContainer, .tilingContainer(let container)): .tiling(parent: container)
         case (.tilingContainer, .workspace): .rootTilingContainer
@@ -118,7 +118,7 @@ enum ChildParentRelation: Equatable {
     }
 }
 
-@MainActor func illegalChildParentRelation(
+func illegalChildParentRelation(
     child: TreeNode,
     parent: NonLeafTreeNodeObject?,
     file: StaticString = #fileID,

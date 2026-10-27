@@ -8,31 +8,26 @@ nonisolated let signposter = OSSignposter(subsystem: aeroSpaceAppId, category: .
 let myPid = NSRunningApplication.current.processIdentifier
 nonisolated let lockScreenAppBundleId = "com.apple.loginwindow"
 
-@MainActor private var signalSources: [any DispatchSourceSignal] = [] // A released source stops delivering the signal
+private var signalSources: [any DispatchSourceSignal] = [] // A released source stops delivering the signal
 
-@MainActor
 func interceptTermination(_ sig: Int32) {
     // A signal handler may only call async-signal-safe functions, and it runs on any thread.
     // Ignore the signal instead (the dispatch source still sees it), and handle it on the main queue
     signal(sig, SIG_IGN)
     let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
-    source.setEventHandler {
-        MainActor.assumeIsolated {
-            terminationHandler?.beforeTermination()
-        }
+    source.setEventHandler { // On the main queue, so the closure is main actor isolated
+        terminationHandler?.beforeTermination()
         exit(sig)
     }
     source.resume()
     signalSources.append(source)
 }
 
-@MainActor
 func initTerminationHandler() {
     unsafe _terminationHandler = AppServerTerminationHandler()
 }
 
 private struct AppServerTerminationHandler: TerminationHandler {
-    @MainActor
     func beforeTermination() {
         // Make all windows fullscreen before Quit
         for window in MacWindow.allWindowsMap.values {
@@ -60,7 +55,6 @@ private struct AppServerTerminationHandler: TerminationHandler {
     }
 }
 
-@MainActor
 func terminateApp() -> Never {
     NSApplication.shared.terminate(nil)
     die("Unreachable code")

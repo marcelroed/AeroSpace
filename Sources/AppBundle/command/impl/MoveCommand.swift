@@ -42,7 +42,7 @@ struct MoveCommand: Command {
     }
 }
 
-@MainActor private func hitWorkspaceBoundaries(
+private func hitWorkspaceBoundaries(
     _ window: Window,
     _ workspace: Workspace,
     _ io: CmdIo,
@@ -83,7 +83,7 @@ struct MoveCommand: Command {
 
 private let moveOutMacosUnconventionalWindow = "moving macOS fullscreen, minimized windows and windows of hidden apps isn't yet supported. This behavior is subject to change"
 
-@MainActor private func moveOut(
+private func moveOut(
     tilingWindow window: Window,
     direction: CardinalDirection,
     _ io: CmdIo,
@@ -112,7 +112,7 @@ private let moveOutMacosUnconventionalWindow = "moving macOS fullscreen, minimiz
     }
 }
 
-@MainActor private func deepMoveIn(window: Window, into container: TilingContainer, moveDirection: CardinalDirection, _ io: CmdIo) -> BinaryExitCode {
+private func deepMoveIn(window: Window, into container: TilingContainer, moveDirection: CardinalDirection, _ io: CmdIo) -> BinaryExitCode {
     // Descend through the most recent children to a container with the move orientation or to a window
     var deepTarget: TreeNode = container
     while let tilingContainer = deepTarget as? TilingContainer, tilingContainer.orientation != moveDirection.orientation {
@@ -128,7 +128,7 @@ private let moveOutMacosUnconventionalWindow = "moving macOS fullscreen, minimiz
     return .succ
 }
 
-@MainActor func shouldFailBecauseFullscreen_nonCancellable(
+func shouldFailBecauseFullscreen_nonCancellable(
     window: Window,
     failIfFullscreen: Bool,
     failIfMacosNativeFullscreen: Bool,

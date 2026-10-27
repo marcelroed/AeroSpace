@@ -22,7 +22,7 @@ struct RunCallbackCommand: Command {
 }
 
 /// `windows` is a parameter because tests can't create a `MacWindow`
-@MainActor func onWindowDetected(_ env: CmdEnv, _ io: CmdIo, forEvery windows: [Window]) async -> Int32ExitCode {
+func onWindowDetected(_ env: CmdEnv, _ io: CmdIo, forEvery windows: [Window]) async -> Int32ExitCode {
     var exitCode = Int32ExitCode.succ
     for window in windows.sortedBy({ $0.windowId }) where window.shouldRunOnWindowDetected {
         let windowExitCode = await onWindowDetected(env, io, window)

@@ -3,18 +3,14 @@ import Foundation
 
 /// The levels of the on-screen windows from the last query. Each query replaces it. It's kept across refresh sessions:
 /// a cached level is returned without a query
-@MainActor
 private var cache: [UInt32: MacOsWindowLevel] = [:]
 
 /// Whether the cache was filled in the current refresh session
-@MainActor
 private var queriedInThisSession = false
 
 /// Call at the start of every refresh session, so that the first miss of the session queries again
-@MainActor
 func startWindowLevelCacheSession() { queriedInThisSession = false }
 
-@MainActor
 func getWindowLevel(for windowId: UInt32) -> MacOsWindowLevel? {
     if let existing = cache[windowId] { return existing }
     // A known window that misses the cache after this session's query is off-screen (minimized, of a hidden app, ...).

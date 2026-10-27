@@ -37,7 +37,7 @@ extension String {
     }
 }
 
-@MainActor private func getKey(_ io: CmdIo, args: ConfigCmdArgs, key: String) -> BinaryExitCode {
+private func getKey(_ io: CmdIo, args: ConfigCmdArgs, key: String) -> BinaryExitCode {
     guard let keyPath = key.toKeyPath().getOrNil(appendErrorTo: &io.stderr) else { return .fail }
     guard var configMap = buildConfigMap().find(keyPath: keyPath.slice).getOrNil(appendErrorTo: &io.stderr) else { return .fail }
     if args.keys {
@@ -128,7 +128,7 @@ extension Shell<any Command> {
     var shellOfCommandsDescription: String { buildDescription { $0.args.description } }
 }
 
-@MainActor func buildConfigMap() -> OrderedJson {
+func buildConfigMap() -> OrderedJson {
     let mode = config.modes.mapValues { (mode: Mode) -> OrderedJson in
         var keyNotationToScript: OrderedJson.JsonDict = [:]
         for binding in mode.bindings.values {

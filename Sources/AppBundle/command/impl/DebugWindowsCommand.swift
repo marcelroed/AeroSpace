@@ -9,8 +9,8 @@ private let disclaimer =
     !!! The only intended use case is to report bugs about incorrect windows handling !!!
     """
 
-@MainActor private var debugWindowsState: DebugWindowsState = .notRecording
-@MainActor private var debugWindowsLog: OrderedDictionary<UInt32, String> = [:]
+private var debugWindowsState: DebugWindowsState = .notRecording
+private var debugWindowsLog: OrderedDictionary<UInt32, String> = [:]
 private let debugWindowsLimit = 10
 
 enum DebugWindowsState {
@@ -75,7 +75,6 @@ struct DebugWindowsCommand: Command {
     }
 }
 
-@MainActor
 private func dumpWindowDebugInfo(_ window: Window, _ cm: CancellationMode) async throws -> String {
     let window = window.asMacWindow()
     let appInfoDic = window.macApp.nsApp.bundleURL.flatMap { Bundle.init(url: $0) }?.infoDictionary ?? [:]
@@ -113,7 +112,6 @@ private func dumpWindowDebugInfo(_ window: Window, _ cm: CancellationMode) async
         .prefixLines(with: "\(window.app.rawAppBundleId ?? "nil-bundle-id").\(window.windowId) ||| ")
 }
 
-@MainActor
 func debugWindowsIfRecording(_ window: Window, _ cm: CancellationMode) async throws {
     guard debugWindowsState == .recording else { return }
     if debugWindowsLog.keys.contains(window.windowId) { return }

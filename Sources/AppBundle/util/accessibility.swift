@@ -2,7 +2,6 @@ import AppKit
 import Common
 import PrivateApi
 
-@MainActor
 func waitForAccessibilityPermission_nonCancellable() async {
     let options = [axTrustedCheckOptionPrompt: true]
     while true {

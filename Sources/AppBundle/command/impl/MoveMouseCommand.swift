@@ -43,7 +43,6 @@ private func moveMouse(_ io: CmdIo, _ point: CGPoint) -> BinaryExitCode {
     return .succ
 }
 
-@MainActor
 private func windowSubjectRectOrReportError(_ target: LiveFocus, _ io: CmdIo) async -> Rect? {
     // todo bug it's bad that we operate on the "ax physical" state directly. command seq won't work correctly
     //      focus <direction> command has the similar problem

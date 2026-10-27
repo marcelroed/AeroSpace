@@ -8,7 +8,6 @@ nonisolated func resizedObs(_: AXObserver, ax: AXUIElement, notif: CFString, _: 
     onMouseManipulationAxNotif(ax: ax, notif: notif, resizeWithMouseTask, resizeWithMouse)
 }
 
-@MainActor
 func resetManipulatedWithMouseIfPossible() async throws {
     if currentlyManipulatedWithMouseWindowId != nil {
         currentlyManipulatedWithMouseWindowId = nil
@@ -19,7 +18,6 @@ func resetManipulatedWithMouseIfPossible() async throws {
     }
 }
 
-@MainActor
 private func resizeWithMouse(_ window: Window) async throws { // todo cover with tests
     resetClosedWindowsCache()
     guard window.parent is TilingContainer else { return } // Nothing to do for floating, or unconventional windows
