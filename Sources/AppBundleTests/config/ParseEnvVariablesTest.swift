@@ -20,6 +20,17 @@ struct ParseEnvVariablesTest: AeroSpaceTestSuite {
     }
 
     @Test
+    func testInterpolationResults() {
+        let notPresented = { (name: String) in
+            "Env variable '\(name)' isn't presented in AeroSpace.app env vars, or not available for interpolation (because it's mutated)"
+        }
+        assertEquals("".interpolate(with: [:]), .success(""))
+        assertEquals("a${x}b${y}${x}$c".interpolate(with: ["x": "1", "y": "2"]), .success("a1b21$c"))
+        assertEquals("${a} ${b} ${c}".interpolate(with: ["b": "B"]), .failure([notPresented("a"), notPresented("c")]))
+        assertEquals("${a} ${b".interpolate(with: [:]), .failure(["Unbalanced curly braces"]))
+    }
+
+    @Test
     func testInherit() {
         let result1 = parseConfig("exec.inherit-env-vars = false")
         assertEquals(result1.errors, [])
