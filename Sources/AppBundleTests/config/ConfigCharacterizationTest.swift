@@ -283,14 +283,16 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
                 alt-h = 'focus --help'
                 alt-j = 'bogus'
                 alt-k = 'focus left'
+                alt-l = 'focus foo'
             """,
         )
         assertEquals(result.strErrors, [
             "[ERROR] mode.main.binding.alt-h: \(focusHelp)",
             "[ERROR] mode.main.binding.alt-j: Unrecognized subcommand 'bogus'",
+            "[ERROR] mode.main.binding.alt-l: Can't parse 'foo'.\nPossible values: (left|down|up|right|dfs-next|dfs-prev)",
         ])
         // A binding with an invalid command is kept with an empty command
-        assertEquals(result.config.modes[mainModeId]?.bindings.keys.sorted(), ["alt-h", "alt-j", "alt-k"])
+        assertEquals(result.config.modes[mainModeId]?.bindings.keys.sorted(), ["alt-h", "alt-j", "alt-k", "alt-l"])
         assertTrue(result.config.modes[mainModeId]?.bindings["alt-j"]?.commands.strictEquals(.empty) == true)
         assertEquals(
             parseConfig("on-focus-changed = ['bogus', 'focus --help']").strErrors,
