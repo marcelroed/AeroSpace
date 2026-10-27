@@ -8,19 +8,19 @@ struct ResolveTargetTest {
     @Test(arguments: windowIdCommands)
     func invalidWindowIdFlag(command: String, args: String) async {
         let output = await runCmd("\(command) --window-id 9999 \(args)")
-        #expect(output == .fail("Invalid <window-id> 9999 passed to --window-id"))
+        expectEqual(output, .fail("Invalid <window-id> 9999 passed to --window-id"))
     }
 
     @Test(arguments: windowIdCommands)
     func invalidWindowIdEnv(command: String, args: String) async {
         let output = await runCmd("\(command) \(args)", windowIdEnv: 9999)
-        #expect(output == .fail("Invalid <window-id> 9999 specified in AEROSPACE_WINDOW_ID env variable"))
+        expectEqual(output, .fail("Invalid <window-id> 9999 specified in AEROSPACE_WINDOW_ID env variable"))
     }
 
     @Test(arguments: windowCommands)
     func noWindowIsFocused(command: String, args: String) async {
         let output = await runCmd("\(command) \(args)")
-        #expect(output == .fail(command == "close" ? "Empty workspace" : "No window is focused"))
+        expectEqual(output, .fail(command == "close" ? "Empty workspace" : "No window is focused"))
     }
 }
 

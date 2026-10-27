@@ -33,7 +33,7 @@ struct ListWorkspacesTest {
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
-        #expect(output == .fail(error))
+        expectEqual(output, .fail(error))
     }
 
     /// Workspace 'a' has a window, `b` is the tree of workspace 'b' (nil: 'b' doesn't exist). The focused workspace is
@@ -55,7 +55,7 @@ struct ListWorkspacesTest {
         setUpTree("h_tiles(1)", workspace: "a")
         if let b { setUpTree(b, workspace: "b") }
         let output = await runCmd(command)
-        #expect(output == CmdOutput(stdout: stdout))
+        expectEqual(output, CmdOutput(stdout: stdout))
     }
 
     @Test
@@ -66,19 +66,19 @@ struct ListWorkspacesTest {
         setUpTree("h_tiles(2)", workspace: "01")
         setUpTree("h_tiles(3)", workspace: "001")
         let output = await runCmd("list-workspaces --all")
-        #expect(output == CmdOutput(stdout: ["001", "01", "1", "setUpWorkspacesForTests"]))
+        expectEqual(output, CmdOutput(stdout: ["001", "01", "1", "setUpWorkspacesForTests"]))
     }
 
     @Test
     func formatVariableOfAnotherObjectFailsWithTheFirstError() async {
         let output = await runCmd("list-workspaces --all --format '%{window-id} %{app-name}'")
-        #expect(output == .fail(FormatVarExpansionError.unavailable(.windowId, .workspace).description))
+        expectEqual(output, .fail(FormatVarExpansionError.unavailable(.windowId, .workspace).description))
     }
 
     @Test
     func invalidMonitor() async {
         let output = await runCmd("list-workspaces --monitor 99")
-        #expect(output == .fail("Invalid monitor ID: 99"))
+        expectEqual(output, .fail("Invalid monitor ID: 99"))
     }
 
     @Test
@@ -89,6 +89,6 @@ struct ListWorkspacesTest {
             ["workspace": "setUpWorkspacesForTests"],
         ])
         let output = await runCmd("list-workspaces --all --format '%{workspace}' --json")
-        #expect(output == CmdOutput(stdout: [expected.orDie()]))
+        expectEqual(output, CmdOutput(stdout: [expected.orDie()]))
     }
 }

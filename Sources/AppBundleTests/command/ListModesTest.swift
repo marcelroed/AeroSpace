@@ -16,8 +16,8 @@ struct ListModesTest {
 
     @Test
     func parseListModesCommandConflicts() {
-        #expect(parseCommand("list-modes --json --count").errorOrNil == "Conflicting options: --count, --json")
-        #expect(parseCommand("list-modes --current --count").errorOrNil == "Conflicting options: --count, --current")
+        expectEqual(parseCommand("list-modes --json --count").errorOrNil, "Conflicting options: --count, --json")
+        expectEqual(parseCommand("list-modes --current --count").errorOrNil, "Conflicting options: --count, --current")
     }
 
     @Test
@@ -29,13 +29,13 @@ struct ListModesTest {
         ]
 
         var output = await runCmd("list-modes")
-        #expect(output == CmdOutput(stdout: ["main", "resize", "service"]))
+        expectEqual(output, CmdOutput(stdout: ["main", "resize", "service"]))
 
         output = await runCmd("list-modes --current")
-        #expect(output == CmdOutput(stdout: ["main"]))
+        expectEqual(output, CmdOutput(stdout: ["main"]))
 
         output = await runCmd("list-modes --count")
-        #expect(output == CmdOutput(stdout: ["3"]))
+        expectEqual(output, CmdOutput(stdout: ["3"]))
 
         let expectedJson = JSONEncoder.aeroSpaceDefault.encodeToString([
             ["mode-id": "main"],
@@ -43,10 +43,10 @@ struct ListModesTest {
             ["mode-id": "service"],
         ])
         output = await runCmd("list-modes --json")
-        #expect(output == CmdOutput(stdout: [expectedJson.orDie()]))
+        expectEqual(output, CmdOutput(stdout: [expectedJson.orDie()]))
 
         let expectedCurrentJson = JSONEncoder.aeroSpaceDefault.encodeToString([["mode-id": "main"]])
         output = await runCmd("list-modes --current --json")
-        #expect(output == CmdOutput(stdout: [expectedCurrentJson.orDie()]))
+        expectEqual(output, CmdOutput(stdout: [expectedCurrentJson.orDie()]))
     }
 }

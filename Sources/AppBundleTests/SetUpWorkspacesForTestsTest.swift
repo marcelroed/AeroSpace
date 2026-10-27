@@ -11,15 +11,15 @@ struct SetUpWorkspacesForTestsTest {
         await checkOnFocusChangedCallbacks_nonCancellable()
         #expect(Workspace.get(byName: "b").focusWorkspace())
         await checkOnFocusChangedCallbacks_nonCancellable()
-        #expect(prevFocus?.workspace.name == "a")
+        expectEqual(prevFocus?.workspace.name, "a")
 
         setUpWorkspacesForTests() // What the next test starts with
-        #expect(prevFocus == nil)
+        expectEqual(prevFocus, nil)
 
         #expect(Workspace.get(byName: "c").focusWorkspace())
         await checkOnFocusChangedCallbacks_nonCancellable()
-        #expect(prevFocus?.workspace.name == "setUpWorkspacesForTests") // Not "b" of the previous test
-        #expect(prevFocusedWorkspace?.name == "setUpWorkspacesForTests")
+        expectEqual(prevFocus?.workspace.name, "setUpWorkspacesForTests") // Not "b" of the previous test
+        expectEqual(prevFocusedWorkspace?.name, "setUpWorkspacesForTests")
     }
 
     @Test
@@ -27,10 +27,10 @@ struct SetUpWorkspacesForTestsTest {
         setUpTree("h_tiles(1) floating(2) macos_minimized(3) macos_popup(4)", workspace: "a")
 
         setUpWorkspacesForTests() // What the next test starts with
-        #expect(Workspace.all.map(\.name) == ["setUpWorkspacesForTests"])
+        expectEqual(Workspace.all.map(\.name), ["setUpWorkspacesForTests"])
         #expect(macosMinimizedWindowsContainer.children.isEmpty)
         #expect(macosPopupWindowsContainer.children.isEmpty)
-        #expect(Window.get(byId: 1) == nil)
+        expectEqual(Window.get(byId: 1), nil)
     }
 
     @Test
@@ -38,6 +38,6 @@ struct SetUpWorkspacesForTestsTest {
         world.focusStore.lastKnownNativeFocusedWindowId = 1
 
         setUpWorkspacesForTests() // What the next test starts with
-        #expect(world.focusStore.lastKnownNativeFocusedWindowId == nil)
+        expectEqual(world.focusStore.lastKnownNativeFocusedWindowId, nil)
     }
 }

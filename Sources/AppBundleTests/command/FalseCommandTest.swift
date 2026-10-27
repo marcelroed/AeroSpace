@@ -17,6 +17,6 @@ struct FalseCommandTest {
     ])
     func run(command: String, expected: CmdOutput) async {
         let output = await runCmd(command)
-        #expect(output == expected)
+        expectEqual(output, expected)
     }
 }

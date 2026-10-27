@@ -14,11 +14,11 @@ struct NWConnectionExTest {
         let connection = NWConnection(to: .unix(path: server.path), using: .tcp)
         defer { connection.cancel() }
 
-        #expect(await connection.initConnection().error == nil)
+        await expectEqual(connection.initConnection().error, nil)
         let request = ClientRequest(args: ["list-workspaces", "--all"], stdin: "", windowId: 42, workspace: nil)
-        #expect(await connection.writeAtomic(request).error == nil)
+        await expectEqual(connection.writeAtomic(request).error, nil)
         let answer = try JSONDecoder().decode(ServerAnswer.self, from: await connection.readFrame().get())
-        #expect(answer == ServerAnswer(exitCode: 0, stdout: "list-workspaces --all", stderr: "windowId=Optional(42)", serverVersionAndHash: "test-server"))
+        expectEqual(answer, ServerAnswer(exitCode: 0, stdout: "list-workspaces --all", stderr: "windowId=Optional(42)", serverVersionAndHash: "test-server"))
     }
 
     @Test(arguments: [(.closeMidAnswer, false), (.closeWithoutAnswer, true)] as [(TestSocketServer.Behavior, Bool)])
@@ -28,9 +28,9 @@ struct NWConnectionExTest {
         let connection = NWConnection(to: .unix(path: server.path), using: .tcp)
         defer { connection.cancel() }
 
-        #expect(await connection.initConnection().error == nil)
+        await expectEqual(connection.initConnection().error, nil)
         let request = ClientRequest(args: ["list-workspaces", "--all"], stdin: "", windowId: nil, workspace: nil)
-        #expect(await connection.writeAtomic(request).error == nil)
+        await expectEqual(connection.writeAtomic(request).error, nil)
         // A read after the end of the stream must not spin (RB-08). The end of a subscription comes before a frame
         switch await withTimeout(seconds: 5, { await connection.readFrame() }) {
             case .failure(.endOfStream) where closesBeforeTheFrame, .failure(.closed) where !closesBeforeTheFrame: break
@@ -60,9 +60,9 @@ struct NWConnectionExTest {
         let connection = NWConnection(to: .unix(path: server.path), using: .tcp)
         defer { connection.cancel() }
 
-        #expect(await connection.initConnection().error == nil)
+        await expectEqual(connection.initConnection().error, nil)
         let request = ClientRequest(args: ["list-workspaces", "--all"], stdin: "", windowId: nil, workspace: nil)
-        #expect(await connection.writeAtomic(request).error == nil)
+        await expectEqual(connection.writeAtomic(request).error, nil)
         switch await withTimeout(seconds: 5, { await connection.readFrame() }) {
             case .failure(.legacyProtocol): break
             case let other: Issue.record("Expected .legacyProtocol, got \(other.map { "\($0)" } ?? "a timeout")")
@@ -76,9 +76,9 @@ struct NWConnectionExTest {
         let connection = NWConnection(to: .unix(path: server.path), using: .tcp)
         defer { connection.cancel() }
 
-        #expect(await connection.initConnection().error == nil)
+        await expectEqual(connection.initConnection().error, nil)
         let request = ClientRequest(args: [String(repeating: "x", count: 200)], stdin: "", windowId: nil, workspace: nil)
-        #expect(await connection.writeAtomic(request).error == nil)
+        await expectEqual(connection.writeAtomic(request).error, nil)
         let answer = try JSONDecoder().decode(ServerAnswer.self, from: await connection.readFrame().get())
         #expect(answer.stderr.starts(with: "The message is "), "\(answer)")
     }
@@ -90,11 +90,11 @@ struct NWConnectionExTest {
         let connection = NWConnection(to: .unix(path: server.path), using: .tcp)
         defer { connection.cancel() }
 
-        #expect(await connection.initConnection().error == nil)
+        await expectEqual(connection.initConnection().error, nil)
         // A client from before the frames sends its protocol version, 1, and waits for the server's
         await connection.sendAndWait(withUnsafeBytes(of: UInt32(1)) { unsafe Data($0) })
         let serverVersion = await withTimeout(seconds: 5) { await connection.receiveUInt32() }
-        #expect(serverVersion == .some(.some(2)))
+        expectEqual(serverVersion, .some(.some(2)))
     }
 
     @Test

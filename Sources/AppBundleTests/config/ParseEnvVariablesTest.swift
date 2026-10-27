@@ -6,16 +6,16 @@ import Testing
 struct ParseEnvVariablesTest {
     @Test
     func testInterpolation() {
-        #expect(interpolate("echo ${foo}", ["foo": "bar"]) == ("echo bar", []))
-        #expect(interpolate("echo $foo") == ("echo $foo", []))
-        #expect(interpolate("echo $$foo") == ("echo $$foo", []))
-        #expect(interpolate("echo $${foo}", ["foo": "bar"]) == ("echo $bar", []))
-        #expect(interpolate("echo $") == ("echo $", []))
+        expectEqual(interpolate("echo ${foo}", ["foo": "bar"]), Interpolation(result: "echo bar"))
+        expectEqual(interpolate("echo $foo"), Interpolation(result: "echo $foo"))
+        expectEqual(interpolate("echo $$foo"), Interpolation(result: "echo $$foo"))
+        expectEqual(interpolate("echo $${foo}", ["foo": "bar"]), Interpolation(result: "echo $bar"))
+        expectEqual(interpolate("echo $"), Interpolation(result: "echo $"))
 
         for str in ["echo ${foo", "echo ${foo{bar}", "echo ${foo$bar}", "echo ${foo}"] {
-            let (result, errors) = interpolate(str)
-            #expect(result == nil, "\(str.singleQuoted) must fail to interpolate")
-            #expect(!errors.isEmpty, "\(str.singleQuoted) must report why it fails")
+            let interpolation = interpolate(str)
+            expectEqual(interpolation.result, nil, "\(str.singleQuoted) must fail to interpolate")
+            #expect(!interpolation.errors.isEmpty, "\(str.singleQuoted) must report why it fails")
         }
     }
 
@@ -24,28 +24,27 @@ struct ParseEnvVariablesTest {
         let notPresented = { (name: String) in
             "Env variable '\(name)' isn't presented in AeroSpace.app env vars, or not available for interpolation (because it's mutated)"
         }
-        #expect(interpolate("") == ("", []))
-        #expect(interpolate("a${x}b${y}${x}$c", ["x": "1", "y": "2"]) == ("a1b21$c", []))
-        #expect(interpolate("${a} ${b} ${c}", ["b": "B"]) == (nil, [notPresented("a"), notPresented("c")]))
-        #expect(interpolate("${a} ${b") == (nil, ["Unbalanced curly braces"]))
+        expectEqual(interpolate(""), Interpolation(result: ""))
+        expectEqual(interpolate("a${x}b${y}${x}$c", ["x": "1", "y": "2"]), Interpolation(result: "a1b21$c"))
+        expectEqual(interpolate("${a} ${b} ${c}", ["b": "B"]), Interpolation(result: nil, errors: [notPresented("a"), notPresented("c")]))
+        expectEqual(interpolate("${a} ${b"), Interpolation(result: nil, errors: ["Unbalanced curly braces"]))
     }
 
-    /// The interpolated string, or nil, and the reported errors
-    private func interpolate(_ raw: String, _ variables: [String: String] = [:]) -> (String?, [String]) {
+    private func interpolate(_ raw: String, _ variables: [String: String] = [:]) -> Interpolation {
         var d = Diagnostics()
         let result = AppBundle.interpolate(raw, with: variables, .emptyRoot, &d)
-        return (result, d.errors.map(\.message))
+        return Interpolation(result: result, errors: d.errors.map(\.message))
     }
 
     @Test
     func testInherit() {
         let result1 = parseConfig("exec.inherit-env-vars = false")
-        #expect(result1.errors == [])
-        #expect(result1.config.execConfig.envVariables == [:])
+        expectEqual(result1.errors, [])
+        expectEqual(result1.config.execConfig.envVariables, [:])
 
         let result2 = parseConfig("exec.inherit-env-vars = true")
-        #expect(result2.errors == [])
-        #expect(result2.config.execConfig.envVariables == testEnv)
+        expectEqual(result2.errors, [])
+        expectEqual(result2.config.execConfig.envVariables, testEnv)
     }
 
     @Test
@@ -56,8 +55,8 @@ struct ParseEnvVariablesTest {
             FOO = 'BAR'
             """,
         )
-        #expect(result.errors == [])
-        #expect(result.config.execConfig.envVariables == testEnv + ["FOO": "BAR"])
+        expectEqual(result.errors, [])
+        expectEqual(result.config.execConfig.envVariables, testEnv + ["FOO": "BAR"])
     }
 
     @Test
@@ -69,7 +68,7 @@ struct ParseEnvVariablesTest {
             BAR = '${FOO}'
             """,
         ).strErrors
-        #expect(errors == [
+        expectEqual(errors, [
             "[ERROR] exec.env-vars.BAR: Env variable 'FOO' isn't presented in AeroSpace.app env vars, or not available for interpolation (because it's mutated)",
             "[ERROR] exec.env-vars.FOO: Env variable 'BAR' isn't presented in AeroSpace.app env vars, or not available for interpolation (because it's mutated)",
         ])
@@ -83,12 +82,18 @@ struct ParseEnvVariablesTest {
             PWD = ''
             """,
         ).strErrors
-        #expect(errors == ["[ERROR] exec.env-vars.PWD: Changing 'PWD' is not allowed"])
+        expectEqual(errors, ["[ERROR] exec.env-vars.PWD: Changing 'PWD' is not allowed"])
     }
 
     @Test
     func testEnvVarsOfWrongType() {
         let errors = parseConfig("exec.env-vars = 1").strErrors
-        #expect(errors == ["[ERROR] exec.env-vars: Expected type is 'Table'. But actual type is 'Int'"])
+        expectEqual(errors, ["[ERROR] exec.env-vars: Expected type is 'Table'. But actual type is 'Int'"])
     }
+}
+
+/// The interpolated string, or nil, and the reported errors
+private struct Interpolation: Equatable {
+    var result: String?
+    var errors: [String] = []
 }

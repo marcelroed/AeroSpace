@@ -28,10 +28,10 @@ struct FormatTest {
     @Test
     func aeroObjSubject() {
         let window = TestWindow.new(id: 1, parent: Workspace.get(byName: workspaceName).rootTilingContainer)
-        #expect(AeroObj.window(.forTest(window: window, title: nil)).subject == .window)
-        #expect(AeroObj.workspace(Workspace.get(byName: workspaceName)).subject == .workspace)
-        #expect(AeroObj.app(TestApp.shared).subject == .app)
-        #expect(AeroObj.monitor(mainMonitorInfo).subject == .monitor)
+        expectEqual(AeroObj.window(.forTest(window: window, title: nil)).subject, .window)
+        expectEqual(AeroObj.workspace(Workspace.get(byName: workspaceName)).subject, .workspace)
+        expectEqual(AeroObj.app(TestApp.shared).subject, .app)
+        expectEqual(AeroObj.monitor(mainMonitorInfo).subject, .monitor)
     }
 
     @Test
@@ -39,15 +39,15 @@ struct FormatTest {
         let window = TestWindow.new(id: 3, parent: Workspace.get(byName: workspaceName).rootTilingContainer)
 
         let withTitle = try await WindowWithPrefetchedTitle.resolveWindow(window, for: [.literal("foo"), .interVar(.windowTitle)], .nonCancellable)
-        #expect(withTitle.title == "TestWindow(3)")
+        expectEqual(withTitle.title, "TestWindow(3)")
 
         let withoutTitle = try await WindowWithPrefetchedTitle.resolveWindow(window, for: [.interVar(.windowId), .interVar(.newline)], .nonCancellable)
-        #expect(withoutTitle.title == nil)
+        expectEqual(withoutTitle.title, nil)
     }
 
     @Test
     func parseFormat() throws {
-        #expect(try AppBundle.parseFormat("%{window-id} | %{tab}") == [.interVar(.windowId), .literal(" | "), .interVar(.tab)])
+        try expectEqual(AppBundle.parseFormat("%{window-id} | %{tab}"), [.interVar(.windowId), .literal(" | "), .interVar(.tab)])
         #expect(throws: CmdParseError.invalid("Can't parse 'bogus'.\nPossible values: \(FormatVar.unionLiteral)")) {
             try AppBundle.parseFormat("%{bogus}")
         }
@@ -56,14 +56,14 @@ struct FormatTest {
     @Test
     func formatEmptyInput() throws {
         let objs: [AeroObj] = []
-        #expect(try objs.format([.interVar(.windowId)]) == [])
+        try expectEqual(objs.format([.interVar(.windowId)]), [])
     }
 
     @Test
     func formatWithNewlineAndTab() throws {
         let objs = [newWindowObj(id: 42)]
         let result = try objs.format([.interVar(.windowId), .interVar(.tab), .literal("X"), .interVar(.newline), .literal("end")])
-        #expect(result == ["42\tX\nend"])
+        expectEqual(result, ["42\tX\nend"])
     }
 
     @Test
@@ -77,7 +77,7 @@ struct FormatTest {
             .interVar(.rightPadding),
             .literal(" END"),
         ])
-        #expect(result == ["2   | a  END", "100 | bb END"])
+        expectEqual(result, ["2   | a  END", "100 | bb END"])
     }
 
     @Test
@@ -87,32 +87,32 @@ struct FormatTest {
             _ = try objs.format([.interVar(.windowId), .interVar(.rightPadding), .interVar(.windowTitle)])
             Issue.record("Expected a failure")
         } catch {
-            #expect(error.description == expanded(.windowId, objs[0]))
+            expectEqual(error.description, expanded(.windowId, objs[0]))
         }
     }
 
     @Test
     func primitive() throws {
-        #expect(Primitive.bool(true).kind == .bool)
-        #expect(Primitive.int(7).kind == .int)
-        #expect(Primitive.string("x").kind == .string)
+        expectEqual(Primitive.bool(true).kind, .bool)
+        expectEqual(Primitive.int(7).kind, .int)
+        expectEqual(Primitive.string("x").kind, .string)
 
-        #expect(Primitive.bool(true).toString() == "true")
-        #expect(Primitive.bool(false).toString() == "false")
-        #expect(Primitive.int(42).toString() == "42")
-        #expect(Primitive.string("hello").toString() == "hello")
+        expectEqual(Primitive.bool(true).toString(), "true")
+        expectEqual(Primitive.bool(false).toString(), "false")
+        expectEqual(Primitive.int(42).toString(), "42")
+        expectEqual(Primitive.string("hello").toString(), "hello")
 
-        #expect(Primitive.int(UInt32(5)).toString() == "5")
-        #expect(Primitive.int(Int32(-3)).toString() == "-3")
-        #expect(Primitive.int(Int(123)).toString() == "123")
+        expectEqual(Primitive.int(UInt32(5)).toString(), "5")
+        expectEqual(Primitive.int(Int32(-3)).toString(), "-3")
+        expectEqual(Primitive.int(Int(123)).toString(), "123")
 
         for (primitive, expected) in [(Primitive.bool(true), "true"), (.bool(false), "false"), (.int(42), "42"), (.string("hi"), "\"hi\"")] {
-            #expect(String(data: try JSONEncoder().encode(primitive), encoding: .utf8) == expected)
+            expectEqual(String(data: try JSONEncoder().encode(primitive), encoding: .utf8), expected)
         }
 
-        #expect(Primitive.Kind.bool.rawValue == "Bool")
-        #expect(Primitive.Kind.int.rawValue == "Int")
-        #expect(Primitive.Kind.string.rawValue == "String")
+        expectEqual(Primitive.Kind.bool.rawValue, "Bool")
+        expectEqual(Primitive.Kind.int.rawValue, "Int")
+        expectEqual(Primitive.Kind.string.rawValue, "String")
     }
 
     @Test
@@ -120,9 +120,9 @@ struct FormatTest {
         let window = TestWindow.new(id: 9, parent: Workspace.get(byName: workspaceName).rootTilingContainer)
         window.isFullscreen = true
         let obj = AeroObj.window(.forTest(window: window, title: "title-x"))
-        #expect(expanded(.windowId, obj) == "Int(9)")
-        #expect(expanded(.windowIsFullscreen, obj) == "Bool(true)")
-        #expect(expanded(.windowTitle, obj) == "String(title-x)")
+        expectEqual(expanded(.windowId, obj), "Int(9)")
+        expectEqual(expanded(.windowIsFullscreen, obj), "Bool(true)")
+        expectEqual(expanded(.windowTitle, obj), "String(title-x)")
     }
 
     @Test
@@ -132,34 +132,34 @@ struct FormatTest {
 
         root.layout = .tiles
         root.changeOrientation(.h)
-        #expect(expanded(.windowLayout, obj) == "String(h_tiles)")
-        #expect(expanded(.windowParentContainerLayout, obj) == "String(h_tiles)")
+        expectEqual(expanded(.windowLayout, obj), "String(h_tiles)")
+        expectEqual(expanded(.windowParentContainerLayout, obj), "String(h_tiles)")
 
         root.layout = .accordion
-        #expect(expanded(.windowLayout, obj) == "String(h_accordion)")
+        expectEqual(expanded(.windowLayout, obj), "String(h_accordion)")
 
         root.changeOrientation(.v)
-        #expect(expanded(.windowLayout, obj) == "String(v_accordion)")
+        expectEqual(expanded(.windowLayout, obj), "String(v_accordion)")
 
         root.layout = .tiles
-        #expect(expanded(.windowLayout, obj) == "String(v_tiles)")
+        expectEqual(expanded(.windowLayout, obj), "String(v_tiles)")
     }
 
     @Test
     func expandWindowLayoutOfTheOtherPlacements() {
         let workspace = Workspace.get(byName: workspaceName)
-        #expect(expanded(.windowLayout, newWindowObj(id: 1, parent: workspace.floatingWindowsContainer)) == "String(floating)")
-        #expect(expanded(.windowLayout, newWindowObj(id: 2, parent: workspace.macOsNativeFullscreenWindowsContainer)) == "String(macos_native_fullscreen)")
-        #expect(expanded(.windowLayout, newWindowObj(id: 3, parent: workspace.macOsNativeHiddenAppsWindowsContainer)) == "String(macos_native_window_of_hidden_app)")
-        #expect(expanded(.windowLayout, newWindowObj(id: 4, parent: macosMinimizedWindowsContainer)) == "String(macos_native_minimized)")
-        #expect(expanded(.windowLayout, newWindowObj(id: 5, parent: macosPopupWindowsContainer)) == "String(NULL-WINDOW-LAYOUT)")
+        expectEqual(expanded(.windowLayout, newWindowObj(id: 1, parent: workspace.floatingWindowsContainer)), "String(floating)")
+        expectEqual(expanded(.windowLayout, newWindowObj(id: 2, parent: workspace.macOsNativeFullscreenWindowsContainer)), "String(macos_native_fullscreen)")
+        expectEqual(expanded(.windowLayout, newWindowObj(id: 3, parent: workspace.macOsNativeHiddenAppsWindowsContainer)), "String(macos_native_window_of_hidden_app)")
+        expectEqual(expanded(.windowLayout, newWindowObj(id: 4, parent: macosMinimizedWindowsContainer)), "String(macos_native_minimized)")
+        expectEqual(expanded(.windowLayout, newWindowObj(id: 5, parent: macosPopupWindowsContainer)), "String(NULL-WINDOW-LAYOUT)")
     }
 
     @Test
     func expandWindowToWorkspaceAndMonitor() {
         let obj = newWindowObj(id: 1)
-        #expect(expanded(.workspace, obj) == "String(\(workspaceName))")
-        #expect(expanded(.monitorName, obj) == "String(\(mainMonitorInfo.name))")
+        expectEqual(expanded(.workspace, obj), "String(\(workspaceName))")
+        expectEqual(expanded(.monitorName, obj), "String(\(mainMonitorInfo.name))")
     }
 
     @Test
@@ -167,16 +167,16 @@ struct FormatTest {
         let window = TestWindow.new(id: 1, parent: Workspace.get(byName: workspaceName).rootTilingContainer)
         window.unbindFromParent()
         let obj = AeroObj.window(.forTest(window: window, title: nil))
-        #expect(expanded(.workspace, obj) == "String(NULL-WORKSPACE)")
-        #expect(expanded(.monitorName, obj) == "String(NULL-MONITOR)")
-        #expect(expanded(.windowLayout, obj) == "NULL-PARENT")
+        expectEqual(expanded(.workspace, obj), "String(NULL-WORKSPACE)")
+        expectEqual(expanded(.monitorName, obj), "String(NULL-MONITOR)")
+        expectEqual(expanded(.windowLayout, obj), "NULL-PARENT")
     }
 
     @Test
     func expandWindowToApp() {
         let obj = newWindowObj(id: 1)
-        #expect(expanded(.appPid, obj) == "Int(0)")
-        #expect(expanded(.appBundleId, obj) == "String(bobko.AeroSpace.test-app)")
+        expectEqual(expanded(.appPid, obj), "Int(0)")
+        expectEqual(expanded(.appBundleId, obj), "String(bobko.AeroSpace.test-app)")
     }
 
     @Test
@@ -184,61 +184,61 @@ struct FormatTest {
         let workspace = Workspace.get(byName: workspaceName)
         #expect(workspace.focusWorkspace())
         let obj = AeroObj.workspace(workspace)
-        #expect(expanded(.workspace, obj) == "String(\(workspaceName))")
-        #expect(expanded(.workspaceIsFocused, obj) == "Bool(true)")
-        #expect(expanded(.workspaceIsVisible, obj) == "Bool(true)")
-        #expect(expanded(.workspaceRootContainerLayout, obj) == "String(h_tiles)")
+        expectEqual(expanded(.workspace, obj), "String(\(workspaceName))")
+        expectEqual(expanded(.workspaceIsFocused, obj), "Bool(true)")
+        expectEqual(expanded(.workspaceIsVisible, obj), "Bool(true)")
+        expectEqual(expanded(.workspaceRootContainerLayout, obj), "String(h_tiles)")
     }
 
     @Test
     func expandingTheRootContainerLayoutDoesntCreateTheRoot() {
         let workspace = setUpTree("floating(1)", workspace: workspaceName)
-        #expect(expanded(.workspaceRootContainerLayout, .workspace(workspace)) == "String(h_tiles)") // The config's default
-        #expect(workspace.existingRootTilingContainer == nil)
+        expectEqual(expanded(.workspaceRootContainerLayout, .workspace(workspace)), "String(h_tiles)") // The config's default
+        expectEqual(workspace.existingRootTilingContainer, nil)
         workspace.rootTilingContainer.layout = .accordion
-        #expect(expanded(.workspaceRootContainerLayout, .workspace(workspace)) == "String(h_accordion)")
+        expectEqual(expanded(.workspaceRootContainerLayout, .workspace(workspace)), "String(h_accordion)")
     }
 
     @Test
     func expandWorkspaceFocusedAndVisibleForOtherWorkspace() {
         let obj = AeroObj.workspace(Workspace.get(byName: "other"))
-        #expect(expanded(.workspaceIsFocused, obj) == "Bool(false)")
-        #expect(expanded(.workspaceIsVisible, obj) == "Bool(false)")
+        expectEqual(expanded(.workspaceIsFocused, obj), "Bool(false)")
+        expectEqual(expanded(.workspaceIsVisible, obj), "Bool(false)")
     }
 
     @Test
     func expandWorkspaceToMonitor() {
         let obj = AeroObj.workspace(Workspace.get(byName: workspaceName))
-        #expect(expanded(.monitorName, obj) == "String(\(mainMonitorInfo.name))")
-        #expect(expanded(.monitorIsMain, obj) == "Bool(true)")
+        expectEqual(expanded(.monitorName, obj), "String(\(mainMonitorInfo.name))")
+        expectEqual(expanded(.monitorIsMain, obj), "Bool(true)")
     }
 
     @Test
     func expandMonitorVars() {
         let monitor = mainMonitorInfo
         let obj = AeroObj.monitor(monitor)
-        #expect(expanded(.monitorAppKitNsScreenScreensId, obj) == "Int(\(monitor.monitorAppKitNsScreenScreensId))")
-        #expect(expanded(.monitorName, obj) == "String(\(monitor.name))")
-        #expect(expanded(.monitorIsMain, obj) == "Bool(true)")
-        #expect(expanded(.monitorId, obj) == "Int(1)")
+        expectEqual(expanded(.monitorAppKitNsScreenScreensId, obj), "Int(\(monitor.monitorAppKitNsScreenScreensId))")
+        expectEqual(expanded(.monitorName, obj), "String(\(monitor.name))")
+        expectEqual(expanded(.monitorIsMain, obj), "Bool(true)")
+        expectEqual(expanded(.monitorId, obj), "Int(1)")
     }
 
     @Test
     func expandAppVars() {
         let obj = AeroObj.app(TestApp.shared)
-        #expect(expanded(.appBundleId, obj) == "String(bobko.AeroSpace.test-app)")
-        #expect(expanded(.appName, obj) == "String(bobko.AeroSpace.test-app)")
-        #expect(expanded(.appPid, obj) == "Int(0)")
-        #expect(expanded(.appExecPath, obj) == "String(NULL-APP-EXEC-PATH)")
-        #expect(expanded(.appBundlePath, obj) == "String(NULL-APP-BUNDLE-PATH)")
+        expectEqual(expanded(.appBundleId, obj), "String(bobko.AeroSpace.test-app)")
+        expectEqual(expanded(.appName, obj), "String(bobko.AeroSpace.test-app)")
+        expectEqual(expanded(.appPid, obj), "Int(0)")
+        expectEqual(expanded(.appExecPath, obj), "String(NULL-APP-EXEC-PATH)")
+        expectEqual(expanded(.appBundlePath, obj), "String(NULL-APP-BUNDLE-PATH)")
     }
 
     @Test
     func expandFormattingVars() {
         let obj = newWindowObj(id: 5)
-        #expect(expanded(.newline, obj) == "String(\n)")
-        #expect(expanded(.tab, obj) == "String(\t)")
-        #expect(expanded(.rightPadding, obj) == "'right-padding' interpolation variable cannot be expanded")
+        expectEqual(expanded(.newline, obj), "String(\n)")
+        expectEqual(expanded(.tab, obj), "String(\t)")
+        expectEqual(expanded(.rightPadding, obj), "'right-padding' interpolation variable cannot be expanded")
     }
 
     @Test
@@ -254,9 +254,9 @@ struct FormatTest {
 
     @Test
     func unavailableVariableMessageListsPossibleValues() {
-        #expect(
-            expanded(.windowId, .monitor(mainMonitorInfo)) ==
-                "Unknown interpolation variable 'window-id'. Possible values:\n" +
+        expectEqual(
+            expanded(.windowId, .monitor(mainMonitorInfo)),
+            "Unknown interpolation variable 'window-id'. Possible values:\n" +
                 "  monitor-id\n  monitor-appkit-nsscreen-screens-id\n  monitor-name\n  monitor-is-main\n" +
                 "  right-padding\n  newline\n  tab",
         )
@@ -265,31 +265,31 @@ struct FormatTest {
     @Test
     func formatToJson() throws {
         let objs: [AeroObj] = []
-        #expect(try objs.formatToJson([.interVar(.windowId)]) == json([]))
+        try expectEqual(objs.formatToJson([.interVar(.windowId)]), json([]))
 
         let window = TestWindow.new(id: 42, parent: Workspace.get(byName: workspaceName).rootTilingContainer)
         window.isFullscreen = true
-        #expect(
-            try [AeroObj.window(.forTest(window: window, title: "hello"))]
-                .formatToJson([.interVar(.windowId), .interVar(.windowTitle), .interVar(.windowIsFullscreen)]) ==
-                json([["window-id": .int(42), "window-title": .string("hello"), "window-is-fullscreen": .bool(true)]]),
+        try expectEqual(
+            [AeroObj.window(.forTest(window: window, title: "hello"))]
+                .formatToJson([.interVar(.windowId), .interVar(.windowTitle), .interVar(.windowIsFullscreen)]),
+            json([["window-id": .int(42), "window-title": .string("hello"), "window-is-fullscreen": .bool(true)]]),
         )
 
-        #expect(try [newWindowObj(id: 1), newWindowObj(id: 2)].formatToJson([.interVar(.windowId)]) == json([["window-id": .int(1)], ["window-id": .int(2)]]))
+        try expectEqual([newWindowObj(id: 1), newWindowObj(id: 2)].formatToJson([.interVar(.windowId)]), json([["window-id": .int(1)], ["window-id": .int(2)]]))
     }
 
     @Test
     func formatToJsonSkipsLiteralsAndRightPadding() throws {
         let objs = [newWindowObj(id: 7)]
-        #expect(try objs.formatToJson([.literal("ignored-prefix"), .interVar(.windowId), .literal("  "), .interVar(.rightPadding)]) == json([["window-id": .int(7)]]))
+        try expectEqual(objs.formatToJson([.literal("ignored-prefix"), .interVar(.windowId), .literal("  "), .interVar(.rightPadding)]), json([["window-id": .int(7)]]))
     }
 
     @Test
     func formatToJsonExpandsFormattingVars() throws {
         let objs = [newWindowObj(id: 11)]
-        #expect(
-            try objs.formatToJson([.interVar(.windowId), .interVar(.newline), .interVar(.tab)]) ==
-                json([["window-id": .int(11), "newline": .string("\n"), "tab": .string("\t")]]),
+        try expectEqual(
+            objs.formatToJson([.interVar(.windowId), .interVar(.newline), .interVar(.tab)]),
+            json([["window-id": .int(11), "newline": .string("\n"), "tab": .string("\t")]]),
         )
     }
 
@@ -301,7 +301,7 @@ struct FormatTest {
             _ = try objs.formatToJson([.interVar(.windowId)])
             Issue.record("Expected a failure")
         } catch {
-            #expect(error.description == expanded(.windowId, objs[0]))
+            expectEqual(error.description, expanded(.windowId, objs[0]))
         }
     }
 
@@ -309,9 +309,9 @@ struct FormatTest {
     @Test
     func formatToJsonRepeatedVariableIsOutputOnce() throws {
         let objs = [newWindowObj(id: 5)]
-        #expect(
-            try objs.formatToJson([.interVar(.windowIsFullscreen), .literal(" between literals "), .interVar(.windowIsFullscreen)]) ==
-                json([["window-is-fullscreen": .bool(false)]]),
+        try expectEqual(
+            objs.formatToJson([.interVar(.windowIsFullscreen), .literal(" between literals "), .interVar(.windowIsFullscreen)]),
+            json([["window-is-fullscreen": .bool(false)]]),
         )
     }
 }

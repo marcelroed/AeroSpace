@@ -12,33 +12,33 @@ struct WorkspaceNameTest {
             "all", "none", "mouse", "target",
         ]
         for name in reserved {
-            #expect(workspaceName(name) == .failure("'\(name)' is a reserved workspace name"))
+            expectEqual(workspaceName(name), .failure("'\(name)' is a reserved workspace name"))
         }
-        #expect(workspaceName("Next").map(\.raw) == .success("Next"))
-        #expect(workspaceName("nextt").map(\.raw) == .success("nextt"))
+        expectEqual(workspaceName("Next").map(\.raw), .success("Next"))
+        expectEqual(workspaceName("nextt").map(\.raw), .success("nextt"))
     }
 
     @Test
     func testIllegalNames() {
-        #expect(workspaceName("") == .failure("Empty workspace name is forbidden"))
-        #expect(workspaceName("a,b") == .failure("Workspace names are not allowed to contain comma"))
-        #expect(workspaceName("_a") == .failure("Workspace names starting with underscore are reserved for future use"))
-        #expect(workspaceName("-a") == .failure("Workspace names starting with dash are disallowed"))
-        #expect(workspaceName("a b") == .failure("Whitespace characters are forbidden in workspace names"))
-        #expect(workspaceName("_a,b") == .failure("Workspace names are not allowed to contain comma"))
+        expectEqual(workspaceName(""), .failure("Empty workspace name is forbidden"))
+        expectEqual(workspaceName("a,b"), .failure("Workspace names are not allowed to contain comma"))
+        expectEqual(workspaceName("_a"), .failure("Workspace names starting with underscore are reserved for future use"))
+        expectEqual(workspaceName("-a"), .failure("Workspace names starting with dash are disallowed"))
+        expectEqual(workspaceName("a b"), .failure("Whitespace characters are forbidden in workspace names"))
+        expectEqual(workspaceName("_a,b"), .failure("Workspace names are not allowed to contain comma"))
     }
 
     @Test
     func testParseMonitorDescription() {
-        #expect(monitorDescription("main") == .success(.main))
-        #expect(monitorDescription("secondary") == .success(.secondary))
-        #expect(monitorDescription("2") == .success(.sequenceNumber(2)))
-        #expect(monitorDescription("Main") == .success(.pattern("Main")))
-        #expect(monitorDescription(" 1") == .success(.pattern(" 1")))
-        #expect(monitorDescription("0") == .failure("Monitor sequence numbers uses 1-based indexing. Values less than 1 are illegal"))
-        #expect(monitorDescription("-1") == .failure("Monitor sequence numbers uses 1-based indexing. Values less than 1 are illegal"))
-        #expect(monitorDescription("") == .failure("Empty string is an illegal monitor description"))
-        #expect(monitorDescription("(") == .failure("Can't parse '(' regex: expected ')'"))
+        expectEqual(monitorDescription("main"), .success(.main))
+        expectEqual(monitorDescription("secondary"), .success(.secondary))
+        expectEqual(monitorDescription("2"), .success(.sequenceNumber(2)))
+        expectEqual(monitorDescription("Main"), .success(.pattern("Main")))
+        expectEqual(monitorDescription(" 1"), .success(.pattern(" 1")))
+        expectEqual(monitorDescription("0"), .failure("Monitor sequence numbers uses 1-based indexing. Values less than 1 are illegal"))
+        expectEqual(monitorDescription("-1"), .failure("Monitor sequence numbers uses 1-based indexing. Values less than 1 are illegal"))
+        expectEqual(monitorDescription(""), .failure("Empty string is an illegal monitor description"))
+        expectEqual(monitorDescription("("), .failure("Can't parse '(' regex: expected ')'"))
     }
 }
 

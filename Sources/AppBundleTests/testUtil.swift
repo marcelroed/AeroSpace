@@ -113,8 +113,8 @@ nonisolated struct CmdOutput: Equatable {
 /// Every command behavior test runs its commands through this function, so that changes to how commands are parsed and
 /// run touch only this function.
 ///
-/// Check the output in two steps, `let output = await runCmd("...")` and `#expect(output == .ok)`: `#expect` doesn't
-/// show the values of an expression with `await`, so `#expect(await runCmd("...") == .ok)` fails without the output
+/// Check the output with `expectEqual`, which shows both outputs on a mismatch. `#expect` doesn't show the values of an
+/// expression with `await`, so `#expect(await runCmd("...") == .ok)` would fail without the output
 @discardableResult
 func runCmd(_ command: String, stdin: String = "", windowIdEnv: UInt32? = nil, workspaceEnv: String? = nil) async -> CmdOutput {
     switch parseCommand(command) {

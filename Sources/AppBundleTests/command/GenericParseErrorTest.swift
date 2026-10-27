@@ -7,37 +7,37 @@ import Testing
 struct GenericParseErrorTest {
     @Test(arguments: parseFailures)
     func testParseFailure(command: String, msg: String) {
-        #expect(parseCommand(command).errorOrNil == msg)
+        expectEqual(parseCommand(command).errorOrNil, msg)
     }
 
     @Test
     func testEmptyCommand() {
-        #expect(parseWords([]) == .invalid("Can't parse empty string command"))
-        #expect(parseWords([""]) == .invalid("Can't parse empty string command"))
-        #expect(parseCommand("''").errorOrNil == "Can't parse empty string command")
+        expectEqual(parseWords([]), .invalid("Can't parse empty string command"))
+        expectEqual(parseWords([""]), .invalid("Can't parse empty string command"))
+        expectEqual(parseCommand("''").errorOrNil, "Can't parse empty string command")
     }
 
     @Test
     func testUnrecognizedSubcommand() {
-        #expect(parseCommand("bogus").errorOrNil == "Unrecognized subcommand 'bogus'")
-        #expect(parseCommand("--help").errorOrNil == "Unrecognized subcommand '--help'")
-        #expect(parseWords(["bogus", "--help"]) == .invalid("Unrecognized subcommand 'bogus'"))
+        expectEqual(parseCommand("bogus").errorOrNil, "Unrecognized subcommand 'bogus'")
+        expectEqual(parseCommand("--help").errorOrNil, "Unrecognized subcommand '--help'")
+        expectEqual(parseWords(["bogus", "--help"]), .invalid("Unrecognized subcommand 'bogus'"))
     }
 
     @Test
     func testHelpWinsOverParseErrors() {
         for args in [["--window-id", "abc", "--help"], ["--window-id", "1", "--window-id", "2", "-h"], ["--bogus", "--help"], ["foo", "--help"]] {
-            #expect(parseWords(["close"] + args) == .help(.close), "\(args)")
+            expectEqual(parseWords(["close"] + args), .help(.close), "\(args)")
         }
         // After '--', '--help' is an argument
-        #expect(parseWords(["close", "--", "--help"]) == .invalid("Unknown argument '--help'"))
+        expectEqual(parseWords(["close", "--", "--help"]), .invalid("Unknown argument '--help'"))
     }
 
     @Test
     func testDoubleDashWithoutArgs() {
         #expect(parseCommand("close --").cmdOrNil != nil)
-        #expect(parsedCmd("layout tiles --", as: LayoutCommand.self).map { Array($0.toggleBetween) } == [.tiles])
-        #expect(parsedCmd("layout tiles -- tiling", as: LayoutCommand.self).map { Array($0.toggleBetween) } == [.tiles, .tiling])
+        expectEqual(parsedCmd("layout tiles --", as: LayoutCommand.self).map { Array($0.toggleBetween) }, [.tiles])
+        expectEqual(parsedCmd("layout tiles -- tiling", as: LayoutCommand.self).map { Array($0.toggleBetween) }, [.tiles, .tiling])
     }
 }
 

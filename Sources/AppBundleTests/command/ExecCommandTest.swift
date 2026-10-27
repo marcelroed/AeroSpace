@@ -13,21 +13,21 @@ struct ExecCommandTest {
     func testDescriptionReproducesTheConfiguredText() {
         // The script keeps the space after the command name, and the description used to add another one (RB-15)
         for raw in ["exec-and-forget echo 'foo'", "exec-and-forget\techo foo", "exec-and-forget\necho foo\n", "exec-and-forget"] {
-            #expect(parseCommand(raw).cmdOrDie.shellOfCommandsDescription == raw)
+            expectEqual(parseCommand(raw).cmdOrDie.shellOfCommandsDescription, raw)
         }
     }
 
     @Test
     func testParseScriptAfterAnyWhitespace() {
-        #expect(parseBashScript("exec-and-forget\techo foo") == "\techo foo")
-        #expect(parseBashScript("exec-and-forget\necho foo\n") == "\necho foo\n")
-        #expect(parseBashScript("exec-and-forget")?.isEmpty == true)
+        expectEqual(parseBashScript("exec-and-forget\techo foo"), "\techo foo")
+        expectEqual(parseBashScript("exec-and-forget\necho foo\n"), "\necho foo\n")
+        expectEqual(parseBashScript("exec-and-forget")?.isEmpty, true)
     }
 
     @Test
     func testParseRequiresWhitespaceAfterCommandName() {
         // `exec-and-forgetfoo` used to parse as `exec-and-forget foo` (RB-15)
-        #expect(parseCommand("exec-and-forgetfoo").errorOrNil == "Unrecognized subcommand 'exec-and-forgetfoo'")
+        expectEqual(parseCommand("exec-and-forgetfoo").errorOrNil, "Unrecognized subcommand 'exec-and-forgetfoo'")
     }
 }
 

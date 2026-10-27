@@ -32,6 +32,21 @@ nonisolated struct AeroSpaceGlobalStateTrait: SuiteTrait, TestTrait, TestScoping
     }
 }
 
+/// `#expect(actual == expected)`, but 5-20 times cheaper to type-check. `#expect` type-checks the comparison twice (as
+/// written, then expanded) against several overloads of `==` and of its helper: 1.5-15 ms per use, which was most of the
+/// type-checking time of the test target. Use `#expect` for checks other than `==`, and for types that aren't Equatable
+nonisolated func expectEqual<T: Equatable>(
+    _ actual: T,
+    _ expected: T,
+    _ comment: Comment? = nil,
+    sourceLocation: SourceLocation = #_sourceLocation,
+) {
+    if actual == expected { return }
+    let mismatch = "Expected \(String(describingForTest: expected)), got \(String(describingForTest: actual))"
+    let message = if let comment { mismatch + ": " + comment.rawValue } else { mismatch }
+    Issue.record(Comment(rawValue: message), sourceLocation: sourceLocation)
+}
+
 extension Trait where Self == AeroSpaceGlobalStateTrait {
     /// Run every test case of the suite exclusively, with the global state reset. See ``AeroSpaceGlobalStateTrait``
     static var aeroSpaceGlobalState: Self { Self() }

@@ -11,7 +11,7 @@ struct LatestTaskSlotTest {
         slot.replace { continuation.yield("second isCancelled: \(Task.isCancelled)") }
         var result: [String] = []
         for await event in events.prefix(2) { result.append(event) }
-        #expect(result.sorted() == ["first isCancelled: true", "second isCancelled: false"])
+        expectEqual(result.sorted(), ["first isCancelled: true", "second isCancelled: false"])
     }
 
     @Test
@@ -22,6 +22,6 @@ struct LatestTaskSlotTest {
         slot.cancel()
         var result: [String] = []
         for await event in events.prefix(1) { result.append(event) }
-        #expect(result == ["isCancelled: true"])
+        expectEqual(result, ["isCancelled: true"])
     }
 }

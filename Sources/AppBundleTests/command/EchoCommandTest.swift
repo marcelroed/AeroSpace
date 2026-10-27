@@ -29,7 +29,7 @@ struct EchoCommandTest {
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
-        #expect(output == .fail(error))
+        expectEqual(output, .fail(error))
     }
 
     @Test(arguments: [
@@ -46,12 +46,12 @@ struct EchoCommandTest {
     func run(tree: String, command: String, expected: CmdOutput) async {
         setUpTree(tree)
         let output = await runCmd(command)
-        #expect(output == expected)
+        expectEqual(output, expected)
     }
 
     @Test
     func workspaceInterpolation() async {
         let output = await runCmd("echo -- '%{workspace}'")
-        #expect(output == CmdOutput(stdout: [focus.workspace.name]))
+        expectEqual(output, CmdOutput(stdout: [focus.workspace.name]))
     }
 }

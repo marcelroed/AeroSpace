@@ -32,7 +32,7 @@ struct WorkspaceCommandTest {
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
-        #expect(output == .fail(error))
+        expectEqual(output, .fail(error))
     }
 
     /// From the focused workspace `from`, the command focuses the workspace `to`
@@ -55,8 +55,8 @@ struct WorkspaceCommandTest {
     func focusesWorkspace(from: String, command: String, stdin: String, expected: CmdOutput, to: String) async {
         #expect(Workspace.get(byName: from).focusWorkspace())
         let output = await runCmd(command, stdin: stdin)
-        #expect(output == expected)
-        #expect(focus.workspace.name == to)
+        expectEqual(output, expected)
+        expectEqual(focus.workspace.name, to)
     }
 
     @Test
@@ -65,8 +65,8 @@ struct WorkspaceCommandTest {
         #expect(Workspace.get(byName: "a").focusWorkspace())
         world.focusStore.prevWorkspaceName = "b"
         let output = await runCmd("workspace --auto-back-and-forth a")
-        #expect(output == .ok)
-        #expect(focus.workspace.name == "b")
+        expectEqual(output, .ok)
+        expectEqual(focus.workspace.name, "b")
     }
 
     @Test
@@ -74,8 +74,8 @@ struct WorkspaceCommandTest {
         #expect(Workspace.get(byName: "a").focusWorkspace())
         world.focusStore.prevWorkspaceName = "c"
         let output = await runCmd("workspace --auto-back-and-forth b")
-        #expect(output == .ok)
-        #expect(focus.workspace.name == "b")
+        expectEqual(output, .ok)
+        expectEqual(focus.workspace.name, "b")
     }
 
     @Test
@@ -84,7 +84,7 @@ struct WorkspaceCommandTest {
         _ = Workspace.get(byName: "c")
         #expect(Workspace.get(byName: "a").focusWorkspace())
         let output = await runCmd("workspace next")
-        #expect(output == .ok)
-        #expect(focus.workspace.name == "b")
+        expectEqual(output, .ok)
+        expectEqual(focus.workspace.name, "b")
     }
 }

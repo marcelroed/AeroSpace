@@ -8,14 +8,14 @@ struct KeysMapTest {
     @Test
     func testKeyToStringIsTheInverseOfKeyNotationToKeyCode() {
         for (name, key) in keyNotationToKeyCode.sorted(by: { $0.key < $1.key }) {
-            #expect(key.toString() == name)
+            expectEqual(key.toString(), name)
         }
     }
 
     /// Pins the key names and the key codes independently of `Key.toString()`
     @Test
     func testQwertyPreset() {
-        #expect(getKeysPreset(.qwerty).sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value.carbonKeyCode)" } == [
+        expectEqual(getKeysPreset(.qwerty).sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value.carbonKeyCode)" }, [
             "0=29", "1=18", "2=19", "3=20", "4=21", "5=23", "6=22", "7=26", "8=28", "9=25", "a=0", "b=11", "backslash=42",
             "backspace=51", "backtick=50", "c=8", "comma=43", "d=2", "down=125", "e=14", "end=119", "enter=36", "equal=24",
             "esc=53", "f=3", "f1=122", "f10=109", "f11=103", "f12=111", "f13=105", "f14=107", "f15=113", "f16=106",
@@ -35,20 +35,20 @@ struct KeysMapTest {
     @Test
     func testDvorakAndColemakPresets() {
         for preset in KeyMapping.Preset.allCases {
-            #expect(Set(getKeysPreset(preset).keys) == Set(keyNotationToKeyCode.keys))
+            expectEqual(Set(getKeysPreset(preset).keys), Set(keyNotationToKeyCode.keys))
         }
         func differencesFromQwerty(_ preset: KeyMapping.Preset) -> [String] {
             getKeysPreset(preset).filter { $0.value != keyNotationToKeyCode[$0.key] }
                 .sorted { $0.key < $1.key }
                 .map { "\($0.key)=\($0.value.toString())" }
         }
-        #expect(differencesFromQwerty(.dvorak) == [
+        expectEqual(differencesFromQwerty(.dvorak), [
             "b=n", "c=i", "comma=w", "d=h", "e=d", "equal=rightSquareBracket", "f=y", "g=u", "h=j", "i=g", "j=c",
             "k=v", "l=p", "leftSquareBracket=minus", "minus=quote", "n=l", "o=s", "p=r", "period=e", "q=x", "quote=q",
             "r=o", "rightSquareBracket=equal", "s=semicolon", "semicolon=z", "slash=leftSquareBracket", "t=k", "u=f",
             "v=period", "w=comma", "x=b", "y=t", "z=slash",
         ])
-        #expect(differencesFromQwerty(.colemak) == [
+        expectEqual(differencesFromQwerty(.colemak), [
             "d=g", "e=k", "f=e", "g=t", "i=l", "j=y", "k=n", "l=u", "n=j", "o=semicolon", "p=r", "r=s", "s=d", "semicolon=p",
             "t=f", "u=i", "y=o",
         ])
@@ -61,7 +61,7 @@ struct KeysMapTest {
         func dump(_ preset: KeyMapping.Preset) -> [String] {
             getKeysPreset(preset).sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value.carbonKeyCode)" }
         }
-        #expect(dump(.qwerty) == [
+        expectEqual(dump(.qwerty), [
             "0=29", "1=18", "2=19", "3=20", "4=21", "5=23", "6=22", "7=26", "8=28", "9=25", "a=0", "b=11", "backslash=42",
             "backspace=51", "backtick=50", "c=8", "comma=43", "d=2", "down=125", "e=14", "end=119", "enter=36", "equal=24",
             "esc=53", "f=3", "f1=122", "f10=109", "f11=103", "f12=111", "f13=105", "f14=107", "f15=113", "f16=106",
@@ -74,7 +74,7 @@ struct KeysMapTest {
             "right=124", "rightSquareBracket=30", "s=1", "sectionSign=10", "semicolon=41", "slash=44", "space=49", "t=17",
             "tab=48", "u=32", "up=126", "v=9", "w=13", "x=7", "y=16", "z=6",
         ])
-        #expect(dump(.dvorak) == [
+        expectEqual(dump(.dvorak), [
             "0=29", "1=18", "2=19", "3=20", "4=21", "5=23", "6=22", "7=26", "8=28", "9=25", "a=0", "b=45", "backslash=42",
             "backspace=51", "backtick=50", "c=34", "comma=13", "d=4", "down=125", "e=2", "end=119", "enter=36", "equal=30",
             "esc=53", "f=16", "f1=122", "f10=109", "f11=103", "f12=111", "f13=105", "f14=107", "f15=113", "f16=106",
@@ -87,7 +87,7 @@ struct KeysMapTest {
             "right=124", "rightSquareBracket=24", "s=41", "sectionSign=10", "semicolon=6", "slash=33", "space=49", "t=40",
             "tab=48", "u=3", "up=126", "v=47", "w=43", "x=11", "y=17", "z=44",
         ])
-        #expect(dump(.colemak) == [
+        expectEqual(dump(.colemak), [
             "0=29", "1=18", "2=19", "3=20", "4=21", "5=23", "6=22", "7=26", "8=28", "9=25", "a=0", "b=11", "backslash=42",
             "backspace=51", "backtick=50", "c=8", "comma=43", "d=5", "down=125", "e=40", "end=119", "enter=36", "equal=24",
             "esc=53", "f=14", "f1=122", "f10=109", "f11=103", "f12=111", "f13=105", "f14=107", "f15=113", "f16=106",
@@ -100,7 +100,7 @@ struct KeysMapTest {
             "right=124", "rightSquareBracket=30", "s=2", "sectionSign=10", "semicolon=35", "slash=44", "space=49", "t=3",
             "tab=48", "u=34", "up=126", "v=9", "w=13", "x=7", "y=31", "z=6",
         ])
-        #expect(modifiersMap.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value.rawValue)" } == [
+        expectEqual(modifiersMap.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value.rawValue)" }, [
             "alt=524288", "cmd=1048576", "ctrl=262144", "shift=131072",
         ])
     }
@@ -116,10 +116,10 @@ struct KeysMapTest {
                 keypadDecimalMark = 'focus up'
             """,
         )
-        #expect(result.errors == [])
+        expectEqual(result.errors, [])
         let bindings = result.config.modes[mainModeId]?.bindings.values.sorted { $0.descriptionWithKeyCode < $1.descriptionWithKeyCode } ?? []
-        #expect(bindings.map(\.descriptionWithKeyCode) == ["alt-ctrl-cmd-shift-backtick", "alt-q", "keypadDecimalMark"])
-        #expect(bindings.map(\.descriptionWithKeyNotation) == ["cmd-shift-ctrl-alt-backtick", "alt-quote", "keypadDecimalMark"])
+        expectEqual(bindings.map(\.descriptionWithKeyCode), ["alt-ctrl-cmd-shift-backtick", "alt-q", "keypadDecimalMark"])
+        expectEqual(bindings.map(\.descriptionWithKeyNotation), ["cmd-shift-ctrl-alt-backtick", "alt-quote", "keypadDecimalMark"])
     }
 
     @Test
@@ -131,8 +131,8 @@ struct KeysMapTest {
                 shift-alt-h = 'focus right'
             """,
         )
-        #expect(result.strErrors == ["[ERROR] mode.main.binding.shift-alt-h: 'alt-shift-h' Binding redeclaration"])
-        #expect(result.config.modes[mainModeId]?.bindings["alt-shift-h"]?.descriptionWithKeyNotation == "shift-alt-h")
+        expectEqual(result.strErrors, ["[ERROR] mode.main.binding.shift-alt-h: 'alt-shift-h' Binding redeclaration"])
+        expectEqual(result.config.modes[mainModeId]?.bindings["alt-shift-h"]?.descriptionWithKeyNotation, "shift-alt-h")
     }
 
     @Test
@@ -144,10 +144,10 @@ struct KeysMapTest {
                 shift-alt-h = 'bogus'
             """,
         )
-        #expect(result.strErrors == [
+        expectEqual(result.strErrors, [
             "[ERROR] mode.main.binding.shift-alt-h: 'alt-shift-h' Binding redeclaration",
             "[ERROR] mode.main.binding.shift-alt-h: Unrecognized subcommand 'bogus'",
         ])
-        #expect(result.config.modes[mainModeId]?.bindings["alt-shift-h"]?.descriptionWithKeyNotation == "alt-shift-h")
+        expectEqual(result.config.modes[mainModeId]?.bindings["alt-shift-h"]?.descriptionWithKeyNotation, "alt-shift-h")
     }
 }

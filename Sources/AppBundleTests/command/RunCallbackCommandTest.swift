@@ -37,7 +37,7 @@ struct RunCallbackCommandTest {
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
-        #expect(output == .fail(error))
+        expectEqual(output, .fail(error))
     }
 
     @Test(arguments: ["run-callback on-window-detected", "run-callback --for-every-window on-window-detected"])
@@ -47,7 +47,7 @@ struct RunCallbackCommandTest {
         #expect(config.onWindowDetected.isEmpty)
         #expect(MacWindow.allWindows.isEmpty)
         let output = await runCmd(command)
-        #expect(output == .ok)
+        expectEqual(output, .ok)
     }
 
     @Test
@@ -63,8 +63,8 @@ struct RunCallbackCommandTest {
 
         let io = CmdIo(stdin: .emptyStdin)
         let exitCode = await onWindowDetected(.defaultEnv, io, forEvery: [testWindow(3), unbound, testWindow(1), testWindow(2)])
-        #expect(io.stdout == ["1", "3"])
-        #expect(io.stderr == [])
-        #expect(exitCode == 1) // `test 1 = 3` of the floating window
+        expectEqual(io.stdout, ["1", "3"])
+        expectEqual(io.stderr, [])
+        expectEqual(exitCode, 1) // `test 1 = 3` of the floating window
     }
 }

@@ -13,7 +13,7 @@ struct SwiftTestingSupportTest {
 
     @Test(.aeroSpaceGlobalState) // Applied twice: must not deadlock
     func testTraitIsReentrant() {
-        #expect(focus.workspace.name == "setUpWorkspacesForTests")
+        expectEqual(focus.workspace.name, "setUpWorkspacesForTests")
     }
 }
 
@@ -36,8 +36,8 @@ struct IsUnitTestTest {
 }
 
 private func assertGlobalStateIsIsolated(_ workspaceName: String) async throws {
-    #expect(focus.workspace.name == "setUpWorkspacesForTests")
+    expectEqual(focus.workspace.name, "setUpWorkspacesForTests")
     #expect(Workspace.get(byName: workspaceName).focusWorkspace())
     try await Task.sleep(for: .milliseconds(20))
-    #expect(focus.workspace.name == workspaceName)
+    expectEqual(focus.workspace.name, workspaceName)
 }

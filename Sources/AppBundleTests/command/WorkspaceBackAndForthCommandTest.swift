@@ -11,8 +11,8 @@ struct WorkspaceBackAndForthCommandTest {
         world.focusStore.prevWorkspaceName = "b"
 
         let output = await runCmd("workspace-back-and-forth")
-        #expect(output == .ok)
-        #expect(focus.workspace.name == "b")
+        expectEqual(output, .ok)
+        expectEqual(focus.workspace.name, "b")
     }
 
     @Test
@@ -24,18 +24,18 @@ struct WorkspaceBackAndForthCommandTest {
 
         // Without screens, only visible workspaces can be focused, and "b" is hidden
         let output = await $noScreensForTests.withValue(true) { await runCmd("workspace-back-and-forth") }
-        #expect(output == .fail()) // todo: without a message
-        #expect(focus.workspace.name == "a")
+        expectEqual(output, .fail()) // todo: without a message
+        expectEqual(focus.workspace.name, "a")
     }
 
     @Test
     func noPreviousWorkspace_failsWithMessage() async {
         // RB-31: the command used to fail silently
         #expect(Workspace.get(byName: "a").focusWorkspace())
-        #expect(prevFocusedWorkspace == nil)
+        expectEqual(prevFocusedWorkspace, nil)
 
         let output = await runCmd("workspace-back-and-forth")
-        #expect(output == .fail("There is no previously focused workspace"))
-        #expect(focus.workspace.name == "a")
+        expectEqual(output, .fail("There is no previously focused workspace"))
+        expectEqual(focus.workspace.name, "a")
     }
 }

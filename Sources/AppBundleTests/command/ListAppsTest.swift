@@ -10,6 +10,6 @@ struct ListAppsTest {
         #expect(parseCommand("list-apps --macos-native-hidden no").cmdOrNil != nil)
         #expect(parseCommand("list-apps --format %{app-bundle-id}").cmdOrNil != nil)
         #expect(parseCommand("list-apps --count").cmdOrNil != nil)
-        #expect(parseCommand("list-apps --format %{app-bundle-id} --count").errorOrNil == "Conflicting options: --count, --format")
+        expectEqual(parseCommand("list-apps --format %{app-bundle-id} --count").errorOrNil, "Conflicting options: --count, --format")
     }
 }

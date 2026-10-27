@@ -20,58 +20,60 @@ struct SubcommandHelpTest {
             defer { prefix = "   OR:" }
             return prefix + line.removePrefix("aerospace")
         }
-        #expect(help.joined(separator: "\n") == kind.help)
+        expectEqual(help.joined(separator: "\n"), kind.help)
     }
 
     /// The CLI reads its stdin and sends it only for these subcommands
     @Test(arguments: CmdKind.allCases)
     func testSubcommandTakesStdinWhenItsHelpSaysSo(kind: CmdKind) {
-        #expect(kind.takesStdin == kind.help.contains("--stdin"))
+        expectEqual(kind.takesStdin, kind.help.contains("--stdin"))
     }
 
     @Test
     func testEveryDocsPageIsASubcommand() throws {
         let pages = try FileManager.default.contentsOfDirectory(atPath: projectRoot.appending(path: "docs").path)
             .filter { $0.starts(with: "aerospace-") && $0.hasSuffix(".adoc") }
-        #expect(Set(pages) == Set(CmdKind.allCases.map { "aerospace-\($0.rawValue).adoc" }))
+        expectEqual(Set(pages), Set(CmdKind.allCases.map { "aerospace-\($0.rawValue).adoc" }))
     }
 
     @Test
     func testEverySubcommandIsCovered() {
         let expected = Set(CmdKind.allCases.map(\.rawValue)).subtracting(["exec-and-forget"])
-        #expect(Set(expectedHelp.map(\.subcommand)) == expected)
+        expectEqual(Set(expectedHelp.map(\.subcommand)), expected)
     }
 
     @Test(arguments: expectedHelp)
     func testHelp(subcommand: String, help: String) {
         for flag in ["--help", "-h"] {
-            #expect(parseCommand("\(subcommand) \(flag)").helpOrNil == help)
+            expectEqual(parseCommand("\(subcommand) \(flag)").helpOrNil, help)
             // The CLI answers the help itself, the server parses the args without the shell
-            #expect(Result { () throws(CmdParseError) in try parseSubcommand([subcommand, flag]) }.failureOrNil?.message == help)
+            expectEqual(Result { () throws(CmdParseError) in try parseSubcommand([subcommand, flag]) }.failureOrNil?.message, help)
         }
     }
 
     @Test
     func testExecAndForgetHelp() {
         // The server shell treats everything after exec-and-forget as a bash script, the CLI doesn't know the subcommand
-        #expect(parsedCmd("exec-and-forget --help", as: ExecAndForgetCommand.self)?.description == "exec-and-forget --help")
-        #expect(parsedCmd("exec-and-forget -h", as: ExecAndForgetCommand.self)?.description == "exec-and-forget -h")
-        #expect(
-            Result { () throws(CmdParseError) in try parseSubcommand(["exec-and-forget", "--help"]) }.failureOrNil == .invalid("Unrecognized subcommand 'exec-and-forget'"),
+        expectEqual(parsedCmd("exec-and-forget --help", as: ExecAndForgetCommand.self)?.description, "exec-and-forget --help")
+        expectEqual(parsedCmd("exec-and-forget -h", as: ExecAndForgetCommand.self)?.description, "exec-and-forget -h")
+        expectEqual(
+            Result { () throws(CmdParseError) in try parseSubcommand(["exec-and-forget", "--help"]) }.failureOrNil,
+            .invalid("Unrecognized subcommand 'exec-and-forget'"),
         )
-        #expect(
-            Result { () throws(CmdParseError) in try parseShell("exec-and-forget --help", allowExecAndForget: false, allowEval: true) }.failureOrNil == .invalid("Unrecognized subcommand 'exec-and-forget'"),
+        expectEqual(
+            Result { () throws(CmdParseError) in try parseShell("exec-and-forget --help", allowExecAndForget: false, allowEval: true) }.failureOrNil,
+            .invalid("Unrecognized subcommand 'exec-and-forget'"),
         )
     }
 
     @Test
     func testMoveWorkspaceToMonitorChecksWrapAround() {
-        #expect(parseCommand("move-workspace-to-monitor --wrap-around main").errorOrNil == "--wrap-around is incompatible with <monitor-pattern> argument")
+        expectEqual(parseCommand("move-workspace-to-monitor --wrap-around main").errorOrNil, "--wrap-around is incompatible with <monitor-pattern> argument")
     }
 
     @Test(arguments: ["move-through", "move-workspace-to-display"])
     func testDeprecatedAliasesAreGone(alias: String) {
-        #expect(parseCommand("\(alias) --help").errorOrNil == "Unrecognized subcommand '\(alias)'")
+        expectEqual(parseCommand("\(alias) --help").errorOrNil, "Unrecognized subcommand '\(alias)'")
     }
 }
 

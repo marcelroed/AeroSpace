@@ -24,17 +24,17 @@ struct SummonWorkspaceCommandTest {
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
-        #expect(output == .fail(error))
+        expectEqual(output, .fail(error))
     }
 
     @Test
     func summonsToTheFocusedMonitor() async {
         let workspace = focus.workspace
         let output = await runCmd("summon-workspace foo")
-        #expect(output == .ok)
+        expectEqual(output, .ok)
         let foo = Workspace.get(byName: "foo")
-        #expect(mainMonitorInfo.activeWorkspace == foo)
-        #expect(focus.workspace == foo)
+        expectEqual(mainMonitorInfo.activeWorkspace, foo)
+        expectEqual(focus.workspace, foo)
         #expect(!workspace.isVisible)
     }
 
@@ -46,7 +46,7 @@ struct SummonWorkspaceCommandTest {
         let workspace = Workspace.get(byName: "bar")
         #expect(workspace.focusWorkspace())
         let output = await runCmd(command)
-        #expect(output == expected)
-        #expect(focus.workspace == workspace)
+        expectEqual(output, expected)
+        expectEqual(focus.workspace, workspace)
     }
 }

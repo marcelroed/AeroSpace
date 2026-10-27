@@ -11,6 +11,6 @@ struct ListExecEnvVarsCommandTest {
         world.config.execConfig.envVariables = Dictionary(uniqueKeysWithValues: names.map { ($0, "value-\($0)") })
 
         let output = await runCmd("list-exec-env-vars")
-        #expect(output == CmdOutput(stdout: names.sorted().map { "\($0)=value-\($0)" }))
+        expectEqual(output, CmdOutput(stdout: names.sorted().map { "\($0)=value-\($0)" }))
     }
 }

@@ -18,10 +18,10 @@ struct ConfigCharacterizationTest {
                 '''
             """,
         )
-        #expect(result.errors == [])
+        expectEqual(result.errors, [])
         let bindings = result.config.modes[mainModeId]?.bindings ?? [:]
-        #expect(bindings["alt-a"]?.commands.shellOfCommandsDescription.isEmpty == true)
-        #expect(bindings["alt-b"]?.commands.shellOfCommandsDescription == "workspace b")
+        expectEqual(bindings["alt-a"]?.commands.shellOfCommandsDescription.isEmpty, true)
+        expectEqual(bindings["alt-b"]?.commands.shellOfCommandsDescription, "workspace b")
     }
 
     @Test
@@ -36,7 +36,7 @@ struct ConfigCharacterizationTest {
                 outer.top = [{ monitor.main = 1 }, '2']
             """,
         )
-        #expect(result.strErrors == [
+        expectEqual(result.strErrors, [
             "[ERROR] gaps.inner.horizontal: Expected types are 'Int' or 'Array'. But actual type is 'String'",
             "[ERROR] gaps.inner.vertical: Expected types are 'Int' or 'Array'. But actual type is 'Bool'",
             "[ERROR] gaps.outer.left[0].monitor.main: Expected type is 'Int'. But actual type is 'Bool'",
@@ -44,7 +44,7 @@ struct ConfigCharacterizationTest {
             "[ERROR] gaps.outer.top: The last item in the array must be of type Int",
         ])
         // A per-monitor value with an unusable rule keeps the default
-        #expect(result.config.gaps == .zero)
+        expectEqual(result.config.gaps, .zero)
     }
 
     @Test
@@ -60,14 +60,14 @@ struct ConfigCharacterizationTest {
                 outer.right = [{ monitor.2 = 3 }, { monitor.1 = 7 }, 8]
             """,
         )
-        #expect(result.errors == [])
+        expectEqual(result.errors, [])
         let gaps = ResolvedGaps(gaps: result.config.gaps, monitor: mainMonitorInfo)
-        #expect(gaps.inner.horizontal == 2)
-        #expect(gaps.inner.vertical == 1)
-        #expect(gaps.outer.left == 9)
-        #expect(gaps.outer.bottom == 12)
-        #expect(gaps.outer.top == 6)
-        #expect(gaps.outer.right == 7)
+        expectEqual(gaps.inner.horizontal, 2)
+        expectEqual(gaps.inner.vertical, 1)
+        expectEqual(gaps.outer.left, 9)
+        expectEqual(gaps.outer.bottom, 12)
+        expectEqual(gaps.outer.top, 6)
+        expectEqual(gaps.outer.right, 7)
     }
 
     @Test
@@ -81,38 +81,38 @@ struct ConfigCharacterizationTest {
                 outer.right = [{ monitor.0 = 1 }, { monitor.main = 2 }, 3]
             """,
         )
-        #expect(result.strErrors == [
+        expectEqual(result.strErrors, [
             "[ERROR] gaps.inner.vertical: The array must not be empty",
             "[ERROR] gaps.outer.left[0]: Expected type is 'Table'. But actual type is 'Int'",
             "[ERROR] gaps.outer.right[0].monitor.0: Monitor sequence numbers uses 1-based indexing. Values less than 1 are illegal",
         ])
         var expectedGaps = Gaps.zero
         expectedGaps.inner.horizontal = .constant(1)
-        #expect(result.config.gaps == expectedGaps)
+        expectEqual(result.config.gaps, expectedGaps)
     }
 
     @Test
     func testNestedTablesOfWrongType() {
-        #expect(parseConfig("gaps = 1").strErrors == ["[ERROR] gaps: Expected type is 'Table'. But actual type is 'Int'"])
-        #expect(parseConfig("gaps.inner = 1").strErrors == ["[ERROR] gaps.inner: Expected type is 'Table'. But actual type is 'Int'"])
-        #expect(parseConfig("gaps.outer = 'a'").strErrors == ["[ERROR] gaps.outer: Expected type is 'Table'. But actual type is 'String'"])
-        #expect(parseConfig("gaps.inner.foo = 1").strErrors == ["[ERROR] gaps.inner.foo: Unknown key"])
-        #expect(parseConfig("gaps.outer.foo = 1").strErrors == ["[ERROR] gaps.outer.foo: Unknown key"])
-        #expect(parseConfig("focus-follows-mouse = 1").strErrors == ["[ERROR] focus-follows-mouse: Expected type is 'Table'. But actual type is 'Int'"])
-        #expect(parseConfig("focus-follows-mouse.foo = true").strErrors == ["[ERROR] focus-follows-mouse.foo: Unknown key"])
-        #expect(parseConfig("focus-follows-mouse.enabled = 1").strErrors == ["[ERROR] focus-follows-mouse.enabled: Expected type is 'Bool'. But actual type is 'Int'"])
-        #expect(parseConfig("mode = 1").strErrors == ["[ERROR] mode: Expected type is 'Table'. But actual type is 'Int'"])
-        #expect(parseConfig("mode.main = 1").strErrors == ["[ERROR] mode.main: Expected type is 'Table'. But actual type is 'Int'"])
-        #expect(parseConfig("mode.main.foo = 1").strErrors == ["[ERROR] mode.main.foo: Unknown key"])
-        #expect(parseConfig("mode.main.binding = 1").strErrors == ["[ERROR] mode.main.binding: Expected type is 'Table'. But actual type is 'Int'"])
-        #expect(parseConfig("key-mapping = 1").strErrors == ["[ERROR] key-mapping: Expected type is 'Table'. But actual type is 'Int'"])
-        #expect(parseConfig("key-mapping.foo = 1").strErrors == ["[ERROR] key-mapping.foo: Unknown key"])
-        #expect(parseConfig("exec = 1").strErrors == ["[ERROR] exec: Expected type is 'Table'. But actual type is 'Int'"])
-        #expect(parseConfig("exec.foo = 1").strErrors == ["[ERROR] exec.foo: Unknown key"])
-        #expect(parseConfig("exec.env-vars = 1").strErrors == ["[ERROR] exec.env-vars: Expected type is 'Table'. But actual type is 'Int'"])
-        #expect(parseConfig("workspace-to-monitor-force-assignment = 1").strErrors == ["[ERROR] workspace-to-monitor-force-assignment: Expected type is 'Table'. But actual type is 'Int'"])
-        #expect(parseConfig("on-window-detected = 1").strErrors == ["[ERROR] on-window-detected: Expected type is 'Array'. But actual type is 'Int'"])
-        #expect(parseConfig("on-window-detected = [1]").strErrors == [
+        expectEqual(parseConfig("gaps = 1").strErrors, ["[ERROR] gaps: Expected type is 'Table'. But actual type is 'Int'"])
+        expectEqual(parseConfig("gaps.inner = 1").strErrors, ["[ERROR] gaps.inner: Expected type is 'Table'. But actual type is 'Int'"])
+        expectEqual(parseConfig("gaps.outer = 'a'").strErrors, ["[ERROR] gaps.outer: Expected type is 'Table'. But actual type is 'String'"])
+        expectEqual(parseConfig("gaps.inner.foo = 1").strErrors, ["[ERROR] gaps.inner.foo: Unknown key"])
+        expectEqual(parseConfig("gaps.outer.foo = 1").strErrors, ["[ERROR] gaps.outer.foo: Unknown key"])
+        expectEqual(parseConfig("focus-follows-mouse = 1").strErrors, ["[ERROR] focus-follows-mouse: Expected type is 'Table'. But actual type is 'Int'"])
+        expectEqual(parseConfig("focus-follows-mouse.foo = true").strErrors, ["[ERROR] focus-follows-mouse.foo: Unknown key"])
+        expectEqual(parseConfig("focus-follows-mouse.enabled = 1").strErrors, ["[ERROR] focus-follows-mouse.enabled: Expected type is 'Bool'. But actual type is 'Int'"])
+        expectEqual(parseConfig("mode = 1").strErrors, ["[ERROR] mode: Expected type is 'Table'. But actual type is 'Int'"])
+        expectEqual(parseConfig("mode.main = 1").strErrors, ["[ERROR] mode.main: Expected type is 'Table'. But actual type is 'Int'"])
+        expectEqual(parseConfig("mode.main.foo = 1").strErrors, ["[ERROR] mode.main.foo: Unknown key"])
+        expectEqual(parseConfig("mode.main.binding = 1").strErrors, ["[ERROR] mode.main.binding: Expected type is 'Table'. But actual type is 'Int'"])
+        expectEqual(parseConfig("key-mapping = 1").strErrors, ["[ERROR] key-mapping: Expected type is 'Table'. But actual type is 'Int'"])
+        expectEqual(parseConfig("key-mapping.foo = 1").strErrors, ["[ERROR] key-mapping.foo: Unknown key"])
+        expectEqual(parseConfig("exec = 1").strErrors, ["[ERROR] exec: Expected type is 'Table'. But actual type is 'Int'"])
+        expectEqual(parseConfig("exec.foo = 1").strErrors, ["[ERROR] exec.foo: Unknown key"])
+        expectEqual(parseConfig("exec.env-vars = 1").strErrors, ["[ERROR] exec.env-vars: Expected type is 'Table'. But actual type is 'Int'"])
+        expectEqual(parseConfig("workspace-to-monitor-force-assignment = 1").strErrors, ["[ERROR] workspace-to-monitor-force-assignment: Expected type is 'Table'. But actual type is 'Int'"])
+        expectEqual(parseConfig("on-window-detected = 1").strErrors, ["[ERROR] on-window-detected: Expected type is 'Array'. But actual type is 'Int'"])
+        expectEqual(parseConfig("on-window-detected = [1]").strErrors, [
             "[ERROR] on-window-detected[0]: Expected type is 'Table'. But actual type is 'Int'",
         ])
     }
@@ -120,9 +120,9 @@ struct ConfigCharacterizationTest {
     @Test
     func testFocusFollowsMouse() {
         let result = parseConfig("focus-follows-mouse.enabled = true")
-        #expect(result.errors == [])
-        #expect(result.config.focusFollowsMouse.enabled == true)
-        #expect(parseConfig("").config.focusFollowsMouse.enabled == false)
+        expectEqual(result.errors, [])
+        expectEqual(result.config.focusFollowsMouse.enabled, true)
+        expectEqual(parseConfig("").config.focusFollowsMouse.enabled, false)
     }
 
     @Test
@@ -137,29 +137,29 @@ struct ConfigCharacterizationTest {
             enable-normalization-opposite-orientation-for-nested-containers = false
             """,
         )
-        #expect(result.errors == [])
-        #expect(result.config.afterStartupCommand.flatten().count == 2)
-        #expect(result.config.startAtLogin == false)
-        #expect(result.config.autoReloadConfig == true)
-        #expect(result.config.automaticallyUnhideMacosHiddenApps == true)
-        #expect(result.config.accordionPadding == 7)
-        #expect(result.config.enableNormalizationOppositeOrientationForNestedContainers == false)
+        expectEqual(result.errors, [])
+        expectEqual(result.config.afterStartupCommand.flatten().count, 2)
+        expectEqual(result.config.startAtLogin, false)
+        expectEqual(result.config.autoReloadConfig, true)
+        expectEqual(result.config.automaticallyUnhideMacosHiddenApps, true)
+        expectEqual(result.config.accordionPadding, 7)
+        expectEqual(result.config.enableNormalizationOppositeOrientationForNestedContainers, false)
 
-        #expect(parseConfig("accordion-padding = true").strErrors == ["[ERROR] accordion-padding: Expected type is 'Int'. But actual type is 'Bool'"])
-        #expect(parseConfig("auto-reload-config = 1").strErrors == ["[ERROR] auto-reload-config: Expected type is 'Bool'. But actual type is 'Int'"])
-        #expect(parseConfig("after-startup-command = true").strErrors == ["[ERROR] after-startup-command: Expected types are 'String' or 'Array'. But actual type is 'Bool'"])
+        expectEqual(parseConfig("accordion-padding = true").strErrors, ["[ERROR] accordion-padding: Expected type is 'Int'. But actual type is 'Bool'"])
+        expectEqual(parseConfig("auto-reload-config = 1").strErrors, ["[ERROR] auto-reload-config: Expected type is 'Bool'. But actual type is 'Int'"])
+        expectEqual(parseConfig("after-startup-command = true").strErrors, ["[ERROR] after-startup-command: Expected types are 'String' or 'Array'. But actual type is 'Bool'"])
     }
 
     @Test
     func testOnWindowDetectedMatcherErrors() {
-        #expect(parseConfig("on-window-detected = [{ if.foo = 'x', run = 'focus left' }]").strErrors == ["[ERROR] on-window-detected[0].if.foo: Unknown key"])
-        #expect(parseConfig("on-window-detected = [{ if = 1, run = '' }]").strErrors == [
+        expectEqual(parseConfig("on-window-detected = [{ if.foo = 'x', run = 'focus left' }]").strErrors, ["[ERROR] on-window-detected[0].if.foo: Unknown key"])
+        expectEqual(parseConfig("on-window-detected = [{ if = 1, run = '' }]").strErrors, [
             "[ERROR] on-window-detected[0].if: Expected type is 'String'. But actual type is 'Int'",
         ])
-        #expect(parseConfig("on-window-detected = [{ if = 'foo', run = '' }]").strErrors == [
+        expectEqual(parseConfig("on-window-detected = [{ if = 'foo', run = '' }]").strErrors, [
             "[ERROR] on-window-detected[0].if: Unrecognized subcommand 'foo'",
         ])
-        #expect(parseConfig("on-window-detected = [{ if.during-aerospace-startup = 1, run = '' }]").strErrors == ["[ERROR] on-window-detected[0].if.during-aerospace-startup: Expected type is 'Bool'. But actual type is 'Int'"])
+        expectEqual(parseConfig("on-window-detected = [{ if.during-aerospace-startup = 1, run = '' }]").strErrors, ["[ERROR] on-window-detected[0].if.during-aerospace-startup: Expected type is 'Bool'. But actual type is 'Int'"])
     }
 
     @Test
@@ -179,8 +179,8 @@ struct ConfigCharacterizationTest {
                 run = ['layout floating', 'focus left']
             """,
         )
-        #expect(result.errors == [])
-        #expect(result.config.onWindowDetected.map(\.debugJson) == [
+        expectEqual(result.errors, [])
+        expectEqual(result.config.onWindowDetected.map(\.debugJson), [
             .dict([
                 "matcher": .dict([
                     "app-id": .string("com.foo"),
@@ -210,32 +210,33 @@ struct ConfigCharacterizationTest {
                 y = []
             """,
         )
-        #expect(result.strErrors == [
+        expectEqual(result.strErrors, [
             "[ERROR] workspace-to-monitor-force-assignment.w: Expected types are 'String' or 'Int'. But actual type is 'Bool'",
             "[ERROR] workspace-to-monitor-force-assignment.x[1]: Expected types are 'String' or 'Int'. But actual type is 'Bool'",
         ])
         // A workspace with an unusable pattern isn't force-assigned. Neither is one with an empty array, which is no error
-        #expect(result.config.workspaceToMonitorForceAssignment == ["y": []])
+        expectEqual(result.config.workspaceToMonitorForceAssignment, ["y": []])
     }
 
     @Test
     func testUnsupportedTomlTypes() {
-        #expect(parseConfig("a = [1.0]").strErrors == ["[ERROR] a[0]: Unsupported TOML type: Double", "[ERROR] a: Unknown top-level key"])
-        #expect(
-            parseConfig("b = 1.0\na = [{ c = 1.0 }, [2.0, 3]]").strErrors == [
+        expectEqual(parseConfig("a = [1.0]").strErrors, ["[ERROR] a[0]: Unsupported TOML type: Double", "[ERROR] a: Unknown top-level key"])
+        expectEqual(
+            parseConfig("b = 1.0\na = [{ c = 1.0 }, [2.0, 3]]").strErrors,
+            [
                 "[ERROR] a[0].c: Unsupported TOML type: Double",
                 "[ERROR] a[1][0]: Unsupported TOML type: Double",
                 "[ERROR] b: Unsupported TOML type: Double",
                 "[ERROR] a: Unknown top-level key",
             ],
         )
-        #expect(parseConfig("a = 07:32:00").strErrors == ["[ERROR] a: Unsupported TOML type: LocalTime"])
-        #expect(parseConfig("a = 1979-05-27T07:32:00").strErrors == ["[ERROR] a: Unsupported TOML type: LocalDateTime"])
-        #expect(parseConfig("a = 1979-05-27T07:32:00Z").strErrors == ["[ERROR] a: Unsupported TOML type: OffsetDateTime"])
+        expectEqual(parseConfig("a = 07:32:00").strErrors, ["[ERROR] a: Unsupported TOML type: LocalTime"])
+        expectEqual(parseConfig("a = 1979-05-27T07:32:00").strErrors, ["[ERROR] a: Unsupported TOML type: LocalDateTime"])
+        expectEqual(parseConfig("a = 1979-05-27T07:32:00Z").strErrors, ["[ERROR] a: Unsupported TOML type: OffsetDateTime"])
         // The array keeps the supported elements: 'exec-on-workspace-change' gets ['x']
         let result = parseConfig("exec-on-workspace-change = [1.0, 'x']")
-        #expect(result.strErrors == ["[ERROR] exec-on-workspace-change[0]: Unsupported TOML type: Double"])
-        #expect(result.config.execOnWorkspaceChange == ["x"])
+        expectEqual(result.strErrors, ["[ERROR] exec-on-workspace-change[0]: Unsupported TOML type: Double"])
+        expectEqual(result.config.execOnWorkspaceChange, ["x"])
     }
 
     @Test
@@ -247,7 +248,7 @@ struct ConfigCharacterizationTest {
             z = 1.0
             """,
         )
-        #expect(result.strErrors == [
+        expectEqual(result.strErrors, [
             "[ERROR] z: Unsupported TOML type: Double",
             "[ERROR] a: Unknown top-level key", // Sorted
             "[ERROR] b: Unknown top-level key", // 'z' is dropped
@@ -257,7 +258,7 @@ struct ConfigCharacterizationTest {
     @Test
     func testInvalidCommandInConfig() {
         let focusHelp = CmdKind.focus.help
-        #expect(parseCommand("focus --help").helpOrNil == focusHelp)
+        expectEqual(parseCommand("focus --help").helpOrNil, focusHelp)
         let result = parseConfig(
             """
             [mode.main.binding]
@@ -267,14 +268,14 @@ struct ConfigCharacterizationTest {
                 alt-l = 'focus foo'
             """,
         )
-        #expect(result.strErrors == [
+        expectEqual(result.strErrors, [
             "[ERROR] mode.main.binding.alt-h: \(focusHelp)",
             "[ERROR] mode.main.binding.alt-j: Unrecognized subcommand 'bogus'",
             "[ERROR] mode.main.binding.alt-l: Can't parse 'foo'.\nPossible values: (left|down|up|right|dfs-next|dfs-prev)",
         ])
         // A binding with an invalid command is dropped
-        #expect(result.config.modes[mainModeId]?.bindings.keys.sorted() == ["alt-k"])
-        #expect(parseConfig("on-focus-changed = ['bogus', 'focus --help']").strErrors == ["[ERROR] on-focus-changed[0]: Unrecognized subcommand 'bogus'", "[ERROR] on-focus-changed[1]: \(focusHelp)"])
+        expectEqual(result.config.modes[mainModeId]?.bindings.keys.sorted(), ["alt-k"])
+        expectEqual(parseConfig("on-focus-changed = ['bogus', 'focus --help']").strErrors, ["[ERROR] on-focus-changed[0]: Unrecognized subcommand 'bogus'", "[ERROR] on-focus-changed[1]: \(focusHelp)"])
     }
 
     @Test
@@ -286,12 +287,12 @@ struct ConfigCharacterizationTest {
                 alt-a = ['focus left', 1, 'bogus']
             """,
         )
-        #expect(result.strErrors == [
+        expectEqual(result.strErrors, [
             "[ERROR] on-focus-changed[1]: Expected type is 'String'. But actual type is 'Int'",
             "[ERROR] mode.main.binding.alt-a[1]: Expected type is 'String'. But actual type is 'Int'",
             "[ERROR] mode.main.binding.alt-a[2]: Unrecognized subcommand 'bogus'",
         ])
-        #expect(result.config.modes[mainModeId]?.bindings.isEmpty == true)
+        expectEqual(result.config.modes[mainModeId]?.bindings.isEmpty, true)
         #expect(result.config.onFocusChanged.flatten().isEmpty)
     }
 }

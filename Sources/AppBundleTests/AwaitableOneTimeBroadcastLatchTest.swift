@@ -21,10 +21,10 @@ struct AwaitableOneTimeBroadcastLatchTest {
             returnedCount.withLock { $0 += 1 }
         }
         try await Task.sleep(for: .milliseconds(50))
-        #expect(returnedCount.withLock { $0 } == 0)
+        expectEqual(returnedCount.withLock { $0 }, 0)
         await latch.signalToAll()
         try await task.value
-        #expect(returnedCount.withLock { $0 } == 1)
+        expectEqual(returnedCount.withLock { $0 }, 1)
     }
 
     @Test
@@ -39,10 +39,10 @@ struct AwaitableOneTimeBroadcastLatchTest {
             }
         }
         try await Task.sleep(for: .milliseconds(50))
-        #expect(returnedCount.withLock { $0 } == 0)
+        expectEqual(returnedCount.withLock { $0 }, 0)
         await latch.signalToAll()
         for task in tasks { try await task.value }
-        #expect(returnedCount.withLock { $0 } == count)
+        expectEqual(returnedCount.withLock { $0 }, count)
     }
 
     @Test

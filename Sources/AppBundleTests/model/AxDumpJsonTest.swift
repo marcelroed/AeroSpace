@@ -16,8 +16,9 @@ struct AxDumpJsonTest {
         result["Aero.AxUiElementWindowType_isDialogHeuristic"] = .bool(false)
         result["Aero.axWindowId"] = .int(42)
         result["Aero.App.nsApp.appBundlePath"] = .string("file:///Applications/Foo%20Bar.app/ \"é\" 🙂")
-        #expect(
-            JSONEncoder.aeroSpaceDefault.encodeToString(OrderedJson.dict(result)) == #"""
+        expectEqual(
+            JSONEncoder.aeroSpaceDefault.encodeToString(OrderedJson.dict(result)),
+            #"""
             {
               "Aero.AXApp" : {
                 "AXEmpty" : {
@@ -47,12 +48,12 @@ struct AxDumpJsonTest {
     @Test
     func testDumpRendersAxBooleansAsInts() {
         func pretty(_ raw: AnyObject?) -> OrderedJson { prettyValue(raw as Any?, recursionDepth: 1) }
-        #expect(pretty(kCFBooleanTrue) == .int(1))
-        #expect(pretty(kCFBooleanFalse) == .int(0))
-        #expect(pretty(NSNumber(value: true)) == .int(1))
-        #expect(pretty(NSNumber(value: UInt32.max)) == .int(Int64(UInt32.max)))
-        #expect(pretty(NSArray(array: [kCFBooleanTrue.orDie(), NSNumber(value: 7)])) == .array([.int(1), .int(7)]))
-        #expect(pretty(nil) == .null)
+        expectEqual(pretty(kCFBooleanTrue), .int(1))
+        expectEqual(pretty(kCFBooleanFalse), .int(0))
+        expectEqual(pretty(NSNumber(value: true)), .int(1))
+        expectEqual(pretty(NSNumber(value: UInt32.max)), .int(Int64(UInt32.max)))
+        expectEqual(pretty(NSArray(array: [kCFBooleanTrue.orDie(), NSNumber(value: 7)])), .array([.int(1), .int(7)]))
+        expectEqual(pretty(nil), .null)
     }
 
     /// JSON booleans are NSNumbers too, so the test dump reader reads them as ints, the same way the dump wrote them
@@ -76,21 +77,21 @@ struct AxDumpJsonTest {
             options: [.json5Allowed],
         )
         let dump = try #require(OrderedJson.newOrNilRecursive(raw)?.asDictOrNil)
-        #expect(dump["AXEnabled"] == .int(1))
-        #expect(dump["AXFocused"] == .int(0))
-        #expect(dump["AXTitle"] == .string("a/b"))
-        #expect(dump["AXIdentifier"] == .null)
-        #expect(dump["AXSections"] == .array([.int(0), .dict(["k": .string("v")])]))
+        expectEqual(dump["AXEnabled"], .int(1))
+        expectEqual(dump["AXFocused"], .int(0))
+        expectEqual(dump["AXTitle"], .string("a/b"))
+        expectEqual(dump["AXIdentifier"], .null)
+        expectEqual(dump["AXSections"], .array([.int(0), .dict(["k": .string("v")])]))
 
-        #expect(dump.get(Ax.enabledAttr) == true)
-        #expect(dump.get(Ax.isFocused) == false)
-        #expect(dump.get(Ax.titleAttr) == "a/b")
-        #expect(dump.get(Ax.identifierAttr) == nil)
-        #expect(dump.get(Ax.subroleAttr) == nil) // Missing keys are nil, unless the dump is synthetic
-        #expect(dump.containingWindowId() == 5)
-        #expect(dump.get(Ax.closeButtonAttr)?.get(Ax.roleAttr) == "AXButton")
-        #expect(dump.get(Ax.closeButtonAttr)?.get(Ax.enabledAttr) == true)
-        #expect(dump.get(Ax.focusedWindowAttr)?.windowId == 7)
-        #expect(dump.get(Ax.focusedWindowAttr)?.ax.containingWindowId() == 7)
+        expectEqual(dump.get(Ax.enabledAttr), true)
+        expectEqual(dump.get(Ax.isFocused), false)
+        expectEqual(dump.get(Ax.titleAttr), "a/b")
+        expectEqual(dump.get(Ax.identifierAttr), nil)
+        expectEqual(dump.get(Ax.subroleAttr), nil) // Missing keys are nil, unless the dump is synthetic
+        expectEqual(dump.containingWindowId(), 5)
+        expectEqual(dump.get(Ax.closeButtonAttr)?.get(Ax.roleAttr), "AXButton")
+        expectEqual(dump.get(Ax.closeButtonAttr)?.get(Ax.enabledAttr), true)
+        expectEqual(dump.get(Ax.focusedWindowAttr)?.windowId, 7)
+        expectEqual(dump.get(Ax.focusedWindowAttr)?.ax.containingWindowId(), 7)
     }
 }

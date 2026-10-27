@@ -64,23 +64,23 @@ struct UntrustedInputTest {
     @Test(arguments: extremeNumbers)
     func volumeNumbersDontCrash(number: String) {
         let expected: VolumeCommand.VolumeAction? = Int(number).flatMap { (0 ... 100).contains($0) ? .set($0) : nil }
-        #expect(parsedCmd("volume set \(number)", as: VolumeCommand.self)?.action == expected)
+        expectEqual(parsedCmd("volume set \(number)", as: VolumeCommand.self)?.action, expected)
     }
 
     @Test(arguments: ["-9223372036854775808", "-1", "0"])
     func monitorIdBelowOneIsRejected(id: String) async {
         let message = "Monitor IDs use 1-based indexing. Values less than 1 are illegal"
         let windows = await runCliArgs(["list-windows", "--monitor", id])
-        #expect(windows == .fail(message))
+        expectEqual(windows, .fail(message))
         let workspaces = await runCliArgs(["list-workspaces", "--monitor", id])
-        #expect(workspaces == .fail(message))
+        expectEqual(workspaces, .fail(message))
     }
 
     @Test
     func deeplyNestedParenthesesAreRejected() async {
         let depth = 100_000 // Overflows the stack of the parser
         let output = await runCliArgs(["eval", String(repeating: "(", count: depth) + "true" + String(repeating: ")", count: depth)])
-        #expect(output == .fail("Line 1 Column \(maxShellGroupNesting + 1): Parentheses are nested deeper than \(maxShellGroupNesting) levels"))
+        expectEqual(output, .fail("Line 1 Column \(maxShellGroupNesting + 1): Parentheses are nested deeper than \(maxShellGroupNesting) levels"))
     }
 
     @Test
@@ -88,17 +88,17 @@ struct UntrustedInputTest {
         // A chain nests to the left, so everything that walks a long one overflows the stack
         let output = await runCliArgs(["eval", Array(repeating: "true", count: 200_000).joined(separator: " && ")])
         let column = (maxShellOperators + 1) * "true && ".count - 2
-        #expect(output == .fail("Line 1 Column \(column): More than \(maxShellOperators) operators in one expression"))
+        expectEqual(output, .fail("Line 1 Column \(column): More than \(maxShellOperators) operators in one expression"))
     }
 
     @Test
     func expressionAtTheLimitsRuns() async {
         let nested = String(repeating: "(", count: maxShellGroupNesting) + "echo a" + String(repeating: ")", count: maxShellGroupNesting)
         let nestedOutput = await runCliArgs(["eval", nested])
-        #expect(nestedOutput == CmdOutput(stdout: ["a"]))
+        expectEqual(nestedOutput, CmdOutput(stdout: ["a"]))
         let chain = Array(repeating: "true", count: maxShellOperators).joined(separator: " && ") + " && echo b"
         let chainOutput = await runCliArgs(["eval", chain])
-        #expect(chainOutput == CmdOutput(stdout: ["b"]))
+        expectEqual(chainOutput, CmdOutput(stdout: ["b"]))
     }
 
     /// A config file is input too. An array of commands nests to the left like a chain

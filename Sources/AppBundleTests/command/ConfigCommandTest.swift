@@ -8,24 +8,24 @@ import Testing
 struct ConfigCommandTest {
     @Test
     func testParse() {
-        #expect(parseCommand("config --major-keys").errorOrNil == nil)
-        #expect(parseCommand("config --all-keys").errorOrNil == nil)
-        #expect(parseCommand("config --config-path").errorOrNil == nil)
-        #expect(parseCommand("config --get foo").errorOrNil == nil)
-        #expect(parseCommand("config --get foo --keys").errorOrNil == nil)
-        #expect(parseCommand("config --get foo --json").errorOrNil == nil)
-        #expect(parseCommand("config --get foo --keys --json").errorOrNil == nil)
+        expectEqual(parseCommand("config --major-keys").errorOrNil, nil)
+        expectEqual(parseCommand("config --all-keys").errorOrNil, nil)
+        expectEqual(parseCommand("config --config-path").errorOrNil, nil)
+        expectEqual(parseCommand("config --get foo").errorOrNil, nil)
+        expectEqual(parseCommand("config --get foo --keys").errorOrNil, nil)
+        expectEqual(parseCommand("config --get foo --json").errorOrNil, nil)
+        expectEqual(parseCommand("config --get foo --keys --json").errorOrNil, nil)
 
-        #expect(parseCommand("config").errorOrNil == "Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)")
+        expectEqual(parseCommand("config").errorOrNil, "Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)")
         // --keys/--json alone still trigger the mandatory-flag check first because they don't
         // contribute to the mandatory-flag set.
-        #expect(parseCommand("config --keys").errorOrNil == "Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)")
-        #expect(parseCommand("config --json").errorOrNil == "Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)")
-        #expect(parseCommand("config --major-keys --keys").errorOrNil == "--keys flag requires --get flag")
-        #expect(parseCommand("config --major-keys --json").errorOrNil == "--json flag requires --get flag")
+        expectEqual(parseCommand("config --keys").errorOrNil, "Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)")
+        expectEqual(parseCommand("config --json").errorOrNil, "Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)")
+        expectEqual(parseCommand("config --major-keys --keys").errorOrNil, "--keys flag requires --get flag")
+        expectEqual(parseCommand("config --major-keys --json").errorOrNil, "--json flag requires --get flag")
 
         // Two mandatory flags are mutually exclusive
-        #expect(parseCommand("config --major-keys --all-keys").errorOrNil == "Conflicting flags are specified: --major-keys, --all-keys")
+        expectEqual(parseCommand("config --major-keys --all-keys").errorOrNil, "Conflicting flags are specified: --major-keys, --all-keys")
     }
 
     @Test
@@ -36,14 +36,14 @@ struct ConfigCommandTest {
             [("--get", "--get foo"), ("--major-keys", "--major-keys"), ("--all-keys", "--all-keys"), ("--config-path", "--config-path")]
         for mask in 0 ..< (1 << flags.count) where mask.nonzeroBitCount >= 2 {
             let combination = flags.indices.filter { mask & (1 << $0) != 0 }.map { flags[$0] }
-            #expect(parseCommand("config " + combination.reversed().map(\.args).joined(separator: " ")).errorOrNil == "Conflicting flags are specified: " + combination.map(\.name).joined(separator: ", "))
+            expectEqual(parseCommand("config " + combination.reversed().map(\.args).joined(separator: " ")).errorOrNil, "Conflicting flags are specified: " + combination.map(\.name).joined(separator: ", "))
         }
     }
 
     @Test
     func testConfigPath() async {
         let output = await runCmd("config --config-path")
-        #expect(output == CmdOutput(stdout: [world.configUrl.absoluteURL.path]))
+        expectEqual(output, CmdOutput(stdout: [world.configUrl.absoluteURL.path]))
     }
 
     @Test
@@ -54,7 +54,7 @@ struct ConfigCommandTest {
         ]
         let output = await runCmd("config --major-keys")
         // The whole listing comes back as one stdout entry separated by newlines.
-        #expect(output == CmdOutput(stdout: [".\nmode\nmode.main.binding\nmode.service.binding"]))
+        expectEqual(output, CmdOutput(stdout: [".\nmode\nmode.main.binding\nmode.service.binding"]))
     }
 
     @Test
@@ -63,7 +63,7 @@ struct ConfigCommandTest {
         world.config.modes = manyModes()
         let expected = [".", "mode"] + manyModeNames.sorted().map { "mode.\($0).binding" }
         let output = await runCmd("config --major-keys")
-        #expect(output == CmdOutput(stdout: [expected.joined(separator: "\n")]))
+        expectEqual(output, CmdOutput(stdout: [expected.joined(separator: "\n")]))
     }
 
     @Test
@@ -72,7 +72,7 @@ struct ConfigCommandTest {
 
         // Single mode + single binding => dict iteration order doesn't affect the output.
         let output = await runCmd("config --all-keys")
-        #expect(output == CmdOutput(stdout: [".\nmode\nmode.main\nmode.main.binding\nmode.main.binding.alt-h"]))
+        expectEqual(output, CmdOutput(stdout: [".\nmode\nmode.main\nmode.main.binding\nmode.main.binding.alt-h"]))
     }
 
     @Test
@@ -85,20 +85,20 @@ struct ConfigCommandTest {
             ["mode.\(mode)", "mode.\(mode).binding"] + ["alt-h", "alt-j", "alt-k"].map { "mode.\(mode).binding.\($0)" }
         }
         let output = await runCmd("config --all-keys")
-        #expect(output == CmdOutput(stdout: [expected.joined(separator: "\n")]))
+        expectEqual(output, CmdOutput(stdout: [expected.joined(separator: "\n")]))
     }
 
     @Test
     func testGetRoot_complexObject_fails() async {
         let output = await runCmd("config --get .")
-        #expect(output == .fail("Complicated objects can be printed only with --json flag. Alternatively, you can try to inspect keys of the object with --keys flag"))
+        expectEqual(output, .fail("Complicated objects can be printed only with --json flag. Alternatively, you can try to inspect keys of the object with --keys flag"))
     }
 
     @Test
     func testGetRoot_keys() async {
         world.config.modes = ["main": Mode(bindings: [:])]
         let output = await runCmd("config --get . --keys")
-        #expect(output == CmdOutput(stdout: ["mode"]))
+        expectEqual(output, CmdOutput(stdout: ["mode"]))
     }
 
     @Test
@@ -108,7 +108,7 @@ struct ConfigCommandTest {
         let expectedJson = JSONEncoder.aeroSpaceDefault.encodeToString(expectedMap)
 
         let output = await runCmd("config --get . --json")
-        #expect(output == CmdOutput(stdout: [expectedJson.orDie()]))
+        expectEqual(output, CmdOutput(stdout: [expectedJson.orDie()]))
     }
 
     @Test
@@ -120,7 +120,7 @@ struct ConfigCommandTest {
         )
 
         let output = await runCmd("config --get . --keys --json")
-        #expect(output == CmdOutput(stdout: [expected.orDie()]))
+        expectEqual(output, CmdOutput(stdout: [expected.orDie()]))
     }
 
     @Test
@@ -131,7 +131,7 @@ struct ConfigCommandTest {
         ]
         // Plain (non-json) array output is sorted before printing.
         let output = await runCmd("config --get mode --keys")
-        #expect(output == CmdOutput(stdout: ["main\nservice"]))
+        expectEqual(output, CmdOutput(stdout: ["main\nservice"]))
     }
 
     @Test
@@ -142,7 +142,7 @@ struct ConfigCommandTest {
         )
 
         let output = await runCmd("config --get mode --keys --json")
-        #expect(output == CmdOutput(stdout: [expected.orDie()]))
+        expectEqual(output, CmdOutput(stdout: [expected.orDie()]))
     }
 
     @Test
@@ -150,7 +150,7 @@ struct ConfigCommandTest {
         let command = bindAltHToFocusLeft()
 
         let output = await runCmd("config --get mode.main.binding.alt-h")
-        #expect(output == CmdOutput(stdout: [command.shellOfCommandsDescription]))
+        expectEqual(output, CmdOutput(stdout: [command.shellOfCommandsDescription]))
     }
 
     @Test
@@ -158,7 +158,7 @@ struct ConfigCommandTest {
         let command = bindAltHToFocusLeft()
 
         let output = await runCmd("config --get mode.main.binding.alt-h --keys")
-        #expect(output == .fail("--keys flag cannot be applied to scalar object '\(command.shellOfCommandsDescription)'"))
+        expectEqual(output, .fail("--keys flag cannot be applied to scalar object '\(command.shellOfCommandsDescription)'"))
     }
 
     @Test
@@ -166,31 +166,31 @@ struct ConfigCommandTest {
         let command = bindAltHToFocusLeft()
 
         let output = await runCmd("config --get mode.main.binding.alt-h.foo")
-        #expect(output == .fail("Can't dereference scalar value '\(command.shellOfCommandsDescription)'"))
+        expectEqual(output, .fail("Can't dereference scalar value '\(command.shellOfCommandsDescription)'"))
     }
 
     @Test
     func testGetMissingKey_fails() async {
         let output = await runCmd("config --get nonExistent")
-        #expect(output == .fail("No value at key token 'nonExistent'"))
+        expectEqual(output, .fail("No value at key token 'nonExistent'"))
     }
 
     @Test
     func testGetInvalidPath_emptyKey() async {
         let output = await runCmd("config --get ''")
-        #expect(output == .fail("Invalid empty key"))
+        expectEqual(output, .fail("Invalid empty key"))
     }
 
     @Test
     func testGetInvalidPath_doubleDot() async {
         let output = await runCmd("config --get a..b")
-        #expect(output == .fail("Invalid key 'a..b'"))
+        expectEqual(output, .fail("Invalid key 'a..b'"))
     }
 
     @Test
     func testGetInvalidPath_trailingDot() async {
         let output = await runCmd("config --get a.")
-        #expect(output == .fail("Invalid key 'a.'"))
+        expectEqual(output, .fail("Invalid key 'a.'"))
     }
 
     @Test
@@ -211,7 +211,7 @@ struct ConfigCommandTest {
             }
             """
         let output = await runCmd("config --get mode --json")
-        #expect(output == CmdOutput(stdout: [expected]))
+        expectEqual(output, CmdOutput(stdout: [expected]))
     }
 
     @Test
@@ -229,21 +229,21 @@ struct ConfigCommandTest {
             }
             """
         let output = await runCmd("config --get . --json")
-        #expect(output == CmdOutput(stdout: [expected]))
+        expectEqual(output, CmdOutput(stdout: [expected]))
     }
 
     @Test
     func testGetMode_keysJson_literal() async {
         world.config.modes = ["main": Mode(bindings: [:])]
         let output = await runCmd("config --get mode.main --keys --json")
-        #expect(output == CmdOutput(stdout: ["[\n  \"binding\"\n]"]))
+        expectEqual(output, CmdOutput(stdout: ["[\n  \"binding\"\n]"]))
     }
 
     @Test
     func testGetScalar_json_literal() async {
         bindAltHToFocusLeft()
         let output = await runCmd("config --get mode.main.binding.alt-h --json")
-        #expect(output == CmdOutput(stdout: ["\"focus left\""]))
+        expectEqual(output, CmdOutput(stdout: ["\"focus left\""]))
     }
 
     @Test
@@ -263,7 +263,7 @@ struct ConfigCommandTest {
               ]
             ]
             """
-        #expect(JSONEncoder.aeroSpaceDefault.encodeToString(value) == expected)
+        expectEqual(JSONEncoder.aeroSpaceDefault.encodeToString(value), expected)
     }
 
     /// Binds alt-h to `focus left` in the main mode, and returns that command

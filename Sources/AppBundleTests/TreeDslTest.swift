@@ -14,32 +14,32 @@ struct TreeDslTest {
     ])
     func roundTrip(spec: String) {
         setUpTree(spec)
-        #expect(describeTree() == spec)
+        expectEqual(describeTree(), spec)
     }
 
     @Test
     func focusesTheMarkedWindow() {
-        #expect(focus.windowOrNil == nil)
+        expectEqual(focus.windowOrNil, nil)
         setUpTree("h_tiles(1 *2 3)")
-        #expect(focus.windowOrNil?.windowId == 2)
+        expectEqual(focus.windowOrNil?.windowId, 2)
     }
 
     @Test
     func roundTripWithWeights() {
         setUpTree("h_tiles(1:2 v_tiles:3(*4 5:0.5)) floating(6)")
-        #expect(describeTree(weights: true) == "h_tiles(1:2 v_tiles:3(*4:1 5:0.5)) floating(6)")
-        #expect(describeTree() == "h_tiles(1 v_tiles(*4 5)) floating(6)")
-        #expect(testWindow(5).vWeight == 0.5)
-        #expect(testWindow(5).hWeight == 3)
+        expectEqual(describeTree(weights: true), "h_tiles(1:2 v_tiles:3(*4:1 5:0.5)) floating(6)")
+        expectEqual(describeTree(), "h_tiles(1 v_tiles(*4 5)) floating(6)")
+        expectEqual(testWindow(5).vWeight, 0.5)
+        expectEqual(testWindow(5).hWeight, 3)
     }
 
     @Test
     func otherWorkspacesAndGlobalContainers() {
         setUpTree("h_tiles(*1)", workspace: "a")
         setUpTree("v_tiles(2) macos_minimized(3) macos_popup(4)", workspace: "b")
-        #expect(focus.workspace.name == "a")
-        #expect(describeTree() == "h_tiles(*1)")
-        #expect(describeTree("b") == "v_tiles(2)")
+        expectEqual(focus.workspace.name, "a")
+        expectEqual(describeTree(), "h_tiles(*1)")
+        expectEqual(describeTree("b"), "v_tiles(2)")
         #expect(testWindow(3).parent === macosMinimizedWindowsContainer)
         #expect(testWindow(4).parent === macosPopupWindowsContainer)
     }
@@ -47,13 +47,13 @@ struct TreeDslTest {
     @Test
     func mostRecentWindows() {
         let workspace = setUpTree("h_tiles(*1 v_tiles(2 3))")
-        #expect(workspace.mostRecentWindowRecursive?.windowId == 1)
-        #expect(testWindow(2).parent?.mostRecentWindowRecursive?.windowId == 3)
+        expectEqual(workspace.mostRecentWindowRecursive?.windowId, 1)
+        expectEqual(testWindow(2).parent?.mostRecentWindowRecursive?.windowId, 3)
         // Without `*`, the most recent window of the focused workspace is focused
         setUpTree("h_tiles(4 5)", workspace: "b")
         #expect(workspace.focusWorkspace())
-        #expect(describeTree() == "h_tiles(*1 v_tiles(2 3))")
+        expectEqual(describeTree(), "h_tiles(*1 v_tiles(2 3))")
         #expect(Workspace.get(byName: "b").focusWorkspace())
-        #expect(describeTree() == "h_tiles(4 *5)")
+        expectEqual(describeTree(), "h_tiles(4 *5)")
     }
 }

@@ -11,13 +11,13 @@ struct CompletionGrammarTest {
     func grammarHasTheOptionsOfTheHelp(kind: CmdKind) throws {
         let grammar = try CompletionGrammar.load()
         let helpOptions = options(in: kind.help).subtracting(["--help"])
-        #expect(grammar.options(of: kind.rawValue) == helpOptions)
+        expectEqual(grammar.options(of: kind.rawValue), helpOptions)
     }
 
     @Test
     func grammarHasNoOtherSubcommands() throws {
         let subcommands = try CompletionGrammar.load().alternatives.keys
-        #expect(Set(subcommands) == Set(CmdKind.allCases.map(\.rawValue)).subtracting(["exec-and-forget"]))
+        expectEqual(Set(subcommands), Set(CmdKind.allCases.map(\.rawValue)).subtracting(["exec-and-forget"]))
     }
 }
 

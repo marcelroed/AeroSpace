@@ -8,31 +8,31 @@ struct ConfigTest {
     func testParseI3Config() throws {
         let toml = try String(contentsOf: projectRoot.appending(component: "docs/config-examples/i3-like-config-example.toml"), encoding: .utf8)
         let result = parseConfig(toml)
-        #expect(result.errors == [])
-        #expect(result.config.execConfig == defaultConfig.execConfig)
-        #expect(result.config.enableNormalizationFlattenContainers == false)
-        #expect(result.config.enableNormalizationOppositeOrientationForNestedContainers == false)
+        expectEqual(result.errors, [])
+        expectEqual(result.config.execConfig, defaultConfig.execConfig)
+        expectEqual(result.config.enableNormalizationFlattenContainers, false)
+        expectEqual(result.config.enableNormalizationOppositeOrientationForNestedContainers, false)
     }
 
     @Test
     func testEmptyConfig() {
         let result = parseConfig("")
-        #expect(result.errors == [])
+        expectEqual(result.errors, [])
         #expect(!result.isFatal)
-        #expect(result.config.persistentWorkspaces == [])
+        expectEqual(result.config.persistentWorkspaces, [])
     }
 
     @Test
     func testParseDefaultConfig() throws {
         let toml = try String(contentsOf: projectRoot.appending(component: "docs/config-examples/default-config.toml"), encoding: .utf8)
         let result = parseConfig(toml)
-        #expect(result.errors == [])
+        expectEqual(result.errors, [])
     }
 
     @Test
     func testExecOnWorkspaceChangeDifferentTypesError() {
         let errors = parseConfig("exec-on-workspace-change = ['', 1]").strErrors
-        #expect(errors == ["[ERROR] exec-on-workspace-change[1]: Expected type is \'String\'. But actual type is \'Int\'"])
+        expectEqual(errors, ["[ERROR] exec-on-workspace-change[1]: Expected type is \'String\'. But actual type is \'Int\'"])
     }
 
     @Test
@@ -40,14 +40,14 @@ struct ConfigTest {
         let errors = parseConfig(
             "persistent-workspaces = ['a', 'a']",
         ).strErrors
-        #expect(errors == ["[ERROR] persistent-workspaces: Contains duplicated workspace names"])
+        expectEqual(errors, ["[ERROR] persistent-workspaces: Contains duplicated workspace names"])
     }
 
     @Test
     func testPersistentWorkspaces() {
         let result = parseConfig("persistent-workspaces = ['b', 'a']")
-        #expect(result.errors == [])
-        #expect(result.config.persistentWorkspaces == ["b", "a"])
+        expectEqual(result.errors, [])
+        expectEqual(result.config.persistentWorkspaces, ["b", "a"])
     }
 
     /// The removed legacy keys are unknown keys now
@@ -62,7 +62,7 @@ struct ConfigTest {
             """,
         )
         #expect(!result.isFatal)
-        #expect(result.strErrors == [
+        expectEqual(result.strErrors, [
             "[ERROR] after-login-command: Unknown top-level key",
             "[ERROR] config-version: Unknown top-level key",
             "[ERROR] indent-for-nested-containers-with-the-same-orientation: Unknown top-level key",
@@ -78,15 +78,15 @@ struct ConfigTest {
                 alt-a = [1, 'focus right']
             """,
         ).strErrors
-        #expect(errors == ["[ERROR] mode.main.binding.alt-a[0]: Expected type is \'String\'. But actual type is \'Int\'"])
+        expectEqual(errors, ["[ERROR] mode.main.binding.alt-a[0]: Expected type is \'String\'. But actual type is \'Int\'"])
     }
 
     @Test
     func testDropBindings() {
         let result = parseConfig("mode.main = {}")
         #expect(!result.isFatal)
-        #expect(result.errors == [])
-        #expect(result.config.modes[mainModeId]?.bindings.isEmpty == true)
+        expectEqual(result.errors, [])
+        expectEqual(result.config.modes[mainModeId]?.bindings.isEmpty, true)
     }
 
     @Test
@@ -97,9 +97,9 @@ struct ConfigTest {
                 alt-h = 'focus left'
             """,
         )
-        #expect(result.errors == [])
+        expectEqual(result.errors, [])
         let binding = HotkeyBinding(.option, .h, .cmd(FocusCommand(target: .direction(.left))))
-        #expect(result.config.modes[mainModeId] == Mode(bindings: [binding.descriptionWithKeyCode: binding]))
+        expectEqual(result.config.modes[mainModeId], Mode(bindings: [binding.descriptionWithKeyCode: binding]))
     }
 
     @Test
@@ -110,8 +110,8 @@ struct ConfigTest {
                 alt-h = 'focus left'
             """,
         )
-        #expect(result.strErrors == ["[ERROR] mode: Please specify \'main\' mode"])
-        #expect(result.config.modes[mainModeId] == nil)
+        expectEqual(result.strErrors, ["[ERROR] mode: Please specify \'main\' mode"])
+        expectEqual(result.config.modes[mainModeId], nil)
     }
 
     @Test
@@ -124,14 +124,15 @@ struct ConfigTest {
                 alt-k = 'focus up'
             """,
         )
-        #expect(
-            result.strErrors == [
+        expectEqual(
+            result.strErrors,
+            [
                 "[ERROR] mode.main.binding.aalt-j: Can\'t parse modifiers in \'aalt-j\' binding",
                 "[ERROR] mode.main.binding.alt-hh: Can\'t parse the key in \'alt-hh\' binding",
             ],
         )
         let binding = HotkeyBinding(.option, .k, .cmd(FocusCommand(target: .direction(.up))))
-        #expect(result.config.modes[mainModeId] == Mode(bindings: [binding.descriptionWithKeyCode: binding]))
+        expectEqual(result.config.modes[mainModeId], Mode(bindings: [binding.descriptionWithKeyCode: binding]))
     }
 
     @Test
@@ -145,8 +146,8 @@ struct ConfigTest {
                 alt-4 = ['workspace 4', 'focus left']
             """,
         )
-        #expect(result.errors == [])
-        #expect(result.config.persistentWorkspaces == [])
+        expectEqual(result.errors, [])
+        expectEqual(result.config.persistentWorkspaces, [])
     }
 
     @Test
@@ -157,8 +158,8 @@ struct ConfigTest {
             enable-normalization-flatten-containers = false
             """,
         )
-        #expect(result.strErrors == ["[ERROR] unknownKey: Unknown top-level key"])
-        #expect(result.config.enableNormalizationFlattenContainers == false)
+        expectEqual(result.strErrors, ["[ERROR] unknownKey: Unknown top-level key"])
+        expectEqual(result.config.enableNormalizationFlattenContainers, false)
     }
 
     @Test
@@ -170,7 +171,7 @@ struct ConfigTest {
             gaps.outer.left = [{ monitor.'test monitor' = true }, 1]
             """,
         )
-        #expect(result.strErrors == [
+        expectEqual(result.strErrors, [
             #"[ERROR] "a.b": Unknown top-level key"#,
             #"[ERROR] gaps.outer.left[0].monitor."test monitor": Expected type is 'Int'. But actual type is 'Bool'"#,
             #"[ERROR] "x\"y": Unknown top-level key"#,
@@ -186,28 +187,28 @@ struct ConfigTest {
                 unknownKey = true
             """,
         )
-        #expect(result.strErrors == ["[ERROR] gaps.unknownKey: Unknown key"])
-        #expect(result.config.enableNormalizationFlattenContainers == false)
+        expectEqual(result.strErrors, ["[ERROR] gaps.unknownKey: Unknown key"])
+        expectEqual(result.config.enableNormalizationFlattenContainers, false)
     }
 
     @Test
     func testTypeMismatch() {
         let errors = parseConfig("enable-normalization-flatten-containers = 'true'").strErrors
-        #expect(errors == ["[ERROR] enable-normalization-flatten-containers: Expected type is \'Bool\'. But actual type is \'String\'"])
+        expectEqual(errors, ["[ERROR] enable-normalization-flatten-containers: Expected type is \'Bool\'. But actual type is \'String\'"])
     }
 
     @Test
     func testConfigParseError() {
         #expect(parseConfig("true").isFatal)
-        #expect(parseConfig("true").strErrors == ["[ERROR] (Line 1) Syntax error: missing =."])
+        expectEqual(parseConfig("true").strErrors, ["[ERROR] (Line 1) Syntax error: missing =."])
 
-        #expect(parseConfig("\n1").strErrors == ["[ERROR] (Line 2) Syntax error: missing =."])
+        expectEqual(parseConfig("\n1").strErrors, ["[ERROR] (Line 2) Syntax error: missing =."])
 
-        #expect(parseConfig("foo: 1").strErrors == ["[ERROR] (Line 1) Syntax error: missing =."])
+        expectEqual(parseConfig("foo: 1").strErrors, ["[ERROR] (Line 1) Syntax error: missing =."])
 
-        #expect(parseConfig("foo = 1.0").strErrors == ["[ERROR] foo: Unsupported TOML type: Double"])
+        expectEqual(parseConfig("foo = 1.0").strErrors, ["[ERROR] foo: Unsupported TOML type: Double"])
 
-        #expect(parseConfig("foo.bar = 1979-05-27").strErrors == ["[ERROR] foo.bar: Unsupported TOML type: LocalDate", "[ERROR] foo: Unknown top-level key"])
+        expectEqual(parseConfig("foo.bar = 1979-05-27").strErrors, ["[ERROR] foo.bar: Unsupported TOML type: LocalDate", "[ERROR] foo: Unknown top-level key"])
     }
 
     @Test
@@ -219,7 +220,7 @@ struct ConfigTest {
     @Test
     func testParseTiles() throws {
         let command = try #require(parseCommand("layout tiles h_tiles v_tiles list h_list v_list").cmdOrNil?.flatten().singleOrNil() as? LayoutCommand)
-        #expect(Array(command.toggleBetween) == [.tiles, .h_tiles, .v_tiles, .tiles, .h_tiles, .v_tiles])
+        expectEqual(Array(command.toggleBetween), [.tiles, .h_tiles, .v_tiles, .tiles, .h_tiles, .v_tiles])
         testParseCommandHelp("layout tiles -h")
     }
 
@@ -241,7 +242,7 @@ struct ConfigTest {
 
             My recommendation: keep the normalizations enabled, and prefer 'join-with' over 'split'.
             """
-        #expect(errors == [expected])
+        expectEqual(errors, [expected])
     }
 
     @Test
@@ -261,8 +262,9 @@ struct ConfigTest {
                 workspace_name_x = '2'                          # Sequence number of the monitor (from left to right, 1-based indexing)
             """,
         )
-        #expect(
-            result.config.workspaceToMonitorForceAssignment == [
+        expectEqual(
+            result.config.workspaceToMonitorForceAssignment,
+            [
                 "workspace_name_1": [.sequenceNumber(1)],
                 "workspace_name_2": [.main],
                 "workspace_name_3": [.secondary],
@@ -273,11 +275,11 @@ struct ConfigTest {
                 "7": [.pattern("foo")],
             ],
         )
-        #expect(result.strErrors == [
+        expectEqual(result.strErrors, [
             "[ERROR] workspace-to-monitor-force-assignment.w7[0]: Empty string is an illegal monitor description",
             "[ERROR] workspace-to-monitor-force-assignment.w8: Monitor sequence numbers uses 1-based indexing. Values less than 1 are illegal",
         ])
-        #expect(defaultConfig.workspaceToMonitorForceAssignment == [:])
+        expectEqual(defaultConfig.workspaceToMonitorForceAssignment, [:])
     }
 
     @Test
@@ -312,7 +314,7 @@ struct ConfigTest {
             ]
             """,
         )
-        #expect(result.config.onWindowDetected == [
+        expectEqual(result.config.onWindowDetected, [
             WindowDetectedCallback( // 0
                 matcher: .command(.cmd(TrueCommand())),
                 checkFurtherCallbacks: true,
@@ -354,7 +356,7 @@ struct ConfigTest {
             ),
         ])
 
-        #expect(result.strErrors == [
+        expectEqual(result.strErrors, [
             "[ERROR] on-window-detected[2]: Omitting \'if\' is error prone. You can use `if = \'true\'` to preserve the previous behavior.\nBut heads up! You may have missed \'check-further-callbacks = true\'",
             "[ERROR] on-window-detected[2]: \'run\' is mandatory key",
             "[ERROR] on-window-detected[7]: Omitting \'if\' is error prone. You can use `if = \'true\'` to preserve the previous behavior.\nBut heads up! You may have missed \'check-further-callbacks = true\'",
@@ -370,7 +372,7 @@ struct ConfigTest {
             ]
             """,
         )
-        #expect(result.config.onWindowDetected == [
+        expectEqual(result.config.onWindowDetected, [
             WindowDetectedCallback(
                 matcher: .command(.empty),
                 checkFurtherCallbacks: true,
@@ -378,7 +380,7 @@ struct ConfigTest {
             ),
         ])
 
-        #expect(result.errors == [])
+        expectEqual(result.errors, [])
     }
 
     @Test
@@ -397,7 +399,7 @@ struct ConfigTest {
             ]
             """,
         ).errors
-        #expect(errors == [])
+        expectEqual(errors, [])
     }
 
     @Test
@@ -414,7 +416,7 @@ struct ConfigTest {
             run = 'layout floating'
             """,
         ).strErrors
-        #expect(errors == ["[ERROR] (Line 1) Syntax error: invalid or missing key."])
+        expectEqual(errors, ["[ERROR] (Line 1) Syntax error: invalid or missing key."])
     }
 
     @Test
@@ -427,8 +429,8 @@ struct ConfigTest {
             """,
         )
         let expected = WindowDetectedCallbackMatcher.legacy(LegacyWindowDetectedCallbackMatcher(appNameRegexSubstring: try CaseInsensitiveRegex("^system settings$")))
-        #expect(try #require(result.config.onWindowDetected.singleOrNil()).matcher == expected)
-        #expect(result.errors == [])
+        try expectEqual(#require(result.config.onWindowDetected.singleOrNil()).matcher, expected)
+        expectEqual(result.errors, [])
     }
 
     @Test
@@ -450,9 +452,10 @@ struct ConfigTest {
                 outer.right = [{ monitor.2 = 7 }, 8]
             """,
         )
-        #expect(result1.errors == [])
-        #expect(
-            result1.config.gaps == Gaps(
+        expectEqual(result1.errors, [])
+        expectEqual(
+            result1.config.gaps,
+            Gaps(
                 inner: .init(
                     vertical: .perMonitor(
                         [PerMonitorValue(description: .main, value: 1), PerMonitorValue(description: .secondary, value: 2)],
@@ -482,7 +485,7 @@ struct ConfigTest {
                 inner.vertical = [{ foo.main = 1 }, { monitor = { foo = 2, bar = 3 } }, 1]
             """,
         )
-        #expect(result2.strErrors == [
+        expectEqual(result2.strErrors, [
             "[ERROR] gaps.inner.horizontal: The last item in the array must be of type Int",
             "[ERROR] gaps.inner.vertical[0]: The table is expected to have a single key \'monitor\'",
             "[ERROR] gaps.inner.vertical[1].monitor: The table is expected to have a single key",
@@ -498,40 +501,40 @@ struct ConfigTest {
             on-focused-monitor-changed = 'focus down'
             """,
         )
-        #expect(result.errors == [])
-        #expect(result.config.onFocusChanged.flatten().count == 1)
+        expectEqual(result.errors, [])
+        expectEqual(result.config.onFocusChanged.flatten().count, 1)
         #expect(result.config.onFocusChanged.flatten()[0] is FocusCommand)
-        #expect(result.config.onModeChanged.flatten().count == 2)
-        #expect(result.config.onFocusedMonitorChanged.flatten().count == 1)
+        expectEqual(result.config.onModeChanged.flatten().count, 2)
+        expectEqual(result.config.onFocusedMonitorChanged.flatten().count, 1)
     }
 
     @Test
     func testOnFocusChangedTypeError() {
         let result = parseConfig("on-focus-changed = 1")
-        #expect(result.strErrors == ["[ERROR] on-focus-changed: Expected types are 'String' or 'Array'. But actual type is 'Int'"])
+        expectEqual(result.strErrors, ["[ERROR] on-focus-changed: Expected types are 'String' or 'Array'. But actual type is 'Int'"])
     }
 
     @Test
     func testParseDefaultRootContainerLayout() {
         let result = parseConfig("default-root-container-layout = 'accordion'")
-        #expect(result.errors == [])
-        #expect(result.config.defaultRootContainerLayout == .accordion)
+        expectEqual(result.errors, [])
+        expectEqual(result.config.defaultRootContainerLayout, .accordion)
 
         // 'list' was the old name of 'tiles'
-        #expect(parseConfig("default-root-container-layout = 'list'").strErrors == ["[ERROR] default-root-container-layout: Can't parse layout 'list'"])
+        expectEqual(parseConfig("default-root-container-layout = 'list'").strErrors, ["[ERROR] default-root-container-layout: Can't parse layout 'list'"])
 
         let bad = parseConfig("default-root-container-layout = 'bogus'")
-        #expect(bad.strErrors == ["[ERROR] default-root-container-layout: Can\'t parse layout \'bogus\'"])
+        expectEqual(bad.strErrors, ["[ERROR] default-root-container-layout: Can\'t parse layout \'bogus\'"])
     }
 
     @Test
     func testParseDefaultRootContainerOrientation() {
         let result = parseConfig("default-root-container-orientation = 'vertical'")
-        #expect(result.errors == [])
-        #expect(result.config.defaultRootContainerOrientation == .vertical)
+        expectEqual(result.errors, [])
+        expectEqual(result.config.defaultRootContainerOrientation, .vertical)
 
         let bad = parseConfig("default-root-container-orientation = 'diagonal'")
-        #expect(bad.strErrors == ["[ERROR] default-root-container-orientation: Can\'t parse default container orientation \'diagonal\'"])
+        expectEqual(bad.strErrors, ["[ERROR] default-root-container-orientation: Can\'t parse default container orientation \'diagonal\'"])
     }
 
     @Test
@@ -539,7 +542,7 @@ struct ConfigTest {
         // The TOML root is always a table, so a TOML syntax error is the only way to get no root table
         let result = parseConfig("a = ")
         #expect(result.isFatal)
-        #expect(result.strErrors == ["[ERROR] (Line 1) Syntax error: syntax error."])
+        expectEqual(result.strErrors, ["[ERROR] (Line 1) Syntax error: syntax error."])
     }
 
     @Test
@@ -554,13 +557,13 @@ struct ConfigTest {
                 alt-unicorn = 'workspace wonderland'
             """,
         )
-        #expect(result.errors == [])
-        #expect(result.config.keyMapping == KeyMapping(preset: .qwerty, rawKeyNotationToKeyCode: [
+        expectEqual(result.errors, [])
+        expectEqual(result.config.keyMapping, KeyMapping(preset: .qwerty, rawKeyNotationToKeyCode: [
             "q": .q,
             "unicorn": .u,
         ]))
         let binding = HotkeyBinding(.option, .u, .cmd(WorkspaceCommand(target: .direct(try .parse("wonderland")))))
-        #expect(result.config.modes[mainModeId]?.bindings == [binding.descriptionWithKeyCode: binding])
+        expectEqual(result.config.modes[mainModeId]?.bindings, [binding.descriptionWithKeyCode: binding])
 
         let errors1 = parseConfig(
             """
@@ -569,19 +572,19 @@ struct ConfigTest {
                 ' f' = 'f'
             """,
         ).strErrors
-        #expect(errors1 == [
+        expectEqual(errors1, [
             "[ERROR] key-mapping.key-notation-to-key-code.\" f\": ' f' is invalid key notation",
             "[ERROR] key-mapping.key-notation-to-key-code.q: 'qw' is invalid key code",
         ])
 
         let dvorakResult = parseConfig("key-mapping.preset = 'dvorak'")
-        #expect(dvorakResult.errors == [])
-        #expect(dvorakResult.config.keyMapping == KeyMapping(preset: .dvorak, rawKeyNotationToKeyCode: [:]))
-        #expect(dvorakResult.config.keyMapping.resolve()["quote"] == .q)
+        expectEqual(dvorakResult.errors, [])
+        expectEqual(dvorakResult.config.keyMapping, KeyMapping(preset: .dvorak, rawKeyNotationToKeyCode: [:]))
+        expectEqual(dvorakResult.config.keyMapping.resolve()["quote"], .q)
         let colemakResult = parseConfig("key-mapping.preset = 'colemak'")
-        #expect(colemakResult.errors == [])
-        #expect(colemakResult.config.keyMapping == KeyMapping(preset: .colemak, rawKeyNotationToKeyCode: [:]))
-        #expect(colemakResult.config.keyMapping.resolve()["f"] == .e)
+        expectEqual(colemakResult.errors, [])
+        expectEqual(colemakResult.config.keyMapping, KeyMapping(preset: .colemak, rawKeyNotationToKeyCode: [:]))
+        expectEqual(colemakResult.config.keyMapping.resolve()["f"], .e)
     }
 }
 

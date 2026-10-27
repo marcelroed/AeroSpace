@@ -5,7 +5,7 @@ import Common
 // The tree DSL builds a workspace from a string, and renders a workspace back to the same string:
 //
 //     setUpTree("h_tiles(1 *2 v_accordion(3 4)) floating(5)")
-//     #expect(describeTree() == "h_tiles(1 *2 v_accordion(3 4)) floating(5)")
+//     expectEqual(describeTree(), "h_tiles(1 *2 v_accordion(3 4)) floating(5)")
 //
 // - A workspace is its root tiling container, followed by the containers of its other windows: `floating(...)`,
 //   `macos_fullscreen(...)` (macOS native fullscreen) and `macos_hidden(...)` (windows of hidden apps).

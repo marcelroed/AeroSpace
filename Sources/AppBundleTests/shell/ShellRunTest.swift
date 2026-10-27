@@ -9,8 +9,8 @@ struct ShellRunTest {
         #expect(Workspace.get(byName: "a").focusWorkspace())
 
         let output = await runCmd("true || workspace b")
-        #expect(output == .ok)
-        #expect(focus.workspace.name == "a")
+        expectEqual(output, .ok)
+        expectEqual(focus.workspace.name, "a")
     }
 
     @Test
@@ -18,14 +18,14 @@ struct ShellRunTest {
         #expect(Workspace.get(byName: "a").focusWorkspace())
 
         let output = await runCmd("false || workspace b")
-        #expect(output == .ok)
-        #expect(focus.workspace.name == "b")
+        expectEqual(output, .ok)
+        expectEqual(focus.workspace.name, "b")
     }
 
     @Test
     func testOrAllFail_returnsLastExitCode() async {
         let output = await runCmd("false || false || false")
-        #expect(output == CmdOutput(exitCode: 1))
+        expectEqual(output, CmdOutput(exitCode: 1))
     }
 
     @Test
@@ -33,8 +33,8 @@ struct ShellRunTest {
         #expect(Workspace.get(byName: "a").focusWorkspace())
 
         let output = await runCmd("false || workspace b || workspace c")
-        #expect(output == .ok)
-        #expect(focus.workspace.name == "b")
+        expectEqual(output, .ok)
+        expectEqual(focus.workspace.name, "b")
     }
 
     @Test
@@ -42,8 +42,8 @@ struct ShellRunTest {
         #expect(Workspace.get(byName: "a").focusWorkspace())
 
         let output = await runCmd("false && workspace b")
-        #expect(output == CmdOutput(exitCode: 1))
-        #expect(focus.workspace.name == "a")
+        expectEqual(output, CmdOutput(exitCode: 1))
+        expectEqual(focus.workspace.name, "a")
     }
 
     @Test
@@ -51,8 +51,8 @@ struct ShellRunTest {
         #expect(Workspace.get(byName: "a").focusWorkspace())
 
         let output = await runCmd("true && workspace b")
-        #expect(output == .ok)
-        #expect(focus.workspace.name == "b")
+        expectEqual(output, .ok)
+        expectEqual(focus.workspace.name, "b")
     }
 
     @Test
@@ -60,14 +60,14 @@ struct ShellRunTest {
         #expect(Workspace.get(byName: "a").focusWorkspace())
 
         let output = await runCmd("workspace b && false && workspace c")
-        #expect(output == CmdOutput(exitCode: 1))
-        #expect(focus.workspace.name == "b")
+        expectEqual(output, CmdOutput(exitCode: 1))
+        expectEqual(focus.workspace.name, "b")
     }
 
     @Test
     func testAndReturnsLastSuccessExitCode() async {
         let output = await runCmd("true && true && true")
-        #expect(output == .ok)
+        expectEqual(output, .ok)
     }
 
     @Test
@@ -75,23 +75,23 @@ struct ShellRunTest {
         #expect(Workspace.get(byName: "a").focusWorkspace())
 
         let output = await runCmd("false; workspace b")
-        #expect(output == .ok)
-        #expect(focus.workspace.name == "b")
+        expectEqual(output, .ok)
+        expectEqual(focus.workspace.name, "b")
     }
 
     @Test
     func testSeqReturnsLastCommandExitCode() async {
         var output = await runCmd("true; false")
-        #expect(output == CmdOutput(exitCode: 1))
+        expectEqual(output, CmdOutput(exitCode: 1))
 
         output = await runCmd("false; true")
-        #expect(output == .ok)
+        expectEqual(output, .ok)
     }
 
     @Test
     func testSeqConcatenatesStdout() async {
         let output = await runCmd("echo -- foo; echo -- bar; echo -- baz")
-        #expect(output == CmdOutput(stdout: ["foo", "bar", "baz"]))
+        expectEqual(output, CmdOutput(stdout: ["foo", "bar", "baz"]))
     }
 
     @Test
@@ -99,41 +99,41 @@ struct ShellRunTest {
         #expect(Workspace.get(byName: "a").focusWorkspace())
 
         let output = await runCmd("echo -- a b c | workspace --stdin next")
-        #expect(output == .ok)
-        #expect(focus.workspace.name == "b")
+        expectEqual(output, .ok)
+        expectEqual(focus.workspace.name, "b")
     }
 
     @Test
     func testPipeReturnsOnlyLastStdout() async {
         let output = await runCmd("echo -- foo | echo -- bar")
-        #expect(output == CmdOutput(stdout: ["bar"]))
+        expectEqual(output, CmdOutput(stdout: ["bar"]))
     }
 
     @Test
     func testPipeForwardsIntermediateStderr() async {
         let output = await runCmd("echo --stderr -- err1 | echo -- out2")
-        #expect(output == CmdOutput(stdout: ["out2"], stderr: ["err1"]))
+        expectEqual(output, CmdOutput(stdout: ["out2"], stderr: ["err1"]))
     }
 
     @Test
     func testPipePipefailReturnsRightmostNonZero() async {
         var output = await runCmd("false | true")
-        #expect(output == CmdOutput(exitCode: 1))
+        expectEqual(output, CmdOutput(exitCode: 1))
 
         output = await runCmd("true | false")
-        #expect(output == CmdOutput(exitCode: 1))
+        expectEqual(output, CmdOutput(exitCode: 1))
 
         output = await runCmd("true | true")
-        #expect(output == .ok)
+        expectEqual(output, .ok)
 
         output = await runCmd("false | true | true")
-        #expect(output == CmdOutput(exitCode: 1))
+        expectEqual(output, CmdOutput(exitCode: 1))
     }
 
     @Test
     func testPipeOfThreeForwardsEveryStderr() async {
         let output = await runCmd("echo --stderr -- err1 | echo --stderr -- err2 | echo -- out3")
-        #expect(output == CmdOutput(stdout: ["out3"], stderr: ["err1", "err2"]))
+        expectEqual(output, CmdOutput(stdout: ["out3"], stderr: ["err1", "err2"]))
     }
 
     @Test
@@ -141,7 +141,7 @@ struct ShellRunTest {
         #expect(Workspace.get(byName: "a").focusWorkspace())
 
         let output = await runCmd("workspace --stdin next | echo -- done", stdin: "a\nb\nc\n")
-        #expect(output == CmdOutput(stdout: ["done"]))
-        #expect(focus.workspace.name == "b")
+        expectEqual(output, CmdOutput(stdout: ["done"]))
+        expectEqual(focus.workspace.name, "b")
     }
 }

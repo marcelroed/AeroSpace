@@ -10,7 +10,7 @@ struct EvalCommandTest {
         testParseSingleCommandSucc("eval -- '--anything'", EvalCommand(shellExpr: "--anything"))
         for command in ["eval", "eval --"] {
             let output = await runCmd(command)
-            #expect(output == .fail("Argument '<aerospace-shell-expr>' is mandatory"))
+            expectEqual(output, .fail("Argument '<aerospace-shell-expr>' is mandatory"))
         }
     }
 
@@ -30,7 +30,7 @@ struct EvalCommandTest {
     func run(command: String, expected: CmdOutput, focusedWorkspace: String) async {
         #expect(Workspace.get(byName: "a").focusWorkspace())
         let output = await runCmd(command)
-        #expect(output == expected)
-        #expect(focus.workspace.name == focusedWorkspace)
+        expectEqual(output, expected)
+        expectEqual(focus.workspace.name, focusedWorkspace)
     }
 }

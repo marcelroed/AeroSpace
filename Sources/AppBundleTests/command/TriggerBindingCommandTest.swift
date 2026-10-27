@@ -24,7 +24,7 @@ struct TriggerBindingCommandTest {
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
-        #expect(output == .fail(error))
+        expectEqual(output, .fail(error))
     }
 
     @Test
@@ -34,6 +34,6 @@ struct TriggerBindingCommandTest {
         world.config.modes = Dictionary(uniqueKeysWithValues: modeNames.map { ($0, Mode(bindings: [:])) })
 
         let output = await runCmd("trigger-binding alt-h --mode unknown")
-        #expect(output == .fail("Mode 'unknown' doesn't exist. Available modes: a,b,c,main,move,resize,service,x,y,z"))
+        expectEqual(output, .fail("Mode 'unknown' doesn't exist. Available modes: a,b,c,main,move,resize,service,x,y,z"))
     }
 }

@@ -15,11 +15,11 @@ struct TrayMenuModelTest {
         updateTrayText()
 
         let model = TrayMenuModel.shared
-        #expect(model.trayText == "a")
-        #expect(model.trayItems == [
+        expectEqual(model.trayText, "a")
+        expectEqual(model.trayItems, [
             TrayItem(type: .workspace, name: "a", isActive: true, hasFullscreenWindows: false),
         ])
-        #expect(model.workspaces == [
+        expectEqual(model.workspaces, [
             WorkspaceViewModel(name: "a", suffix: " - bobko.AeroSpace.test-app", isFocused: true, isEffectivelyEmpty: false, isVisible: true, hasFullscreenWindows: false),
             WorkspaceViewModel(name: "b", suffix: " - bobko.AeroSpace.test-app", isFocused: false, isEffectivelyEmpty: false, isVisible: false, hasFullscreenWindows: false),
             WorkspaceViewModel(name: "setUpWorkspacesForTests", suffix: "", isFocused: false, isEffectivelyEmpty: true, isVisible: false, hasFullscreenWindows: false),
@@ -38,12 +38,12 @@ struct TrayMenuModelTest {
         updateTrayText()
 
         let model = TrayMenuModel.shared
-        #expect(model.trayText == "(S) [a]")
-        #expect(model.trayItems == [
+        expectEqual(model.trayText, "(S) [a]")
+        expectEqual(model.trayItems, [
             TrayItem(type: .mode, name: "S", isActive: true, hasFullscreenWindows: false),
             TrayItem(type: .workspace, name: "a", isActive: true, hasFullscreenWindows: true),
         ])
-        #expect(model.workspaces == [
+        expectEqual(model.workspaces, [
             WorkspaceViewModel(name: "a", suffix: " - bobko.AeroSpace.test-app", isFocused: true, isEffectivelyEmpty: false, isVisible: true, hasFullscreenWindows: true),
             WorkspaceViewModel(name: "b", suffix: " - bobko.AeroSpace.test-app", isFocused: false, isEffectivelyEmpty: false, isVisible: false, hasFullscreenWindows: true),
             WorkspaceViewModel(name: "setUpWorkspacesForTests", suffix: "", isFocused: false, isEffectivelyEmpty: true, isVisible: false, hasFullscreenWindows: false),
@@ -55,11 +55,11 @@ struct TrayMenuModelTest {
         updateTrayText()
 
         let model = TrayMenuModel.shared
-        #expect(model.trayText == "setUpWorkspacesForTests")
-        #expect(model.trayItems == [
+        expectEqual(model.trayText, "setUpWorkspacesForTests")
+        expectEqual(model.trayItems, [
             TrayItem(type: .workspace, name: "setUpWorkspacesForTests", isActive: true, hasFullscreenWindows: false),
         ])
-        #expect(model.workspaces == [
+        expectEqual(model.workspaces, [
             WorkspaceViewModel(name: "setUpWorkspacesForTests", suffix: " - Test Monitor", isFocused: true, isEffectivelyEmpty: true, isVisible: true, hasFullscreenWindows: false),
         ])
     }
@@ -67,10 +67,10 @@ struct TrayMenuModelTest {
     @Test
     func testUpdateTrayText_notifiesOnlyChangedValues() {
         updateTrayText()
-        #expect(notifiedProperties { updateTrayText() } == [])
+        expectEqual(notifiedProperties { updateTrayText() }, [])
 
         setUpTree("h_tiles(*1)", workspace: "a")
-        #expect(notifiedProperties { updateTrayText() } == ["trayText", "workspaces", "trayItems"])
+        expectEqual(notifiedProperties { updateTrayText() }, ["trayText", "workspaces", "trayItems"])
     }
 
     @Test
@@ -83,15 +83,15 @@ struct TrayMenuModelTest {
         }
         app.appearance = NSAppearance(named: .aqua)
         updateTrayText()
-        #expect(TrayMenuModel.shared.appearanceTheme == .light)
+        expectEqual(TrayMenuModel.shared.appearanceTheme, .light)
 
         // The tray text stays the same, but the menu must still be rebuilt with the new appearance
         let notified = notifiedProperties {
             app.appearance = NSAppearance(named: .darkAqua)
             updateTrayText()
         }
-        #expect(TrayMenuModel.shared.appearanceTheme == .dark)
-        #expect(notified == ["appearanceTheme"])
+        expectEqual(TrayMenuModel.shared.appearanceTheme, .dark)
+        expectEqual(notified, ["appearanceTheme"])
     }
 
     /// The views re-render only on the changes they observe
@@ -101,7 +101,7 @@ struct TrayMenuModelTest {
         func expectNotifies<T>(_ keyPath: ReferenceWritableKeyPath<TrayMenuModel, T>, _ newValue: T, _ name: String) {
             let prev = model[keyPath: keyPath]
             defer { model[keyPath: keyPath] = prev }
-            #expect(notifiedProperties { model[keyPath: keyPath] = newValue } == [name], "\(name)")
+            expectEqual(notifiedProperties { model[keyPath: keyPath] = newValue }, [name], "\(name)")
         }
         expectNotifies(\.trayText, "changed", "trayText")
         expectNotifies(\.trayItems, [TrayItem(type: .mode, name: "S", isActive: true, hasFullscreenWindows: false)], "trayItems")
@@ -130,7 +130,7 @@ struct TrayMenuModelTest {
             notified.insert("body")
         }
         messageModel.message = Message(body: "changed")
-        #expect(notified.names == ["body"])
+        expectEqual(notified.names, ["body"])
     }
 
     /// The users' choice survives the update: the key is the same as before
@@ -139,11 +139,11 @@ struct TrayMenuModelTest {
         withPreservedMenuBarStyle {
             let model = TrayMenuModel.shared
             model.menuBarStyle = .i3Ordered
-            #expect(UserDefaults.standard.string(forKey: "displayStyle") == "i3Ordered")
+            expectEqual(UserDefaults.standard.string(forKey: "displayStyle"), "i3Ordered")
             UserDefaults.standard.set("squares", forKey: "displayStyle")
-            #expect(model.menuBarStyle == .squares)
+            expectEqual(model.menuBarStyle, .squares)
             UserDefaults.standard.removeObject(forKey: "displayStyle")
-            #expect(model.menuBarStyle == .monospacedText)
+            expectEqual(model.menuBarStyle, .monospacedText)
         }
     }
 
@@ -152,23 +152,23 @@ struct TrayMenuModelTest {
         func imageName(_ name: String, _ type: TrayItemType = .workspace, isActive: Bool = false) -> String? {
             TrayItem(type: type, name: name, isActive: isActive, hasFullscreenWindows: false).systemImageName
         }
-        #expect(imageName("0") == "0.square")
-        #expect(imageName("50", isActive: true) == "50.square.fill")
-        #expect(imageName("05") == "05.square")
-        #expect(imageName("00", .mode) == "00.circle")
-        #expect(imageName("51") == nil)
-        #expect(imageName("-1") == nil)
+        expectEqual(imageName("0"), "0.square")
+        expectEqual(imageName("50", isActive: true), "50.square.fill")
+        expectEqual(imageName("05"), "05.square")
+        expectEqual(imageName("00", .mode), "00.circle")
+        expectEqual(imageName("51"), nil)
+        expectEqual(imageName("-1"), nil)
         // Int() accepts these, but there are no such symbols
-        #expect(imageName("+5") == nil)
-        #expect(imageName("-0") == nil)
-        #expect(imageName("005") == nil)
-        #expect(imageName("050") == nil)
-        #expect(imageName("A") == "a.square")
-        #expect(imageName("Z", .mode) == "z.circle")
-        #expect(imageName("a") == nil)
-        #expect(imageName("AB") == nil)
-        #expect(imageName("1A") == nil)
-        #expect(imageName("é") == nil)
+        expectEqual(imageName("+5"), nil)
+        expectEqual(imageName("-0"), nil)
+        expectEqual(imageName("005"), nil)
+        expectEqual(imageName("050"), nil)
+        expectEqual(imageName("A"), "a.square")
+        expectEqual(imageName("Z", .mode), "z.circle")
+        expectEqual(imageName("a"), nil)
+        expectEqual(imageName("AB"), nil)
+        expectEqual(imageName("1A"), nil)
+        expectEqual(imageName("é"), nil)
     }
 
     @Test

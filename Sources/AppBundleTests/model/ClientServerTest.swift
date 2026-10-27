@@ -8,21 +8,21 @@ struct ClientServerTest {
     @Test
     func testClientRequestJson_decoding() throws {
         let data = #"{ "protocolVersion": 2, "args": ["foo", "bar"], "stdin": "stdin", "windowId": 1, "workspace": "foo" }"#.data(using: .utf8)!
-        #expect(try decode(data) == ClientRequest(args: ["foo", "bar"], stdin: "stdin", windowId: 1, workspace: "foo"))
+        try expectEqual(decode(data), ClientRequest(args: ["foo", "bar"], stdin: "stdin", windowId: 1, workspace: "foo"))
     }
 
     @Test
     func testClientRequestJson_decodingIgnoresUnknownFields() throws {
         let data = #"{ "protocolVersion": 2, "args": ["foo", "bar"], "stdin": "stdin", "yet another future field": 1 }"#.data(using: .utf8)!
-        #expect(try decode(data) == ClientRequest(args: ["foo", "bar"], stdin: "stdin", windowId: nil, workspace: nil))
+        try expectEqual(decode(data), ClientRequest(args: ["foo", "bar"], stdin: "stdin", windowId: nil, workspace: nil))
     }
 
     @Test
     func testClientRequestJson_decodingMissingIsNull() throws {
         let data1 = #"{ "protocolVersion": 2, "args": [], "stdin": "", "windowId": null }"#.data(using: .utf8)!
-        #expect(try decode(data1) == ClientRequest(args: [], stdin: "", windowId: nil, workspace: nil))
+        try expectEqual(decode(data1), ClientRequest(args: [], stdin: "", windowId: nil, workspace: nil))
         let data2 = #"{ "protocolVersion": 2, "args": [], "stdin": "", "workspace": "w" }"#.data(using: .utf8)!
-        #expect(try decode(data2) == ClientRequest(args: [], stdin: "", windowId: nil, workspace: "w"))
+        try expectEqual(decode(data2), ClientRequest(args: [], stdin: "", windowId: nil, workspace: "w"))
     }
 
     @Test(arguments: [
@@ -34,7 +34,7 @@ struct ClientServerTest {
         ("not json", nil),
     ] as [(String, Int?)])
     func protocolVersionOfAnyMessage(json: String, version: Int?) {
-        #expect(decodeProtocolVersion(Data(json.utf8)) == version)
+        expectEqual(decodeProtocolVersion(Data(json.utf8)), version)
     }
 
     @Test(arguments: [
@@ -71,7 +71,7 @@ struct ClientServerTest {
         for (json, expectedKind, expectedDescription) in testData {
             let data = json.data(using: .utf8)!
             let error = #expect(throws: (any Error).self) { try decode(data) }
-            #expect(error?.localizedDescription == expectedDescription)
+            expectEqual(error?.localizedDescription, expectedDescription)
             let kind: String
             do {
                 _ = try decode(data)
@@ -87,7 +87,7 @@ struct ClientServerTest {
             } catch {
                 kind = "\(error)"
             }
-            #expect(kind == expectedKind, "\(json)")
+            expectEqual(kind, expectedKind, "\(json)")
         }
     }
 
@@ -102,7 +102,7 @@ struct ClientServerTest {
         for (req, expectedJson) in testData {
             let data = try! encoder.encode(req)
             let str = String.init(data: data, encoding: .utf8)!
-            #expect(str == expectedJson)
+            expectEqual(str, expectedJson)
         }
     }
 
@@ -132,7 +132,7 @@ struct ClientServerTest {
         for (event, expectedJson) in testData {
             let data = try! encoder.encode(event)
             let str = String(data: data, encoding: .utf8)!
-            #expect(str == expectedJson)
+            expectEqual(str, expectedJson)
         }
     }
 
@@ -158,7 +158,7 @@ struct ClientServerTest {
             let data = json.data(using: .utf8)!
             let event = try! JSONDecoder().decode(ServerEvent.self, from: data)
             // ServerEvent isn't Equatable. Its description lists every stored property, so this compares all fields
-            #expect(String(describing: event) == String(describing: expected))
+            expectEqual(String(describing: event), String(describing: expected))
         }
     }
 }

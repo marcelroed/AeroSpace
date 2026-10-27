@@ -19,7 +19,7 @@ struct EnableCommandTest {
     ])
     func parseError(command: String, error: String) async {
         let output = await runCmd(command)
-        #expect(output == .fail(error))
+        expectEqual(output, .fail(error))
     }
 
     @Test(arguments: [
@@ -31,20 +31,20 @@ struct EnableCommandTest {
     func noop(isEnabled: Bool, command: String, expected: CmdOutput) async {
         TrayMenuModel.shared.isEnabled = isEnabled
         let output = await runCmd(command)
-        #expect(output == expected)
-        #expect(TrayMenuModel.shared.isEnabled == isEnabled)
+        expectEqual(output, expected)
+        expectEqual(TrayMenuModel.shared.isEnabled, isEnabled)
     }
 
     @Test
     func toggle() async {
         var output = await runCmd("enable toggle")
-        #expect(output == .ok)
+        expectEqual(output, .ok)
         #expect(!TrayMenuModel.shared.isEnabled)
-        #expect(world.activeMode == nil)
+        expectEqual(world.activeMode, nil)
 
         output = await runCmd("enable toggle")
-        #expect(output == .ok)
+        expectEqual(output, .ok)
         #expect(TrayMenuModel.shared.isEnabled)
-        #expect(world.activeMode == mainModeId)
+        expectEqual(world.activeMode, mainModeId)
     }
 }

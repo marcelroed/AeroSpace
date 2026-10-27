@@ -19,10 +19,10 @@ struct AxUiElementWindowTypeTest {
     // A malformed dump must fail only its own case. Dying on these values would crash the whole test run
     @Test
     func testMalformedDumpValuesAreRejectedWithoutDying() {
-        #expect(OrderedJson.newOrNilRecursive(["x": 1.5] as [String: Any]) == nil)
-        #expect(OrderedJson.newOrNilRecursive(["x": [1, 2.5]] as [String: Any]) == nil)
-        #expect(OrderedJson.newOrNilRecursive(["x": UInt.max] as [String: Any]) == nil) // JSONSerialization gives UInt above Int64.max
-        #expect(OrderedJson.newOrNilRecursive(["x": [1, "a"]] as [String: Any]) == .dict(["x": .array([.int(1), .string("a")])]))
+        expectEqual(OrderedJson.newOrNilRecursive(["x": 1.5] as [String: Any]), nil)
+        expectEqual(OrderedJson.newOrNilRecursive(["x": [1, 2.5]] as [String: Any]), nil)
+        expectEqual(OrderedJson.newOrNilRecursive(["x": UInt.max] as [String: Any]), nil) // JSONSerialization gives UInt above Int64.max
+        expectEqual(OrderedJson.newOrNilRecursive(["x": [1, "a"]] as [String: Any]), .dict(["x": .array([.int(1), .string("a")])]))
         #expect(axUiElementMockFromTestDump(NSNumber(value: 5)) == nil)
         #expect(axUiElementMockFromTestDump("garbage, not an element" as NSString) == nil)
     }
@@ -32,7 +32,7 @@ struct AxUiElementWindowTypeTest {
     func testActivationPolicyRoundTrip() {
         for policy: NSApplication.ActivationPolicy in [.regular, .accessory, .prohibited] {
             let string = policy.prettyDescription
-            #expect(NSApplication.ActivationPolicy.from(string: string) == policy, "\(string.singleQuoted)")
+            expectEqual(NSApplication.ActivationPolicy.from(string: string), policy, "\(string.singleQuoted)")
         }
     }
 }
@@ -67,12 +67,14 @@ private func checkAxDump(_ file: URL) throws {
         rawJson["Aero.AxUiElementWindowType_isDialogHeuristic"] as? Bool,
         "Aero.AxUiElementWindowType_isDialogHeuristic is missing",
     )
-    #expect(
-        json.getWindowType(axApp: app, appBundleId, activationPolicy, windowLevel) == expectedWindowType,
+    expectEqual(
+        json.getWindowType(axApp: app, appBundleId, activationPolicy, windowLevel),
+        expectedWindowType,
         "\(file.path()):0:0: AxUiElementWindowType doesn't match",
     )
-    #expect(
-        json.isDialogHeuristic(appBundleId, windowLevel) == expectedIsDialogHeuristic,
+    expectEqual(
+        json.isDialogHeuristic(appBundleId, windowLevel),
+        expectedIsDialogHeuristic,
         "\(file.path()):0:0: AxUiElementWindowType_isDialogHeuristic doesn't match",
     )
 }

@@ -8,7 +8,7 @@ struct ReloadConfigCommandTest {
     @Test
     func warningsAsErrorsIsAcceptedWithoutEffect() {
         // The Raycast extension runs `reload-config --dry-run --warnings-as-errors`
-        #expect(parsedCmd("reload-config --dry-run --warnings-as-errors", as: ReloadConfigCommand.self) == ReloadConfigCommand(dryRun: true))
+        expectEqual(parsedCmd("reload-config --dry-run --warnings-as-errors", as: ReloadConfigCommand.self), ReloadConfigCommand(dryRun: true))
     }
 
     @Test
@@ -16,8 +16,8 @@ struct ReloadConfigCommandTest {
         let (url, result, message) = try await dryRunReloadConfig("foo = 1\nbar = 2")
         let errors = "[ERROR] bar: Unknown top-level key\n\n[ERROR] foo: Unknown top-level key"
         #expect(!result.isOk)
-        #expect(result.stdout == errors)
-        #expect(message?.body == "Failed to parse '\(url.path)'. 2 error(s)\n\n\(errors)")
+        expectEqual(result.stdout, errors)
+        expectEqual(message?.body, "Failed to parse '\(url.path)'. 2 error(s)\n\n\(errors)")
     }
 
     @Test
@@ -25,14 +25,14 @@ struct ReloadConfigCommandTest {
         let (_, result, message) = try await dryRunReloadConfig("")
         #expect(result.isOk)
         #expect(result.stdout.isEmpty)
-        #expect(message == nil)
+        expectEqual(message, nil)
     }
 
     @Test
     func testNoGui_keepsTheMessage() async throws {
         let (_, result, message) = try await dryRunReloadConfig("foo = 1", noGui: true)
         #expect(!result.isOk)
-        #expect(message?.body == "untouched")
+        expectEqual(message?.body, "untouched")
     }
 }
 
