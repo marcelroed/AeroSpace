@@ -125,6 +125,15 @@ struct ShellRunTest: AeroSpaceTestSuite {
 
         output = await runCmd("true | true")
         #expect(output == .ok)
+
+        output = await runCmd("false | true | true")
+        #expect(output == CmdOutput(exitCode: 1))
+    }
+
+    @Test
+    func testPipeOfThreeForwardsEveryStderr() async {
+        let output = await runCmd("echo --stderr -- err1 | echo --stderr -- err2 | echo -- out3")
+        #expect(output == CmdOutput(stdout: ["out3"], stderr: ["err1", "err2"]))
     }
 
     @Test

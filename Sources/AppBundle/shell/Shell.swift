@@ -17,27 +17,25 @@ enum ShellOp: Int, Sendable {
 indirect enum Shell<T> {
     case empty
     case cmd(T)
-    case op(ShellOp, [Shell<T>])
+    /// `lhs op rhs`. A chain nests to the left: `a && b && c` is `(a && b) && c`
+    case op(ShellOp, Shell<T>, Shell<T>)
 
-    static func seq(_ elems: [Self]) -> Self { .op(.seq, elems) }
-    static func or(_ elems: [Self]) -> Self { .op(.or, elems) }
-    static func and(_ elems: [Self]) -> Self { .op(.and, elems) }
-    static func pipe(_ elems: [Self]) -> Self { .op(.pipe, elems) }
+    static func seq(_ elems: [Self]) -> Self { compound(.seq, elems) }
+    static func or(_ elems: [Self]) -> Self { compound(.or, elems) }
+    static func and(_ elems: [Self]) -> Self { compound(.and, elems) }
+    static func pipe(_ elems: [Self]) -> Self { compound(.pipe, elems) }
 
-    /// No elements is `.empty`, a single element stands for itself
+    /// `elems` chained with `op`. No elements is `.empty`, a single element stands for itself
     static func compound(_ op: ShellOp, _ elems: [Self]) -> Self {
-        switch elems.count {
-            case 0: .empty
-            case 1: elems[0]
-            default: .op(op, elems)
-        }
+        guard let first = elems.first else { return .empty }
+        return elems.dropFirst().reduce(first) { .op(op, $0, $1) }
     }
 
     func map<R, E: Error>(_ transform: (T) throws(E) -> R) throws(E) -> Shell<R> {
         switch self {
             case .empty: .empty
             case .cmd(let it): .cmd(try transform(it))
-            case .op(let op, let it): .op(op, try it.map { (it) throws(E) in try it.map(transform) })
+            case .op(let op, let lhs, let rhs): .op(op, try lhs.map(transform), try rhs.map(transform))
         }
     }
 
@@ -45,18 +43,19 @@ indirect enum Shell<T> {
         switch self {
             case .empty: []
             case .cmd(let it): [it]
-            case .op(_, let it): it.flatMap { $0.flatten() }
+            case .op(_, let lhs, let rhs): lhs.flatten() + rhs.flatten()
         }
     }
 
+    /// Every operator is associative, so an operand of the same operator needs no parentheses
     func buildDescription(_ stringifier: (T) -> String) -> String {
         switch self {
             case .empty: return ""
             case .cmd(let cmd): return stringifier(cmd)
-            case .op(let op, let children):
-                return children.map { child in
-                    let desc = child.buildDescription(stringifier)
-                    guard case .op(let childOp, _) = child, childOp.rawValue < op.rawValue else { return desc }
+            case .op(let op, let lhs, let rhs):
+                return [lhs, rhs].map { operand in
+                    let desc = operand.buildDescription(stringifier)
+                    guard case .op(let operandOp, _, _) = operand, operandOp.rawValue < op.rawValue else { return desc }
                     return "(\(desc))"
                 }.joined(separator: op.separator)
         }
@@ -71,8 +70,8 @@ extension Shell where T == any Command {
         return switch (self, other) {
             case (.empty, .empty): true
             case (.cmd(let a), .cmd(let b)): a.equals(b)
-            case (.op(let opA, let a), .op(let opB, let b)):
-                opA == opB && a.count == b.count && zip(a, b).allSatisfy { a, b in a.strictEquals(b) }
+            case (.op(let opA, let lhsA, let rhsA), .op(let opB, let lhsB, let rhsB)):
+                opA == opB && lhsA.strictEquals(lhsB) && rhsA.strictEquals(rhsB)
             // Exhaustive without 'default' on purpose: a new case must be handled explicitly
             case (.empty, _), (.cmd, _), (.op, _): false
         }
@@ -93,10 +92,18 @@ extension Shell where T == any Command {
                 if command.shouldResetClosedWindowsCache { resetClosedWindowsCache() }
                 await refreshModel_nonCancellable()
                 return exitCode
-            case .op(.pipe, let commands): return await runShellPipe(commands, env, io)
-            case .op(.and, let commands): return await runSequentially(commands, env, io, initial: EXIT_CODE_ZERO) { $0 != 0 }
-            case .op(.or, let commands): return await runSequentially(commands, env, io, initial: EXIT_CODE_TWO) { $0 == 0 }
-            case .op(.seq, let commands): return await runSequentially(commands, env, io, initial: EXIT_CODE_ZERO) { _ in false }
+            case .op(.seq, let lhs, let rhs):
+                _ = await lhs.run(env, io)
+                return await rhs.run(env, io)
+            case .op(.and, let lhs, let rhs):
+                let exitCode = await lhs.run(env, io)
+                if exitCode != 0 { return exitCode }
+                return await rhs.run(env, io)
+            case .op(.or, let lhs, let rhs):
+                let exitCode = await lhs.run(env, io)
+                if exitCode == 0 { return exitCode }
+                return await rhs.run(env, io)
+            case .op(.pipe, let lhs, let rhs): return await runShellPipe(lhs, rhs, env, io)
         }
     }
 
@@ -107,33 +114,17 @@ extension Shell where T == any Command {
     }
 }
 
-/// Runs `commands` in order and stops after the first exit code for which `stop` is true
-private func runSequentially(_ commands: [Shell<any Command>], _ env: CmdEnv, _ io: CmdIo, initial: Int32, stop: (Int32) -> Bool) async -> Int32 {
-    var exitCode = initial
-    for command in commands {
-        exitCode = await command.run(env, io)
-        if stop(exitCode) { break }
-    }
-    return exitCode
-}
-
-/// runs commands sequentially, buffering the entire stdout between them and joining with \n before re-feeding as stdin.
-/// For long-running or streaming commands this would matter, but AeroSpace's commands are short and synchronous, so this is fine
+/// Buffers the entire stdout of `lhs`, joins it with \n and feeds it to `rhs` as stdin. AeroSpace's commands are short and
+/// synchronous, so the lack of streaming doesn't matter
 ///
-/// The semantics is similar to 'set -o pipefail'
-private func runShellPipe(_ commands: [Shell<any Command>], _ env: CmdEnv, _ originalIo: CmdIo) async -> Int32 {
-    var rightmostNonZeroExitCode = EXIT_CODE_ZERO
-    var io = CmdIo(forwardingStdinOf: originalIo)
-    var lastStdout = [String]()
-    for command in commands {
-        let exitCode = await command.run(env, io)
-        originalIo.stderr += io.stderr
-        lastStdout = io.stdout
-        io = CmdIo(stdin: .init(lastStdout.joined(separator: "\n")))
-        if exitCode != 0 {
-            rightmostNonZeroExitCode = exitCode
-        }
-    }
-    originalIo.stdout += lastStdout
-    return rightmostNonZeroExitCode
+/// The semantics is similar to 'set -o pipefail': the exit code is the one of `rhs` if it's nonzero, otherwise the one of `lhs`
+private func runShellPipe(_ lhs: Shell<any Command>, _ rhs: Shell<any Command>, _ env: CmdEnv, _ io: CmdIo) async -> Int32 {
+    let lhsIo = CmdIo(forwardingStdinOf: io)
+    let lhsExitCode = await lhs.run(env, lhsIo)
+    io.stderr += lhsIo.stderr
+    let rhsIo = CmdIo(stdin: .init(lhsIo.stdout.joined(separator: "\n")))
+    let rhsExitCode = await rhs.run(env, rhsIo)
+    io.stderr += rhsIo.stderr
+    io.stdout += rhsIo.stdout
+    return rhsExitCode != 0 ? rhsExitCode : lhsExitCode
 }

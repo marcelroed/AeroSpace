@@ -33,9 +33,8 @@ extension String {
     }
 }
 
-private let binaryOpTokens: [ShellOp: LexerToken.Payload] = [.or: .or, .and: .and, .pipe: .pipe]
-
-/// Recursive descent: `parse(op)` parses the grammar rule of `op`, whose operands are the rule of the next higher precedence
+/// Recursive descent: `parse(op)` parses the grammar rule of `op`, whose operands are the rule of the next higher precedence.
+/// A chain nests to the left: `a && b && c` is `(a && b) && c`
 private struct ShellParser {
     let tokens: [LexerToken]
     var index = 0
@@ -44,32 +43,38 @@ private struct ShellParser {
 
     mutating func parse(_ op: ShellOp) throws(String) -> Shell<[String]> {
         switch op {
-            case .seq: return try parseSeq()
-            case .pipe where peek.payload == .lParen: return try parseGroup()
-            case .or, .and, .pipe: break
+            case .seq: try parseSeq()
+            case .or: try parseChain(.or, separator: .or)
+            case .and: try parseChain(.and, separator: .and)
+            case .pipe: peek.payload == .lParen ? try parseGroup() : try parseChain(.pipe, separator: .pipe)
         }
-        var elems = [try parseOperand(of: op)]
-        while peek.payload == binaryOpTokens[op] {
+    }
+
+    /// `Operand (separator Operand)*`
+    private mutating func parseChain(_ op: ShellOp, separator: LexerToken.Payload) throws(String) -> Shell<[String]> {
+        var result = try parseOperand(of: op)
+        while peek.payload == separator {
             index += 1
-            elems.append(try parseOperand(of: op))
+            result = .op(op, result, try parseOperand(of: op))
         }
-        return .compound(op, elems)
+        return result
     }
 
     private mutating func parseOperand(of op: ShellOp) throws(String) -> Shell<[String]> {
         if let next = ShellOp(rawValue: op.rawValue + 1) { try parse(next) } else { try parseCmd() }
     }
 
+    /// Like `parseChain(.seq, …)`, but a separator is one or more of ';' and newline, and the trailing one is optional
     private mutating func parseSeq() throws(String) -> Shell<[String]> {
-        var elems = [try parse(.or)]
+        var result = try parse(.or)
         while peek.payload.isSeqSeparator {
             while peek.payload.isSeqSeparator { index += 1 }
             // FIRST(Or) = FIRST(And) = FIRST(Pipe) = { "(" } ∪ FIRST(Cmd) = { "(", Word }
             if peek.payload.isWord || peek.payload == .lParen {
-                elems.append(try parse(.or))
+                result = .op(.seq, result, try parse(.or))
             }
         }
-        return .compound(.seq, elems)
+        return result
     }
 
     mutating func skipNewlines() {
