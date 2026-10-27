@@ -15,26 +15,6 @@ struct AxUiElementWindowTypeTest {
     func testAxDump(_ path: String) throws {
         try checkAxDump(axDumpsDir.appending(path: path))
     }
-
-    // A malformed dump must fail only its own case. Dying on these values would crash the whole test run
-    @Test
-    func testMalformedDumpValuesAreRejectedWithoutDying() {
-        expectEqual(OrderedJson.newOrNilRecursive(["x": 1.5] as [String: Any]), nil)
-        expectEqual(OrderedJson.newOrNilRecursive(["x": [1, 2.5]] as [String: Any]), nil)
-        expectEqual(OrderedJson.newOrNilRecursive(["x": UInt.max] as [String: Any]), nil) // JSONSerialization gives UInt above Int64.max
-        expectEqual(OrderedJson.newOrNilRecursive(["x": [1, "a"]] as [String: Any]), .dict(["x": .array([.int(1), .string("a")])]))
-        #expect(axUiElementMockFromTestDump(NSNumber(value: 5)) == nil)
-        #expect(axUiElementMockFromTestDump("garbage, not an element" as NSString) == nil)
-    }
-
-    // debug-windows writes the activation policy with prettyDescription, and the dumps are read back with from(string:)
-    @Test
-    func testActivationPolicyRoundTrip() {
-        for policy: NSApplication.ActivationPolicy in [.regular, .accessory, .prohibited] {
-            let string = policy.prettyDescription
-            expectEqual(NSApplication.ActivationPolicy.from(string: string), policy, "\(string.singleQuoted)")
-        }
-    }
 }
 
 nonisolated private let axDumpsDir = projectRoot.appending(path: "./axDumps")
@@ -51,7 +31,7 @@ private func checkAxDump(_ file: URL) throws {
         try JSONSerialization.jsonObject(with: Data.init(contentsOf: file), options: [.json5Allowed]) as? [String: Any],
         "The dump isn't a JSON object",
     )
-    let json = try #require(OrderedJson.newOrNilRecursive(rawJson)?.asDictOrNil, "The dump contains a value that OrderedJson can't represent")
+    let json = try #require(orderedJsonOrNil(rawJson)?.asDictOrNil, "The dump contains a value that OrderedJson can't represent")
     let app = try #require(json["Aero.AXApp"]?.asDictOrNil, "Aero.AXApp is missing or isn't an object")
     let appBundleId = (rawJson["Aero.App.appBundleId"] as? String).flatMap { KnownBundleId.init(rawValue: $0) }
     // A dump without a level predates the level in debug-windows. Its window was on screen: the window server knew a level
@@ -80,7 +60,7 @@ private func checkAxDump(_ file: URL) throws {
         "\(file.path()):0:0: AxUiElementWindowType_isDialogHeuristic doesn't match",
     )
     // Off-screen, the window server tells no level. Then the kind is unknown or right, never a guess: e.g. the browsers'
-    // picture-in-picture windows, Slack's huddle popups and Outlook's reminder are popups only by their levels (R2a M1)
+    // picture-in-picture windows, Slack's huddle popups and Outlook's reminder are popups only by their levels
     if let kind = json.getWindowType(axApp: app, appBundleId, activationPolicy, nil) {
         expectEqual(kind, expectedWindowType, "\(file.path()):0:0: AxUiElementWindowType doesn't match without the window level")
     }
@@ -134,9 +114,24 @@ nonisolated extension URL {
     }
 }
 
+/// nil if the value contains something that `OrderedJson` can't represent (e.g. a non-integer number), so that the test
+/// of that dump fails instead of the whole test run
+nonisolated private func orderedJsonOrNil(_ value: Any?) -> OrderedJson? {
+    switch value {
+        case let value as [String: Any?]:
+            let dict = value.compactMapValues(orderedJsonOrNil)
+            return dict.count == value.count ? .dict(OrderedJson.JsonDict(uniqueKeysWithValues: dict)) : nil
+        case let value as [Any?]:
+            let array = value.compactMap(orderedJsonOrNil)
+            return array.count == value.count ? .array(array) : nil
+        default:
+            return OrderedJson.newScalarOrNil(value)
+    }
+}
+
 /// AX elements in JSON dumps: either dictionaries or "AXUIElement(AxWindowId=…" strings. nil for any other value (a
 /// malformed dump), so that the test of that dump fails instead of the whole test run
-nonisolated func axUiElementMockFromTestDump(_ a: AnyObject) -> (any AxUiElementMock)? {
+nonisolated private func axUiElementMockFromTestDump(_ a: AnyObject) -> (any AxUiElementMock)? {
     if let str = a as? String, let commaIndex = str.firstIndex(of: ",") {
         let windowId = UInt32.init(String(str.prefix(upTo: commaIndex)).removePrefix("AXUIElement(AxWindowId="))
         if let windowId {

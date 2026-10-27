@@ -28,20 +28,6 @@ nonisolated enum OrderedJson: Encodable, Equatable, Sendable { // todo rename to
         }
     }
 
-    /// nil if the value contains something that `OrderedJson` can't represent (e.g. a non-integer number)
-    static func newOrNilRecursive(_ value: Any?) -> OrderedJson? {
-        switch value {
-            case let value as [String: Any?]:
-                let dict = value.compactMapValues(newOrNilRecursive)
-                return dict.count == value.count ? .dict(OrderedDictionary(uniqueKeysWithValues: dict)) : nil
-            case let value as [Any?]:
-                let array = value.compactMap(newOrNilRecursive)
-                return array.count == value.count ? .array(array) : nil
-            default:
-                return newScalarOrNil(value)
-        }
-    }
-
     static func newScalarOrNil(_ value: Any?) -> OrderedJson? {
         switch value {
             case let value as Int64: .int(value)
