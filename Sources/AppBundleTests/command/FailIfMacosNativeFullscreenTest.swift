@@ -2,7 +2,7 @@
 import Common
 import Testing
 
-/// `--fail-if-macos-native-fullscreen` when the window's app doesn't answer (R2d L2)
+/// `--fail-if-macos-native-fullscreen` when the window's app doesn't answer
 @Suite(.aeroSpaceGlobalState)
 struct FailIfMacosNativeFullscreenTest {
     @Test(arguments: ["focus", "move"])

@@ -120,7 +120,8 @@ extension Window {
         if !macosNativeFullscreen { return }
         let isMacosFullscreen = switch await world.platform.facts(windowId) {
             case .facts(let facts): facts.isFullscreen
-            case .noAnswer: if case .macosFullscreen = placement { true } else { false } // A busy app: the last refresh's state (R2d L2)
+            // A busy app: what the last refresh saw, not false: focus and move would go on around a fullscreen window
+            case .noAnswer: if case .macosFullscreen = placement { true } else { false }
             case .closed: false
         }
         if isMacosFullscreen { throw .silent }

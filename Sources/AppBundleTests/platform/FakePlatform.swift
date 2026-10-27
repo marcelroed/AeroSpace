@@ -19,7 +19,7 @@ final class FakePlatform: Platform {
     var isLeftMouseDown: Bool = false
     var mouseLocation: CGPoint = .zero
     /// Every call in order, and the AX reads and frame writes of the placements. The frame writes are only here: a
-    /// per-window copy cost as much as the layout itself in the perf benchmarks (perf/cand-m2-plat)
+    /// per-window copy cost as much as the layout itself in the perf benchmarks
     private(set) var calls: [PlatformCall] = []
     /// Called after each read: the scenario tests change macOS or cancel the session there, as if it happened during the
     /// read
