@@ -19,7 +19,7 @@ struct ListWindowsCommand: nonisolated Command {
     static let resetsClosedWindowsCache = false
     var source: SourceWords = []
     var filteringOptions: FilteringOptions
-    var output: ListOutput = .lines(defaultFormat)
+    var output: ListOutput
 
     static let defaultFormat: [FormatToken] = [
         .interVar(.windowId), .interVar(.rightPadding), .literal(" | "),
@@ -150,9 +150,9 @@ struct ListWorkspacesCommand: nonisolated Command {
     var source: SourceWords = []
     /// Empty means all monitors. The parser never leaves it empty
     var onMonitors: [MonitorId]
-    var visible: Bool? = nil
-    var empty: Bool? = nil
-    var output: ListOutput = .lines([.interVar(.workspace)])
+    var visible: Bool?
+    var empty: Bool?
+    var output: ListOutput
 
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
         var all = false
@@ -309,8 +309,8 @@ struct ListModesCommand: nonisolated Command {
 
     static let resetsClosedWindowsCache = false
     var source: SourceWords = []
-    var current = false
-    var output: Output = .lines
+    var current: Bool
+    var output: Output
 
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
         var current = false

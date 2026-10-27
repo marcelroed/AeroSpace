@@ -25,7 +25,5 @@ extension Sequence {
         return result
     }
 
-    public var withIndex: [(index: Int, value: Element)] { enumerated().map { (index: $0.offset, value: $0.element) } }
-
     public func toSet() -> Set<Element> where Element: Hashable { Set(self) }
 }

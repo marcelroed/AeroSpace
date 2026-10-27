@@ -153,8 +153,8 @@ struct EchoCommand: nonisolated Command {
     static let resetsClosedWindowsCache = false
     var source: SourceWords = []
     var args: [[FormatToken]]
-    var isStderr = false
-    var windowId: WindowId? = nil
+    var isStderr: Bool
+    var windowId: WindowId?
 
     static func parse(_ a: inout ArgCursor) throws(CmdParseError) -> Self {
         var isStderr = false

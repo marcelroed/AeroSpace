@@ -60,10 +60,4 @@ struct CommonUtilTest {
     func testJoinTruncating(elements: [String], length: Int, trailing: String, expected: String) {
         expectEqual(elements.joinTruncating(separator: ", ", length: length, trailing: trailing), expected)
     }
-
-    /// `withIndex` (SequenceEx.swift) has no other user: delete both together
-    @Test
-    func testWithIndex() {
-        expectEqual(["a", "b"].withIndex.map { "\($0.index)\($0.value)" }, ["0a", "1b"])
-    }
 }
