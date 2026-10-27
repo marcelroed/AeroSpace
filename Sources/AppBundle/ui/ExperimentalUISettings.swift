@@ -24,17 +24,29 @@ func getExperimentalUISettingsMenu(viewModel: TrayMenuModel) -> some View {
     return Menu {
         Text("Menu bar style (macOS 14 or later):")
         ForEach(MenuBarStyle.allCases) { style in
-            Button {
-                viewModel.menuBarStyle = style
-            } label: {
-                Toggle(isOn: .constant(viewModel.menuBarStyle == style)) {
-                    MenuBarLabel(style: style, color: color)
-                        .environmentObject(viewModel)
-                    Text(" -  " + style.title)
-                }
-            }
+            MenuBarStyleButton(style: style, color: color).environmentObject(viewModel)
         }
     } label: {
         Text("Experimental UI Settings (No stability guarantees)")
+    }
+}
+
+// Keep this a separate View: its @EnvironmentObject subscription is what redraws the checkmark after a selection
+@MainActor
+struct MenuBarStyleButton: View {
+    @EnvironmentObject var viewModel: TrayMenuModel
+    let style: MenuBarStyle
+    let color: Color
+
+    var body: some View {
+        Button {
+            viewModel.menuBarStyle = style
+        } label: {
+            Toggle(isOn: .constant(viewModel.menuBarStyle == style)) {
+                MenuBarLabel(style: style, color: color)
+                    .environmentObject(viewModel)
+                Text(" -  " + style.title)
+            }
+        }
     }
 }
