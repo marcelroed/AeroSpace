@@ -168,7 +168,7 @@ final class Sessions {
 
     // MARK: NSWorkspace and global mouse events (GlobalObserver), focus-follows-mouse
 
-    /// An app launched, activated, unhid or terminated, or the active space changed
+    /// An app launched, activated, unhid or terminated, the active space changed, or the displays changed
     func onWorkspaceNotification(_ name: Notification.Name) {
         if !world.isEnabled { return }
         scheduleHeavy(.globalObserver(name.rawValue), preLayout: name == NSWorkspace.didActivateApplicationNotification)

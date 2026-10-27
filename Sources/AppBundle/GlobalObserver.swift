@@ -1,7 +1,8 @@
 import AppKit
 import Common
 
-/// The NSWorkspace notifications and the global left mouse up. Each one goes to its handler in ``Sessions``
+/// The NSWorkspace notifications, the display changes and the global left mouse up. Each one goes to its handler in
+/// ``Sessions``
 enum GlobalObserver {
     // NotificationCenter calls these with a nonisolated closure type, even on the main queue
     nonisolated private static func onNotif(_ notification: Notification) {
@@ -29,6 +30,9 @@ enum GlobalObserver {
         nc.addObserver(forName: NSWorkspace.didUnhideApplicationNotification, object: nil, queue: .main, using: onNotif)
         nc.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main, using: onNotif)
         nc.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main, using: onNotif)
+        // A display was plugged in, unplugged, rearranged or woke up. The heavy refresh takes a new snapshot of the monitors
+        NotificationCenter.default
+            .addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main, using: onNotif)
 
         NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { _ in
             Task.startUnstructured { @MainActor in
