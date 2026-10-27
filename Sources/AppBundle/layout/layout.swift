@@ -9,6 +9,37 @@ struct WindowFrame: Equatable {
     let size: CGSize
 }
 
+/// The placement batch of P4 (design-m2.md D4). Its order is the contract: the visible workspaces' placements, then a
+/// park per window of the invisible workspaces (to reduce flicker). While AeroSpace is disabled, every workspace's
+/// placements: every window unparks
+func placements() -> [Placement] {
+    // No screens (e.g., the screens disappeared in the middle of the refresh session): wait for them. Don't hide windows in
+    // the corners of a monitor that doesn't exist. AeroSpace can't be disabled while there are no screens (EnableCommand),
+    // so the windows were unhidden when it was disabled, unless the screens vanished during that session. Then the next
+    // `enable off` with screens unhides them
+    if !world.platform.hasScreens { return [] }
+    var placements: [Placement] = []
+    if !world.isEnabled {
+        for workspace in Workspace.all {
+            placements += workspace.layoutPlacements() // Unparks every window
+        }
+        return placements
+    }
+    let monitors = world.monitors
+    for monitor in monitors.all {
+        placements += monitor.activeWorkspace.layoutPlacements()
+    }
+    for workspace in Workspace.all where !workspace.isVisible {
+        let monitor = workspace.workspaceMonitor
+        let corner = monitors.hideCorner(of: monitor)
+        for window in workspace.allLeafWindowsRecursive {
+            let target = ParkTarget(corner: corner, monitor: monitor, monitors: monitors.all, isFloating: window.isFloating)
+            placements.append(.park(window.windowId, target))
+        }
+    }
+    return placements
+}
+
 extension Workspace {
     /// Applies the workspace's ``layoutPlacements()``
     func layoutWorkspace() {

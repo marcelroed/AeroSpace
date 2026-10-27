@@ -93,18 +93,18 @@ struct WorkspaceCommandTest {
     /// parked once (a read of its frame and a write of its position), and no window gets both. A layout without changes
     /// writes the tiles again, but doesn't move the parked windows
     @Test
-    func switchingWorkspacesWritesTheShownWindowsAndParksTheHiddenOnes() async throws {
+    func switchingWorkspacesWritesTheShownWindowsAndParksTheHiddenOnes() async {
         setUpTree("h_tiles(1 2)", workspace: "a")
         setUpTree("h_tiles(3)", workspace: "b")
         for id: WindowId in [1, 2, 3] {
             testWindow(id).rect = rect(0, 0, 100, 100)
         }
         #expect(Workspace.get(byName: "a").focusWorkspace())
-        try layoutWorkspaces()
+        world.platform.apply(placements())
         fake.resetCalls()
 
         expectEqual(await runCmd("workspace b"), .ok)
-        try layoutWorkspaces()
+        world.platform.apply(placements())
 
         expectEqual(fake.calls(of: .park).map(\.windowId), [1, 2])
         expectEqual(fake.calls(of: .frame).map(\.windowId), [3, 1, 2]) // 3's tile, then 1 and 2 in their corner
@@ -114,7 +114,7 @@ struct WorkspaceCommandTest {
         expectEqual(fake.calls.count, 3 + 2 + 4)
 
         fake.resetCalls()
-        try layoutWorkspaces()
+        world.platform.apply(placements())
         // The bottom right corner: a parked window's position is read, and it's already there
         expectEqual(fake.calls.filter { $0.kind != .park }, [.frame(3, topLeft: CGPoint(x: 0, y: 0), size: CGSize(width: 1920, height: 1079)), .axRead(1), .axRead(2)])
     }

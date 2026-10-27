@@ -257,7 +257,7 @@ enum Reconcile {
             updateTrayText()
             world.ui.secureInputPanel.refresh()
         }
-        if isLayout { try layoutWorkspaces() }
+        if isLayout { world.platform.apply(placements()) }
         let focused = focus.windowOrNil
         if focused != nativeFocusBaseline {
             focused?.nativeFocus() // syncFocusToMacOs
@@ -278,38 +278,4 @@ func refreshModel_nonCancellable() async {
 /// The windows on the workspaces and the minimized ones
 private var boundNonPopupWindows: [Window] {
     Workspace.all.flatMap(\.allLeafWindowsRecursive) + macosMinimizedWindowsContainer.children.filterIsInstance(of: Window.self)
-}
-
-/// Lays out the visible workspaces, then parks the windows of the others (to reduce flicker), in one batch
-func layoutWorkspaces() throws(CancellationError) {
-    try checkCancellation()
-    var placements: [Placement] = []
-    if !world.isEnabled {
-        // No screens: wait for them. AeroSpace can't be disabled while there are no screens (EnableCommand), so the
-        // windows were unhidden when it was disabled, unless the screens vanished during that session. Then the next
-        // `enable off` with screens unhides them
-        if !world.platform.hasScreens { return }
-        for workspace in Workspace.all {
-            placements += workspace.layoutPlacements() // Unparks every window
-        }
-        world.platform.apply(placements)
-        return
-    }
-    let monitors = world.monitors
-    // No screens (e.g., the screens disappeared in the middle of the refresh session). Don't hide windows in the corners of
-    // a monitor that doesn't exist
-    if !world.platform.hasScreens { return }
-
-    for monitor in monitors.all {
-        placements += monitor.activeWorkspace.layoutPlacements()
-    }
-    for workspace in Workspace.all where !workspace.isVisible {
-        let monitor = workspace.workspaceMonitor
-        let corner = monitors.hideCorner(of: monitor)
-        for window in workspace.allLeafWindowsRecursive {
-            let target = ParkTarget(corner: corner, monitor: monitor, monitors: monitors.all, isFloating: window.isFloating)
-            placements.append(.park(window.windowId, target))
-        }
-    }
-    world.platform.apply(placements)
 }
