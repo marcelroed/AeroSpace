@@ -32,7 +32,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 - `Int32ExitCode.succ` is 2: RB-05.
 - The unrecognized-flag error names the wrong flag: RB-26.
 - The expected type in the `exec.env-vars` error: RB-23.
-- The termination helpers can block forever: RB-02 and RB-76.
+- The termination helpers could block forever: RB-02 and RB-76, both fixed.
 - `.prohibited` prints with a leading space: RB-28.
 - "Rached": RB-18.
 
@@ -117,7 +117,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 | [RB-73](#rb-73-the-shell-parser-rejects-a-newline-right-after-an-opening-parenthesis) | low | possible | Config, shell and UI | The shell parser rejects a newline right after an opening parenthesis | fixed |
 | [RB-74](#rb-74-focus-dfs-next-and-dfs-prev-fail-silently) | low | possible | Commands and CLI | `focus dfs-next` and `dfs-prev` fail silently | fixed |
 | [RB-75](#rb-75-the-config-watcher-isnt-armed-after-the-config-fails-to-parse-at-startup) | low | possible | Config, shell and UI | The config watcher isn't armed after the config fails to parse at startup | open |
-| [RB-76](#rb-76-termination-helpers-still-wait-without-a-bound) | low | possible | Core model | Termination helpers still wait without a bound | needs decision |
+| [RB-76](#rb-76-termination-helpers-still-wait-without-a-bound) | low | possible | Core model | Termination helpers still wait without a bound | fixed |
 | [RB-80](#rb-80-exec-and-forget-with-leading-whitespace-is-an-unknown-command) | low | possible | Commands and CLI | `exec-and-forget` with leading whitespace is an unknown command | open |
 | [RB-84](#rb-84-the-main-axis-of-virtual-rects-uses-the-physical-size) | low | possible | Core model | The main axis of virtual rects uses the physical size | open |
 | [RB-85](#rb-85-a-window-first-seen-off-screen-is-classified-as-a-popup) | low | possible | Core model | A window first seen off-screen is classified as a popup | open |
@@ -165,7 +165,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 | [RB-94](#rb-94-newscalarornil-reads-json-booleans-as-integers) | low | speculative | Tests | `newScalarOrNil` reads JSON booleans as integers | open |
 | [RB-102](#rb-102-syncfocusfrommacos-crashes-on-test-windows) | low | speculative | Tests | `syncFocusFromMacOs` crashes on test windows | open |
 
-**Totals:** 55 entries were open before `fix-review-bugs`: 2 high, 8 medium and 45 low. Of these, 51 fixed and 4 closed. The fixes turned up 22 new entries (RB-71 to RB-92; 1 medium and 21 low): 7 fixed, 1 needs decision and 14 open. A further 18 entries were resolved by the refactor, and 3 were dropped. The `simplify` stream added 20 entries (RB-93 to RB-112; 1 medium and 19 low), all open. Two more low entries came from the `perf` stream and from merging (RB-113 and RB-114), both open. The `perf` stream's other report, about stale cached window levels, is already covered by RB-35 and RB-85.
+**Totals:** 55 entries were open before `fix-review-bugs`: 2 high, 8 medium and 45 low. Of these, 51 fixed and 4 closed. The fixes turned up 22 new entries (RB-71 to RB-92; 1 medium and 21 low): 8 fixed and 14 open (RB-76 was fixed after the user chose a 2 s limit per app). A further 18 entries were resolved by the refactor, and 3 were dropped. The `simplify` stream added 20 entries (RB-93 to RB-112; 1 medium and 19 low), all open. Two more low entries came from the `perf` stream and from merging (RB-113 and RB-114), both open. The `perf` stream's other report, about stale cached window levels, is already covered by RB-35 and RB-85.
 
 ## Core model
 
@@ -202,7 +202,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 ### RB-02: Termination helpers can block the main thread forever
 
-- **Status:** Fixed in 2afad54e. No regression test: the helpers block on a real app's AX thread. Verified by reading every path of the new job (window missing, body throws). Unbounded waits for a hung app remain: see RB-76.
+- **Status:** Fixed in 2afad54e. No regression test: the helpers block on a real app's AX thread. Verified by reading every path of the new job (window missing, body throws). The unbounded waits for a hung app were fixed in RB-76.
 - **Severity:** high · **Confidence:** possible
 - **Original location:** `Sources/AppBundle/tree/MacApp.swift:159-171` (`setAxFrameForTermination`), `:186-195` (`getAxRectForTermination`) and `:354-359` (`withWindowAsync`) `@812da7fa`
 - **Current location:** `Sources/AppBundle/tree/MacApp.swift:159-171`, `:186-195` and `:354-359`. Unchanged.
@@ -295,7 +295,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 ### RB-71: A die on an AX thread deadlocks termination
 
-- **Status:** Fixed in f91a5d30: `dieT` records the dying thread first, and the termination helpers skip it. No regression test: needs a real AX thread that dies during termination. Verified by reading the termination paths. The remaining unbounded waits are RB-76.
+- **Status:** Fixed in f91a5d30: `dieT` records the dying thread first, and the termination helpers skip it. No regression test: needs a real AX thread that dies during termination. Verified by reading the termination paths. The remaining unbounded waits were fixed in RB-76.
 - **Severity:** medium · **Confidence:** likely
 - **Location:** `Sources/AppBundle/tree/MacApp.swift:159-195` and `dieT` in `Sources/Common/util/commonUtil.swift`
 - **Description:** A die on an app's AX thread blocks that thread in `MainActor.runSync` while the main thread runs `beforeTermination`. That schedules `getAxRect` and `setFrame` jobs on the same AX thread and waits for them forever.
@@ -304,7 +304,7 @@ Branch `integrate` merges three branches into `9897aeed`: `simplify` (behavior-p
 
 ### RB-76: Termination helpers still wait without a bound
 
-- **Status:** Needs decision: whether to use timed waits on termination paths, and how long. Options: (a) keep the unbounded waits; (b) wait about 1–2 s per app and skip the rest of an app's windows after its first timeout; (c) one overall deadline for restoring all windows. Recommendation: (b), together with RB-02's "consider a timed wait". A timeout means some windows of a hung app stay where AeroSpace hid them.
+- **Status:** Fixed in 9b990ae5 with option (b), chosen by the user. Each termination wait times out after 2 s, and after an app's first timeout its remaining windows are skipped. They stay where AeroSpace hid them, but AeroSpace exits. Regression test for the timed wait: `CommonUtilTest.testCompletableFutureBlockingGetTimesOut`. The termination paths themselves need a real AX thread, so they were verified by reading them.
 - **Severity:** low · **Confidence:** possible
 - **Location:** `Sources/AppBundle/tree/MacApp.swift:159-195`
 - **Description:** After RB-02 and RB-71, the termination helpers still wait forever if the target AX thread starts dying after main has scheduled the job (a die inside the termination job, or a second thread dying at the same time). For a hung app they wait for about 9 AX calls × 6 s per window.
