@@ -2,7 +2,8 @@
 import AppKit
 import Common
 
-/// The ``Platform`` of the tests: macOS as plain state. Reads return without suspending, effects apply at once, and
+/// The ``Platform`` of the tests: macOS as plain state. Reads return without suspending (unless a test holds them with a
+/// ``Gate``), effects apply at once, and
 /// every call goes into ``calls`` for the tests that count AX work per scenario. The placements run AxApp's code
 /// (``PlacementState``) against ``FakeWindow/rect``
 final class FakePlatform: Platform {
@@ -23,6 +24,8 @@ final class FakePlatform: Platform {
     /// Called after each read: the scenario tests change macOS or cancel the session there, as if it happened during the
     /// read
     var onRead: ((PlatformCall) -> ())? = nil
+    /// Awaited before each title read: a ``Gate`` there holds a callback's title matcher, as a busy app does
+    var beforeTitle: ((WindowId) async -> ())? = nil
 
     func calls(of kind: PlatformCall.Kind, _ id: WindowId? = nil) -> [PlatformCall] {
         calls.filter { $0.kind == kind && (id == nil || $0.windowId == id) }
@@ -85,7 +88,10 @@ final class FakePlatform: Platform {
     // MARK: Single reads
 
     func rect(_ id: WindowId) -> Rect? { read(.rect(id), id)?.rect }
-    func title(_ id: WindowId) -> String? { read(.title(id), id)?.title }
+    func title(_ id: WindowId) async -> String? {
+        await beforeTitle?(id)
+        return read(.title(id), id)?.title
+    }
     func facts(_ id: WindowId) -> NativeFacts? { read(.facts(id), id)?.facts }
     func kind(_ id: WindowId) -> AxUiElementWindowType? { read(.kind(id), id)?.kind }
 
@@ -238,6 +244,33 @@ final class FakeWindow {
     }
 
     var facts: NativeFacts { NativeFacts(isFullscreen: isFullscreen, isMinimized: !isFullscreen && isMinimized) }
+}
+
+/// Holds whoever calls ``wait()`` until ``open()``. ``untilWaiting()`` lets the test go on once a session is held
+final class Gate {
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<(), Never>] = []
+    private var watchers: [CheckedContinuation<(), Never>] = []
+
+    func wait() async {
+        if isOpen { return }
+        await withCheckedContinuation { waiter in
+            waiters.append(waiter)
+            for watcher in watchers { watcher.resume() }
+            watchers = []
+        }
+    }
+
+    func untilWaiting() async {
+        if !waiters.isEmpty { return }
+        await withCheckedContinuation { watchers.append($0) }
+    }
+
+    func open() {
+        isOpen = true
+        for waiter in waiters { waiter.resume() }
+        waiters = []
+    }
 }
 
 // periphery:ignore - false positive unused warning. The properties are read by the synthesized Equatable
