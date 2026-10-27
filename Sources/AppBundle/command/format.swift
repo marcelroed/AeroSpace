@@ -59,7 +59,6 @@ nonisolated enum FormatSubject: CaseIterable, Sendable {
 
 typealias FormatToken = InterToken<FormatVar>
 
-/// Parses the `%{var}` interpolations of `raw`
 nonisolated func parseFormat(_ raw: String) throws(CmdParseError) -> [FormatToken] {
     return try raw.rawInterpolationTokens(interpolationChar: "%").map { (token) throws(CmdParseError) in
         switch token {
@@ -142,6 +141,7 @@ nonisolated enum ListOutput: Equatable, Sendable {
     }
 }
 
+/// The title is an AX read, which suspends, while formatting is synchronous: it's read before, and only if the format uses it
 struct WindowWithPrefetchedTitle {
     let window: Window
     let title: String?
@@ -162,6 +162,7 @@ struct WindowWithPrefetchedTitle {
     }
 }
 
+/// What a format describes: the objects of the list-* commands, and the target of `echo` and `test`
 enum AeroObj {
     case window(WindowWithPrefetchedTitle)
     case workspace(Workspace)
@@ -239,6 +240,7 @@ private struct Cell {
     let rightPadding: Bool
 }
 
+/// The value of a variable. `test` compares by its type, and `--json` keeps the type
 enum Primitive: Encodable {
     case bool(Bool)
     case int(Int64)
@@ -307,58 +309,72 @@ enum FormatVarExpansionError: Error, CustomStringConvertible {
 
 extension FormatVar {
     func expand(_ obj: AeroObj) throws(FormatVarExpansionError) -> Primitive {
-        switch (obj, subject) {
-            case (_, nil):
-                switch self {
-                    case .newline: return .string("\n")
-                    case .tab: return .string("\t")
-                    default: throw .other("'\(rawValue)' interpolation variable cannot be expanded")
-                }
-            case (.window(let w), .workspace):
-                guard let workspace = w.window.nodeWorkspace else { return .string("NULL-WORKSPACE") }
-                return try expand(.workspace(workspace))
-            case (.window(let w), .monitor):
-                guard let monitor = w.window.nodeMonitor else { return .string("NULL-MONITOR") }
-                return try expand(.monitor(monitor))
-            case (.window(let w), .app):
-                return try expand(.app(w.window.app))
-            case (.workspace(let ws), .monitor):
-                return try expand(.monitor(ws.workspaceMonitor))
-            case (.window(let w), .window):
-                switch self {
-                    case .windowId: return .int(w.window.windowId.raw)
-                    case .windowIsFullscreen: return .bool(w.window.isFullscreen)
-                    case .windowTitle: return .string(w.title.orDie("Title wasn't prefetched"))
-                    case .windowLayout, .windowParentContainerLayout: return try layout(of: w.window)
-                    default: throw .unavailable(self, obj.subject)
-                }
-            case (.workspace(let w), .workspace):
-                switch self {
-                    case .workspace: return .string(w.name)
-                    case .workspaceIsVisible: return .bool(w.isVisible)
-                    case .workspaceIsFocused: return .bool(focus.workspace == w)
-                    case .workspaceRootContainerLayout: return .string(layoutString(w.rootLayout))
-                    default: throw .unavailable(self, obj.subject)
-                }
-            case (.monitor(let m), .monitor):
-                switch self {
-                    case .monitorId: return .int(m.monitorId_oneBased)
-                    case .monitorAppKitNsScreenScreensId: return .int(m.monitorAppKitNsScreenScreensId)
-                    case .monitorName: return .string(m.name)
-                    case .monitorIsMain: return .bool(m.isMain)
-                    default: throw .unavailable(self, obj.subject)
-                }
-            case (.app(let a), .app):
-                switch self {
-                    case .appBundleId: return .string(a.bundleId ?? "NULL-APP-BUNDLE-ID")
-                    case .appName: return .string(a.name ?? "NULL-APP-NAME")
-                    case .appPid: return .int(a.pid)
-                    case .appExecPath: return .string(a.execPath ?? "NULL-APP-EXEC-PATH")
-                    case .appBundlePath: return .string(a.bundlePath ?? "NULL-APP-BUNDLE-PATH")
-                    default: throw .unavailable(self, obj.subject)
-                }
-            case (.workspace, _), (.app, _), (.monitor, _):
-                throw .unavailable(self, obj.subject)
+        let value: Primitive? = switch self {
+            case .windowId: obj.ofWindow { .int($0.window.windowId.raw) }
+            case .windowIsFullscreen: obj.ofWindow { .bool($0.window.isFullscreen) }
+            case .windowTitle: obj.ofWindow { .string($0.title.orDie("Title wasn't prefetched")) }
+            case .windowLayout, .windowParentContainerLayout:
+                try obj.ofWindow { (w) throws(FormatVarExpansionError) in try layout(of: w.window) }
+
+            case .workspace: obj.ofWorkspace { .string($0.name) }
+            case .workspaceIsFocused: obj.ofWorkspace { .bool($0 == focus.workspace) }
+            case .workspaceIsVisible: obj.ofWorkspace { .bool($0.isVisible) }
+            case .workspaceRootContainerLayout: obj.ofWorkspace { .string(layoutString($0.rootLayout)) }
+
+            case .appBundleId: obj.ofApp { .string($0.bundleId ?? "NULL-APP-BUNDLE-ID") }
+            case .appName: obj.ofApp { .string($0.name ?? "NULL-APP-NAME") }
+            case .appPid: obj.ofApp { .int($0.pid) }
+            case .appExecPath: obj.ofApp { .string($0.execPath ?? "NULL-APP-EXEC-PATH") }
+            case .appBundlePath: obj.ofApp { .string($0.bundlePath ?? "NULL-APP-BUNDLE-PATH") }
+
+            case .monitorId: obj.ofMonitor { .int($0.monitorId_oneBased) }
+            case .monitorAppKitNsScreenScreensId: obj.ofMonitor { .int($0.monitorAppKitNsScreenScreensId) }
+            case .monitorName: obj.ofMonitor { .string($0.name) }
+            case .monitorIsMain: obj.ofMonitor { .bool($0.isMain) }
+
+            case .newline: .string("\n")
+            case .tab: .string("\t")
+            case .rightPadding: throw .other("'\(rawValue)' interpolation variable cannot be expanded")
+        }
+        guard let value else { throw .unavailable(self, obj.subject) }
+        return value
+    }
+}
+
+/// `value` of the object that a variable describes: `self`, or a window's workspace, monitor or app, or a workspace's
+/// monitor (as in ``FormatSubject/availableVars``). nil if `self` has no such object
+extension AeroObj {
+    fileprivate func ofWindow<E>(_ value: (WindowWithPrefetchedTitle) throws(E) -> Primitive) throws(E) -> Primitive? {
+        switch self {
+            case .window(let w): try value(w)
+            case .workspace, .app, .monitor: nil
+        }
+    }
+
+    /// "NULL-WORKSPACE" for a window without a workspace: a minimized or popup window
+    fileprivate func ofWorkspace(_ value: (Workspace) -> Primitive) -> Primitive? {
+        switch self {
+            case .window(let w): w.window.nodeWorkspace.map(value) ?? .string("NULL-WORKSPACE")
+            case .workspace(let workspace): value(workspace)
+            case .app, .monitor: nil
+        }
+    }
+
+    fileprivate func ofApp(_ value: (AppInfo) -> Primitive) -> Primitive? {
+        switch self {
+            case .window(let w): value(w.window.app)
+            case .app(let app): value(app)
+            case .workspace, .monitor: nil
+        }
+    }
+
+    /// "NULL-MONITOR" for a window without a workspace
+    fileprivate func ofMonitor(_ value: (MonitorInfo) -> Primitive) -> Primitive? {
+        switch self {
+            case .window(let w): w.window.nodeMonitor.map(value) ?? .string("NULL-MONITOR")
+            case .workspace(let workspace): value(workspace.workspaceMonitor)
+            case .monitor(let monitor): value(monitor)
+            case .app: nil
         }
     }
 }
@@ -379,7 +395,7 @@ private func layoutString(_ kind: (layout: Layout, orientation: Orientation)) ->
 
 private func layout(of w: Window) throws(FormatVarExpansionError) -> Primitive {
     switch w.placement {
-        case nil: throw .other("NULL-PARENT")
+        case nil: throw .other("NULL-PARENT") // The window closed while its title was read
         case .tiling(let tc): .string(layoutString(tc))
         case .floating: .string(LayoutCommand.LayoutDescription.floating.rawValue)
         case .macosFullscreen: .string("macos_native_fullscreen")
