@@ -189,15 +189,7 @@ struct MoveMouseCommand: nonisolated Command {
 }
 
 private func moveMouse(_ point: CGPoint) throws(CmdFail) {
-    guard let event = CGEvent(
-        mouseEventSource: nil,
-        mouseType: CGEventType.mouseMoved,
-        mouseCursorPosition: point,
-        mouseButton: CGMouseButton.left,
-    ) else {
-        throw "Failed to move mouse"
-    }
-    event.post(tap: CGEventTapLocation.cghidEventTap)
+    if !world.platform.warpMouse(to: point) { throw "Failed to move mouse" }
 }
 
 private func windowSubjectRect(_ target: LiveFocus) async throws(CmdFail) -> Rect {

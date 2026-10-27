@@ -71,6 +71,8 @@ protocol Platform: AnyObject, Sendable {
     func unhideApp(_ app: AppInfo)
     /// Asks the app to quit. false if it refused
     func quit(_ app: AppInfo) -> Bool
+    /// Moves the mouse cursor. false if it failed
+    func warpMouse(to point: CGPoint) -> Bool
 
     // MARK: Termination
 

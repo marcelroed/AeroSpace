@@ -354,6 +354,7 @@ private struct Phase {
                     cost.write(id, 1) // AXPress
                 case .setNative(let id, _): cost.write(id, 1)
                 case .unhideApp, .quit: cost.appXpc += 1
+                case .warpMouse: break // A posted CGEvent, neither AX nor an app's XPC
             }
         }
         cost.appReads += appsWithPlacementWrites.count // One AXEnhancedUserInterface read per app job that writes
@@ -436,7 +437,7 @@ extension PlatformCall {
     /// AeroSpace's effects on macOS: a frame write, a focus, ...
     fileprivate var isEffect: Bool {
         switch self {
-            case .frame, .focus, .close, .setNative, .unhideApp, .quit, .restoreFloatingSize: true
+            case .frame, .focus, .close, .setNative, .unhideApp, .quit, .restoreFloatingSize, .warpMouse: true
             default: false
         }
     }

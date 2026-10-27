@@ -278,6 +278,14 @@ final class LivePlatform: Platform {
         apps[app.pid]?.nsApp.terminate() == true
     }
 
+    func warpMouse(to point: CGPoint) -> Bool {
+        guard let event = CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left) else {
+            return false
+        }
+        event.post(tap: .cghidEventTap)
+        return true
+    }
+
     // MARK: Termination
 
     nonisolated func restoreForTermination() {

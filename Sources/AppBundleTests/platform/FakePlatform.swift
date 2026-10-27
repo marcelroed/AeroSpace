@@ -199,6 +199,12 @@ final class FakePlatform: Platform {
         return true
     }
 
+    func warpMouse(to point: CGPoint) -> Bool {
+        calls.append(.warpMouse(point))
+        mouseLocation = point
+        return true
+    }
+
     nonisolated func restoreForTermination() {}
 
     private func answering(_ id: WindowId) -> FakeWindow? {
@@ -320,12 +326,13 @@ enum PlatformCall: Equatable {
     case axRead(WindowId), frame(WindowId, topLeft: CGPoint?, size: CGSize?)
     case rememberFloatingSize(WindowId), restoreFloatingSize(WindowId)
     case focus(WindowId), close(WindowId), setNative(WindowId, NativeChange), unhideApp(pid_t), quit(pid_t)
+    case warpMouse(CGPoint)
 
     enum Kind: Equatable {
         case listWindows, focusedWindow, classify, nativeFacts, observedRect
         case rect, title, facts, kind, windowCount, debugInfo
         case floating, park, leave, axRead, frame, rememberFloatingSize, restoreFloatingSize
-        case focus, close, setNative, unhideApp, quit
+        case focus, close, setNative, unhideApp, quit, warpMouse
     }
 
     var kind: Kind {
@@ -353,6 +360,7 @@ enum PlatformCall: Equatable {
             case .setNative: .setNative
             case .unhideApp: .unhideApp
             case .quit: .quit
+            case .warpMouse: .warpMouse
         }
     }
 
@@ -363,7 +371,7 @@ enum PlatformCall: Equatable {
                  .floating(let id, _), .park(let id, _), .leave(let id), .axRead(let id), .frame(let id, _, _),
                  .rememberFloatingSize(let id), .restoreFloatingSize(let id), .focus(let id), .close(let id), .setNative(let id, _):
                 id
-            case .listWindows, .focusedWindow, .classify, .nativeFacts, .windowCount, .unhideApp, .quit: nil
+            case .listWindows, .focusedWindow, .classify, .nativeFacts, .windowCount, .unhideApp, .quit, .warpMouse: nil
         }
     }
 }
