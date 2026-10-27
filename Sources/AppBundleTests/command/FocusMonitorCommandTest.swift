@@ -34,6 +34,42 @@ struct FocusMonitorCommandTest: AeroSpaceTestSuite {
         }
         assertEquals(result, CmdResult(stdout: [], stderr: ["Can't find monitors in direction left while there are no screens"], exitCode: .fail))
     }
+
+    @Test
+    func testFocusMonitorNextPrev_noScreens_failsWithMessage() async {
+        // No screens (e.g., during display reconfiguration) is a normal state, not a bug (RB-40)
+        for (command, expected) in [
+            ("focus-monitor next", "Can't find the next monitor while there are no screens"),
+            ("focus-monitor --wrap-around next", "Can't find the next monitor while there are no screens"),
+            ("focus-monitor prev", "Can't find the prev monitor while there are no screens"),
+        ] {
+            let result = await $noScreensForTests.withValue(true) {
+                await parseCommand(command).cmdOrDie.run(.defaultEnv, .emptyStdin)
+            }
+            assertEquals(result, CmdResult(stdout: [], stderr: [expected], exitCode: .fail), additionalMsg: command)
+        }
+    }
+
+    @Test
+    func testFocusMonitorPattern_noMonitorMatches() async {
+        let result = await parseCommand("focus-monitor 2").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result, CmdResult(stdout: [], stderr: ["None of the monitors match the pattern(s)"], exitCode: .fail))
+    }
+
+    @Test
+    func testFocusMonitorPattern_noScreens_failsWithMessage() async {
+        // With screens, both patterns match "Test Monitor". Without them, no monitor matches, and it's not a user error (RB-40)
+        for command in ["focus-monitor 1", "focus-monitor test"] {
+            let result = await $noScreensForTests.withValue(true) {
+                await parseCommand(command).cmdOrDie.run(.defaultEnv, .emptyStdin)
+            }
+            assertEquals(
+                result,
+                CmdResult(stdout: [], stderr: ["Can't find monitors that match the pattern(s) while there are no screens"], exitCode: .fail),
+                additionalMsg: command,
+            )
+        }
+    }
 }
 
 private func parseFocusMonitorTarget(_ raw: String) -> MonitorTarget? {

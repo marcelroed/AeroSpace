@@ -31,7 +31,9 @@ extension MonitorTarget {
             case .relative(let nextPrev):
                 let monitors = sortedMonitorInfos
                 guard let curIndex = monitors.firstIndex(where: { $0.rect.topLeftCorner == currentMonitor.rect.topLeftCorner }) else {
-                    return .failure("Can't find current monitor")
+                    // No screens (e.g., during display reconfiguration): currentMonitor is the fake mainMonitorInfo
+                    if !hasScreens { return .failure("Can't find the \(nextPrev) monitor while there are no screens") }
+                    return .failure(bugPrompt("Should never happen. Can't find the current monitor"))
                 }
                 let targetIndex = nextPrev == .next ? curIndex + 1 : curIndex - 1
                 let targetMonitor = wrapAround ? monitors.get(wrappingIndex: targetIndex) : monitors.getOrNil(atIndex: targetIndex)
@@ -42,6 +44,8 @@ extension MonitorTarget {
             case .patterns(let patterns):
                 let monitors = sortedMonitorInfos
                 guard let targetMonitor = patterns.lazy.compactMap({ $0.resolveMonitor(sortedMonitors: monitors) }).first else {
+                    // No screens (e.g., during display reconfiguration): there are no monitors to match
+                    if !hasScreens { return .failure("Can't find monitors that match the pattern(s) while there are no screens") }
                     return .failure("None of the monitors match the pattern(s)")
                 }
                 return .success(targetMonitor)
