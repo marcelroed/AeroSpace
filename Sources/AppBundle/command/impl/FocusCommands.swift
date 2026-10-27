@@ -80,6 +80,13 @@ struct FocusCommand: nonisolated Command {
         try a.end()
         if wrapAround && boundariesAction != nil { throw .conflicting("--wrap-around", "--boundaries-action") }
         if wrapAround && boundaries != nil { throw .conflicting("--wrap-around", "--boundaries") }
+        switch (direction, windowId, dfsIndex) { // The target's errors come before the boundaries' errors
+            case (nil, nil, nil):
+                throw "Mandatory argument is missing. \(CardinalOrDfsDirection.unionLiteral), --window-id or --dfs-index is required"
+            case (_?, _?, _), (_, _?, _?): throw "--window-id is incompatible with other options"
+            case (_?, nil, _?): throw "--dfs-index is incompatible with other options"
+            default: break
+        }
         let atEdge: AtEdge? = switch wrapAround ? .wrapAroundTheWorkspace : boundariesAction ?? .stop {
             case .stop: .stop
             case .fail: .fail
@@ -95,17 +102,15 @@ struct FocusCommand: nonisolated Command {
         }
         let target: Target
         switch (direction, windowId, dfsIndex) {
-            case (.direction(let direction), nil, nil): target = .direction(direction, options)
-            case (.dfsRelative(let nextPrev), nil, nil):
+            case (.direction(let direction), _, _): target = .direction(direction, options)
+            case (.dfsRelative(let nextPrev), _, _):
                 if options.failIfFullscreen || options.failIfMacosNativeFullscreen { throw failIfFullscreenNeedsDirection }
                 guard case .workspace(let atEdge) = options.boundaries else { throw "(dfs-next|dfs-prev) only supports --boundaries workspace" }
                 target = .dfsRelative(nextPrev, atEdge: atEdge, floatingAsTiling: options.floatingAsTiling)
-            case (nil, let windowId?, nil) where !hasOtherOptions: target = .windowId(windowId)
+            case (nil, let windowId?, _) where !hasOtherOptions: target = .windowId(windowId)
+            case (nil, _?, _): throw "--window-id is incompatible with other options"
             case (nil, nil, let dfsIndex?) where !hasOtherOptions: target = .dfsIndex(dfsIndex)
-            case (nil, nil, nil):
-                throw "Mandatory argument is missing. \(CardinalOrDfsDirection.unionLiteral), --window-id or --dfs-index is required"
-            case (_, _?, _): throw "--window-id is incompatible with other options"
-            case (_, nil, _?): throw "--dfs-index is incompatible with other options"
+            case (nil, nil, _): throw "--dfs-index is incompatible with other options"
         }
         return Self(target: target)
     }

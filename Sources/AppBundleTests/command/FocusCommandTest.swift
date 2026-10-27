@@ -57,6 +57,18 @@ struct FocusCommandTest {
         #expect(output == .fail(error))
     }
 
+    /// The target's errors come before the boundaries' errors, which come before the errors of the target's options
+    @Test(arguments: [
+        ("focus --boundaries-action wrap-around-all-monitors", "Mandatory argument is missing. (left|down|up|right|dfs-next|dfs-prev), --window-id or --dfs-index is required"),
+        ("focus left --window-id 1 --boundaries-action wrap-around-all-monitors", "--window-id is incompatible with other options"),
+        ("focus --window-id 1 --boundaries-action wrap-around-all-monitors", "workspace and wrap-around-all-monitors is an invalid combination of values"),
+        ("focus dfs-next --fail-if-fullscreen --boundaries-action wrap-around-all-monitors", "workspace and wrap-around-all-monitors is an invalid combination of values"),
+    ] as [(String, String)])
+    func parseErrorOrder(command: String, error: String) async {
+        let output = await runCmd(command)
+        #expect(output == .fail(error))
+    }
+
     @Test(arguments: [
         ("h_tiles(*1 2)", "focus right", "h_tiles(1 *2)"),
         ("h_tiles(*1 2)", "focus --fail-if-fullscreen --fail-if-macos-native-fullscreen right", "h_tiles(1 *2)"),
