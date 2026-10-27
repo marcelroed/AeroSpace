@@ -1,8 +1,8 @@
 import AppKit
 import Common
 
-/// This object should be only passed around but never memorized
-/// Alternative name: ResolvedFocus
+/// The focus resolved against the tree: the workspace and its window. Pass it around, don't store it: the tree changes
+/// under it, and ``FrozenFocus`` is the form that is stored
 struct LiveFocus: Equatable {
     let workspace: Workspace
     /// The window and where it is on ``workspace``. nil: the workspace is empty
@@ -27,10 +27,8 @@ struct LiveFocus: Equatable {
     }
 }
 
-/// "old", "captured", "frozen in time" Focus
-/// It's safe to keep a hard reference to this object.
-/// Unlike in LiveFocus, information inside FrozenFocus isn't guaranteed to be self-consistent.
-/// window - workspace - monitor relation could change since the moment object was created
+/// The stored focus: ids and names, so it's safe to keep. They may disagree with each other once the tree changes (the
+/// window moved to another workspace, the workspace to another monitor): ``live`` resolves them again
 private struct FrozenFocus: Equatable, Sendable {
     let windowId: WindowId?
     let workspaceName: String
@@ -71,7 +69,7 @@ struct FocusStore {
     var lastKnownNativeFocusedWindowId: WindowId? = nil
     /// The native focus that a session read last, also when the read changed nothing: it was
     /// `lastKnownNativeFocusedWindowId` already, or it's a new window that takes the focus after its callbacks. Such a
-    /// window takes the focus only while it's still this one (R2b M1, R2c M1)
+    /// window takes the focus only while it's still this one: a newer read wins
     var lastReadNativeFocusedWindowId: WindowId? = nil
 }
 
@@ -98,7 +96,7 @@ func setFocus(to newFocus: LiveFocus) -> Bool {
     let newFrozenFocus = newFocus.frozen
     if oldFrozenFocus == newFrozenFocus { return true }
     let oldFocus = focus
-    // Normalize mruWindow when focus away from a workspace
+    // Focusing the workspace again goes back to the window that had the focus
     if oldFocus.workspace != newFocus.workspace {
         oldFocus.windowOrNil?.markAsMostRecentChild()
     }
@@ -109,6 +107,20 @@ func setFocus(to newFocus: LiveFocus) -> Bool {
     newFocus.windowOrNil?.markAsMostRecentChild()
     return status
 }
+
+/// Takes the focus from macOS: the window that has the native focus becomes the focused window. Only when the native
+/// focus changes: AeroSpace's focus may differ from it (e.g. on an empty workspace, or before macOS follows a command's
+/// focus), and an unchanged native focus doesn't take the focus back. A popup doesn't take the focus
+func syncFocusFromMacOs(_ nativeFocused: Window?) {
+    if case .macosPopup = nativeFocused?.placement { return }
+    // No screens (e.g., during display reconfiguration): setFocus can't show invisible workspaces meanwhile. Don't consume
+    // the native focus change, the first session after the screens come back takes it
+    if nativeFocused?.windowId != world.focusStore.lastKnownNativeFocusedWindowId && world.monitors.hasScreens {
+        _ = nativeFocused?.focusWindow()
+        world.focusStore.lastKnownNativeFocusedWindowId = nativeFocused?.windowId
+    }
+}
+
 extension Window {
     func focusWindow() -> Bool {
         // todo We should also exit-native-hidden/unminimize[/exit-native-fullscreen?] window if we want to fix ID-B6E178F2
@@ -196,8 +208,8 @@ func recordFocusChange() -> RecordedFocusChange? {
 /// change at a time, in the order of the changes:
 /// - A change that a callback's own commands make records it without running the callbacks again: no recursion.
 /// - Other sessions' changes while the callbacks suspend (e.g. hotkeys while a callback reads AX) run the callbacks
-///   right after them, in the task that runs them (R2c L2). That session doesn't wait for them. Those changes run the
-///   callbacks once, as one change to the latest focus: no callback runs for a focus that the user has left (R2d L1)
+///   right after them, in the task that runs them. That session doesn't wait for them. Those changes run the
+///   callbacks once, as one change to the latest focus: no callback runs for a focus that the user has left
 func runFocusChangedCallbacks(_ change: RecordedFocusChange) async {
     if world.focusStore.isRunningOnFocusChangedCallbacks {
         if FocusChangedCallbacks.isRunningInThisTask { return }
