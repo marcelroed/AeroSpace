@@ -168,7 +168,7 @@ struct SwapCommand: nonisolated Command {
         }
         guard let targetWindow else { throw .silent }
         window.swap(with: targetWindow)
-        if swapFocus && !targetWindow.focusWindow() { throw .silent }
+        if swapFocus { try targetWindow.focusWindowOrFail() }
     }
 }
 
@@ -283,10 +283,7 @@ func moveWindowToWorkspace(
         ? targetWorkspace.containerCreatingIfNeeded(.floating)
         : targetWorkspace.rootTilingContainerCreatingIfNeeded()
     window.move(to: targetContainer, at: index)
-    // On a workspace, focusing the window fails only while there are no screens, if the workspace isn't visible
-    if focusFollowsWindow && !window.focusWindow() {
-        throw "Can't follow the window to workspace '\(targetWorkspace.name)' while there are no screens"
-    }
+    if focusFollowsWindow { try window.focusWindowOrFail() }
 }
 
 struct MoveNodeToMonitorCommand: nonisolated Command {

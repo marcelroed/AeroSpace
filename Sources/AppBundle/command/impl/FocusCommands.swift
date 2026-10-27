@@ -146,7 +146,7 @@ struct FocusCommand: nonisolated Command {
         switch change {
             case nil: return
             case .window(let window):
-                if !window.focusWindow() { throw .silent }
+                try window.focusWindowOrFail()
             case .workspace(let workspace, let mostRecent):
                 mostRecent?.markAsMostRecentChild()
                 try workspace.focusWorkspaceOrFail()
@@ -282,7 +282,11 @@ struct FocusBackAndForthCommand: nonisolated Command {
 
     func run(_ cx: CmdContext) throws(CmdFail) {
         guard let prevFocus else { throw "Prev window has been closed" }
-        if !setFocus(to: prevFocus) { throw .silent }
+        if let window = prevFocus.windowOrNil {
+            try window.focusWindowOrFail()
+        } else {
+            try prevFocus.workspace.focusWorkspaceOrFail()
+        }
     }
 }
 

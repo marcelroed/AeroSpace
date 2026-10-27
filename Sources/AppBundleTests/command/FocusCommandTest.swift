@@ -227,7 +227,7 @@ struct FocusCommandTest {
     /// Workspace a is `h_tiles(*1 2)`, b is `h_tiles(3)`. Each command runs on the state that the previous one left, and the
     /// focus check that the session runs after each command remembers the previous focus
     @Test(arguments: focusBackAndForthCases)
-    func focusBackAndForth(steps: [(command: String, expected: CmdOutput, focused: WindowId)]) async {
+    func focusBackAndForth(steps: [(command: String, expected: CmdOutput, focused: WindowId?)]) async {
         setUpTree("h_tiles(*1 2)", workspace: "a")
         setUpTree("h_tiles(3)", workspace: "b")
         await checkOnFocusChangedCallbacks_nonCancellable()
@@ -254,9 +254,11 @@ private func setUpFloatingWindowAboveTiles(_ spec: String) -> Workspace {
     return workspace
 }
 
-nonisolated private let focusBackAndForthCases: [[(command: String, expected: CmdOutput, focused: WindowId)]] = [
+nonisolated private let focusBackAndForthCases: [[(command: String, expected: CmdOutput, focused: WindowId?)]] = [
     [("focus right", .ok, 2), ("focus-back-and-forth", .ok, 1), ("focus-back-and-forth", .ok, 2)],
     [("workspace b", .ok, 3), ("focus-back-and-forth", .ok, 1)],
+    // The previous focus is an empty workspace
+    [("workspace c", .ok, nil), ("focus-back-and-forth", .ok, 1), ("focus-back-and-forth", .ok, nil)],
     // The previous window closed. Its workspace's focus is the current focus
     [("focus right", .ok, 2), ("close --window-id 1", .ok, 2), ("focus-back-and-forth", .fail("Prev window has been closed"), 2)],
 ]

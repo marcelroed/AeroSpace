@@ -92,13 +92,6 @@ struct WorkspaceCommand: nonisolated Command {
     }
 }
 
-extension Workspace {
-    /// Focusing a workspace fails only while there are no screens, if it isn't visible
-    func focusWorkspaceOrFail() throws(CmdFail) {
-        if !focusWorkspace() { throw "Can't focus workspace '\(name)' while there are no screens" }
-    }
-}
-
 func getNextPrevWorkspace(current: Workspace, isNext: Bool, wrapAround: Bool, stdin: String?) throws(CmdFail) -> Workspace {
     let stdinWorkspaces: [WorkspaceName]
     do {

@@ -129,6 +129,11 @@ extension Window {
         return setFocus(to: focus)
     }
 
+    /// For the commands, which focus windows on a workspace: see ``Workspace/focusWorkspaceOrFail()``
+    func focusWindowOrFail() throws(CmdFail) {
+        if !focusWindow() { throw "Can't focus window '\(windowId)' while there are no screens" }
+    }
+
     /// nil for the minimized, popup and unbound windows: they aren't on a workspace
     func toLiveFocusOrNil() -> LiveFocus? {
         workspacePlacement.map { LiveFocus(workspace: $0.workspace, windowAndPlacement: (self, $0.placement)) }
@@ -136,6 +141,12 @@ extension Window {
 }
 extension Workspace {
     func focusWorkspace() -> Bool { setFocus(to: toLiveFocus()) }
+
+    /// For the commands. Focusing fails only while there are no screens, for a workspace that isn't visible: with screens,
+    /// a workspace can always be shown on its own monitor
+    func focusWorkspaceOrFail() throws(CmdFail) {
+        if !focusWorkspace() { throw "Can't focus workspace '\(name)' while there are no screens" }
+    }
 
     /// The workspace with its most recent window. Never a window of a hidden app: the native focus would unhide the app
     func toLiveFocus() -> LiveFocus {
