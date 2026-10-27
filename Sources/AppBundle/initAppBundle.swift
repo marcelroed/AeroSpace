@@ -19,13 +19,10 @@ public func initAppBundle() -> Ui {
 
         await bootstrapConfig_nonCancellable()
         _ = await reloadConfig_nonCancellable()
-        // The first snapshot shows a workspace on every monitor. After the config: it picks the workspaces
-        updateMonitors()
+        initWorkspaces() // After the config: it picks the workspaces
 
         startUnixSocketServer()
         GlobalObserver.initObserver()
-        Workspace.garbageCollectUnusedWorkspaces() // init workspaces
-        _ = Workspace.all.first?.focusWorkspace()
         try await world.sessions.startup {
             smartLayoutAtStartup()
             _ = await config.afterStartupCommand.run(.defaultEnv, .emptyStdin)
@@ -43,6 +40,14 @@ private func bootstrapConfig_nonCancellable() async {
         \(result.stdout)
         """
     check(result.isOk, msg)
+}
+
+/// The persistent workspaces, then the first snapshot of the monitors: it shows on each monitor a workspace that belongs to
+/// it. The focus goes to the first workspace. `monitors`: tests only
+func initWorkspaces(_ monitors: [MonitorInfo] = liveMonitorInfos()) {
+    Workspace.ensurePersistentWorkspaces()
+    updateMonitors(monitors)
+    _ = Workspace.all.first?.focusWorkspace()
 }
 
 private func smartLayoutAtStartup() {

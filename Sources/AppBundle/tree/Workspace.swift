@@ -70,10 +70,15 @@ final class Workspace: TreeNode, Hashable, Comparable {
         return "Workspace(\(description))"
     }
 
-    static func garbageCollectUnusedWorkspaces() {
+    /// Creates the persistent workspaces that don't exist yet
+    static func ensurePersistentWorkspaces() {
         for name in config.persistentWorkspaces {
-            _ = get(byName: name) // Make sure that all persistent workspaces are "cached"
+            _ = get(byName: name)
         }
+    }
+
+    static func garbageCollectUnusedWorkspaces() {
+        ensurePersistentWorkspaces()
         // Remove in place. Reading focus can insert into world.workspacesByName, assigning a filtered copy would drop it
         for (name, workspace) in world.workspacesByName {
             let isUsed = config.persistentWorkspaces.contains(workspace.name) ||
