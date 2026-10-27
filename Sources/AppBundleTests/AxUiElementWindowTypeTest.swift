@@ -16,6 +16,16 @@ struct AxUiElementWindowTypeTest: AeroSpaceTestSuite {
         try checkAxDump(axDumpsDir.appending(path: path))
     }
 
+    // A malformed dump must fail only its own case. Dying on these values would crash the whole test run
+    @Test
+    func testMalformedDumpValuesAreRejectedWithoutDying() {
+        #expect(Json.newOrNilRecursive(["x": 1.5] as [String: Any]) == nil)
+        #expect(Json.newOrNilRecursive(["x": [1, 2.5]] as [String: Any]) == nil)
+        #expect(Json.newOrNilRecursive(["x": [1, "a"]] as [String: Any]) == .dict(["x": .array([.int(1), .string("a")])]))
+        #expect(axUiElementMockFromTestDump(NSNumber(value: 5)) == nil)
+        #expect(axUiElementMockFromTestDump("garbage, not an element" as NSString) == nil)
+    }
+
     // debug-windows writes the activation policy with prettyDescription, and the dumps are read back with from(string:)
     @Test
     func testActivationPolicyRoundTrip() {
@@ -40,7 +50,7 @@ private func checkAxDump(_ file: URL) throws {
         try JSONSerialization.jsonObject(with: Data.init(contentsOf: file), options: [.json5Allowed]) as? [String: Any],
         "The dump isn't a JSON object",
     )
-    let json = Json.newOrDieRecursive(rawJson).asDictOrDie // rawJson is a dictionary
+    let json = try #require(Json.newOrNilRecursive(rawJson)?.asDictOrNil, "The dump contains a value that Json can't represent")
     let app = try #require(json["Aero.AXApp"]?.asDictOrNil, "Aero.AXApp is missing or isn't an object")
     let appBundleId = (rawJson["Aero.App.appBundleId"] as? String).flatMap { KnownBundleId.init(rawValue: $0) }
     let windowLevel = try json["Aero.windowLevel"].map { try #require(MacOsWindowLevel.fromJson($0), "Invalid Aero.windowLevel") }

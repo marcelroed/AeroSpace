@@ -26,13 +26,17 @@ enum Json: Encodable, Equatable { // todo rename to Dto? (data transfer object)
         }
     }
 
-    static func newOrDieRecursive(_ value: Any?) -> Json {
+    /// nil if the value contains something that `Json` can't represent (e.g. a non-integer number)
+    static func newOrNilRecursive(_ value: Any?) -> Json? {
         switch value {
-            case let value as [String: Any?]: .dict(value.mapValues(newOrDieRecursive))
-            case let value as [Any?]: .array(value.map(newOrDieRecursive))
+            case let value as [String: Any?]:
+                let dict = value.compactMapValues(newOrNilRecursive)
+                return dict.count == value.count ? .dict(dict) : nil
+            case let value as [Any?]:
+                let array = value.compactMap(newOrNilRecursive)
+                return array.count == value.count ? .array(array) : nil
             default:
-                newScalarOrNil(value)
-                    ?? dieT("Can't parse \(String(describing: value)) (\(Swift.type(of: value))) to JSON")
+                return newScalarOrNil(value)
         }
     }
 
@@ -66,8 +70,6 @@ enum Json: Encodable, Equatable { // todo rename to Dto? (data transfer object)
             case .string(let x): x
         }
     }
-
-    var asDictOrDie: [String: Json] { asDictOrNil.orDie("\(self) is not a dict") }
 
     var asInt64OrNil: Int64? {
         if case .int(let value) = self { value } else { nil }
