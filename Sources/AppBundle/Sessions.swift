@@ -34,7 +34,8 @@ import Common
 /// - Placement: `AxApp.postPlacements`, a generation per window. Preempted by a newer placement, attribute write or
 ///   close of the window.
 /// - Native focus on the app's thread (the slow path, or either path in the app's shown job): a global generation
-///   (`LivePlatform.decideNativeFocus`). Preempted by a newer native focus.
+///   (`LivePlatform.decideNativeFocus`). Preempted by a newer native focus. A busy app's shown job, past the parks'
+///   deadline: main activates the app (fast path, `NativeFocus.activateIfNotRun`), and the job's focus doesn't run.
 /// - App registration: one pending task per pid (`LivePlatform.pendingRegistrations`). A failed one backs off 1–60 s
 ///   (``RegistrationBackoffs``). Nothing preempts it.
 /// - Order within an app: FIFO on its actor's thread (posts and awaited calls share one queue). Per layout, a shown job

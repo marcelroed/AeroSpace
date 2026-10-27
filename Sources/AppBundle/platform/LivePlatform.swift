@@ -215,7 +215,8 @@ final class LivePlatform: Platform {
     /// The native focus goes right after the writes. An activation that reaches the app before them keeps its main thread
     /// busy: cmux then takes ~10 ms for the size write and ~30 ms for the position write instead of ~1 ms each, and shows
     /// ~80 ms after the command instead of ~33 ms. Not after the on-screen wait either: the focus would wait for the app's
-    /// lag (cmux: ~25 ms). Without a shown job of its app, the focus runs as ``focus(_:)``
+    /// lag (cmux: ~25 ms). Without a shown job of its app, the focus runs as ``focus(_:)``. If a busy app holds its shown
+    /// job, see `NativeFocus.activateIfNotRun(by:)`
     func apply(_ batch: [Placement], focus: WindowId?, trustsLastSeen: Bool) {
         var shown: [pid_t: (ax: AxApp, placements: [Placement])] = [:]
         var parks: [pid_t: (ax: AxApp, placements: [Placement])] = [:]
@@ -239,7 +240,7 @@ final class LivePlatform: Platform {
         }
         guard let nativeFocus, let focusRoute else { return }
         switch focusRoute {
-            case .shownJob: break // The job runs it
+            case .shownJob: nativeFocus.activateIfNotRun(by: shownJobs.deadline)
             case .alone: nativeFocus.runAlone()
         }
     }
@@ -272,8 +273,8 @@ final class LivePlatform: Platform {
         let activatesOnly = (!NSScreen.screensHaveSeparateSpaces || world.monitors.all.count == 1) &&
             (app.lastNativeFocusedWindowId == id || app.windowsCount == 1)
         let raw = id.raw
-        return NativeFocus(app: app, activatesOnly: activatesOnly) { @Sendable [nsApp = app.nsApp] axApp in
-            if nativeFocusGeneration.load(ordering: .sequentiallyConsistent) != generation { return }
+        return NativeFocus(app: app, activatesOnly: activatesOnly, generation: generation) { @Sendable [nsApp = app.nsApp] axApp in
+            guard takeNativeFocus(generation) else { return }
             if activatesOnly { nsApp.activateForNativeFocus() } else { axApp.focus(raw, nsApp) }
         }
     }
@@ -473,6 +474,11 @@ nonisolated private func eachUntilAbandoned<T>(_ raws: [UInt32], _ isAbandoned: 
 /// The latest-wins slot of a native focus that runs on its app's thread: a newer focus request makes a pending one stale
 nonisolated private let nativeFocusGeneration: Atomic<UInt64> = Atomic(0)
 
+/// The once-flag of a native focus: true for its first taker (its shown job or main's fallback) while it's the latest
+nonisolated private func takeNativeFocus(_ generation: UInt64) -> Bool {
+    nativeFocusGeneration.compareExchange(expected: generation, desired: generation &+ 1, ordering: .sequentiallyConsistent).exchanged
+}
+
 /// Where a batch's native focus runs (``LivePlatform/apply(_:focus:trustsLastSeen:)``)
 nonisolated enum NativeFocusRoute: Equatable {
     /// In the shown job of its app, right after the writes
@@ -490,6 +496,7 @@ private struct NativeFocus {
     let app: LiveApp
     /// The fast path (#101): the activation alone focuses the window, with no AX call
     let activatesOnly: Bool
+    let generation: UInt64
     /// On the app's thread, in its shown job or posted alone
     let run: @Sendable (isolated AxApp) -> Void
 
@@ -499,6 +506,15 @@ private struct NativeFocus {
             app.nsApp.activateForNativeFocus()
         } else {
             app.ax?.post(run)
+        }
+    }
+
+    /// In its app's shown job, which a busy app may hold up to the AX timeout: the fast path activates the app from main
+    /// once the parks stop waiting, unless the job ran the focus first. The slow path waits for the job, as at r4.2
+    func activateIfNotRun(by deadline: DispatchTime) {
+        guard activatesOnly else { return }
+        DispatchQueue.main.asyncAfter(deadline: deadline) { [nsApp = app.nsApp, generation] in
+            if takeNativeFocus(generation) { nsApp.activateForNativeFocus() }
         }
     }
 }
