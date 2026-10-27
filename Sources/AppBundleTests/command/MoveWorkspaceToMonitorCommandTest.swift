@@ -4,57 +4,54 @@ import Testing
 
 @MainActor
 @Suite(.aeroSpaceGlobalState)
-struct MoveWorkspaceToMonitorCommandTest: AeroSpaceTestSuite {
+struct MoveWorkspaceToMonitorCommandTest {
     @Test
-    func testParse() {
-        assertEquals(parseMoveWorkspaceToMonitorTarget("move-workspace-to-monitor next"), .relative(.next))
-        assertEquals(parseMoveWorkspaceToMonitorTarget("move-workspace-to-monitor main"), .patterns([.main]))
+    func parse() {
+        #expect(parseMoveWorkspaceToMonitorTarget("move-workspace-to-monitor next") == .relative(.next))
+        #expect(parseMoveWorkspaceToMonitorTarget("move-workspace-to-monitor main") == .patterns([.main]))
+        #expect(parseMoveWorkspaceToMonitorTarget("move-workspace-to-monitor -- next") == .patterns([.pattern("next")!]))
     }
 
-    @Test
-    func testParseDashDash() {
-        assertEquals(parseMoveWorkspaceToMonitorTarget("move-workspace-to-monitor -- next"), .patterns([.pattern("next")!]))
-        assertEquals(parseCommand("move-workspace-to-monitor --").errorOrNil, "ERROR: Argument \'(left|down|up|right|next|prev|<monitor-pattern>)\' is mandatory")
+    @Test(arguments: [
+        ("move-workspace-to-monitor --", "ERROR: Argument '(left|down|up|right|next|prev|<monitor-pattern>)' is mandatory"),
+        // The deprecated move-workspace-to-display alias used to skip the post-parse validation (RB-12)
+        ("move-workspace-to-monitor --wrap-around 2", "ERROR: --wrap-around is incompatible with <monitor-pattern> argument"),
+        ("move-workspace-to-display --wrap-around 2", "ERROR: --wrap-around is incompatible with <monitor-pattern> argument"),
+    ])
+    func parseError(command: String, error: String) async {
+        let output = await runCmd(command)
+        #expect(output == .fail(error))
+    }
+
+    @Test(arguments: ["move-workspace-to-monitor", "move-workspace-to-display"])
+    func parseDeprecatedAlias(command: String) {
+        #expect(parseMoveWorkspaceToMonitorTarget("\(command) --wrap-around next") == .relative(.next))
     }
 
     // The test monitor is the only monitor
-    @Test
-    func testSingleMonitor_noTargetMonitor() async {
-        let workspace = Workspace.get(byName: name)
-        assertEquals(workspace.focusWorkspace(), true)
-        for (command, error) in singleMonitorErrors {
-            await assertRun("move-workspace-to-monitor \(command)", exitCode: 2, stdout: [], stderr: [error])
-            assertEquals(workspace.workspaceMonitor.monitorId_oneBased, mainMonitorInfo.monitorId_oneBased)
-            assertEquals(focus.workspace, workspace)
-        }
+    @Test(arguments: singleMonitorErrors)
+    func singleMonitor_noTargetMonitor(target: String, error: String) async {
+        let workspace = focus.workspace
+        let output = await runCmd("move-workspace-to-monitor \(target)")
+        #expect(output == .fail(error))
+        #expect(workspace.workspaceMonitor.monitorId_oneBased == mainMonitorInfo.monitorId_oneBased)
+        #expect(focus.workspace == workspace)
     }
 
-    @Test
-    func testSingleMonitor_sameMonitor_succeedsSilently() async {
-        let workspace = Workspace.get(byName: name)
-        assertEquals(workspace.focusWorkspace(), true)
-        for command in ["--wrap-around next", "--wrap-around left", "main"] {
-            await assertRun("move-workspace-to-monitor \(command)", exitCode: 0, stdout: [], stderr: [])
-            assertEquals(focus.workspace, workspace)
-            assertEquals(mainMonitorInfo.activeWorkspace, workspace)
-        }
+    @Test(arguments: ["--wrap-around next", "--wrap-around left", "main"])
+    func singleMonitor_sameMonitor_succeedsSilently(target: String) async {
+        let workspace = focus.workspace
+        let output = await runCmd("move-workspace-to-monitor \(target)")
+        #expect(output == .ok)
+        #expect(focus.workspace == workspace)
+        #expect(mainMonitorInfo.activeWorkspace == workspace)
     }
 
+    /// No screens (e.g., during display reconfiguration) is a normal state, not a bug (RB-40)
     @Test
-    func testParseDeprecatedAliasIsValidatedLikeTheCommand() {
-        // The deprecated move-workspace-to-display alias used to skip the post-parse validation (RB-12)
-        for command in ["move-workspace-to-monitor", "move-workspace-to-display"] {
-            assertEquals(parseCommand("\(command) --wrap-around 2").errorOrNil, "ERROR: --wrap-around is incompatible with <monitor-pattern> argument")
-            assertEquals(parseMoveWorkspaceToMonitorTarget("\(command) --wrap-around next"), .relative(.next))
-        }
-    }
-
-    @Test
-    func testMoveWorkspaceToMonitorNext_noScreens_failsWithMessage() async {
-        // No screens (e.g., during display reconfiguration) is a normal state, not a bug (RB-40)
-        await $noScreensForTests.withValue(true) {
-            await assertRun("move-workspace-to-monitor next", exitCode: 2, stdout: [], stderr: ["Can't find the next monitor while there are no screens"])
-        }
+    func next_noScreens_failsWithMessage() async {
+        let output = await $noScreensForTests.withValue(true) { await runCmd("move-workspace-to-monitor next") }
+        #expect(output == .fail("Can't find the next monitor while there are no screens"))
     }
 }
 

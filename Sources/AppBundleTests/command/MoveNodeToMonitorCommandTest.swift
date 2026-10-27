@@ -4,17 +4,11 @@ import Testing
 
 @MainActor
 @Suite(.aeroSpaceGlobalState)
-struct MoveNodeToMonitorCommandTest: AeroSpaceTestSuite {
+struct MoveNodeToMonitorCommandTest {
     @Test
-    func testParse() {
+    func parse() {
         testParseSingleCommandSucc("move-node-to-monitor next", MoveNodeToMonitorCmdArgs(target: .relative(.next)))
         testParseSingleCommandSucc("move-node-to-monitor --fail-if-noop main", MoveNodeToMonitorCmdArgs(target: .patterns([.main])).copy(\.failIfNoop, true))
-        assertEquals(parseCommand("move-node-to-monitor --fail-if-noop next").errorOrNil, "ERROR: --fail-if-noop is incompatible with (left|down|up|right|next|prev)")
-        assertEquals(parseCommand("move-node-to-monitor --fail-if-noop left").errorOrNil, "ERROR: --fail-if-noop is incompatible with (left|down|up|right|next|prev)")
-    }
-
-    @Test
-    func testParseDashDash() {
         testParseSingleCommandSucc("move-node-to-monitor -- next", MoveNodeToMonitorCmdArgs(target: .patterns([.pattern("next")!])))
         testParseSingleCommandSucc(
             "move-node-to-monitor -- main 2",
@@ -24,35 +18,39 @@ struct MoveNodeToMonitorCommandTest: AeroSpaceTestSuite {
             "move-node-to-monitor --fail-if-noop -- next",
             MoveNodeToMonitorCmdArgs(target: .patterns([.pattern("next")!])).copy(\.failIfNoop, true),
         )
-        assertEquals(parseCommand("move-node-to-monitor --").errorOrNil, "ERROR: Argument \'(left|down|up|right|next|prev|<monitor-pattern>)\' is mandatory")
+    }
+
+    @Test(arguments: [
+        ("move-node-to-monitor --fail-if-noop next", "ERROR: --fail-if-noop is incompatible with (left|down|up|right|next|prev)"),
+        ("move-node-to-monitor --fail-if-noop left", "ERROR: --fail-if-noop is incompatible with (left|down|up|right|next|prev)"),
+        ("move-node-to-monitor --", "ERROR: Argument '(left|down|up|right|next|prev|<monitor-pattern>)' is mandatory"),
+    ])
+    func parseError(command: String, error: String) async {
+        let output = await runCmd(command)
+        #expect(output == .fail(error))
     }
 
     // The test monitor is the only monitor
-    @Test
-    func testSingleMonitor_noTargetMonitor() async {
-        let root = Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-        }
-        for (command, error) in singleMonitorErrors {
-            await assertRun("move-node-to-monitor \(command)", exitCode: 2, stdout: [], stderr: [error])
-            assertEquals(root.layoutDescription, .h_tiles([.window(1)]))
-        }
+    @Test(arguments: singleMonitorErrors)
+    func singleMonitor_noTargetMonitor(target: String, error: String) async {
+        setUpTree("h_tiles(*1)")
+        let output = await runCmd("move-node-to-monitor \(target)")
+        #expect(output == .fail(error))
+        #expect(describeTree() == "h_tiles(*1)")
+    }
+
+    @Test(arguments: ["--wrap-around next", "--wrap-around left", "main"])
+    func singleMonitor_sameMonitor_isNoop(target: String) async {
+        let workspace = setUpTree("h_tiles(*1)")
+        let output = await runCmd("move-node-to-monitor \(target)")
+        #expect(output == CmdOutput(stderr: ["Window '1' already belongs to workspace '\(workspace.name)'. Tip: use --fail-if-noop to exit with non-zero code"]))
+        #expect(describeTree() == "h_tiles(*1)")
     }
 
     @Test
-    func testSingleMonitor_sameMonitor_isNoop() async {
-        let root = Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-        }
-        for command in ["--wrap-around next", "--wrap-around left", "main"] {
-            await assertRun(
-                "move-node-to-monitor \(command)",
-                exitCode: 0,
-                stdout: [],
-                stderr: ["Window '1' already belongs to workspace '\(name)'. Tip: use --fail-if-noop to exit with non-zero code"],
-            )
-            assertEquals(root.layoutDescription, .h_tiles([.window(1)]))
-        }
-        await assertRun("move-node-to-monitor --fail-if-noop main", exitCode: 2, stdout: [], stderr: [])
+    func singleMonitor_sameMonitor_failIfNoop() async {
+        setUpTree("h_tiles(*1)")
+        let output = await runCmd("move-node-to-monitor --fail-if-noop main")
+        #expect(output == .fail())
     }
 }

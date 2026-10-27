@@ -4,49 +4,54 @@ import Testing
 
 @MainActor
 @Suite(.aeroSpaceGlobalState)
-struct FullscreenCommandTest: AeroSpaceTestSuite {
-    @Test
-    func testParse() {
-        assertEquals(parseCommand("fullscreen off --no-outer-gaps").errorOrNil, "ERROR: --no-outer-gaps is incompatible with 'off' argument")
-        assertEquals(parseCommand("fullscreen --fail-if-noop").errorOrNil, "ERROR: --fail-if-noop requires 'on' or 'off' argument")
-        assertEquals(parseCommand("fullscreen foo").errorOrNil, "ERROR: Can't parse 'foo'. Possible values: on|off")
+struct FullscreenCommandTest {
+    @Test(arguments: [
+        ("fullscreen off --no-outer-gaps", "ERROR: --no-outer-gaps is incompatible with 'off' argument"),
+        ("fullscreen --fail-if-noop", "ERROR: --fail-if-noop requires 'on' or 'off' argument"),
+        ("fullscreen foo", "ERROR: Can't parse 'foo'. Possible values: on|off"),
+    ])
+    func parseError(command: String, error: String) async {
+        let output = await runCmd(command)
+        #expect(output == .fail(error))
     }
 
     @Test
-    func testToggle() async {
-        let window = TestWindow.new(id: 1, parent: Workspace.get(byName: name).rootTilingContainer)
-        assertTrue(window.focusWindow())
+    func toggle() async {
+        setUpTree("h_tiles(*1)")
+        let window = testWindow(1)
 
-        await assertRun("fullscreen", exitCode: 0, stderr: [])
-        assertTrue(window.isFullscreen)
-        assertFalse(window.noOuterGapsInFullscreen)
+        var output = await runCmd("fullscreen")
+        #expect(output == .ok)
+        #expect(window.isFullscreen)
+        #expect(!window.noOuterGapsInFullscreen)
 
-        await assertRun("fullscreen", exitCode: 0)
-        assertFalse(window.isFullscreen)
+        output = await runCmd("fullscreen")
+        #expect(output == .ok)
+        #expect(!window.isFullscreen)
 
-        await assertRun("fullscreen on --no-outer-gaps", exitCode: 0)
-        assertTrue(window.isFullscreen)
-        assertTrue(window.noOuterGapsInFullscreen)
+        output = await runCmd("fullscreen on --no-outer-gaps")
+        #expect(output == .ok)
+        #expect(window.isFullscreen)
+        #expect(window.noOuterGapsInFullscreen)
+    }
+
+    @Test(arguments: [
+        (false, "fullscreen off", CmdOutput(stderr: ["Already not fullscreen. Tip: use --fail-if-noop to exit with non-zero code"])),
+        (false, "fullscreen off --fail-if-noop", .fail()),
+        (true, "fullscreen on", CmdOutput(stderr: ["Already fullscreen. Tip: use --fail-if-noop to exit with non-zero code"])),
+        (true, "fullscreen on --fail-if-noop", .fail()),
+    ])
+    func noop(isFullscreen: Bool, command: String, expected: CmdOutput) async {
+        setUpTree("h_tiles(*1)")
+        testWindow(1).isFullscreen = isFullscreen
+        let output = await runCmd(command)
+        #expect(output == expected)
+        #expect(testWindow(1).isFullscreen == isFullscreen)
     }
 
     @Test
-    func testNoop() async {
-        let window = TestWindow.new(id: 1, parent: Workspace.get(byName: name).rootTilingContainer)
-        assertTrue(window.focusWindow())
-
-        await assertRun("fullscreen off", exitCode: 0, stderr: ["Already not fullscreen. Tip: use --fail-if-noop to exit with non-zero code"])
-
-        await assertRun("fullscreen off --fail-if-noop", exitCode: 2, stderr: [])
-
-        window.isFullscreen = true
-        await assertRun("fullscreen on", exitCode: 0, stderr: ["Already fullscreen. Tip: use --fail-if-noop to exit with non-zero code"])
-
-        await assertRun("fullscreen on --fail-if-noop", exitCode: 2, stderr: [])
-        assertTrue(window.isFullscreen)
-    }
-
-    @Test
-    func testNoWindowIsFocused() async {
-        await assertRun("fullscreen", exitCode: 2, stderr: [noWindowIsFocused])
+    func noWindowIsFocused() async {
+        let output = await runCmd("fullscreen")
+        #expect(output == .fail("No window is focused"))
     }
 }
