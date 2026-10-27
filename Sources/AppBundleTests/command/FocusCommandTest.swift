@@ -139,20 +139,28 @@ struct FocusCommandTest {
 
     @Test
     func focusOverFloatingWindowsLeavesTheTilingMruAlone() async {
-        let workspace = setUpTree("h_tiles(v_tiles(1 2) 3) floating(*4)")
-        let rects: [(UInt32, Rect)] = [(1, rect(0, 0, 960, 540)), (2, rect(0, 540, 960, 540)), (3, rect(960, 0, 960, 1080))]
-        for (id, rect) in rects {
-            testWindow(id).rect = rect
-            testWindow(id).lastAppliedLayoutVirtualRect = rect
-        }
-        testWindow(1).parent?.lastAppliedLayoutVirtualRect = rect(0, 0, 960, 1080) // v_tiles
-        testWindow(4).rect = rect(100, 100, 200, 200) // Seen as the first tiling window of v_tiles, above window 1
+        let workspace = setUpFloatingWindowAboveTiles("h_tiles(v_tiles(1 2) 3) floating(*4)")
         let mruBefore = describeNode(workspace, mru: true)
         let output = await runCmd("focus left") // Nothing on the left
         #expect(output == .ok)
         #expect(describeNode(workspace, mru: true) == mruBefore)
         let tree: String = "h_tiles(v_tiles(1 2) 3) floating(*4)"
         #expect(describeTree() == tree)
+    }
+
+    /// Before RS-NAV, focus focused while the floating windows were bound as tiling windows. Focusing window 4 made v_tiles
+    /// the most recent child of the root, and layout let window 2 go fullscreen instead of window 3
+    @Test
+    func focusingAFloatingWindowKeepsTheFullscreenTilingWindow() async throws {
+        let workspace = setUpFloatingWindowAboveTiles("h_tiles(v_tiles(1 2) 3) floating(4)")
+        #expect(testWindow(2).focusWindow() && testWindow(3).focusWindow())
+        testWindow(3).isFullscreen = true
+        let output = await runCmd("focus --window-id 4")
+        #expect(output == .ok)
+        #expect(workspace.rootTilingContainer.mostRecentWindowRecursive?.windowId == 3)
+        try await workspace.layoutWorkspace()
+        let fullscreen: AxFrame = AxFrame(topLeft: CGPoint(x: 0, y: 0), size: CGSize(width: 1920, height: 1080))
+        #expect(testWindow(3).setAxFrameHistory.last == fullscreen)
     }
 
     @Test
@@ -251,4 +259,18 @@ struct FocusCommandTest {
         }
         #expect(describeTree() == "h_tiles(*1 2)")
     }
+}
+
+/// The tiles fill the 1920x1080 test monitor, and floating window 4 is above window 1: focus sees it as the first tiling
+/// window of v_tiles
+private func setUpFloatingWindowAboveTiles(_ spec: String) -> Workspace {
+    let workspace = setUpTree(spec)
+    let rects: [(UInt32, Rect)] = [(1, rect(0, 0, 960, 540)), (2, rect(0, 540, 960, 540)), (3, rect(960, 0, 960, 1080))]
+    for (id, rect) in rects {
+        testWindow(id).rect = rect
+        testWindow(id).lastAppliedLayoutVirtualRect = rect
+    }
+    testWindow(1).parent?.lastAppliedLayoutVirtualRect = rect(0, 0, 960, 1080) // v_tiles
+    testWindow(4).rect = rect(100, 100, 200, 200)
+    return workspace
 }
