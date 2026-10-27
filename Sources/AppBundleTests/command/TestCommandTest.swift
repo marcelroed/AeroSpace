@@ -37,34 +37,24 @@ final class TestCommandTest: XCTestCase {
             assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
         }
 
-        assertEquals(
-            await parseCommand("test %{window-id} = 1").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)),
-        )
+        await assertRun("test %{window-id} = 1", exitCode: 0, stdout: [], stderr: [])
 
-        assertEquals(
-            await parseCommand("test %{window-id} = 2").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 1)),
-        )
+        await assertRun("test %{window-id} = 2", exitCode: 1, stdout: [], stderr: [])
 
-        assertEquals(
-            await parseCommand("test %{workspace-is-focused} = foo").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: ["Can\'t convert String \'foo\' to Bool"], exitCode: Int32ExitCode(rawValue: 2)),
-        )
+        await assertRun("test %{workspace-is-focused} = foo", exitCode: 2, stdout: [], stderr: ["Can\'t convert String \'foo\' to Bool"])
 
-        assertEquals(
-            await parseCommand("test %{workspace-is-focused} ~= foo").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: ["Interpolation variable: \'workspace-is-focused\' has a type of Bool. The Bool type is not compatible with \'~=\' operator."], exitCode: Int32ExitCode(rawValue: 2)),
+        await assertRun(
+            "test %{workspace-is-focused} ~= foo",
+            exitCode: 2,
+            stdout: [],
+            stderr: ["Interpolation variable: \'workspace-is-focused\' has a type of Bool. The Bool type is not compatible with \'~=\' operator."],
         )
     }
 
     func testExecNoWindow() async {
         assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
 
-        assertEquals(
-            await parseCommand("test %{window-id} = 1").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: ["No window is focused"], exitCode: Int32ExitCode(rawValue: 2)),
-        )
+        await assertRun("test %{window-id} = 1", exitCode: 2, stdout: [], stderr: ["No window is focused"])
     }
 
     func testExecWorkspaceContextSuccess() async {
@@ -72,10 +62,7 @@ final class TestCommandTest: XCTestCase {
         // and the lhs interpolation variable resolves against the workspace target.
         assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
 
-        assertEquals(
-            await parseCommand("test %{workspace-is-focused} = true").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)),
-        )
+        await assertRun("test %{workspace-is-focused} = true", exitCode: 0, stdout: [], stderr: [])
     }
 
     func testExecBoolEquals() async {
@@ -83,15 +70,9 @@ final class TestCommandTest: XCTestCase {
             assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
         }
 
-        assertEquals(
-            await parseCommand("test %{workspace-is-focused} = true").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)),
-        )
+        await assertRun("test %{workspace-is-focused} = true", exitCode: 0, stdout: [], stderr: [])
 
-        assertEquals(
-            await parseCommand("test %{workspace-is-focused} = false").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 1)),
-        )
+        await assertRun("test %{workspace-is-focused} = false", exitCode: 1, stdout: [], stderr: [])
     }
 
     func testExecIntEqualsRhsNotInt() async {
@@ -99,10 +80,7 @@ final class TestCommandTest: XCTestCase {
             assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
         }
 
-        assertEquals(
-            await parseCommand("test %{window-id} = abc").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: ["Can\'t convert String \'abc\' to Int"], exitCode: Int32ExitCode(rawValue: 2)),
-        )
+        await assertRun("test %{window-id} = abc", exitCode: 2, stdout: [], stderr: ["Can\'t convert String \'abc\' to Int"])
     }
 
     func testExecIntMatchesRegexIncompatible() async {
@@ -110,10 +88,7 @@ final class TestCommandTest: XCTestCase {
             assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
         }
 
-        assertEquals(
-            await parseCommand("test %{window-id} ~= 1").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: ["Interpolation variable: \'window-id\' has a type of Int. The Int type is not compatible with \'~=\' operator."], exitCode: Int32ExitCode(rawValue: 2)),
-        )
+        await assertRun("test %{window-id} ~= 1", exitCode: 2, stdout: [], stderr: ["Interpolation variable: \'window-id\' has a type of Int. The Int type is not compatible with \'~=\' operator."])
     }
 
     func testExecStringEquals() async {
@@ -121,15 +96,9 @@ final class TestCommandTest: XCTestCase {
             assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
         }
 
-        assertEquals(
-            await parseCommand("test %{app-bundle-id} = bobko.AeroSpace.test-app").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)),
-        )
+        await assertRun("test %{app-bundle-id} = bobko.AeroSpace.test-app", exitCode: 0, stdout: [], stderr: [])
 
-        assertEquals(
-            await parseCommand("test %{app-bundle-id} = other.bundle.id").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 1)),
-        )
+        await assertRun("test %{app-bundle-id} = other.bundle.id", exitCode: 1, stdout: [], stderr: [])
     }
 
     func testExecStringMatchesRegex() async {
@@ -137,15 +106,9 @@ final class TestCommandTest: XCTestCase {
             assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
         }
 
-        assertEquals(
-            await parseCommand("test %{app-bundle-id} ~= AERO").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)),
-        )
+        await assertRun("test %{app-bundle-id} ~= AERO", exitCode: 0, stdout: [], stderr: [])
 
-        assertEquals(
-            await parseCommand("test %{app-bundle-id} ~= zzzzz").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 1)),
-        )
+        await assertRun("test %{app-bundle-id} ~= zzzzz", exitCode: 1, stdout: [], stderr: [])
     }
 
     func testExecStringMatchesRegexInvalidPattern() async {
@@ -153,9 +116,7 @@ final class TestCommandTest: XCTestCase {
             assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
         }
 
-        let result = await parseCommand("test %{app-bundle-id} ~= [").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
+        let result = await assertRun("test %{app-bundle-id} ~= [", exitCode: 2, stdout: [])
         assertTrue(result.stderr.first?.contains("Can\'t parse \'[\' regex") ?? false)
     }
 
@@ -163,10 +124,7 @@ final class TestCommandTest: XCTestCase {
         assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
         let env = CmdEnv.defaultEnv.withWindowId(9999)
 
-        assertEquals(
-            await parseCommand("test %{window-id} = 1").cmdOrDie.run(env, .emptyStdin),
-            CmdResult(stdout: [], stderr: ["Invalid <window-id> 9999 specified in AEROSPACE_WINDOW_ID env variable"], exitCode: Int32ExitCode(rawValue: 2)),
-        )
+        await assertRun("test %{window-id} = 1", env: env, exitCode: 2, stdout: [], stderr: ["Invalid <window-id> 9999 specified in AEROSPACE_WINDOW_ID env variable"])
     }
 
     func testNotExec() async {
@@ -175,21 +133,12 @@ final class TestCommandTest: XCTestCase {
         }
 
         // test inner=true → test-not=false
-        assertEquals(
-            await parseCommand("test-not %{window-id} = 1").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 1)),
-        )
+        await assertRun("test-not %{window-id} = 1", exitCode: 1, stdout: [], stderr: [])
 
         // test inner=false → test-not=true
-        assertEquals(
-            await parseCommand("test-not %{window-id} = 2").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)),
-        )
+        await assertRun("test-not %{window-id} = 2", exitCode: 0, stdout: [], stderr: [])
 
         // test inner=fail → test-not=fail (propagates without inverting)
-        assertEquals(
-            await parseCommand("test-not %{workspace-is-focused} = foo").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: ["Can\'t convert String \'foo\' to Bool"], exitCode: Int32ExitCode(rawValue: 2)),
-        )
+        await assertRun("test-not %{workspace-is-focused} = foo", exitCode: 2, stdout: [], stderr: ["Can\'t convert String \'foo\' to Bool"])
     }
 }

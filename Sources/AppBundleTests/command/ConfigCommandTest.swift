@@ -44,10 +44,7 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
 
     @Test
     func testConfigPath() async {
-        let result = await parseCommand("config --config-path").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, [configUrl.absoluteURL.path])
+        await assertRun("config --config-path", exitCode: 0, stdout: [configUrl.absoluteURL.path], stderr: [])
     }
 
     @Test
@@ -56,9 +53,7 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
             "main": Mode(bindings: [:]),
             "service": Mode(bindings: [:]),
         ]
-        let result = await parseCommand("config --major-keys").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
+        let result = await assertRun("config --major-keys", exitCode: 0, stderr: [])
         // The whole listing comes back as one stdout entry separated by newlines.
         // Dict iteration order isn't stable, so sort before asserting.
         let lines = (result.stdout.singleOrNil() ?? "").split(separator: "\n").map(String.init).sorted()
@@ -71,34 +66,24 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
         let binding = HotkeyBinding(.option, .h, command)
         config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
 
-        let result = await parseCommand("config --all-keys").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
         // Single mode + single binding => dict iteration order doesn't affect the output.
-        assertEquals(
-            result.stdout,
-            [".\nmode\nmode.main\nmode.main.binding\nmode.main.binding.alt-h"],
-        )
+        await assertRun("config --all-keys", exitCode: 0, stdout: [".\nmode\nmode.main\nmode.main.binding\nmode.main.binding.alt-h"], stderr: [])
     }
 
     @Test
     func testGetRoot_complexObject_fails() async {
-        let result = await parseCommand("config --get .").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(
-            result.stderr,
-            ["Complicated objects can be printed only with --json flag. Alternatively, you can try to inspect keys of the object with --keys flag"],
+        await assertRun(
+            "config --get .",
+            exitCode: 2,
+            stdout: [],
+            stderr: ["Complicated objects can be printed only with --json flag. Alternatively, you can try to inspect keys of the object with --keys flag"],
         )
     }
 
     @Test
     func testGetRoot_keys() async {
         config.modes = ["main": Mode(bindings: [:])]
-        let result = await parseCommand("config --get . --keys").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, ["mode"])
+        await assertRun("config --get . --keys", exitCode: 0, stdout: ["mode"], stderr: [])
     }
 
     @Test
@@ -107,10 +92,7 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
         let expectedMap: OrderedJson = .dict(["mode": .dict(["main": .dict(["binding": .dict([:])])])])
         let expectedJson = JSONEncoder.aeroSpaceDefault.encodeToString(expectedMap)
 
-        let result = await parseCommand("config --get . --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, [expectedJson])
+        await assertRun("config --get . --json", exitCode: 0, stdout: [expectedJson.orDie()], stderr: [])
     }
 
     @Test
@@ -121,10 +103,7 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
             OrderedJson.array([.string("mode")]),
         )
 
-        let result = await parseCommand("config --get . --keys --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, [expected])
+        await assertRun("config --get . --keys --json", exitCode: 0, stdout: [expected.orDie()], stderr: [])
     }
 
     @Test
@@ -133,11 +112,8 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
             "main": Mode(bindings: [:]),
             "service": Mode(bindings: [:]),
         ]
-        let result = await parseCommand("config --get mode --keys").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
         // Plain (non-json) array output is sorted before printing.
-        assertEquals(result.stdout, ["main\nservice"])
+        await assertRun("config --get mode --keys", exitCode: 0, stdout: ["main\nservice"], stderr: [])
     }
 
     @Test
@@ -146,10 +122,7 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
         let binding = HotkeyBinding(.option, .h, command)
         config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
 
-        let result = await parseCommand("config --get mode.main.binding.alt-h").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, [command.shellOfCommandsDescription])
+        await assertRun("config --get mode.main.binding.alt-h", exitCode: 0, stdout: [command.shellOfCommandsDescription], stderr: [])
     }
 
     @Test
@@ -158,11 +131,13 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
         let binding = HotkeyBinding(.option, .h, command)
         config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
 
-        let result = await parseCommand("config --get mode.main.binding.alt-h --keys").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
         // The error message interpolates the enum directly, yielding the default Swift case repr.
-        assertEquals(result.stderr, ["--keys flag cannot be applied to scalar object 'string(\"\(command.shellOfCommandsDescription)\")'"])
+        await assertRun(
+            "config --get mode.main.binding.alt-h --keys",
+            exitCode: 2,
+            stdout: [],
+            stderr: ["--keys flag cannot be applied to scalar object 'string(\"\(command.shellOfCommandsDescription)\")'"],
+        )
     }
 
     @Test
@@ -171,42 +146,27 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
         let binding = HotkeyBinding(.option, .h, command)
         config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
 
-        let result = await parseCommand("config --get mode.main.binding.alt-h.foo").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["Can't dereference scalar value '\(command.shellOfCommandsDescription)'"])
+        await assertRun("config --get mode.main.binding.alt-h.foo", exitCode: 2, stdout: [], stderr: ["Can't dereference scalar value '\(command.shellOfCommandsDescription)'"])
     }
 
     @Test
     func testGetMissingKey_fails() async {
-        let result = await parseCommand("config --get nonExistent").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["No value at key token 'nonExistent'"])
+        await assertRun("config --get nonExistent", exitCode: 2, stdout: [], stderr: ["No value at key token 'nonExistent'"])
     }
 
     @Test
     func testGetInvalidPath_emptyKey() async {
-        let result = await parseCommand("config --get ''").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["Invalid empty key"])
+        await assertRun("config --get ''", exitCode: 2, stdout: [], stderr: ["Invalid empty key"])
     }
 
     @Test
     func testGetInvalidPath_doubleDot() async {
-        let result = await parseCommand("config --get a..b").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["Invalid key 'a..b'"])
+        await assertRun("config --get a..b", exitCode: 2, stdout: [], stderr: ["Invalid key 'a..b'"])
     }
 
     @Test
     func testGetInvalidPath_trailingDot() async {
-        let result = await parseCommand("config --get a.").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["Invalid key 'a.'"])
+        await assertRun("config --get a.", exitCode: 2, stdout: [], stderr: ["Invalid key 'a.'"])
     }
 
     // The naturally-built configMap (buildConfigMap) never produces arrays, so the array branches
@@ -244,7 +204,6 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
         let binding2 = HotkeyBinding(.option, .j, parseCommand("focus down").cmdOrDie)
         config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding, binding2.descriptionWithKeyCode: binding2])]
 
-        let result = await parseCommand("config --get mode --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
         let expected = """
             {
               "main" : {
@@ -255,13 +214,12 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
               }
             }
             """
-        assertEquals(result, CmdResult(stdout: [expected], stderr: [], exitCode: Int32ExitCode(rawValue: 0)))
+        await assertRun("config --get mode --json", exitCode: 0, stdout: [expected], stderr: [])
     }
 
     @Test
     func testGetRoot_json_literal() async {
         config.modes = ["main": Mode(bindings: [:])]
-        let result = await parseCommand("config --get . --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
         let expected = """
             {
               "mode" : {
@@ -273,14 +231,13 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
               }
             }
             """
-        assertEquals(result, CmdResult(stdout: [expected], stderr: [], exitCode: Int32ExitCode(rawValue: 0)))
+        await assertRun("config --get . --json", exitCode: 0, stdout: [expected], stderr: [])
     }
 
     @Test
     func testGetMode_keysJson_literal() async {
         config.modes = ["main": Mode(bindings: [:])]
-        let result = await parseCommand("config --get mode.main --keys --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result, CmdResult(stdout: ["[\n  \"binding\"\n]"], stderr: [], exitCode: Int32ExitCode(rawValue: 0)))
+        await assertRun("config --get mode.main --keys --json", exitCode: 0, stdout: ["[\n  \"binding\"\n]"], stderr: [])
     }
 
     @Test
@@ -288,8 +245,7 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
         let command = parseCommand("focus left").cmdOrDie
         let binding = HotkeyBinding(.option, .h, command)
         config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
-        let result = await parseCommand("config --get mode.main.binding.alt-h --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result, CmdResult(stdout: ["\"focus left\""], stderr: [], exitCode: Int32ExitCode(rawValue: 0)))
+        await assertRun("config --get mode.main.binding.alt-h --json", exitCode: 0, stdout: ["\"focus left\""], stderr: [])
     }
 
     @Test

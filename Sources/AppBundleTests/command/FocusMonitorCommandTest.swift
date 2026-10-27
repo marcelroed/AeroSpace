@@ -24,11 +24,7 @@ struct FocusMonitorCommandTest: AeroSpaceTestSuite {
     @Test
     func testSingleMonitor_noTargetMonitor() async {
         for (command, error) in singleMonitorErrors {
-            assertEquals(
-                await parseCommand("focus-monitor \(command)").cmdOrDie.run(.defaultEnv, .emptyStdin),
-                CmdResult(stdout: [], stderr: [error], exitCode: Int32ExitCode(rawValue: 2)),
-                additionalMsg: command,
-            )
+            await assertRun("focus-monitor \(command)", exitCode: 2, stdout: [], stderr: [error])
         }
     }
 
@@ -37,11 +33,7 @@ struct FocusMonitorCommandTest: AeroSpaceTestSuite {
         let workspace = Workspace.get(byName: name)
         assertEquals(workspace.focusWorkspace(), true)
         for command in ["--wrap-around next", "--wrap-around prev", "--wrap-around left", "main", "1"] {
-            assertEquals(
-                await parseCommand("focus-monitor \(command)").cmdOrDie.run(.defaultEnv, .emptyStdin),
-                CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)),
-                additionalMsg: command,
-            )
+            await assertRun("focus-monitor \(command)", exitCode: 0, stdout: [], stderr: [])
             assertEquals(focus.workspace, workspace)
         }
     }

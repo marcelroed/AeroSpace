@@ -9,37 +9,21 @@ struct ResolveTargetTest: AeroSpaceTestSuite {
     @Test
     func testInvalidWindowIdFlag() async {
         for (command, args) in windowIdCommands {
-            assertEquals(
-                await parseCommand("\(command) --window-id 9999 \(args)").cmdOrDie.run(.defaultEnv, .emptyStdin),
-                CmdResult(stdout: [], stderr: ["Invalid <window-id> 9999 passed to --window-id"], exitCode: Int32ExitCode(rawValue: 2)),
-                additionalMsg: command,
-            )
+            await assertRun("\(command) --window-id 9999 \(args)", exitCode: 2, stdout: [], stderr: ["Invalid <window-id> 9999 passed to --window-id"])
         }
     }
 
     @Test
     func testInvalidWindowIdEnv() async {
         for (command, args) in windowIdCommands {
-            assertEquals(
-                await parseCommand("\(command) \(args)").cmdOrDie.run(.defaultEnv.withWindowId(9999), .emptyStdin),
-                CmdResult(stdout: [], stderr: ["Invalid <window-id> 9999 specified in AEROSPACE_WINDOW_ID env variable"], exitCode: Int32ExitCode(rawValue: 2)),
-                additionalMsg: command,
-            )
+            await assertRun("\(command) \(args)", env: .defaultEnv.withWindowId(9999), exitCode: 2, stdout: [], stderr: ["Invalid <window-id> 9999 specified in AEROSPACE_WINDOW_ID env variable"])
         }
     }
 
     @Test
     func testNoWindowIsFocused() async {
         for (command, args) in windowCommands {
-            assertEquals(
-                await parseCommand("\(command) \(args)").cmdOrDie.run(.defaultEnv, .emptyStdin),
-                CmdResult(
-                    stdout: [],
-                    stderr: [command == "close" ? "Empty workspace" : "No window is focused"],
-                    exitCode: Int32ExitCode(rawValue: 2),
-                ),
-                additionalMsg: command,
-            )
+            await assertRun("\(command) \(args)", exitCode: 2, stdout: [], stderr: [command == "close" ? "Empty workspace" : "No window is focused"])
         }
     }
 }

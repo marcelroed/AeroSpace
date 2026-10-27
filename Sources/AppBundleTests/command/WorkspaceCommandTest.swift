@@ -35,30 +35,21 @@ final class WorkspaceCommandTest: XCTestCase {
     func testDirect_focusDifferentWorkspace() async {
         assertTrue(Workspace.get(byName: "a").focusWorkspace())
 
-        let result = await parseCommand("workspace b").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, [])
+        await assertRun("workspace b", exitCode: 0, stdout: [], stderr: [])
         assertEquals(focus.workspace.name, "b")
     }
 
     func testDirect_alreadyFocused_succWithMessage() async {
         assertTrue(Workspace.get(byName: "a").focusWorkspace())
 
-        let result = await parseCommand("workspace a").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["Workspace 'a' is already focused. Tip: use --fail-if-noop to exit with non-zero code"])
+        await assertRun("workspace a", exitCode: 0, stdout: [], stderr: ["Workspace 'a' is already focused. Tip: use --fail-if-noop to exit with non-zero code"])
         assertEquals(focus.workspace.name, "a")
     }
 
     func testDirect_alreadyFocused_failIfNoop_fails() async {
         assertTrue(Workspace.get(byName: "a").focusWorkspace())
 
-        let result = await parseCommand("workspace --fail-if-noop a").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, [])
+        await assertRun("workspace --fail-if-noop a", exitCode: 2, stdout: [], stderr: [])
         assertEquals(focus.workspace.name, "a")
     }
 
@@ -68,8 +59,7 @@ final class WorkspaceCommandTest: XCTestCase {
         assertTrue(Workspace.get(byName: "a").focusWorkspace())
         _prevFocusedWorkspaceName = "b"
 
-        let result = await parseCommand("workspace --auto-back-and-forth a").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
+        await assertRun("workspace --auto-back-and-forth a", exitCode: 0)
         assertEquals(focus.workspace.name, "b")
     }
 
@@ -77,8 +67,7 @@ final class WorkspaceCommandTest: XCTestCase {
         assertTrue(Workspace.get(byName: "a").focusWorkspace())
         // _prevFocusedWorkspaceName is nil from setUp — WorkspaceBackAndForthCommand has nothing to focus.
 
-        let result = await parseCommand("workspace --auto-back-and-forth a").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
+        await assertRun("workspace --auto-back-and-forth a", exitCode: 2)
         assertEquals(focus.workspace.name, "a")
     }
 
@@ -88,40 +77,35 @@ final class WorkspaceCommandTest: XCTestCase {
         // Otherwise it's a regular direct focus.
         _prevFocusedWorkspaceName = "c" // should be ignored
 
-        let result = await parseCommand("workspace --auto-back-and-forth b").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
+        await assertRun("workspace --auto-back-and-forth b", exitCode: 0)
         assertEquals(focus.workspace.name, "b")
     }
 
     func testRelativeNext_stdin() async {
         assertTrue(Workspace.get(byName: "a").focusWorkspace())
 
-        let result = await parseCommand("workspace --stdin next").cmdOrDie.run(.defaultEnv, CmdStdin("a\nb\nc\n"))
-        assertEquals(result.exitCode.rawValue, 0)
+        await assertRun("workspace --stdin next", stdin: "a\nb\nc\n", exitCode: 0)
         assertEquals(focus.workspace.name, "b")
     }
 
     func testRelativePrev_stdin() async {
         assertTrue(Workspace.get(byName: "b").focusWorkspace())
 
-        let result = await parseCommand("workspace --stdin prev").cmdOrDie.run(.defaultEnv, CmdStdin("a\nb\nc\n"))
-        assertEquals(result.exitCode.rawValue, 0)
+        await assertRun("workspace --stdin prev", stdin: "a\nb\nc\n", exitCode: 0)
         assertEquals(focus.workspace.name, "a")
     }
 
     func testRelativeNext_wrapAround_stdin() async {
         assertTrue(Workspace.get(byName: "c").focusWorkspace())
 
-        let result = await parseCommand("workspace --wrap-around --stdin next").cmdOrDie.run(.defaultEnv, CmdStdin("a\nb\nc\n"))
-        assertEquals(result.exitCode.rawValue, 0)
+        await assertRun("workspace --wrap-around --stdin next", stdin: "a\nb\nc\n", exitCode: 0)
         assertEquals(focus.workspace.name, "a")
     }
 
     func testRelativePrev_wrapAround_stdin() async {
         assertTrue(Workspace.get(byName: "a").focusWorkspace())
 
-        let result = await parseCommand("workspace --wrap-around --stdin prev").cmdOrDie.run(.defaultEnv, CmdStdin("a\nb\nc\n"))
-        assertEquals(result.exitCode.rawValue, 0)
+        await assertRun("workspace --wrap-around --stdin prev", stdin: "a\nb\nc\n", exitCode: 0)
         assertEquals(focus.workspace.name, "c")
     }
 
@@ -129,24 +113,21 @@ final class WorkspaceCommandTest: XCTestCase {
         assertTrue(Workspace.get(byName: "c").focusWorkspace())
 
         // "c" is the last workspace in the stdin list, no wrap-around → cannot resolve next.
-        let result = await parseCommand("workspace --stdin next").cmdOrDie.run(.defaultEnv, CmdStdin("a\nb\nc\n"))
-        assertEquals(result.exitCode.rawValue, 2)
+        await assertRun("workspace --stdin next", stdin: "a\nb\nc\n", exitCode: 2)
         assertEquals(focus.workspace.name, "c")
     }
 
     func testRelativePrev_noPrev_failsWithoutWrap() async {
         assertTrue(Workspace.get(byName: "a").focusWorkspace())
 
-        let result = await parseCommand("workspace --stdin prev").cmdOrDie.run(.defaultEnv, CmdStdin("a\nb\nc\n"))
-        assertEquals(result.exitCode.rawValue, 2)
+        await assertRun("workspace --stdin prev", stdin: "a\nb\nc\n", exitCode: 2)
         assertEquals(focus.workspace.name, "a")
     }
 
     func testRelativeNext_emptyStdin_fails() async {
         assertTrue(Workspace.get(byName: "a").focusWorkspace())
 
-        let result = await parseCommand("workspace --stdin next").cmdOrDie.run(.defaultEnv, CmdStdin(""))
-        assertEquals(result.exitCode.rawValue, 2)
+        await assertRun("workspace --stdin next", stdin: "", exitCode: 2)
         assertEquals(focus.workspace.name, "a")
     }
 
@@ -154,8 +135,7 @@ final class WorkspaceCommandTest: XCTestCase {
         // When current workspace isn't in the stdin list, `next` and `prev` land on index 0.
         assertTrue(Workspace.get(byName: "z").focusWorkspace())
 
-        let result = await parseCommand("workspace --stdin next").cmdOrDie.run(.defaultEnv, CmdStdin("a\nb\nc\n"))
-        assertEquals(result.exitCode.rawValue, 0)
+        await assertRun("workspace --stdin next", stdin: "a\nb\nc\n", exitCode: 0)
         assertEquals(focus.workspace.name, "a")
     }
 
@@ -165,8 +145,7 @@ final class WorkspaceCommandTest: XCTestCase {
         _ = Workspace.get(byName: "c")
         assertTrue(Workspace.get(byName: "a").focusWorkspace())
 
-        let result = await parseCommand("workspace next").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
+        await assertRun("workspace next", exitCode: 0)
         assertEquals(focus.workspace.name, "b")
     }
 }

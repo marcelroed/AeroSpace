@@ -85,8 +85,7 @@ final class FocusCommandTest: XCTestCase {
             TestWindow.new(id: 2, parent: $0)
         }
 
-        let result = await parseCommand("focus --fail-if-fullscreen right").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
+        await assertRun("focus --fail-if-fullscreen right", exitCode: 2)
         assertEquals(focus.windowOrNil?.windowId, 1)
     }
 
@@ -99,8 +98,7 @@ final class FocusCommandTest: XCTestCase {
             TestWindow.new(id: 2, parent: $0)
         }
 
-        let result = await parseCommand("focus --fail-if-macos-native-fullscreen right").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
+        await assertRun("focus --fail-if-macos-native-fullscreen right", exitCode: 2)
         assertEquals(focus.windowOrNil?.windowId, 1)
     }
 
@@ -110,8 +108,7 @@ final class FocusCommandTest: XCTestCase {
             TestWindow.new(id: 2, parent: $0)
         }
 
-        let result = await parseCommand("focus --fail-if-fullscreen --fail-if-macos-native-fullscreen right").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
+        await assertRun("focus --fail-if-fullscreen --fail-if-macos-native-fullscreen right", exitCode: 0)
         assertEquals(focus.windowOrNil?.windowId, 2)
     }
 
@@ -280,22 +277,22 @@ final class FocusCommandTest: XCTestCase {
 
         assertEquals(focus.windowOrNil?.windowId, 1)
 
-        assertEquals(await parseCommand("focus --boundaries-action stop dfs-prev").cmdOrDie.run(.defaultEnv, .emptyStdin).exitCode.rawValue, 0)
+        await assertRun("focus --boundaries-action stop dfs-prev", exitCode: 0)
         assertEquals(focus.windowOrNil?.windowId, 1)
 
-        assertEquals(await parseCommand("focus --boundaries-action fail dfs-prev").cmdOrDie.run(.defaultEnv, .emptyStdin).exitCode.rawValue, 2)
+        await assertRun("focus --boundaries-action fail dfs-prev", exitCode: 2)
         assertEquals(focus.windowOrNil?.windowId, 1)
 
-        assertEquals(await parseCommand("focus --boundaries-action wrap-around-the-workspace dfs-prev").cmdOrDie.run(.defaultEnv, .emptyStdin).exitCode.rawValue, 0)
+        await assertRun("focus --boundaries-action wrap-around-the-workspace dfs-prev", exitCode: 0)
         assertEquals(focus.windowOrNil?.windowId, 2)
 
-        assertEquals(await parseCommand("focus --boundaries-action stop dfs-next").cmdOrDie.run(.defaultEnv, .emptyStdin).exitCode.rawValue, 0)
+        await assertRun("focus --boundaries-action stop dfs-next", exitCode: 0)
         assertEquals(focus.windowOrNil?.windowId, 2)
 
-        assertEquals(await parseCommand("focus --boundaries-action fail dfs-next").cmdOrDie.run(.defaultEnv, .emptyStdin).exitCode.rawValue, 2)
+        await assertRun("focus --boundaries-action fail dfs-next", exitCode: 2)
         assertEquals(focus.windowOrNil?.windowId, 2)
 
-        assertEquals(await parseCommand("focus --boundaries-action wrap-around-the-workspace dfs-next").cmdOrDie.run(.defaultEnv, .emptyStdin).exitCode.rawValue, 0)
+        await assertRun("focus --boundaries-action wrap-around-the-workspace dfs-next", exitCode: 0)
         assertEquals(focus.windowOrNil?.windowId, 1)
     }
 
@@ -306,8 +303,7 @@ final class FocusCommandTest: XCTestCase {
             TestWindow.new(id: 2, parent: $0)
         }
 
-        let result = await parseCommand("focus --boundaries all-monitors-outer-frame --boundaries-action stop left").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result, CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)))
+        await assertRun("focus --boundaries all-monitors-outer-frame --boundaries-action stop left", exitCode: 0, stdout: [], stderr: [])
         assertEquals(focus.windowOrNil?.windowId, 1)
     }
 
@@ -317,8 +313,7 @@ final class FocusCommandTest: XCTestCase {
             TestWindow.new(id: 2, parent: $0)
         }
 
-        let result = await parseCommand("focus --boundaries all-monitors-outer-frame --boundaries-action fail left").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result, CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 2)))
+        await assertRun("focus --boundaries all-monitors-outer-frame --boundaries-action fail left", exitCode: 2, stdout: [], stderr: [])
         assertEquals(focus.windowOrNil?.windowId, 1)
     }
 
@@ -328,9 +323,7 @@ final class FocusCommandTest: XCTestCase {
             TestWindow.new(id: 2, parent: $0)
         }
 
-        let result = await parseCommand("focus --boundaries all-monitors-outer-frame --boundaries-action wrap-around-the-workspace left")
-            .cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result, CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)))
+        await assertRun("focus --boundaries all-monitors-outer-frame --boundaries-action wrap-around-the-workspace left", exitCode: 0, stdout: [], stderr: [])
         assertEquals(focus.windowOrNil?.windowId, 2)
     }
 
@@ -344,31 +337,23 @@ final class FocusCommandTest: XCTestCase {
 
         // Across the orientation, the most recent leaf of the wrapped monitor's workspace is focused
         // (window 3: binding a window makes it the most recent child)
-        let result = await parseCommand("focus --boundaries all-monitors-outer-frame --boundaries-action wrap-around-all-monitors down")
-            .cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result, CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)))
+        await assertRun("focus --boundaries all-monitors-outer-frame --boundaries-action wrap-around-all-monitors down", exitCode: 0, stdout: [], stderr: [])
         assertEquals(focus.windowOrNil?.windowId, 3)
 
         // Along the orientation, the leaf snapped to the opposite side is focused
         assertEquals(window3.focusWindow(), true)
-        let result2 = await parseCommand("focus --boundaries all-monitors-outer-frame --boundaries-action wrap-around-all-monitors right")
-            .cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result2, CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)))
+        await assertRun("focus --boundaries all-monitors-outer-frame --boundaries-action wrap-around-all-monitors right", exitCode: 0, stdout: [], stderr: [])
         assertEquals(focus.windowOrNil?.windowId, 1)
     }
 
     func testAllMonitorsOuterFrame_wrapAroundAllMonitors_emptyWorkspace() async {
-        let result = await parseCommand("focus --boundaries all-monitors-outer-frame --boundaries-action wrap-around-all-monitors left")
-            .cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result, CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)))
+        await assertRun("focus --boundaries all-monitors-outer-frame --boundaries-action wrap-around-all-monitors left", exitCode: 0, stdout: [], stderr: [])
         assertEquals(focus.windowOrNil, nil)
     }
 
     func testWrapAroundTheWorkspace_emptyWorkspace() async {
         for boundaries in ["workspace", "all-monitors-outer-frame"] {
-            let result = await parseCommand("focus --boundaries \(boundaries) --boundaries-action wrap-around-the-workspace left")
-                .cmdOrDie.run(.defaultEnv, .emptyStdin)
-            assertEquals(result, CmdResult(stdout: [], stderr: ["No window is focused"], exitCode: Int32ExitCode(rawValue: 2)))
+            await assertRun("focus --boundaries \(boundaries) --boundaries-action wrap-around-the-workspace left", exitCode: 2, stdout: [], stderr: ["No window is focused"])
         }
     }
 

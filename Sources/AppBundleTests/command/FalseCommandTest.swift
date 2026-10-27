@@ -16,6 +16,6 @@ struct FalseCommandTest: AeroSpaceTestSuite {
 
     @Test
     func testExitCode() async {
-        assertEquals(await parseCommand("false").cmdOrDie.run(.defaultEnv, .emptyStdin).exitCode.rawValue, 1)
+        await assertRun("false", exitCode: 1)
     }
 }

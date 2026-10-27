@@ -23,11 +23,7 @@ struct MoveWorkspaceToMonitorCommandTest: AeroSpaceTestSuite {
         let workspace = Workspace.get(byName: name)
         assertEquals(workspace.focusWorkspace(), true)
         for (command, error) in singleMonitorErrors {
-            assertEquals(
-                await parseCommand("move-workspace-to-monitor \(command)").cmdOrDie.run(.defaultEnv, .emptyStdin),
-                CmdResult(stdout: [], stderr: [error], exitCode: Int32ExitCode(rawValue: 2)),
-                additionalMsg: command,
-            )
+            await assertRun("move-workspace-to-monitor \(command)", exitCode: 2, stdout: [], stderr: [error])
             assertEquals(workspace.workspaceMonitor.monitorId_oneBased, mainMonitorInfo.monitorId_oneBased)
             assertEquals(focus.workspace, workspace)
         }
@@ -38,11 +34,7 @@ struct MoveWorkspaceToMonitorCommandTest: AeroSpaceTestSuite {
         let workspace = Workspace.get(byName: name)
         assertEquals(workspace.focusWorkspace(), true)
         for command in ["--wrap-around next", "--wrap-around left", "main"] {
-            assertEquals(
-                await parseCommand("move-workspace-to-monitor \(command)").cmdOrDie.run(.defaultEnv, .emptyStdin),
-                CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)),
-                additionalMsg: command,
-            )
+            await assertRun("move-workspace-to-monitor \(command)", exitCode: 0, stdout: [], stderr: [])
             assertEquals(focus.workspace, workspace)
             assertEquals(mainMonitorInfo.activeWorkspace, workspace)
         }

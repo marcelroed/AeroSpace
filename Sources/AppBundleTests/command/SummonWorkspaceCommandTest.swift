@@ -29,10 +29,7 @@ struct SummonWorkspaceCommandTest: AeroSpaceTestSuite {
     func testSummonToTheFocusedMonitor() async {
         let workspace = Workspace.get(byName: name)
         assertEquals(workspace.focusWorkspace(), true)
-        assertEquals(
-            await parseCommand("summon-workspace foo").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)),
-        )
+        await assertRun("summon-workspace foo", exitCode: 0, stdout: [], stderr: [])
         let foo = Workspace.get(byName: "foo")
         assertEquals(mainMonitorInfo.activeWorkspace, foo)
         assertEquals(focus.workspace, foo)
@@ -43,18 +40,8 @@ struct SummonWorkspaceCommandTest: AeroSpaceTestSuite {
     func testAlreadyVisibleOnTheFocusedMonitor() async {
         let workspace = Workspace.get(byName: "bar")
         assertEquals(workspace.focusWorkspace(), true)
-        assertEquals(
-            await parseCommand("summon-workspace bar").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(
-                stdout: [],
-                stderr: ["Workspace 'bar' is already visible on the focused monitor. Tip: use --fail-if-noop to exit with non-zero code"],
-                exitCode: Int32ExitCode(rawValue: 0),
-            ),
-        )
-        assertEquals(
-            await parseCommand("summon-workspace --fail-if-noop bar").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 2)),
-        )
+        await assertRun("summon-workspace bar", exitCode: 0, stdout: [], stderr: ["Workspace 'bar' is already visible on the focused monitor. Tip: use --fail-if-noop to exit with non-zero code"])
+        await assertRun("summon-workspace --fail-if-noop bar", exitCode: 2, stdout: [], stderr: [])
         assertEquals(focus.workspace, workspace)
     }
 }

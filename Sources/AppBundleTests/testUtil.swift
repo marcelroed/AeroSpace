@@ -110,6 +110,32 @@ func testParseCommandFail(
     }
 }
 
+/// Runs `command` and checks its exit code, and also its stdout and stderr when they are given
+@MainActor
+@discardableResult
+func assertRun(
+    _ command: String,
+    env: CmdEnv = .defaultEnv,
+    stdin: String = "",
+    exitCode: Int32,
+    stdout: [String]? = nil,
+    stderr: [String]? = nil,
+    fileID: String = #fileID,
+    filePath: StaticString = #filePath,
+    line: Int = #line,
+    column: Int = #column,
+) async -> CmdResult {
+    let result = await parseCommand(command).cmdOrDie.run(env, CmdStdin(stdin))
+    assertEquals(result.exitCode.rawValue, exitCode, additionalMsg: "exit code of '\(command)'", fileID: fileID, filePath: filePath, line: line, column: column)
+    if let stdout {
+        assertEquals(result.stdout, stdout, additionalMsg: "stdout of '\(command)'", fileID: fileID, filePath: filePath, line: line, column: column)
+    }
+    if let stderr {
+        assertEquals(result.stderr, stderr, additionalMsg: "stderr of '\(command)'", fileID: fileID, filePath: filePath, line: line, column: column)
+    }
+    return result
+}
+
 extension WorkspaceCmdArgs {
     init(target: WorkspaceTarget, autoBackAndForth: Bool? = nil, wrapAround: Bool? = nil) {
         self = WorkspaceCmdArgs(rawArgs: [])

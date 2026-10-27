@@ -150,8 +150,7 @@ final class ResizeCommandTest: XCTestCase {
             TestWindow.new(id: 2, parent: $0)
         }
 
-        let result = await parseCommand("resize height +2").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
+        await assertRun("resize height +2", exitCode: 2)
     }
 
     func testSingleChildParent_failsCleanly() async {
@@ -159,8 +158,7 @@ final class ResizeCommandTest: XCTestCase {
         let window = TestWindow.new(id: 1, parent: Workspace.get(byName: name).rootTilingContainer, adaptiveWeight: 4)
         assertEquals(window.focusWindow(), true)
 
-        let result = await parseCommand("resize width +2").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
+        await assertRun("resize width +2", exitCode: 2)
         assertEquals(window.hWeight, 4)
     }
 }

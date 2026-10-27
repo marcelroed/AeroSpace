@@ -18,37 +18,25 @@ struct EnableCommandTest: AeroSpaceTestSuite {
 
     @Test
     func testNoop() async {
-        var result = await parseCommand("enable on").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, ["Already enabled. Tip: use --fail-if-noop to exit with non-zero code"])
+        await assertRun("enable on", exitCode: 0, stderr: ["Already enabled. Tip: use --fail-if-noop to exit with non-zero code"])
         assertTrue(TrayMenuModel.shared.isEnabled)
 
-        result = await parseCommand("enable on --fail-if-noop").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stderr, [])
+        await assertRun("enable on --fail-if-noop", exitCode: 2, stderr: [])
 
         TrayMenuModel.shared.isEnabled = false
-        result = await parseCommand("enable off").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, ["Already disabled. Tip: use --fail-if-noop to exit with non-zero code"])
+        await assertRun("enable off", exitCode: 0, stderr: ["Already disabled. Tip: use --fail-if-noop to exit with non-zero code"])
         assertFalse(TrayMenuModel.shared.isEnabled)
 
-        result = await parseCommand("enable off --fail-if-noop").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stderr, [])
+        await assertRun("enable off --fail-if-noop", exitCode: 2, stderr: [])
     }
 
     @Test
     func testToggle() async {
-        var result = await parseCommand("enable toggle").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
+        await assertRun("enable toggle", exitCode: 0, stderr: [])
         assertFalse(TrayMenuModel.shared.isEnabled)
         assertNil(activeMode)
 
-        result = await parseCommand("enable toggle").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
+        await assertRun("enable toggle", exitCode: 0, stderr: [])
         assertTrue(TrayMenuModel.shared.isEnabled)
         assertEquals(activeMode, mainModeId)
     }

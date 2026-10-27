@@ -40,10 +40,7 @@ struct WindowParentTest: AeroSpaceTestSuite {
         let workspace = Workspace.get(byName: name)
         TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
         assertTrue(TestWindow.new(id: 2, parent: workspace.floatingWindowsContainer).focusWindow())
-        let result = await parseCommand("move left").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["moving floating windows isn't yet supported"])
+        await assertRun("move left", exitCode: 2, stdout: [], stderr: ["moving floating windows isn't yet supported"])
     }
 
     @Test
@@ -55,19 +52,22 @@ struct WindowParentTest: AeroSpaceTestSuite {
         for window in [fullscreen, hiddenApp] {
             assertTrue(window.focusWindow())
 
-            let move = await parseCommand("move left").cmdOrDie.run(.defaultEnv, .emptyStdin)
-            assertEquals(move.exitCode.rawValue, 2)
-            assertEquals(move.stdout, [])
-            assertEquals(move.stderr, ["moving macOS fullscreen, minimized windows and windows of hidden apps isn't yet supported. This behavior is subject to change"])
+            await assertRun(
+                "move left",
+                exitCode: 2,
+                stdout: [],
+                stderr: ["moving macOS fullscreen, minimized windows and windows of hidden apps isn't yet supported. This behavior is subject to change"],
+            )
 
-            let layout = await parseCommand("layout tiles").cmdOrDie.run(.defaultEnv, .emptyStdin)
-            assertEquals(layout.exitCode.rawValue, 2)
-            assertEquals(layout.stdout, [])
-            assertEquals(layout.stderr, ["Can't change layout for macOS minimized, fullscreen windows or windows or hidden apps. This behavior is subject to change"])
+            await assertRun(
+                "layout tiles",
+                exitCode: 2,
+                stdout: [],
+                stderr: ["Can't change layout for macOS minimized, fullscreen windows or windows or hidden apps. This behavior is subject to change"],
+            )
 
             // --root changes the root container instead
-            let layoutRoot = await parseCommand("layout --root v_accordion").cmdOrDie.run(.defaultEnv, .emptyStdin)
-            assertEquals(layoutRoot.exitCode.rawValue, 0)
+            await assertRun("layout --root v_accordion", exitCode: 0)
             assertEquals(workspace.rootTilingContainer.layoutDescription, .v_accordion([.window(1)]))
             workspace.rootTilingContainer.layout = .tiles
             workspace.rootTilingContainer.changeOrientation(.h)
@@ -83,31 +83,21 @@ struct WindowParentTest: AeroSpaceTestSuite {
         let floating = TestWindow.new(id: 2, parent: workspace.floatingWindowsContainer)
         floating.lastFloatingSize = CGSize(width: 100, height: 50)
         assertTrue(floating.focusWindow())
-        func run(_ command: String) async -> CmdResult { await parseCommand(command).cmdOrDie.run(.defaultEnv, .emptyStdin) }
 
         for command in ["layout h_tiles", "layout accordion", "layout vertical"] {
-            let result = await run(command)
-            assertEquals(result.exitCode.rawValue, 2)
-            assertEquals(result.stderr, ["The window is non-tiling"])
+            await assertRun(command, exitCode: 2, stderr: ["The window is non-tiling"])
         }
-        let noop = await run("layout floating")
-        assertEquals(noop.exitCode.rawValue, 0)
-        assertEquals(noop.stderr, ["Already in the requested floating mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
+        await assertRun("layout floating", exitCode: 0, stderr: ["Already in the requested floating mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
 
-        let toTiling = await run("layout floating tiling")
-        assertEquals(toTiling.exitCode.rawValue, 0)
-        assertEquals(toTiling.stderr, [])
+        await assertRun("layout floating tiling", exitCode: 0, stderr: [])
         assertEquals(workspace.layoutDescription, .workspace([.h_tiles([.window(1), .window(2)]), .floatingWindowsContainer([])]))
         assertEquals(floating.lastFloatingSize, CGSize(width: 100, height: 50))
 
-        let tilingNoop = await run("layout tiling")
-        assertEquals(tilingNoop.exitCode.rawValue, 0)
-        assertEquals(tilingNoop.stderr, ["Already in the requested tiling mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
-        assertEquals((await run("layout v_accordion")).exitCode.rawValue, 0)
+        await assertRun("layout tiling", exitCode: 0, stderr: ["Already in the requested tiling mode. Tip: use --fail-if-noop to exit with non-zero exit code"])
+        await assertRun("layout v_accordion", exitCode: 0)
         assertEquals(workspace.rootTilingContainer.layoutDescription, .v_accordion([.window(1), .window(2)]))
 
-        let toFloating = await run("layout tiling floating")
-        assertEquals(toFloating.exitCode.rawValue, 0)
+        await assertRun("layout tiling floating", exitCode: 0)
         assertEquals(workspace.layoutDescription, .workspace([.v_accordion([.window(1)]), .floatingWindowsContainer([.window(2)])]))
         assertEquals(floating.setAxFrameHistory.last, AxFrame(topLeft: nil, size: CGSize(width: 100, height: 50)))
     }

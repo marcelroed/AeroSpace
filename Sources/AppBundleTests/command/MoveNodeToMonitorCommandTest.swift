@@ -34,11 +34,7 @@ struct MoveNodeToMonitorCommandTest: AeroSpaceTestSuite {
             assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
         }
         for (command, error) in singleMonitorErrors {
-            assertEquals(
-                await parseCommand("move-node-to-monitor \(command)").cmdOrDie.run(.defaultEnv, .emptyStdin),
-                CmdResult(stdout: [], stderr: [error], exitCode: Int32ExitCode(rawValue: 2)),
-                additionalMsg: command,
-            )
+            await assertRun("move-node-to-monitor \(command)", exitCode: 2, stdout: [], stderr: [error])
             assertEquals(root.layoutDescription, .h_tiles([.window(1)]))
         }
     }
@@ -49,20 +45,14 @@ struct MoveNodeToMonitorCommandTest: AeroSpaceTestSuite {
             assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
         }
         for command in ["--wrap-around next", "--wrap-around left", "main"] {
-            assertEquals(
-                await parseCommand("move-node-to-monitor \(command)").cmdOrDie.run(.defaultEnv, .emptyStdin),
-                CmdResult(
-                    stdout: [],
-                    stderr: ["Window '1' already belongs to workspace '\(name)'. Tip: use --fail-if-noop to exit with non-zero code"],
-                    exitCode: Int32ExitCode(rawValue: 0),
-                ),
-                additionalMsg: command,
+            await assertRun(
+                "move-node-to-monitor \(command)",
+                exitCode: 0,
+                stdout: [],
+                stderr: ["Window '1' already belongs to workspace '\(name)'. Tip: use --fail-if-noop to exit with non-zero code"],
             )
             assertEquals(root.layoutDescription, .h_tiles([.window(1)]))
         }
-        assertEquals(
-            await parseCommand("move-node-to-monitor --fail-if-noop main").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 2)),
-        )
+        await assertRun("move-node-to-monitor --fail-if-noop main", exitCode: 2, stdout: [], stderr: [])
     }
 }
