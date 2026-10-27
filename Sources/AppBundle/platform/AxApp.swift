@@ -3,7 +3,9 @@ import Common
 import Synchronization
 
 /// One app's AX state, isolated to the app's own thread (``AxThreadExecutor``). Every AX call of the app and every
-/// notification of its observers runs there, so a hung app blocks only its own thread. ``LivePlatform`` keeps one per app.
+/// notification of its observers runs there, so a hung app blocks only its own thread, with one bounded exception: a
+/// layout's parks wait for every app's shown placements before they move a window, until ``ShownJobs/deadline``.
+/// ``LivePlatform`` keeps one per app.
 /// - Reads are isolated synchronous methods. LivePlatform awaits them (`run`), or makes them abandonable (`call`).
 /// - Writes are `post`s: FIFO and never awaited. Each closure that runs here is `@Sendable` with an `isolated AxApp`
 ///   parameter: a closure that inherits `@MainActor` traps on this thread.
@@ -376,7 +378,11 @@ nonisolated struct ShownJobs: Sendable {
 
     func ended() { group.leave() }
 
-    func wait() { _ = group.wait(timeout: deadline) }
+    func wait() {
+        if group.wait(timeout: deadline) == .timedOut {
+            signposter.emitEvent("park wait timed out")
+        }
+    }
 }
 
 /// The one AXObserver callback of every app. It runs on the app's thread: the observers' sources are on its run loop.
@@ -455,7 +461,11 @@ nonisolated func waitUntilOnScreen(
             guard tile.isCurrent(), let shown = windowServerTopLeft(tile.windowId) else { return true } // Or it closed
             return shown != tile.shownBefore
         }
-        if pending.isEmpty || DispatchTime.now() >= deadline { return }
+        if pending.isEmpty { return }
+        if DispatchTime.now() >= deadline {
+            signposter.emitEvent("on-screen wait timed out", "windows: \(pending.map(\.windowId).description)")
+            return
+        }
         Thread.sleep(forTimeInterval: 0.001)
     }
 }

@@ -31,7 +31,7 @@ import Common
 /// | Placement                     | `AxApp.postPlacements`: a generation per window       | A newer placement, attribute write or close of it |
 /// | Native focus (slow path)      | A post with a global generation (`LivePlatform.focus`) | A newer native focus                 |
 /// | App registration              | One pending task per pid (`LivePlatform.pendingRegistrations`); a failed one backs off 1–60 s | — |
-/// | Order within an app           | FIFO on its actor's thread (posts and awaited calls share one queue): two jobs per layout: the visible workspaces' placements, then the parks, which wait for every app's first job (`LivePlatform.apply`); then focus | — |
+/// | Order within an app           | FIFO on its actor's thread (posts and awaited calls share one queue): two jobs per layout: the visible workspaces' placements, then the parks, which wait before their first write for every app's shown placements of the layout, at most 200 ms (`ShownJobs`); then focus | — |
 ///
 /// A cancelled heavy refresh stops at its next observe read or at the end of P1, and skips P4. Nothing is queued for
 /// retry: the tree is the desired state, and every heavy refresh lays out every window again.

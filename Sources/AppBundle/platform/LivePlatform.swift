@@ -210,9 +210,9 @@ final class LivePlatform: Platform {
     // MARK: Effects
 
     /// Two jobs per app: its shown workspaces' placements, then its parks, each in the batch's order. The apps run their
-    /// jobs in parallel, so a parks job waits, before its first write, until every app has run its shown placements (at
-    /// most ``parkWaitLimit``): a window leaves for its corner only once the windows that replace it are there, see
-    /// ``ShownJobs``
+    /// jobs in parallel, so a parks job waits, before its first write, until the window server shows the tiles that every
+    /// shown job unparked (at most ``parkWaitLimit``): a window leaves for its corner only once the windows that replace it
+    /// are on screen, see ``ShownJobs``
     func apply(_ batch: [Placement]) {
         var shown: [pid_t: (ax: AxApp, placements: [Placement])] = [:]
         var parks: [pid_t: (ax: AxApp, placements: [Placement])] = [:]
@@ -498,7 +498,13 @@ nonisolated private func eachUntilAbandoned<T>(_ raws: [UInt32], _ isAbandoned: 
 /// The latest-wins slot of the native focus's slow path: a newer focus request makes a pending one stale
 nonisolated private let nativeFocusGeneration: Atomic<UInt64> = Atomic(0)
 
-/// How long the parks of a batch wait for the apps that show windows: a hung app's windows don't hold the others in place
+/// How long the parks of a batch wait for the apps that show windows, from the batch's post: a slow or hung app doesn't
+/// hold the other apps' windows in place for long. A parks job holds its app's thread while it waits, so the limit stays
+/// - below the listing deadlines' 250 ms minimum (``ListingDeadlines``): the parking apps' listings of the refresh after a
+///   switch queue behind it, and a missed one costs another refresh;
+/// - well below termination's 2 s per AX call (RB-76): the restore job queues behind a waiting parks job once;
+/// - at or above the shown jobs' 100 ms wait for the window server (`onScreenWaitLimit`, AxApp.swift), which this deadline
+///   cuts short: no park waits for it then
 nonisolated private let parkWaitLimit: DispatchTimeInterval = .milliseconds(200)
 
 /// A registered app, main's side. Its AX state and calls live in ``AxApp``, on the app's own thread
