@@ -39,6 +39,14 @@ indirect enum Shell<T> {
         }
     }
 
+    /// Bounded by the parser for one expression (maxShellOperators), so the recursion is too
+    var operatorCount: Int {
+        switch self {
+            case .empty, .cmd: 0
+            case .op(_, let lhs, let rhs): 1 + lhs.operatorCount + rhs.operatorCount
+        }
+    }
+
     func flatten() -> [T] {
         switch self {
             case .empty: []

@@ -101,6 +101,27 @@ struct UntrustedInputTest {
         #expect(chainOutput == CmdOutput(stdout: ["b"]))
     }
 
+    /// A config file is input too. An array of commands nests to the left like a chain
+    static let tooManyOperatorsInArray: String =
+        "[ERROR] mode.main.binding.alt-a: More than \(maxShellOperators) operators in one expression (an array of N commands joins them with N - 1 ';')"
+
+    @Test
+    func longConfigArrayOfCommandsIsRejected() {
+        // 40k commands overflowed the stack of the config load, 20k the stack of `config --get`
+        let commands: String = Array(repeating: "'focus left'", count: 50000).joined(separator: ", ")
+        let errors: [String] = parseConfig("mode.main.binding.alt-a = [\(commands)]").strErrors
+        #expect(errors == [Self.tooManyOperatorsInArray] as [String])
+    }
+
+    @Test
+    func configArrayCountsTheOperatorsOfItsCommands() {
+        let chain: String = Array(repeating: "focus left", count: maxShellOperators).joined(separator: " && ") // One below the limit
+        let atLimit: [String] = parseConfig("mode.main.binding.alt-a = ['\(chain)', 'focus right']").strErrors
+        #expect(atLimit == [] as [String])
+        let overLimit: [String] = parseConfig("mode.main.binding.alt-a = ['\(chain)', 'focus right', 'focus up']").strErrors
+        #expect(overLimit == [Self.tooManyOperatorsInArray] as [String])
+    }
+
     @Test
     func longInterpolationTakesLinearTime() throws {
         // `echo`, `test`, `--format` and exec env tokenize at parse time, on the main thread. A quadratic tokenizer took 6.5 s for 1M chars

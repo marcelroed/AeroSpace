@@ -31,7 +31,7 @@ extension String {
 
 /// The parser recurses once per group, and everything that walks a `Shell` (run, map, description, deinit) recurses once
 /// per operator, since a chain nests to the left. The input comes from the CLI too (`eval`), so both are bounded: a
-/// stack overflow would crash the server
+/// stack overflow would crash the server. A config array of commands counts as one expression (decodeShellOfCommands)
 let maxShellGroupNesting = 100
 let maxShellOperators = 1000
 

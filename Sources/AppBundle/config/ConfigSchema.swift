@@ -103,7 +103,8 @@ private let decodeStringArray: Decode<[String]> = { raw, path, d in
     return result
 }
 
-/// A command string, or an array of command strings that run in sequence. Unusable if any element is
+/// A command string, or an array of command strings that run in sequence. Unusable if any element is, or if the array
+/// has more operators than one expression may
 let decodeShellOfCommands: Decode<Shell<any Command>> = { raw, path, d in
     if let string = raw.asStringOrNil {
         return parseCommandForConfig(string, allowExecAndForget: true, path, &d)
@@ -112,10 +113,22 @@ let decodeShellOfCommands: Decode<Shell<any Command>> = { raw, path, d in
         d.typeMismatch(path, expected: .string, .array, actual: raw)
         return nil
     }
+    // The array is its commands joined by ';', so it gets the operator limit of one expression. Otherwise a long array
+    // builds a Shell that overflows the stack of everything that walks it. Checked first too, to skip parsing a huge array
+    let tooManyOperators = "More than \(maxShellOperators) operators in one expression (an array of N commands joins them with N - 1 ';')"
+    if array.count - 1 > maxShellOperators {
+        d.error(path, tooManyOperators)
+        return nil
+    }
     let commands = array.enumerated().map { index, elem in
         decodeString(elem, path + .index(index), &d).flatMap { parseCommandForConfig($0, allowExecAndForget: true, path + .index(index), &d) }
     }
-    return allOrNil(commands).map { .compound(.seq, $0) }
+    guard let commands = allOrNil(commands) else { return nil }
+    if commands.reduce(commands.count - 1, { $0 + $1.operatorCount }) > maxShellOperators {
+        d.error(path, tooManyOperators)
+        return nil
+    }
+    return .compound(.seq, commands)
 }
 
 /// `nil` if `raw` doesn't parse
