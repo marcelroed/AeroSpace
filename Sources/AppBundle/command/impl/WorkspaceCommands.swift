@@ -88,7 +88,14 @@ struct WorkspaceCommand: nonisolated Command {
         if focusedWs.name == workspaceName {
             return try noop(cx, failIfNoop: failIfNoop, "Workspace '\(workspaceName)' is already focused. Tip: use --fail-if-noop to exit with non-zero code")
         }
-        if !Workspace.get(byName: workspaceName).focusWorkspace() { throw .silent }
+        try Workspace.get(byName: workspaceName).focusWorkspaceOrFail()
+    }
+}
+
+extension Workspace {
+    /// Focusing a workspace fails only while there are no screens, if it isn't visible
+    func focusWorkspaceOrFail() throws(CmdFail) {
+        if !focusWorkspace() { throw "Can't focus workspace '\(name)' while there are no screens" }
     }
 }
 
@@ -136,10 +143,7 @@ struct WorkspaceBackAndForthCommand: nonisolated Command {
 
     func run(_ cx: CmdContext) throws(CmdFail) {
         guard let prevFocusedWorkspace else { throw "There is no previously focused workspace" }
-        // Focusing a workspace fails only while there are no screens, if it isn't visible
-        if !prevFocusedWorkspace.focusWorkspace() {
-            throw "Can't focus workspace '\(prevFocusedWorkspace.name)' while there are no screens"
-        }
+        try prevFocusedWorkspace.focusWorkspaceOrFail()
     }
 }
 
@@ -172,6 +176,6 @@ struct SummonWorkspaceCommand: nonisolated Command {
             return try noop(cx, failIfNoop: failIfNoop, "Workspace '\(workspace.name)' is already visible on the focused monitor. Tip: use --fail-if-noop to exit with non-zero code")
         }
         try moveWorkspace(workspace, to: monitor)
-        if !workspace.focusWorkspace() { throw .silent }
+        try workspace.focusWorkspaceOrFail()
     }
 }

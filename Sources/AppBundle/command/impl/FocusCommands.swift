@@ -20,7 +20,7 @@ struct FocusCommand: nonisolated Command {
     }
 
     nonisolated struct DirectionOptions: Equatable, Sendable {
-        var boundaries: DirectionBoundaries = .workspace(.stop) // todo cover boundaries wrapping with tests
+        var boundaries: DirectionBoundaries = .workspace(.stop)
         var floatingAsTiling = true
         var failIfFullscreen = false
         var failIfMacosNativeFullscreen = false
@@ -149,7 +149,7 @@ struct FocusCommand: nonisolated Command {
                 if !window.focusWindow() { throw .silent }
             case .workspace(let workspace, let mostRecent):
                 mostRecent?.markAsMostRecentChild()
-                if !workspace.focusWorkspace() { throw .silent }
+                try workspace.focusWorkspaceOrFail()
         }
     }
 
@@ -342,7 +342,7 @@ struct FocusMonitorCommand: nonisolated Command {
 
     func run(_ cx: CmdContext) async throws(CmdFail) {
         let targetMonitor = try target.resolve(cx.target().workspace.workspaceMonitor, wrapAround: wrapAround)
-        if !targetMonitor.activeWorkspace.focusWorkspace() { throw .silent }
+        try targetMonitor.activeWorkspace.focusWorkspaceOrFail()
     }
 }
 
