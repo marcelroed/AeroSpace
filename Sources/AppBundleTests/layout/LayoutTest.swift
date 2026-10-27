@@ -255,6 +255,18 @@ struct LayoutTest: AeroSpaceTestSuite {
         assertNil(workspace.lastAppliedLayoutPhysicalRect)
         assertNil(workspace.rootTilingContainer.lastAppliedLayoutPhysicalRect)
     }
+
+    @Test
+    func testNotLookingZoomed() {
+        let screen = rect(0, 0, 1920, 1080)
+        // A tile that fills the screen keeps its bottom edge 11pt above the screen's
+        assertEquals(cg(rect(0, 0, 1920, 1079).notLookingZoomed(in: screen)), rect(0, 0, 1920, 1069))
+        assertEquals(cg(rect(10, 10, 1900, 1060).notLookingZoomed(in: screen)), rect(10, 10, 1900, 1059))
+        // One edge more than 10pt away is enough
+        assertEquals(cg(rect(0, 0, 1920, 1069).notLookingZoomed(in: screen)), rect(0, 0, 1920, 1069))
+        assertEquals(cg(rect(0, 0, 960, 1079).notLookingZoomed(in: screen)), rect(0, 0, 960, 1079))
+        assertEquals(cg(rect(0, 11, 1920, 1068).notLookingZoomed(in: screen)), rect(0, 11, 1920, 1068))
+    }
 }
 
 private func rect(_ x: CGFloat, _ y: CGFloat, _ width: CGFloat, _ height: CGFloat) -> Rect {

@@ -5,6 +5,7 @@ enum KnownBundleId: String {
     case braveBrowser = "com.brave.Browser"
     case chrome = "com.google.Chrome"
     case cleanshotx = "pl.maketheweb.cleanshotx"
+    case cmux = "com.cmuxterm.app"
     case codex = "com.openai.codex"
     case emacs = "org.gnu.Emacs"
     case finder = "com.apple.finder"

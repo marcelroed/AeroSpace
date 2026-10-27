@@ -35,9 +35,12 @@ extension TreeNode {
                         lastAppliedLayoutPhysicalRect = nil
                         window.layoutFullscreen(context)
                     } else {
-                        lastAppliedLayoutPhysicalRect = physicalRect
+                        let rect = window.app.rawAppBundleId == KnownBundleId.cmux.rawValue
+                            ? physicalRect.notLookingZoomed(in: context.workspace.workspaceMonitor.visibleRect)
+                            : physicalRect
+                        lastAppliedLayoutPhysicalRect = rect
                         window.isFullscreen = false
-                        window.setAxFrame(point, CGSize(width: width, height: height))
+                        window.setAxFrame(rect.topLeftCorner, rect.size)
                     }
                 }
             case .tilingContainer(let container):
@@ -53,6 +56,18 @@ extension TreeNode {
                  .macosPopupWindowsContainer, .macosHiddenAppsWindowsContainer:
                 return // Nothing to do for weirdos
         }
+    }
+}
+
+extension Rect {
+    /// cmux snaps a window that looks zoomed to the screen's visible frame whenever cmux is activated. macOS considers a
+    /// window zoomed if every edge is within 10pt of the visible frame, and a tile that fills the screen is 1pt shorter
+    /// than it (see layoutWorkspace), so cmux and AeroSpace would resize the window back and forth on every activation.
+    /// Such a tile keeps its bottom edge 11pt above the visible frame's instead
+    func notLookingZoomed(in visibleRect: Rect) -> Rect {
+        let looksZoomed = abs(minX - visibleRect.minX) <= 10 && abs(minY - visibleRect.minY) <= 10
+            && abs(maxX - visibleRect.maxX) <= 10 && abs(maxY - visibleRect.maxY) <= 10
+        return looksZoomed ? copy(\.height, visibleRect.maxY - 11 - minY) : self
     }
 }
 
