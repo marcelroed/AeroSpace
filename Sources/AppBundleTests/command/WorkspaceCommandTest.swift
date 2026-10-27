@@ -106,7 +106,7 @@ struct WorkspaceCommandTest {
 
         expectEqual(fake.calls(of: .frame).map(\.windowId), [3])
         expectEqual(fake.calls(of: .park).map(\.windowId), [1, 2])
-        expectEqual(([1, 2, 3] as [WindowId]).map { fake.windows[$0]?.parked != nil }, [true, true, false])
+        expectEqual(([1, 2, 3] as [WindowId]).map { fake.parked[$0] != nil }, [true, true, false])
         // The parks read where the windows were, to put them back there. Nothing else reads
         expectEqual(fake.calls.filter { ![.frame, .park].contains($0.kind) }, [.observedRect(1), .observedRect(2)])
     }

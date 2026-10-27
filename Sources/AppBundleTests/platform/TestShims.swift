@@ -27,7 +27,7 @@ extension Window {
     }
 
     /// The frame writes, in order
-    var setAxFrameHistory: [AxFrame] { fake.windows[windowId]?.frames ?? [] }
+    var setAxFrameHistory: [AxFrame] { fake.frames(of: windowId) }
 
     var isMacosFullscreenForTest: Bool {
         get { fake.windows[windowId]?.isFullscreen ?? false }

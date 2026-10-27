@@ -16,10 +16,19 @@ final class FakePlatform: Platform {
     var hiddenApps: Set<pid_t> = []
     var isLeftMouseDown: Bool = false
     var mouseLocation: CGPoint = .zero
+    /// The windows that a park hid, see ``Placement/park(_:_:)``. A frame write puts the window back
+    private(set) var parked: [WindowId: ParkTarget] = [:]
+    /// Every call in order. The frame writes are only here: a per-window copy cost as much as the layout itself in the
+    /// perf benchmarks (perf/cand-m2-plat)
     private(set) var calls: [PlatformCall] = []
 
     func calls(of kind: PlatformCall.Kind, _ id: WindowId? = nil) -> [PlatformCall] {
         calls.filter { $0.kind == kind && (id == nil || $0.windowId == id) }
+    }
+
+    /// The frame writes of the window since the last ``resetCalls()``, in order
+    func frames(of id: WindowId) -> [AxFrame] {
+        calls.compactMap { if case .frame(id, let topLeft, let size) = $0 { AxFrame(topLeft: topLeft, size: size) } else { nil } }
     }
 
     func resetCalls() { calls = [] }
@@ -79,11 +88,10 @@ final class FakePlatform: Platform {
             switch placement {
                 case .frame(let id, let topLeft, let size):
                     calls.append(.frame(id, topLeft: topLeft, size: size))
-                    windows[id]?.frames.append(AxFrame(topLeft: topLeft, size: size))
-                    windows[id]?.parked = nil
+                    if !parked.isEmpty { parked[id] = nil }
                 case .park(let id, let target):
                     calls.append(.park(id, target))
-                    windows[id]?.parked = target
+                    if windows[id] != nil { parked[id] = target }
             }
         }
     }
@@ -96,6 +104,7 @@ final class FakePlatform: Platform {
     func close(_ id: WindowId) {
         calls.append(.close(id))
         windows[id] = nil
+        parked[id] = nil
         if focused == id { focused = nil }
     }
 
@@ -115,6 +124,7 @@ final class FakePlatform: Platform {
     func quit(_ app: AppInfo) -> Bool {
         calls.append(.quit(app.pid))
         windows = windows.filter { $0.value.app != app }
+        parked = parked.filter { windows[$0.key] != nil }
         return true
     }
 
@@ -141,9 +151,6 @@ struct FakeWindow {
     var isFullscreen = false
     var isMinimized = false
     var title: String
-    /// The frame writes, in order
-    var frames: [AxFrame] = []
-    var parked: ParkTarget? = nil
 
     var facts: NativeFacts { NativeFacts(isFullscreen: isFullscreen, isMinimized: !isFullscreen && isMinimized) }
 }
