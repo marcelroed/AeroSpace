@@ -4,15 +4,10 @@ import Testing
 
 @MainActor
 @Suite(.aeroSpaceGlobalState)
-struct SummonWorkspaceCommandTest: AeroSpaceTestSuite {
+struct SummonWorkspaceCommandTest {
     @Test
-    func testParse() {
-        assertEquals(parseCommand("summon-workspace").errorOrNil, "ERROR: Argument '<workspace>' is mandatory")
+    func parse() {
         testParseSingleCommandSucc("summon-workspace foo", SummonWorkspaceCmdArgs(rawArgs: []).copy(\.target, .initialized(.parse("foo").getOrDie())))
-    }
-
-    @Test
-    func testParseDashDash() {
         testParseSingleCommandSucc(
             "summon-workspace -- foo",
             SummonWorkspaceCmdArgs(rawArgs: []).copy(\.target, .initialized(.parse("foo").getOrDie())),
@@ -21,27 +16,38 @@ struct SummonWorkspaceCommandTest: AeroSpaceTestSuite {
             "summon-workspace --fail-if-noop -- foo",
             SummonWorkspaceCmdArgs(rawArgs: []).copy(\.target, .initialized(.parse("foo").getOrDie())).copy(\.failIfNoop, true),
         )
-        assertEquals(parseCommand("summon-workspace --").errorOrNil, "ERROR: Argument '<workspace>' is mandatory")
-        assertEquals(parseCommand("summon-workspace -- --fail-if-noop").errorOrNil, "ERROR: Workspace names starting with dash are disallowed")
+    }
+
+    @Test(arguments: [
+        ("summon-workspace", "ERROR: Argument '<workspace>' is mandatory"),
+        ("summon-workspace --", "ERROR: Argument '<workspace>' is mandatory"),
+        ("summon-workspace -- --fail-if-noop", "ERROR: Workspace names starting with dash are disallowed"),
+    ])
+    func parseError(command: String, error: String) async {
+        let output = await runCmd(command)
+        #expect(output == .fail(error))
     }
 
     @Test
-    func testSummonToTheFocusedMonitor() async {
-        let workspace = Workspace.get(byName: name)
-        assertEquals(workspace.focusWorkspace(), true)
-        await assertRun("summon-workspace foo", exitCode: 0, stdout: [], stderr: [])
+    func summonsToTheFocusedMonitor() async {
+        let workspace = focus.workspace
+        let output = await runCmd("summon-workspace foo")
+        #expect(output == .ok)
         let foo = Workspace.get(byName: "foo")
-        assertEquals(mainMonitorInfo.activeWorkspace, foo)
-        assertEquals(focus.workspace, foo)
-        assertEquals(workspace.isVisible, false)
+        #expect(mainMonitorInfo.activeWorkspace == foo)
+        #expect(focus.workspace == foo)
+        #expect(!workspace.isVisible)
     }
 
-    @Test
-    func testAlreadyVisibleOnTheFocusedMonitor() async {
+    @Test(arguments: [
+        ("summon-workspace bar", CmdOutput(stderr: ["Workspace 'bar' is already visible on the focused monitor. Tip: use --fail-if-noop to exit with non-zero code"])),
+        ("summon-workspace --fail-if-noop bar", .fail()),
+    ])
+    func alreadyVisibleOnTheFocusedMonitor(command: String, expected: CmdOutput) async {
         let workspace = Workspace.get(byName: "bar")
-        assertEquals(workspace.focusWorkspace(), true)
-        await assertRun("summon-workspace bar", exitCode: 0, stdout: [], stderr: ["Workspace 'bar' is already visible on the focused monitor. Tip: use --fail-if-noop to exit with non-zero code"])
-        await assertRun("summon-workspace --fail-if-noop bar", exitCode: 2, stdout: [], stderr: [])
-        assertEquals(focus.workspace, workspace)
+        #expect(workspace.focusWorkspace())
+        let output = await runCmd(command)
+        #expect(output == expected)
+        #expect(focus.workspace == workspace)
     }
 }

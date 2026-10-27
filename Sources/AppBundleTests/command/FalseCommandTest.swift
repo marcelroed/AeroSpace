@@ -4,18 +4,20 @@ import Testing
 
 @MainActor
 @Suite(.aeroSpaceGlobalState)
-struct FalseCommandTest: AeroSpaceTestSuite {
+struct FalseCommandTest {
     @Test
-    func testParse() {
+    func parse() {
         testParseSingleCommandSucc("false", FalseCmdArgs(rawArgs: []))
-        testParseCommandFail("false foo", msg: "ERROR: Unknown argument 'foo'")
-
         testParseCommandHelp("false -h")
         testParseCommandHelp("false --help")
     }
 
-    @Test
-    func testExitCode() async {
-        await assertRun("false", exitCode: 1)
+    @Test(arguments: [
+        ("false", CmdOutput(exitCode: 1)),
+        ("false foo", .fail("ERROR: Unknown argument 'foo'")),
+    ])
+    func run(command: String, expected: CmdOutput) async {
+        let output = await runCmd(command)
+        #expect(output == expected)
     }
 }

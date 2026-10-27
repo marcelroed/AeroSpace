@@ -4,40 +4,48 @@ import Testing
 
 @MainActor
 @Suite(.aeroSpaceGlobalState)
-struct EnableCommandTest: AeroSpaceTestSuite {
+struct EnableCommandTest {
     @Test
-    func testParse() {
+    func parse() {
         testParseSingleCommandSucc("enable on", EnableCmdArgs(rawArgs: [], targetState: .on))
         testParseSingleCommandSucc("enable off", EnableCmdArgs(rawArgs: [], targetState: .off))
         testParseSingleCommandSucc("enable toggle", EnableCmdArgs(rawArgs: [], targetState: .toggle))
         testParseSingleCommandSucc("enable --fail-if-noop on", EnableCmdArgs(rawArgs: [], targetState: .on).copy(\.failIfNoop, true))
-        assertEquals(parseCommand("enable toggle --fail-if-noop").errorOrNil, "ERROR: --fail-if-noop is incompatible with 'toggle' argument")
-        assertEquals(parseCommand("enable foo").errorOrNil, "ERROR: Can't parse 'foo'.\n       Possible values: (on|off|toggle)")
-        assertEquals(parseCommand("enable").errorOrNil, "ERROR: Argument '(on|off|toggle)' is mandatory")
+    }
+
+    @Test(arguments: [
+        ("enable toggle --fail-if-noop", "ERROR: --fail-if-noop is incompatible with 'toggle' argument"),
+        ("enable foo", "ERROR: Can't parse 'foo'.\n       Possible values: (on|off|toggle)"),
+        ("enable", "ERROR: Argument '(on|off|toggle)' is mandatory"),
+    ])
+    func parseError(command: String, error: String) async {
+        let output = await runCmd(command)
+        #expect(output == .fail(error))
+    }
+
+    @Test(arguments: [
+        (true, "enable on", CmdOutput(stderr: ["Already enabled. Tip: use --fail-if-noop to exit with non-zero code"])),
+        (true, "enable on --fail-if-noop", .fail()),
+        (false, "enable off", CmdOutput(stderr: ["Already disabled. Tip: use --fail-if-noop to exit with non-zero code"])),
+        (false, "enable off --fail-if-noop", .fail()),
+    ])
+    func noop(isEnabled: Bool, command: String, expected: CmdOutput) async {
+        TrayMenuModel.shared.isEnabled = isEnabled
+        let output = await runCmd(command)
+        #expect(output == expected)
+        #expect(TrayMenuModel.shared.isEnabled == isEnabled)
     }
 
     @Test
-    func testNoop() async {
-        await assertRun("enable on", exitCode: 0, stderr: ["Already enabled. Tip: use --fail-if-noop to exit with non-zero code"])
-        assertTrue(TrayMenuModel.shared.isEnabled)
+    func toggle() async {
+        var output = await runCmd("enable toggle")
+        #expect(output == .ok)
+        #expect(!TrayMenuModel.shared.isEnabled)
+        #expect(activeMode == nil)
 
-        await assertRun("enable on --fail-if-noop", exitCode: 2, stderr: [])
-
-        TrayMenuModel.shared.isEnabled = false
-        await assertRun("enable off", exitCode: 0, stderr: ["Already disabled. Tip: use --fail-if-noop to exit with non-zero code"])
-        assertFalse(TrayMenuModel.shared.isEnabled)
-
-        await assertRun("enable off --fail-if-noop", exitCode: 2, stderr: [])
-    }
-
-    @Test
-    func testToggle() async {
-        await assertRun("enable toggle", exitCode: 0, stderr: [])
-        assertFalse(TrayMenuModel.shared.isEnabled)
-        assertNil(activeMode)
-
-        await assertRun("enable toggle", exitCode: 0, stderr: [])
-        assertTrue(TrayMenuModel.shared.isEnabled)
-        assertEquals(activeMode, mainModeId)
+        output = await runCmd("enable toggle")
+        #expect(output == .ok)
+        #expect(TrayMenuModel.shared.isEnabled)
+        #expect(activeMode == mainModeId)
     }
 }

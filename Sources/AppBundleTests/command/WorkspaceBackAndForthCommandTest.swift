@@ -4,39 +4,39 @@ import Testing
 
 @MainActor
 @Suite(.aeroSpaceGlobalState)
-struct WorkspaceBackAndForthCommandTest: AeroSpaceTestSuite {
+struct WorkspaceBackAndForthCommandTest {
     @Test
-    func testFocusesPrevWorkspace() async {
-        _ = Workspace.get(byName: "b")
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
+    func focusesThePreviousWorkspace() async {
+        _ = Workspace.get(byName: "b") // Alive
+        #expect(Workspace.get(byName: "a").focusWorkspace())
         _prevFocusedWorkspaceName = "b"
 
-        await assertRun("workspace-back-and-forth", exitCode: 0, stdout: [], stderr: [])
-        assertEquals(focus.workspace.name, "b")
+        let output = await runCmd("workspace-back-and-forth")
+        #expect(output == .ok)
+        #expect(focus.workspace.name == "b")
     }
 
     @Test
-    func testFailsWhenFocusingPrevWorkspaceFails() async {
+    func failsWhenFocusingThePreviousWorkspaceFails() async {
         // RB-31: the command used to exit 0 whenever there was a previous workspace, even if focusing it failed
-        _ = Workspace.get(byName: "b")
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
+        _ = Workspace.get(byName: "b") // Alive
+        #expect(Workspace.get(byName: "a").focusWorkspace())
         _prevFocusedWorkspaceName = "b"
 
-        await $noScreensForTests.withValue(true) {
-            // Without screens, only visible workspaces can be focused, and "b" is hidden
-            let result = await parseCommand("workspace-back-and-forth").cmdOrDie.run(.defaultEnv, .emptyStdin)
-            assertNotEquals(result.exitCode.rawValue, 0)
-        }
-        assertEquals(focus.workspace.name, "a")
+        // Without screens, only visible workspaces can be focused, and "b" is hidden
+        let output = await $noScreensForTests.withValue(true) { await runCmd("workspace-back-and-forth") }
+        #expect(output == .fail()) // todo: without a message
+        #expect(focus.workspace.name == "a")
     }
 
     @Test
-    func testNoPrevWorkspace_failsWithMessage() async {
+    func noPreviousWorkspace_failsWithMessage() async {
         // RB-31: the command used to fail silently
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
-        assertNil(prevFocusedWorkspace)
+        #expect(Workspace.get(byName: "a").focusWorkspace())
+        #expect(prevFocusedWorkspace == nil)
 
-        await assertRun("workspace-back-and-forth", exitCode: 2, stdout: [], stderr: ["There is no previously focused workspace"])
-        assertEquals(focus.workspace.name, "a")
+        let output = await runCmd("workspace-back-and-forth")
+        #expect(output == .fail("There is no previously focused workspace"))
+        #expect(focus.workspace.name == "a")
     }
 }
