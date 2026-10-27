@@ -11,7 +11,6 @@ let defaultConfig: Config = {
 var config: Config = defaultConfig // todo move to Ctx?
 
 struct Config {
-    var configVersion: ConfigVersion = ._1
     var afterStartupCommand: Shell<any Command> = .empty
     var enableNormalizationFlattenContainers: Bool = true
     var defaultRootContainerLayout: Layout = .tiles
@@ -39,17 +38,6 @@ struct Config {
 
 struct FocusFollowsMouse {
     var enabled: Bool = false
-}
-
-enum ConfigVersion: Int, Comparable, CaseIterable, Sendable, CustomStringConvertible {
-    case _1 = 1
-    case _2 = 2
-
-    static let max = allCases.max().orDie()
-    static let min = allCases.min().orDie()
-    static func < (lhs: ConfigVersion, rhs: ConfigVersion) -> Bool { lhs.rawValue < rhs.rawValue }
-
-    var description: String { rawValue.description }
 }
 
 enum DefaultContainerOrientation: String {

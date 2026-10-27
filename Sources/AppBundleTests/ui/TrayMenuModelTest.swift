@@ -108,7 +108,6 @@ struct TrayMenuModelTest {
         expectNotifies(\.isEnabled, !model.isEnabled, "isEnabled")
         expectNotifies(\.workspaces, [WorkspaceViewModel(name: "changed", suffix: "", isFocused: true, isEffectivelyEmpty: true, isVisible: true, hasFullscreenWindows: false)], "workspaces")
         expectNotifies(\.sponsorshipMessage, model.sponsorshipMessage + " changed", "sponsorshipMessage")
-        expectNotifies(\.lastReloadConfigContainedWarnings, !model.lastReloadConfigContainedWarnings, "lastReloadConfigContainedWarnings")
         expectNotifies(\.axPermissionStatus, model.axPermissionStatus == .granted ? .waiting : .granted, "axPermissionStatus")
         expectNotifies(\.appearanceTheme, model.appearanceTheme == .dark ? .light : .dark, "appearanceTheme")
         expectNotifies(\.textEditorToOpenConfig, URL(filePath: "/changed"), "textEditorToOpenConfig")
@@ -130,7 +129,7 @@ struct TrayMenuModelTest {
         } onChange: {
             notified.insert("body")
         }
-        messageModel.message = Message(body: "changed", containsWarnings: false)
+        messageModel.message = Message(body: "changed")
         #expect(notified.names == ["body"])
     }
 
@@ -196,7 +195,6 @@ private func notifiedProperties(_ change: () -> Void) -> Set<String> {
         "isEnabled": { _ = model.isEnabled },
         "workspaces": { _ = model.workspaces },
         "sponsorshipMessage": { _ = model.sponsorshipMessage },
-        "lastReloadConfigContainedWarnings": { _ = model.lastReloadConfigContainedWarnings },
         "axPermissionStatus": { _ = model.axPermissionStatus },
         "appearanceTheme": { _ = model.appearanceTheme },
         "textEditorToOpenConfig": { _ = model.textEditorToOpenConfig },

@@ -10,30 +10,20 @@ struct ConfigParseDiagnostic: Equatable, Sendable {
         self.message = message
     }
 
-    func description(_ severity: Severity) -> String {
+    var description: String {
         let path = backtrace.description
-        return path.isEmpty ? "[\(severity.rawValue)] \(message)" : "[\(severity.rawValue)] \(path): \(message)"
-    }
-
-    enum Severity: String {
-        case warning = "WARNING"
-        case error = "ERROR"
+        return path.isEmpty ? "[ERROR] \(message)" : "[ERROR] \(path): \(message)"
     }
 }
 
 /// The single sink every decoder reports into. The append order is the order users see
 struct Diagnostics: Sendable {
     private(set) var errors: [ConfigParseDiagnostic] = []
-    private(set) var warnings: [ConfigParseDiagnostic] = []
     /// TOML syntax error, unreadable or ambiguous file: the config must not be applied
     private(set) var isFatal = false
 
     mutating func error(_ path: ConfigBacktrace, _ message: String) {
         errors.append(ConfigParseDiagnostic(path, message))
-    }
-
-    mutating func warning(_ path: ConfigBacktrace, _ message: String) {
-        warnings.append(ConfigParseDiagnostic(path, message))
     }
 
     mutating func fatal(_ message: String) {

@@ -27,10 +27,6 @@ private struct MenuBarMenu: View {
         Divider()
 
         if viewModel.axPermissionStatus == .granted {
-            if let token: RunSessionGuard = .isServerEnabled, viewModel.lastReloadConfigContainedWarnings {
-                configWarningsButton(token)
-                Divider()
-            }
             if let token: RunSessionGuard = .isServerEnabled {
                 workspacesSection(viewModel, token)
                 Divider()
@@ -40,21 +36,13 @@ private struct MenuBarMenu: View {
             enableToggleButton(viewModel)
             getExperimentalUISettingsMenu(viewModel: viewModel)
             openConfigButton(editor: viewModel.textEditorToOpenConfig)
-            reloadConfigButton(warningsAsErrors: false)
+            reloadConfigButton()
         } else {
             Button("AeroSpace requires accessibility permission to move windows") {
                 viewModel.axPermissionStatus = .waitingWithPrompt
             }
         }
         quitButton()
-    }
-}
-
-private func configWarningsButton(_ token: RunSessionGuard) -> some View {
-    Button {
-        reloadConfigFromMenu(token, warningsAsErrors: true)
-    } label: {
-        Label("Config contains warnings...", systemImage: "exclamationmark.triangle.fill")
     }
 }
 
@@ -158,10 +146,10 @@ func openConfigButton(editor: URL = getTextEditorToOpenConfig(), showShortcutGro
 }
 
 @ViewBuilder
-func reloadConfigButton(showShortcutGroup: Bool = false, warningsAsErrors: Bool) -> some View {
+func reloadConfigButton(showShortcutGroup: Bool = false) -> some View {
     if let token: RunSessionGuard = .isServerEnabled {
         let button = Button("Reload config") {
-            reloadConfigFromMenu(token, warningsAsErrors: warningsAsErrors)
+            reloadConfigFromMenu(token)
         }.keyboardShortcut("R", modifiers: .command)
         switch showShortcutGroup {
             case true: shortcutGroup(label: Text("⌘ R"), content: button)
@@ -170,11 +158,10 @@ func reloadConfigButton(showShortcutGroup: Bool = false, warningsAsErrors: Bool)
     }
 }
 
-private func reloadConfigFromMenu(_ token: RunSessionGuard, warningsAsErrors: Bool) {
+private func reloadConfigFromMenu(_ token: RunSessionGuard) {
     Task.startUnstructured {
         try await runLightSession(.menuBarButton, token) {
-            let args: ReloadConfigCmdArgs = ReloadConfigCmdArgs(rawArgs: []).copy(\.warningsAsErrors, warningsAsErrors)
-            _ = await reloadConfig_nonCancellable(args: args)
+            _ = await reloadConfig_nonCancellable()
         }
     }
 }

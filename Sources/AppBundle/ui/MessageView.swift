@@ -63,8 +63,8 @@ struct MessageView: View {
             .padding(.horizontal)
             HStack {
                 Spacer()
-                if let message = model.message {
-                    reloadConfigButton(showShortcutGroup: true, warningsAsErrors: message.containsWarnings)
+                if model.message != nil {
+                    reloadConfigButton(showShortcutGroup: true)
                     openConfigButton(showShortcutGroup: true)
                 }
                 let closeButton = Button("Close") { model.message = nil }.keyboardShortcut(.defaultAction)
@@ -100,5 +100,4 @@ public final class MessageModel {
 /// A config diagnostics message
 public struct Message: Hashable {
     let body: String
-    let containsWarnings: Bool
 }

@@ -16,7 +16,6 @@ public final class TrayMenuModel {
     var isEnabled: Bool = true
     var workspaces: [WorkspaceViewModel] = []
     var sponsorshipMessage: String = sponsorshipPrompts.randomElement().orDie()
-    var lastReloadConfigContainedWarnings: Bool = false
     var axPermissionStatus: AxPermissionStatus = .waitingWithPrompt
     // Polled by updateTrayText, since nothing notifies us when these change
     var appearanceTheme: AppearanceTheme = .current

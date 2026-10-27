@@ -9,7 +9,6 @@ struct ConfigTest {
         let toml = try String(contentsOf: projectRoot.appending(component: "docs/config-examples/i3-like-config-example.toml"), encoding: .utf8)
         let result = parseConfig(toml)
         #expect(result.errors == [])
-        #expect(result.warnings == [])
         #expect(result.config.execConfig == defaultConfig.execConfig)
         #expect(result.config.enableNormalizationFlattenContainers == false)
         #expect(result.config.enableNormalizationOppositeOrientationForNestedContainers == false)
@@ -20,8 +19,7 @@ struct ConfigTest {
         let result = parseConfig("")
         #expect(result.errors == [])
         #expect(result.allowReloadConfig)
-        #expect(result.warnings.count == 1)
-        #expect(result.strWarnings.first?.starts(with: "[WARNING] The current 'config-version = 1' is outdated.") == true)
+        #expect(result.config.persistentWorkspaces == [])
     }
 
     @Test
@@ -29,33 +27,6 @@ struct ConfigTest {
         let toml = try String(contentsOf: projectRoot.appending(component: "docs/config-examples/default-config.toml"), encoding: .utf8)
         let result = parseConfig(toml)
         #expect(result.errors == [])
-        #expect(result.warnings == [])
-    }
-
-    @Test
-    func testConfigVersionOutOfBounds() {
-        let result = parseConfig("config-version = 0")
-        #expect(result.allowReloadConfig)
-        #expect(result.strErrors == ["[ERROR] config-version: config-version must be in [1, 2] range"])
-    }
-
-    @Test
-    func testConfigVersionOutdatedWarning() {
-        let result = parseConfig("config-version = 1")
-        #expect(result.allowReloadConfig)
-        #expect(result.errors == [])
-        #expect(result.strWarnings == [
-            "[WARNING] The current 'config-version = 1' is outdated. " +
-                "Please consider migrating to 'config-version = \(ConfigVersion.max)'. " +
-                "See https://nikitabobko.github.io/AeroSpace/guide#config-version for the migration guide.",
-        ])
-    }
-
-    @Test
-    func testLatestConfigVersionNoWarning() {
-        let result = parseConfig("config-version = \(ConfigVersion.max)")
-        #expect(result.errors == [])
-        #expect(result.warnings == [])
     }
 
     @Test
@@ -67,18 +38,36 @@ struct ConfigTest {
     @Test
     func testDuplicatedPersistentWorkspaces() {
         let errors = parseConfig(
-            """
-            config-version = 2
-            persistent-workspaces = ['a', 'a']
-            """,
+            "persistent-workspaces = ['a', 'a']",
         ).strErrors
         #expect(errors == ["[ERROR] persistent-workspaces: Contains duplicated workspace names"])
     }
 
     @Test
-    func testPersistentWorkspacesAreAvailableOnlySinceVersion2() {
-        let errors = parseConfig("persistent-workspaces = ['a']").strErrors
-        #expect(errors == ["[ERROR] persistent-workspaces: This config option is only available since \'config-version = 2\'"])
+    func testPersistentWorkspaces() {
+        let result = parseConfig("persistent-workspaces = ['b', 'a']")
+        #expect(result.errors == [])
+        #expect(result.config.persistentWorkspaces == ["b", "a"])
+    }
+
+    /// The removed legacy keys are unknown keys now
+    @Test
+    func testLegacyKeysAreUnknown() {
+        let result = parseConfig(
+            """
+            config-version = 2
+            after-login-command = []
+            non-empty-workspaces-root-containers-layout-on-startup = 'smart'
+            indent-for-nested-containers-with-the-same-orientation = 30
+            """,
+        )
+        #expect(result.allowReloadConfig)
+        #expect(result.strErrors == [
+            "[ERROR] after-login-command: Unknown top-level key",
+            "[ERROR] config-version: Unknown top-level key",
+            "[ERROR] indent-for-nested-containers-with-the-same-orientation: Unknown top-level key",
+            "[ERROR] non-empty-workspaces-root-containers-layout-on-startup: Unknown top-level key",
+        ])
     }
 
     @Test
@@ -146,7 +135,7 @@ struct ConfigTest {
     }
 
     @Test
-    func testPermanentWorkspaceNames() {
+    func testBindingsDontMakeWorkspacesPersistent() {
         let result = parseConfig(
             """
             [mode.main.binding]
@@ -157,7 +146,7 @@ struct ConfigTest {
             """,
         )
         #expect(result.errors == [])
-        #expect(result.config.persistentWorkspaces.sorted() == ["1", "2", "3", "4"])
+        #expect(result.config.persistentWorkspaces == [])
     }
 
     @Test
@@ -491,16 +480,6 @@ struct ConfigTest {
     }
 
     @Test
-    func testAfterLoginCommandDeprecation() {
-        let result = parseConfig("after-login-command = ['exec-and-forget echo hi']")
-        #expect(result.strErrors == ["[ERROR] after-login-command: after-login-command is deprecated since AeroSpace 0.19.0. https://github.com/nikitabobko/AeroSpace/issues/1482"])
-
-        // Empty array is still accepted
-        let okResult = parseConfig("after-login-command = []")
-        #expect(okResult.errors == [])
-    }
-
-    @Test
     func testOnFocusChangedAsSingleStringAndAsList() {
         let result = parseConfig(
             """
@@ -544,35 +523,6 @@ struct ConfigTest {
 
         let bad = parseConfig("default-root-container-orientation = 'diagonal'")
         #expect(bad.strErrors == ["[ERROR] default-root-container-orientation: Can\'t parse default container orientation \'diagonal\'"])
-    }
-
-    @Test
-    func testDeprecatedIndentForNestedContainers() {
-        let errors = parseConfig("indent-for-nested-containers-with-the-same-orientation = 30").strErrors
-        #expect(errors == ["[ERROR] indent-for-nested-containers-with-the-same-orientation: Deprecated. Please drop it from the config. See https://github.com/nikitabobko/AeroSpace/issues/96"])
-    }
-
-    @Test
-    func testDeprecatedNonEmptyWorkspacesRootContainersLayoutOnStartup() {
-        // The 'smart' value used to be accepted and is silently dropped now
-        let smart = parseConfig("non-empty-workspaces-root-containers-layout-on-startup = 'smart'")
-        #expect(smart.errors == [])
-
-        let bad = parseConfig("non-empty-workspaces-root-containers-layout-on-startup = 'tiles'").strErrors
-        #expect(bad == ["[ERROR] non-empty-workspaces-root-containers-layout-on-startup: \'non-empty-workspaces-root-containers-layout-on-startup\' is deprecated. Please drop it from your config"])
-    }
-
-    @Test
-    func testOutdatedConfigVersionWarning() {
-        let result = parseConfig("config-version = 1")
-        #expect(result.errors == [])
-        #expect(result.warnings.count == 1)
-        #expect(result.warnings[0].message.contains("'config-version = 1' is outdated"))
-
-        // The current max config-version should not produce the outdated warning
-        let latest = parseConfig("config-version = \(ConfigVersion.max)")
-        #expect(latest.errors == [])
-        #expect(latest.warnings == [])
     }
 
     @Test
@@ -628,10 +578,6 @@ struct ConfigTest {
 
 extension ParseConfigResult {
     var strErrors: [String] {
-        errors.map { $0.description(.error) }
-    }
-
-    var strWarnings: [String] {
-        warnings.map { $0.description(.warning) }
+        errors.map(\.description)
     }
 }

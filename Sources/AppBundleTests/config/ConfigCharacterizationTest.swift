@@ -5,49 +5,6 @@ import Testing
 @Suite
 struct ConfigCharacterizationTest: AeroSpaceTestSuite {
     @Test
-    func testImplicitPersistentWorkspaces() {
-        let result = parseConfig(
-            """
-            [mode.main.binding]
-                alt-1 = 'workspace 1'
-                alt-shift-2 = 'move-node-to-workspace 2'
-                alt-3 = ['workspace 3', 'move-node-to-workspace 4']
-                alt-n = 'workspace next'
-            [workspace-to-monitor-force-assignment]
-                5 = 'main'
-                1 = 'secondary'
-            """,
-        )
-        assertEquals(result.errors, [])
-        assertEquals(result.config.persistentWorkspaces.sorted(), ["1", "2", "3", "4", "5"])
-    }
-
-    @Test
-    func testImplicitPersistentWorkspacesOrderWithinBinding() {
-        let result = parseConfig(
-            """
-            [mode.main.binding]
-                alt-3 = ['move-node-to-workspace 4', 'workspace 3', 'workspace 3']
-            """,
-        )
-        assertEquals(result.errors, [])
-        assertEquals(Array(result.config.persistentWorkspaces), ["3", "4"])
-    }
-
-    @Test
-    func testNoImplicitPersistentWorkspacesSinceVersion2() {
-        let result = parseConfig(
-            """
-            config-version = 2
-            [mode.main.binding]
-                alt-1 = 'workspace 1'
-            """,
-        )
-        assertEquals(result.errors, [])
-        assertEquals(Array(result.config.persistentWorkspaces), [])
-    }
-
-    @Test
     func testBindingWithCommentedOutCommands() {
         let result = parseConfig(
             """
@@ -79,7 +36,7 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
                 outer.top = [{ monitor.main = 1 }, '2']
             """,
         )
-        assertEquals(result.errors.map { $0.description(.error) }, [
+        assertEquals(result.strErrors, [
             "[ERROR] gaps.inner.horizontal: Unsupported type: string, expected: Int or array",
             "[ERROR] gaps.inner.vertical: Unsupported type: bool, expected: Int or array",
             "[ERROR] gaps.outer.left[0].monitor.main: Expected type is 'Int'. But actual type is 'bool'",
@@ -290,18 +247,18 @@ struct ConfigCharacterizationTest: AeroSpaceTestSuite {
     }
 
     @Test
-    func testErrorOrderOfTomlConversionConfigVersionAndKeys() {
+    func testErrorOrderOfTomlConversionAndKeys() {
         let result = parseConfig(
             """
-            a = 1
-            config-version = 0
+            b = 1
+            a = 0
             z = 1.0
             """,
         )
         assertEquals(result.strErrors, [
             "[ERROR] z: Unsupported TOML type: Double",
-            "[ERROR] config-version: config-version must be in [1, 2] range",
-            "[ERROR] a: Unknown top-level key", // 'z' is dropped
+            "[ERROR] a: Unknown top-level key", // Sorted
+            "[ERROR] b: Unknown top-level key", // 'z' is dropped
         ])
     }
 

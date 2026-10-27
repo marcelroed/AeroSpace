@@ -51,13 +51,6 @@ public enum WorkspaceTarget: Equatable, Sendable {
             default: false
         }
     }
-
-    public func workspaceNameOrNil() -> WorkspaceName? {
-        switch self {
-            case .direct(let name): name
-            case .relative: nil
-        }
-    }
 }
 
 let workspaceTargetPlaceholder = "(<workspace-name>|next|prev)"
