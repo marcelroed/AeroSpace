@@ -8,7 +8,7 @@ struct FalseCommandTest: AeroSpaceTestSuite {
     @Test
     func testParse() {
         testParseSingleCommandSucc("false", FalseCmdArgs(rawArgs: []))
-        testParseCommandFail("false foo", msg: "ERROR: Unknown argument 'foo'", exitCode: 2)
+        testParseCommandFail("false foo", msg: "ERROR: Unknown argument 'foo'")
 
         testParseCommandHelp("false -h")
         testParseCommandHelp("false --help")

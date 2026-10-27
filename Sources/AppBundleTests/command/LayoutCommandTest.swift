@@ -12,65 +12,25 @@ final class LayoutCommandTest: XCTestCase {
         assertNil(parseCommand("layout floating tiling").errorOrNil)
         assertNil(parseCommand("layout --window-id 1 horizontal vertical").errorOrNil)
 
-        testParseCommandFail(
-            "layout --root accordion tiling",
-            msg: "layout command: --root and tiling|floating are incompatible",
-            exitCode: 2,
-        )
+        testParseCommandFail("layout --root accordion tiling", msg: "layout command: --root and tiling|floating are incompatible")
         testParseSingleCommandSucc(
             "layout --root accordion tiles",
             LayoutCmdArgs(rawArgs: [], toggleBetween: [.accordion, .tiles]).copy(\.root, true),
         )
-        testParseCommandFail(
-            "layout --workspace 2 tiles",
-            msg: "--workspace flag requires using an explicit --root flag",
-            exitCode: 2,
-        )
-        testParseCommandFail(
-            "layout --workspace 2 --window-id 2 tiles",
-            msg: "ERROR: Conflicting options: --window-id, --workspace",
-            exitCode: 2,
-        )
-        testParseCommandFail(
-            "layout --fail-if-noop accordion tiling",
-            msg: "--fail-if-noop allows only one <target-layout> argument",
-            exitCode: 2,
-        )
+        testParseCommandFail("layout --workspace 2 tiles", msg: "--workspace flag requires using an explicit --root flag")
+        testParseCommandFail("layout --workspace 2 --window-id 2 tiles", msg: "ERROR: Conflicting options: --window-id, --workspace")
+        testParseCommandFail("layout --fail-if-noop accordion tiling", msg: "--fail-if-noop allows only one <target-layout> argument")
 
         testParseSingleCommandSucc(
             "layout --for-next-detected-window floating",
             LayoutCmdArgs(rawArgs: [], toggleBetween: [.floating]).copy(\.forNextDetectedWindow, true),
         )
-        testParseCommandFail(
-            "layout --for-next-detected-window floating tiling",
-            msg: layoutCommandForNextDetectedWindowFlagIncompatibilityMsg,
-            exitCode: 2,
-        )
-        testParseCommandFail(
-            "layout --for-next-detected-window accordion",
-            msg: layoutCommandForNextDetectedWindowFlagIncompatibilityMsg,
-            exitCode: 2,
-        )
-        testParseCommandFail(
-            "layout --for-next-detected-window --window-id 1 floating",
-            msg: "ERROR: Conflicting options: --for-next-detected-window, --window-id",
-            exitCode: 2,
-        )
-        testParseCommandFail(
-            "layout --for-next-detected-window --workspace 2 floating",
-            msg: "ERROR: Conflicting options: --for-next-detected-window, --workspace",
-            exitCode: 2,
-        )
-        testParseCommandFail(
-            "layout --for-next-detected-window --root floating",
-            msg: "ERROR: Conflicting options: --for-next-detected-window, --root",
-            exitCode: 2,
-        )
-        testParseCommandFail(
-            "layout --for-next-detected-window --fail-if-noop floating",
-            msg: "ERROR: Conflicting options: --fail-if-noop, --for-next-detected-window",
-            exitCode: 2,
-        )
+        testParseCommandFail("layout --for-next-detected-window floating tiling", msg: layoutCommandForNextDetectedWindowFlagIncompatibilityMsg)
+        testParseCommandFail("layout --for-next-detected-window accordion", msg: layoutCommandForNextDetectedWindowFlagIncompatibilityMsg)
+        testParseCommandFail("layout --for-next-detected-window --window-id 1 floating", msg: "ERROR: Conflicting options: --for-next-detected-window, --window-id")
+        testParseCommandFail("layout --for-next-detected-window --workspace 2 floating", msg: "ERROR: Conflicting options: --for-next-detected-window, --workspace")
+        testParseCommandFail("layout --for-next-detected-window --root floating", msg: "ERROR: Conflicting options: --for-next-detected-window, --root")
+        testParseCommandFail("layout --for-next-detected-window --fail-if-noop floating", msg: "ERROR: Conflicting options: --fail-if-noop, --for-next-detected-window")
     }
 
     func testForNextDetectedWindow_doesNotTouchExistingWindows() async {

@@ -72,7 +72,7 @@ func parsedArgs<T: CmdArgs>(_ raw: String, as _: T.Type) -> T? {
 func testParseCommandFail(
     _ command: String,
     msg expectedMsg: String,
-    exitCode expectedExitCode: Int32,
+    exitCode expectedExitCode: Int32 = 2,
     fileID: String = #fileID,
     filePath: StaticString = #filePath,
     line: Int = #line,

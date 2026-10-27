@@ -7,20 +7,20 @@ import Testing
 struct GenericParseErrorTest: AeroSpaceTestSuite {
     @Test(arguments: parseFailures)
     func testParseFailure(command: String, msg: String) {
-        testParseCommandFail(command, msg: msg, exitCode: 2)
+        testParseCommandFail(command, msg: msg)
     }
 
     @Test
     func testEmptyCommand() {
         assertEquals(parseCmdArgs([String]().slice).failureOrNil, CmdParsingFailure("Can't parse empty string command", 2))
         assertEquals(parseCmdArgs([""].slice).failureOrNil, CmdParsingFailure("Can't parse empty string command", 2))
-        testParseCommandFail("''", msg: "Can't parse empty string command", exitCode: 2)
+        testParseCommandFail("''", msg: "Can't parse empty string command")
     }
 
     @Test
     func testUnrecognizedSubcommand() {
-        testParseCommandFail("bogus", msg: "Unrecognized subcommand 'bogus'", exitCode: 2)
-        testParseCommandFail("--help", msg: "Unrecognized subcommand '--help'", exitCode: 2)
+        testParseCommandFail("bogus", msg: "Unrecognized subcommand 'bogus'")
+        testParseCommandFail("--help", msg: "Unrecognized subcommand '--help'")
         assertEquals(parseCmdArgs(["bogus", "--help"].slice).failureOrNil, CmdParsingFailure("Unrecognized subcommand 'bogus'", 2))
     }
 

@@ -35,26 +35,10 @@ struct RunCallbackCommandTest: AeroSpaceTestSuite {
 
     @Test
     func testParseFailure() {
-        testParseCommandFail("run-callback", msg: "ERROR: Argument '<callback>' is mandatory", exitCode: 2)
-        testParseCommandFail(
-            "run-callback bogus",
-            msg: "ERROR: Can't parse 'bogus'.\n       Possible values: (on-window-detected|on-focus-changed|on-focused-monitor-changed)",
-            exitCode: 2,
-        )
-        testParseCommandFail(
-            "run-callback --for-every-window --window-id 1 on-window-detected",
-            msg: "ERROR: Conflicting options: --for-every-window, --window-id",
-            exitCode: 2,
-        )
-        testParseCommandFail(
-            "run-callback --for-every-window on-focus-changed",
-            msg: "--for-every-window is only allowed with 'on-window-detected'",
-            exitCode: 2,
-        )
-        testParseCommandFail(
-            "run-callback --window-id 1 on-focused-monitor-changed",
-            msg: "--window-id is only allowed with 'on-window-detected'",
-            exitCode: 2,
-        )
+        testParseCommandFail("run-callback", msg: "ERROR: Argument '<callback>' is mandatory")
+        testParseCommandFail("run-callback bogus", msg: "ERROR: Can't parse 'bogus'.\n       Possible values: (on-window-detected|on-focus-changed|on-focused-monitor-changed)")
+        testParseCommandFail("run-callback --for-every-window --window-id 1 on-window-detected", msg: "ERROR: Conflicting options: --for-every-window, --window-id")
+        testParseCommandFail("run-callback --for-every-window on-focus-changed", msg: "--for-every-window is only allowed with 'on-window-detected'")
+        testParseCommandFail("run-callback --window-id 1 on-focused-monitor-changed", msg: "--window-id is only allowed with 'on-window-detected'")
     }
 }
