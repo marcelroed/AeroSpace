@@ -75,7 +75,7 @@ struct TrayMenuModelTest {
     /// Nothing notifies us when the appearance or the editor of .toml files changes. Opening a menu polls them, so the
     /// menu shows the new values; a refresh doesn't
     @Test
-    func openingAMenuPollsTheAppearance() {
+    func openingAMenuPollsTheAppearanceAndTheEditor() {
         let app = NSApplication.shared
         let prevAppearance = app.appearance
         defer { app.appearance = prevAppearance }
@@ -91,6 +91,11 @@ struct TrayMenuModelTest {
         expectEqual(model.appearanceTheme, .light)
         expectEqual(notifiedProperties { openMenu() }, ["appearanceTheme"])
         expectEqual(model.appearanceTheme, .dark)
+
+        let staleEditor = URL(filePath: "/stale-editor.app")
+        model.textEditorToOpenConfig = staleEditor
+        openMenu()
+        expectEqual(model.textEditorToOpenConfig, getTextEditorToOpenConfig())
     }
 
     /// The views re-render only on the changes they observe

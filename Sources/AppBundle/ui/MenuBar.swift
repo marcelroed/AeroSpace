@@ -36,7 +36,7 @@ private struct MenuBarMenu: View {
             Divider()
             enableToggleButton(viewModel)
             getExperimentalUISettingsMenu(viewModel: viewModel)
-            openConfigButton(editor: viewModel.textEditorToOpenConfig)
+            openConfigButton(editorName: viewModel.textEditorToOpenConfig.lastPathComponent)
             reloadConfigButton(viewModel)
         } else {
             Button("AeroSpace requires accessibility permission to move windows") {
@@ -124,8 +124,10 @@ struct MenuBarIcon: View {
 }
 
 @ViewBuilder
-func openConfigButton(editor: URL = getTextEditorToOpenConfig(), showShortcutGroup: Bool = false) -> some View {
-    let button = Button("Open config in '\(editor.lastPathComponent)'") {
+func openConfigButton(editorName: String = getTextEditorToOpenConfig().lastPathComponent, showShortcutGroup: Bool = false) -> some View {
+    let button = Button("Open config in '\(editorName)'") {
+        // Looked up again: the label may name the editor that was polled when the menu opened, before the user changed it
+        let editor = getTextEditorToOpenConfig()
         let fallbackConfig: URL = FileManager.default.homeDirectoryForCurrentUser.appending(path: configDotfileName)
         switch findCustomConfigUrl() {
             case .file(let url):
