@@ -162,6 +162,10 @@ private func rearrangeWorkspaces(from old: Monitors) {
     for (monitor, workspace) in zip(monitors.all, visible) {
         workspace.assignedMonitorPoint = monitor.rect.topLeftCorner
     }
+    // A monitor that comes back at the same place gets its workspace back (e.g. monitors that wake one after another, RB-88)
+    for (oldMonitor, workspace) in oldVisible where !visible.contains(workspace) {
+        world.assignment.prevVisible[oldMonitor.rect.topLeftCorner] = workspace.name
+    }
 }
 
 /// Doesn't check force assignment
