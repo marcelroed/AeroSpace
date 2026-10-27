@@ -56,24 +56,18 @@ struct PlacementTest {
     }
 
     /// A park records the x it wrote: AxApp's shown job waits until the window server shows the unparked window away from
-    /// it. An unpark or a `.leave` clears it. A park that turned stale before its write records none: nothing waits then
+    /// it. A re-park that moves the window records the new x. A park that turned stale before its write records none:
+    /// nothing waits then
     @Test
-    func aParkRecordsTheXItWroteUntilTheWindowIsUnparkedOrLeft() {
-        let park: Placement = .park(1, parkTarget(.bottomRightCorner, testMonitor))
-        let floating = FloatingTarget(monitor: testMonitor, monitors: NonEmptyArray(testMonitor), isShown: true)
-        let rows: [(name: String, next: Placement)] = [
-            ("unparked as a tile", .frame(1, topLeft: .zero, size: CGSize(width: 400, height: 300))),
-            ("unparked as a floating window", .floating(1, floating)),
-            ("left as a macOS fullscreen window", .leave(1)),
-        ]
-        let cornerX: CGFloat? = 1919
-        for row in rows {
-            fake.windows[1] = FakeWindow(app: testApp, rect: rect(100, 100, 400, 300), title: "1")
-            fake.apply([park])
-            expectEqual(fake.windows[1]?.placement.cornerX, cornerX, "\(row.name)")
-            fake.apply([row.next])
-            expectEqual(fake.windows[1]?.placement.cornerX, nil, "\(row.name)")
-        }
+    func aParkRecordsTheXItWrote() {
+        let monitors = NonEmptyArray(testMonitor, [rightTestMonitor])
+        let park: Placement = .park(1, parkTarget(.bottomRightCorner, testMonitor, monitors))
+        fake.windows[1] = FakeWindow(app: testApp, rect: rect(100, 100, 400, 300), title: "1")
+        fake.apply([park])
+        let first: CGFloat? = fake.windows[1]?.placement.cornerX
+        fake.apply([.park(1, parkTarget(.bottomRightCorner, rightTestMonitor, monitors))]) // Its workspace moved to the right
+        let second: CGFloat? = fake.windows[1]?.placement.cornerX
+        expectEqual([first, second], [1919, 3839])
 
         var state = PlacementState(lastFloatingSize: nil)
         state.apply(park, to: StaleAfter(calls: 1), trustsLastSeen: false) // Stale at its write

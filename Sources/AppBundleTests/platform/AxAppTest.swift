@@ -214,8 +214,10 @@ struct AxAppTest {
         #expect(waited >= 100_000_000 && waited < 5_000_000_000, "waited \(waited) ns")
     }
 
-    /// The native focus runs on its app's thread inside the app's shown job: after the app's earlier jobs and the job's
-    /// writes (pid-0 apps have none), before the parks may go. A slow focus shows it: the parker would go meanwhile
+    /// The native focus runs on its app's thread inside the app's shown job: after the app's earlier jobs, before the
+    /// parks may go. A slow focus shows it: the parker would go meanwhile. pid-0 apps have no windows to write, so where
+    /// the focus runs within the job (after its writes, before its on-screen wait) rests on the live measurement, see
+    /// ``LivePlatform/apply(_:focus:trustsLastSeen:)``
     @Test
     func aShownJobGivesTheNativeFocusBeforeTheParksMayGo() async throws {
         let focused = AxApp(pid: 0, threadName: "Focused")
@@ -235,6 +237,20 @@ struct AxAppTest {
 
         try await waitUntil { log.items.count == 3 }
         expectEqual(log.items, ["an earlier job", "the focus on Focused", "the parks go"])
+    }
+
+    /// LivePlatform's routing of a batch's native focus. Without a shown job of its app, it must still run: focus follows
+    /// mouse lays out nothing
+    @Test
+    func theNativeFocusRunsInItsAppsShownJobOrAlone() {
+        let rows: [(name: String, shownApps: [pid_t], route: NativeFocusRoute)] = [
+            ("its app shows a window", [1, 2], .shownJob(of: 2)),
+            ("its app's windows only park", [1], .alone),
+            ("focus follows mouse", [], .alone),
+        ]
+        for row in rows {
+            expectEqual(NativeFocusRoute(focusedApp: 2, shownApps: row.shownApps), row.route, "\(row.name)")
+        }
     }
 
     @Test

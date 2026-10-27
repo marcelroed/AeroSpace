@@ -228,16 +228,19 @@ final class LivePlatform: Platform {
             }
         }
         let nativeFocus = focus.flatMap(decideNativeFocus)
+        let focusRoute = nativeFocus.map { NativeFocusRoute(focusedApp: $0.app.info.pid, shownApps: shown.keys) }
         let shownJobs = ShownJobs(deadline: .now() + parkWaitLimit)
         for (pid, (ax, placements)) in shown {
-            let jobFocus = nativeFocus.flatMap { $0.app.info.pid == pid ? $0.run : nil }
+            let jobFocus = focusRoute == .shownJob(of: pid) ? nativeFocus?.run : nil
             ax.postPlacements(placements, .shown(shownJobs, focus: jobFocus), trustsLastSeen: trustsLastSeen)
         }
         for (ax, placements) in parks.values {
             ax.postPlacements(placements, .parks(waitingFor: shownJobs), trustsLastSeen: trustsLastSeen)
         }
-        if let nativeFocus, shown[nativeFocus.app.info.pid] == nil {
-            nativeFocus.runAlone()
+        guard let nativeFocus, let focusRoute else { return }
+        switch focusRoute {
+            case .shownJob: break // The job runs it
+            case .alone: nativeFocus.runAlone()
         }
     }
 
@@ -469,6 +472,18 @@ nonisolated private func eachUntilAbandoned<T>(_ raws: [UInt32], _ isAbandoned: 
 
 /// The latest-wins slot of a native focus that runs on its app's thread: a newer focus request makes a pending one stale
 nonisolated private let nativeFocusGeneration: Atomic<UInt64> = Atomic(0)
+
+/// Where a batch's native focus runs (``LivePlatform/apply(_:focus:trustsLastSeen:)``)
+nonisolated enum NativeFocusRoute: Equatable {
+    /// In the shown job of its app, right after the writes
+    case shownJob(of: pid_t)
+    /// Without a shown job of its app (e.g. focus follows mouse lays out nothing): as ``LivePlatform/focus(_:)``
+    case alone
+
+    init(focusedApp: pid_t, shownApps: some Collection<pid_t>) {
+        self = shownApps.contains(focusedApp) ? .shownJob(of: focusedApp) : .alone
+    }
+}
 
 /// A native focus that main decided, see ``LivePlatform/apply(_:focus:trustsLastSeen:)``
 private struct NativeFocus {

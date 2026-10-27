@@ -42,6 +42,32 @@ struct AxCallCountTest {
             }
         }
     }
+
+    /// A light session doesn't read a window that its last park wrote to the bottom right corner (one monitor): it trusts
+    /// its heavy refresh, whose P4 puts back each window that an app moved meanwhile. A pre-layout present trusts its own
+    /// P4 the same way
+    @Test
+    func aLightSessionLeavesTheBottomRightParksToItsHeavyRefresh() async throws {
+        setUpRealisticWorld()
+        unplugRightMonitor()
+        await Reconcile.heavy(.ax("settle"))
+        await Reconcile.heavy(.ax("settle"))
+        let parked: [WindowId] = fake.windows.keys.filter { fake.isParked($0) }.sorted()
+        expectEqual(parked, [3, 5, 6, 8, 9, 10])
+        for id in parked { // An app moves it
+            guard let window = fake.windows[id], let rect = window.rect else { continue }
+            window.rect = Rect(topLeftX: rect.topLeftX - 37, topLeftY: rect.topLeftY, width: rect.width, height: rect.height)
+        }
+
+        let light: [Phase] = try await session("light session, empty body") {}
+        let preLayout: Phase = try await measure("pre-layout heavy refresh") { await Reconcile.heavy(.ax("didActivate"), preLayout: true) }
+
+        let phases: [Phase] = light + [preLayout]
+        let reads: [Int] = phases.map { phase in phase.calls.count { call in if case .axRead(let id) = call { parked.contains(id) } else { false } } }
+        expectEqual(reads, [0, 6, 6])
+        let inTheCorner: [[WindowId]] = phases.map { phase in parked.filter { phase.after.rects[$0]?.topLeftX == 1919 } }
+        expectEqual(inTheCorner, [[], parked, parked])
+    }
 }
 
 // MARK: The world
