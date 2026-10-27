@@ -1,151 +1,91 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
 @MainActor
-final class WorkspaceCommandTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
-
-    func testParseWorkspaceCommand() {
-        testParseCommandFail("workspace my mail", msg: "ERROR: Unknown argument 'mail'")
-        testParseCommandFail("workspace 'my mail'", msg: "ERROR: Whitespace characters are forbidden in workspace names")
-        assertEquals(parseCommand("workspace").errorOrNil, "ERROR: Argument '(<workspace-name>|next|prev)' is mandatory")
+@Suite(.aeroSpaceGlobalState)
+struct WorkspaceCommandTest {
+    @Test
+    func parse() {
         testParseSingleCommandSucc("workspace next", WorkspaceCmdArgs(target: .relative(.next)))
         testParseSingleCommandSucc("workspace --auto-back-and-forth W", WorkspaceCmdArgs(target: .direct(.parse("W").getOrDie()), autoBackAndForth: true))
-        assertEquals(parseCommand("workspace --wrap-around W").errorOrNil, "ERROR: --wrap-around requires using (next|prev) argument")
-        assertEquals(parseCommand("workspace --auto-back-and-forth next").errorOrNil, "ERROR: --auto-back-and-forth is incompatible with (next|prev)")
         testParseSingleCommandSucc("workspace next --wrap-around", WorkspaceCmdArgs(target: .relative(.next), wrapAround: true))
-        assertEquals(parseCommand("workspace --stdin foo").errorOrNil, "ERROR: --stdin and --no-stdin require using (next|prev) argument")
         testParseSingleCommandSucc("workspace --stdin next", WorkspaceCmdArgs(target: .relative(.next)).copy(\.commonState.explicitStdinFlag, true))
         testParseSingleCommandSucc("workspace --no-stdin next", WorkspaceCmdArgs(target: .relative(.next)).copy(\.commonState.explicitStdinFlag, false))
-    }
-
-    func testParseDashDash() {
         testParseSingleCommandSucc("workspace -- foo", WorkspaceCmdArgs(target: .direct(.parse("foo").getOrDie())))
-        assertEquals(parseCommand("workspace -- next").errorOrNil, "ERROR: 'next' is a reserved workspace name")
-        assertEquals(parseCommand("workspace --").errorOrNil, "ERROR: Argument \'(<workspace-name>|next|prev)\' is mandatory")
         testParseSingleCommandSucc(
             "workspace --auto-back-and-forth -- foo",
             WorkspaceCmdArgs(target: .direct(.parse("foo").getOrDie()), autoBackAndForth: true),
         )
-        assertEquals(parseCommand("workspace -- foo --fail-if-noop").errorOrNil, "ERROR: Unknown argument '--fail-if-noop'")
-        assertEquals(parseCommand("workspace -- --help").errorOrNil, "ERROR: Workspace names starting with dash are disallowed")
     }
 
-    func testDirect_focusDifferentWorkspace() async {
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
-
-        await assertRun("workspace b", exitCode: 0, stdout: [], stderr: [])
-        assertEquals(focus.workspace.name, "b")
+    @Test(arguments: [
+        ("workspace my mail", "ERROR: Unknown argument 'mail'"),
+        ("workspace 'my mail'", "ERROR: Whitespace characters are forbidden in workspace names"),
+        ("workspace", "ERROR: Argument '(<workspace-name>|next|prev)' is mandatory"),
+        ("workspace --wrap-around W", "ERROR: --wrap-around requires using (next|prev) argument"),
+        ("workspace --auto-back-and-forth next", "ERROR: --auto-back-and-forth is incompatible with (next|prev)"),
+        ("workspace --stdin foo", "ERROR: --stdin and --no-stdin require using (next|prev) argument"),
+        ("workspace -- next", "ERROR: 'next' is a reserved workspace name"),
+        ("workspace --", "ERROR: Argument '(<workspace-name>|next|prev)' is mandatory"),
+        ("workspace -- foo --fail-if-noop", "ERROR: Unknown argument '--fail-if-noop'"),
+        ("workspace -- --help", "ERROR: Workspace names starting with dash are disallowed"),
+    ])
+    func parseError(command: String, error: String) async {
+        let output = await runCmd(command)
+        #expect(output == .fail(error))
     }
 
-    func testDirect_alreadyFocused_succWithMessage() async {
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
-
-        await assertRun("workspace a", exitCode: 0, stdout: [], stderr: ["Workspace 'a' is already focused. Tip: use --fail-if-noop to exit with non-zero code"])
-        assertEquals(focus.workspace.name, "a")
+    /// From the focused workspace `from`, the command focuses the workspace `to`
+    @Test(arguments: [
+        ("a", "workspace b", "", CmdOutput.ok, "b"),
+        ("a", "workspace a", "", CmdOutput(stderr: ["Workspace 'a' is already focused. Tip: use --fail-if-noop to exit with non-zero code"]), "a"),
+        ("a", "workspace --fail-if-noop a", "", .fail(), "a"),
+        // There is no previous workspace
+        ("a", "workspace --auto-back-and-forth a", "", .fail("There is no previously focused workspace"), "a"),
+        ("a", "workspace --stdin next", "a\nb\nc\n", .ok, "b"),
+        ("b", "workspace --stdin prev", "a\nb\nc\n", .ok, "a"),
+        ("c", "workspace --wrap-around --stdin next", "a\nb\nc\n", .ok, "a"),
+        ("a", "workspace --wrap-around --stdin prev", "a\nb\nc\n", .ok, "c"),
+        ("c", "workspace --stdin next", "a\nb\nc\n", .fail("Reached the end of the supplied workspaces list"), "c"),
+        ("a", "workspace --stdin prev", "a\nb\nc\n", .fail("Reached the beginning of the supplied workspaces list"), "a"),
+        ("a", "workspace --stdin next", "", .fail("The list of workspaces is empty"), "a"),
+        // The focused workspace isn't in the list: next and prev land on its first workspace
+        ("z", "workspace --stdin next", "a\nb\nc\n", .ok, "a"),
+    ])
+    func focusesWorkspace(from: String, command: String, stdin: String, expected: CmdOutput, to: String) async {
+        #expect(Workspace.get(byName: from).focusWorkspace())
+        let output = await runCmd(command, stdin: stdin)
+        #expect(output == expected)
+        #expect(focus.workspace.name == to)
     }
 
-    func testDirect_alreadyFocused_failIfNoop_fails() async {
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
-
-        await assertRun("workspace --fail-if-noop a", exitCode: 2, stdout: [], stderr: [])
-        assertEquals(focus.workspace.name, "a")
-    }
-
-    func testAutoBackAndForth_alreadyFocused_focusesPrev() async {
-        // Make "b" alive so it can be focused as the back-and-forth target.
-        _ = Workspace.get(byName: "b")
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
+    @Test
+    func autoBackAndForth_focusedTarget_focusesThePreviousWorkspace() async {
+        _ = Workspace.get(byName: "b") // Alive
+        #expect(Workspace.get(byName: "a").focusWorkspace())
         _prevFocusedWorkspaceName = "b"
-
-        await assertRun("workspace --auto-back-and-forth a", exitCode: 0)
-        assertEquals(focus.workspace.name, "b")
+        let output = await runCmd("workspace --auto-back-and-forth a")
+        #expect(output == .ok)
+        #expect(focus.workspace.name == "b")
     }
 
-    func testAutoBackAndForth_alreadyFocused_noPrev_fails() async {
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
-        // _prevFocusedWorkspaceName is nil from setUp — WorkspaceBackAndForthCommand has nothing to focus.
-
-        await assertRun("workspace --auto-back-and-forth a", exitCode: 2)
-        assertEquals(focus.workspace.name, "a")
+    @Test
+    func autoBackAndForth_otherTarget_ignoresThePreviousWorkspace() async {
+        #expect(Workspace.get(byName: "a").focusWorkspace())
+        _prevFocusedWorkspaceName = "c"
+        let output = await runCmd("workspace --auto-back-and-forth b")
+        #expect(output == .ok)
+        #expect(focus.workspace.name == "b")
     }
 
-    func testAutoBackAndForth_differentWorkspace_focusesTarget() async {
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
-        // --auto-back-and-forth only kicks in when the target equals the focused workspace.
-        // Otherwise it's a regular direct focus.
-        _prevFocusedWorkspaceName = "c" // should be ignored
-
-        await assertRun("workspace --auto-back-and-forth b", exitCode: 0)
-        assertEquals(focus.workspace.name, "b")
-    }
-
-    func testRelativeNext_stdin() async {
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
-
-        await assertRun("workspace --stdin next", stdin: "a\nb\nc\n", exitCode: 0)
-        assertEquals(focus.workspace.name, "b")
-    }
-
-    func testRelativePrev_stdin() async {
-        assertTrue(Workspace.get(byName: "b").focusWorkspace())
-
-        await assertRun("workspace --stdin prev", stdin: "a\nb\nc\n", exitCode: 0)
-        assertEquals(focus.workspace.name, "a")
-    }
-
-    func testRelativeNext_wrapAround_stdin() async {
-        assertTrue(Workspace.get(byName: "c").focusWorkspace())
-
-        await assertRun("workspace --wrap-around --stdin next", stdin: "a\nb\nc\n", exitCode: 0)
-        assertEquals(focus.workspace.name, "a")
-    }
-
-    func testRelativePrev_wrapAround_stdin() async {
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
-
-        await assertRun("workspace --wrap-around --stdin prev", stdin: "a\nb\nc\n", exitCode: 0)
-        assertEquals(focus.workspace.name, "c")
-    }
-
-    func testRelativeNext_noNext_failsWithoutWrap() async {
-        assertTrue(Workspace.get(byName: "c").focusWorkspace())
-
-        // "c" is the last workspace in the stdin list, no wrap-around → cannot resolve next.
-        await assertRun("workspace --stdin next", stdin: "a\nb\nc\n", exitCode: 2)
-        assertEquals(focus.workspace.name, "c")
-    }
-
-    func testRelativePrev_noPrev_failsWithoutWrap() async {
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
-
-        await assertRun("workspace --stdin prev", stdin: "a\nb\nc\n", exitCode: 2)
-        assertEquals(focus.workspace.name, "a")
-    }
-
-    func testRelativeNext_emptyStdin_fails() async {
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
-
-        await assertRun("workspace --stdin next", stdin: "", exitCode: 2)
-        assertEquals(focus.workspace.name, "a")
-    }
-
-    func testRelativeNext_currentNotInStdin() async {
-        // When current workspace isn't in the stdin list, `next` and `prev` land on index 0.
-        assertTrue(Workspace.get(byName: "z").focusWorkspace())
-
-        await assertRun("workspace --stdin next", stdin: "a\nb\nc\n", exitCode: 0)
-        assertEquals(focus.workspace.name, "a")
-    }
-
-    func testRelativeNext_noStdin_picksFromAllWorkspaces() async {
-        // Without --stdin, getNextPrevWorkspace pulls from Workspace.all on the focused monitor.
-        _ = Workspace.get(byName: "b") // keep "b" alive in the registry
+    @Test
+    func relativeWithoutStdin_picksFromAllWorkspaces() async {
+        _ = Workspace.get(byName: "b") // Alive
         _ = Workspace.get(byName: "c")
-        assertTrue(Workspace.get(byName: "a").focusWorkspace())
-
-        await assertRun("workspace next", exitCode: 0)
-        assertEquals(focus.workspace.name, "b")
+        #expect(Workspace.get(byName: "a").focusWorkspace())
+        let output = await runCmd("workspace next")
+        #expect(output == .ok)
+        #expect(focus.workspace.name == "b")
     }
 }
