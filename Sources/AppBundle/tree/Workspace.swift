@@ -46,7 +46,10 @@ final class Workspace: TreeNode, Hashable, Comparable {
     }
 
     static var all: [Workspace] {
-        world.workspacesByName.values.sorted()
+        if let sorted = world.sortedWorkspaces { return sorted }
+        let sorted = world.workspacesByName.values.sorted()
+        world.sortedWorkspaces = sorted
+        return sorted
     }
 
     static func get(byName name: String) -> Workspace {
@@ -61,7 +64,7 @@ final class Workspace: TreeNode, Hashable, Comparable {
 
     nonisolated static func < (lhs: Workspace, rhs: Workspace) -> Bool {
         // Names that differ only in leading zeros ("1", "01") have equal segments. Order them by name to keep the order total.
-        // A single pass over the segments, because Workspace.all sorts on every call
+        // A single pass over the segments
         let a = lhs.nameLogicalSegments
         let b = rhs.nameLogicalSegments
         for i in 0 ..< min(a.count, b.count) {

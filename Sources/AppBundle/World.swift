@@ -9,7 +9,11 @@ import Common
 /// property doesn't conflict with reading another
 final class World {
     /// See ``Workspace/get(byName:)`` and ``Workspace/garbageCollectUnusedWorkspaces()``
-    var workspacesByName: [String: Workspace] = [:]
+    var workspacesByName: [String: Workspace] = [:] {
+        didSet { sortedWorkspaces = nil }
+    }
+    /// ``Workspace/all``, sorted on the first read after a workspace was created or garbage collected
+    var sortedWorkspaces: [Workspace]? = nil
     /// The minimized windows. A root, like ``macosPopupWindowsContainer``: they aren't part of any workspace
     private(set) var macosMinimizedWindowsContainer: Container = Container(root: .macosMinimized)
     /// The objects that are windows from the AX perspective, but not even dialogs from the human perspective
@@ -40,6 +44,7 @@ final class World {
     func reset() {
         let fresh = World()
         workspacesByName = fresh.workspacesByName
+        sortedWorkspaces = fresh.sortedWorkspaces
         macosMinimizedWindowsContainer = fresh.macosMinimizedWindowsContainer
         macosPopupWindowsContainer = fresh.macosPopupWindowsContainer
         mruClock = fresh.mruClock
