@@ -1,179 +1,99 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
 @MainActor
-final class MoveNodeToWorkspaceCommandTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
-
-    func testParse() {
+@Suite(.aeroSpaceGlobalState)
+struct MoveNodeToWorkspaceCommandTest {
+    @Test
+    func parse() {
         testParseSingleCommandSucc("move-node-to-workspace next", MoveNodeToWorkspaceCmdArgs(target: .relative(.next)))
-        assertEquals(parseCommand("move-node-to-workspace --fail-if-noop next").errorOrNil, "ERROR: --fail-if-noop is incompatible with (next|prev)")
-        assertEquals(parseCommand("move-node-to-workspace --stdin foo").errorOrNil, "ERROR: --stdin and --no-stdin require using (next|prev) argument")
-        assertEquals(parseCommand("move-node-to-workspace --wrap-around W").errorOrNil, "ERROR: --wrap-around requires using (next|prev) argument")
         testParseSingleCommandSucc("move-node-to-workspace --stdin next", MoveNodeToWorkspaceCmdArgs(target: .relative(.next)).copy(\.commonState.explicitStdinFlag, true))
         testParseSingleCommandSucc("move-node-to-workspace --no-stdin next", MoveNodeToWorkspaceCmdArgs(target: .relative(.next)).copy(\.commonState.explicitStdinFlag, false))
-    }
-
-    func testParseDashDash() {
         testParseSingleCommandSucc("move-node-to-workspace -- foo", MoveNodeToWorkspaceCmdArgs(workspace: "foo"))
-        assertEquals(parseCommand("move-node-to-workspace -- prev").errorOrNil, "ERROR: 'prev' is a reserved workspace name")
-        assertEquals(parseCommand("move-node-to-workspace --").errorOrNil, "ERROR: Argument \'(<workspace-name>|next|prev)\' is mandatory")
         testParseSingleCommandSucc(
             "move-node-to-workspace --focus-follows-window -- foo",
             MoveNodeToWorkspaceCmdArgs(workspace: "foo").copy(\.focusFollowsWindow, true),
         )
     }
 
-    func testSimple() async {
-        let workspaceA = Workspace.get(byName: "a")
-        workspaceA.rootTilingContainer.apply {
-            _ = TestWindow.new(id: 1, parent: $0).focusWindow()
-        }
-
-        await parseCommand("move-node-to-workspace b").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        XCTAssertTrue(workspaceA.isEffectivelyEmpty)
-        assertEquals((Workspace.get(byName: "b").rootTilingContainer.children.singleOrNil() as? Window)?.windowId, 1)
+    @Test(arguments: [
+        ("move-node-to-workspace --fail-if-noop next", "ERROR: --fail-if-noop is incompatible with (next|prev)"),
+        ("move-node-to-workspace --stdin foo", "ERROR: --stdin and --no-stdin require using (next|prev) argument"),
+        ("move-node-to-workspace --wrap-around W", "ERROR: --wrap-around requires using (next|prev) argument"),
+        ("move-node-to-workspace -- prev", "ERROR: 'prev' is a reserved workspace name"),
+        ("move-node-to-workspace --", "ERROR: Argument '(<workspace-name>|next|prev)' is mandatory"),
+    ])
+    func parseError(command: String, error: String) async {
+        let output = await runCmd(command)
+        #expect(output == .fail(error))
     }
 
-    func testEmptyWorkspaceSubject() async {
-        let workspaceA = Workspace.get(byName: "a")
-        workspaceA.rootTilingContainer.apply {
-            _ = TestWindow.new(id: 1, parent: $0).focusWindow()
-        }
-
-        await parseCommand("move-node-to-workspace b").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(focus.workspace.name, "a")
+    /// The window moves from the focused workspace 'a' to `target`
+    @Test(arguments: [
+        ("h_tiles(*1)", "move-node-to-workspace b", "", "b", "h_tiles(1)"),
+        ("h_tiles() floating(*1)", "move-node-to-workspace b", "", "b", "h_tiles() floating(1)"), // Stays floating
+        // 'b' is alive, so it's the next workspace
+        ("h_tiles(*1)", "move-node-to-workspace next", "", "b", "h_tiles(1)"),
+        // Workspaces from stdin. --wrap-around makes them independent of the alive workspaces
+        ("h_tiles(*1)", "move-node-to-workspace --wrap-around --stdin prev", "a\nb\n", "b", "h_tiles(1)"),
+        ("h_tiles(*1)", "move-node-to-workspace --stdin next", "a\nx\ny\n", "x", "h_tiles(1)"),
+    ])
+    func movesTheLastWindow(tree: String, command: String, stdin: String, target: String, targetTree: String) async {
+        setUpTree(tree, workspace: "a")
+        _ = Workspace.get(byName: "b") // Alive
+        let output = await runCmd(command, stdin: stdin)
+        #expect(output == .ok)
+        #expect(focus.workspace.name == "a") // The focus stays on the empty workspace
+        #expect(describeTree("a") == "h_tiles()")
+        #expect(describeTree(target) == targetTree)
     }
 
-    func testAnotherWindowSubject() async {
-        Workspace.get(byName: "a").rootTilingContainer.apply {
-            TestWindow.new(id: 1, parent: $0)
-            _ = TestWindow.new(id: 2, parent: $0).focusWindow()
-        }
-
-        await parseCommand("move-node-to-workspace b").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(focus.windowOrNil?.windowId, 1)
+    @Test
+    func focusesTheMostRecentWindowThatStays() async {
+        setUpTree("h_tiles(1 *2)", workspace: "a")
+        let output = await runCmd("move-node-to-workspace b")
+        #expect(output == .ok)
+        #expect(describeTree("a") == "h_tiles(*1)")
+        #expect(describeTree("b") == "h_tiles(2)")
     }
 
-    func testPreserveFloatingLayout() async {
-        let workspaceA = Workspace.get(byName: "a").apply {
-            assertTrue(TestWindow.new(id: 1, parent: $0.floatingWindowsContainer).focusWindow())
-        }
-
-        await parseCommand("move-node-to-workspace b").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        XCTAssertTrue(workspaceA.isEffectivelyEmpty)
-        assertEquals((Workspace.get(byName: "b").floatingWindowsContainer.children.singleOrNil() as? Window)?.windowId, 1)
+    @Test
+    func focusFollowsWindow() async {
+        setUpTree("h_tiles(*1)", workspace: "a")
+        let output = await runCmd("move-node-to-workspace --focus-follows-window b")
+        #expect(output == .ok)
+        #expect(focus.workspace.name == "b")
+        #expect(describeTree("b") == "h_tiles(*1)")
+        #expect(Workspace.get(byName: "a").isEffectivelyEmpty)
     }
 
-    func testSummonWindow() async {
-        let workspaceA = Workspace.get(byName: "a").apply {
-            $0.rootTilingContainer.apply {
-                _ = TestWindow.new(id: 1, parent: $0).focusWindow()
-            }
-        }
-        Workspace.get(byName: "b").rootTilingContainer.apply {
-            TestWindow.new(id: 2, parent: $0)
-        }
-
-        assertEquals(focus.workspace, workspaceA)
-
-        await parseCommand("move-node-to-workspace --window-id 2 a").cmdOrDie
-            .run(.defaultEnv, .emptyStdin)
-
-        assertEquals(focus.workspace, workspaceA)
-        assertEquals(focus.windowOrNil?.windowId, 1)
-        assertEquals(Workspace.get(byName: "b").rootTilingContainer.children.count, 0)
-        assertEquals(workspaceA.rootTilingContainer.children.count, 2)
+    @Test
+    func summonWindow() async {
+        setUpTree("h_tiles(*1)", workspace: "a")
+        setUpTree("h_tiles(2)", workspace: "b")
+        let output = await runCmd("move-node-to-workspace --window-id 2 a")
+        #expect(output == .ok)
+        #expect(describeTree("a") == "h_tiles(*1 2)")
+        #expect(Workspace.get(byName: "b").isEffectivelyEmpty)
     }
 
-    func testNoWindowIsFocused() async {
-        await assertRun("move-node-to-workspace b", exitCode: 2, stderr: [noWindowIsFocused])
+    @Test
+    func noWindowIsFocused() async {
+        let output = await runCmd("move-node-to-workspace b")
+        #expect(output == .fail("No window is focused"))
     }
 
-    func testFailIfNoop_succWithMessage() async {
-        Workspace.get(byName: "a").rootTilingContainer.apply {
-            _ = TestWindow.new(id: 1, parent: $0).focusWindow()
-        }
-
-        let result = await assertRun("move-node-to-workspace a", exitCode: 0)
-        assertEquals(result.stderr.count, 1)
-        assertTrue(result.stderr.first?.contains("already belongs to workspace 'a'") == true)
-        assertEquals(Workspace.get(byName: "a").rootTilingContainer.children.count, 1)
-    }
-
-    func testFailIfNoop_fails() async {
-        Workspace.get(byName: "a").rootTilingContainer.apply {
-            _ = TestWindow.new(id: 1, parent: $0).focusWindow()
-        }
-
-        await assertRun("move-node-to-workspace --fail-if-noop a", exitCode: 2, stderr: [])
-        assertEquals(Workspace.get(byName: "a").rootTilingContainer.children.count, 1)
-    }
-
-    func testFocusFollowsWindow() async {
-        let workspaceA = Workspace.get(byName: "a")
-        workspaceA.rootTilingContainer.apply {
-            _ = TestWindow.new(id: 1, parent: $0).focusWindow()
-        }
-        assertEquals(focus.workspace.name, "a")
-
-        await parseCommand("move-node-to-workspace --focus-follows-window b").cmdOrDie
-            .run(.defaultEnv, .emptyStdin)
-        assertEquals(focus.workspace.name, "b")
-        assertEquals(focus.windowOrNil?.windowId, 1)
-        assertTrue(workspaceA.isEffectivelyEmpty)
-    }
-
-    func testRelativeNext() async {
-        Workspace.get(byName: "a").rootTilingContainer.apply {
-            _ = TestWindow.new(id: 1, parent: $0).focusWindow()
-        }
-        // Make "b" alive so the relative target has somewhere to go
-        _ = Workspace.get(byName: "b").rootTilingContainer
-
-        await parseCommand("move-node-to-workspace next").cmdOrDie
-            .run(.defaultEnv, .emptyStdin)
-
-        assertTrue(Workspace.get(byName: "a").isEffectivelyEmpty)
-        assertEquals((Workspace.get(byName: "b").rootTilingContainer.children.singleOrNil() as? Window)?.windowId, 1)
-    }
-
-    func testRelativeNoNextWorkspace_failsToResolve() async {
-        // "a" is the focused workspace, and it's the first one in the list. Calling `prev` from the first workspace
-        // without wrap-around has nowhere to go.
-        Workspace.get(byName: "a").rootTilingContainer.apply {
-            _ = TestWindow.new(id: 1, parent: $0).focusWindow()
-        }
-
-        await assertRun("move-node-to-workspace prev", exitCode: 2, stderr: ["Reached the beginning of the supplied workspaces list"])
-        // Window untouched
-        assertEquals((Workspace.get(byName: "a").rootTilingContainer.children.singleOrNil() as? Window)?.windowId, 1)
-    }
-
-    func testRelativeWrapAround() async {
-        Workspace.get(byName: "a").rootTilingContainer.apply {
-            _ = TestWindow.new(id: 1, parent: $0).focusWindow()
-        }
-
-        // Stdin-controlled list keeps the wrap behavior independent of which workspaces happen to be alive.
-        await parseCommand("move-node-to-workspace --wrap-around --stdin prev").cmdOrDie
-            .run(.defaultEnv, CmdStdin("a\nb\n"))
-
-        assertTrue(Workspace.get(byName: "a").isEffectivelyEmpty)
-        assertEquals((Workspace.get(byName: "b").rootTilingContainer.children.singleOrNil() as? Window)?.windowId, 1)
-    }
-
-    func testRelativeStdin() async {
-        Workspace.get(byName: "a").rootTilingContainer.apply {
-            _ = TestWindow.new(id: 1, parent: $0).focusWindow()
-        }
-
-        // Workspaces listed via stdin: focus is "a", next should be the workspace listed after it.
-        await parseCommand("move-node-to-workspace --stdin next").cmdOrDie
-            .run(.defaultEnv, CmdStdin("a\nx\ny\n"))
-
-        assertTrue(Workspace.get(byName: "a").isEffectivelyEmpty)
-        assertEquals((Workspace.get(byName: "x").rootTilingContainer.children.singleOrNil() as? Window)?.windowId, 1)
+    @Test(arguments: [
+        ("move-node-to-workspace a", CmdOutput(stderr: ["Window '1' already belongs to workspace 'a'. Tip: use --fail-if-noop to exit with non-zero code"])),
+        ("move-node-to-workspace --fail-if-noop a", .fail()),
+        // 'a' is the first workspace
+        ("move-node-to-workspace prev", .fail("Reached the beginning of the supplied workspaces list")),
+    ])
+    func noop(command: String, expected: CmdOutput) async {
+        setUpTree("h_tiles(*1)", workspace: "a")
+        let output = await runCmd(command)
+        #expect(output == expected)
+        #expect(describeTree("a") == "h_tiles(*1)")
     }
 }
