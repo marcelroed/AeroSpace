@@ -8,8 +8,8 @@ import Common
 /// - P2 commit (sync): write what P1 read into the tree. No await: no other session runs in the middle of it.
 /// - P3 callbacks (async, shielded): the focus callbacks of P2's focus change, then on-window-detected for the new
 ///   windows. Cancelling the refresh doesn't cancel them, so no new window misses its callbacks.
-/// - P4 present (sync): one placement batch for every window, then the native focus. A cancelled refresh skips it: the
-///   light session that cancelled it presents.
+/// - P4 present (sync): one placement batch for every window, then the native focus, then the tray. A cancelled refresh
+///   skips it: the light session that cancelled it presents.
 ///
 /// Cancellation is checked at the end of P1 and at the start of P4 only. Nothing is queued for retry: what a refresh
 /// skips, the next one does again, because each one recomputes everything from the tree and from macOS.
@@ -30,7 +30,7 @@ enum Reconcile {
                 if let focused = try await readNativeFocus(), let window = Window.get(byId: focused.windowId) {
                     syncFocusFromMacOs(window)
                 }
-                try present(nativeFocusBaseline: focus.windowOrNil, isTrayDeferred: false)
+                try present(nativeFocusBaseline: focus.windowOrNil)
             }
             guard let observation = try await observe(isStartup: isStartup) else { return } // P1
             let committed = commit(observation, isStartup: isStartup) // P2
@@ -40,7 +40,7 @@ enum Reconcile {
             // P3's callbacks may have changed the tree after the session that cancelled this refresh presented (R2b L1).
             // A heavy refresh that is scheduled or running presents anyway
             if Task.isCancelled && committed.hasCallbacks && world.sessions.isHeavyIdle { world.sessions.scheduleHeavy(event) }
-            try present(nativeFocusBaseline: nativeFocusBaseline, isTrayDeferred: false) // P4
+            try present(nativeFocusBaseline: nativeFocusBaseline) // P4
         } catch {
             // Cancelled by a newer heavy refresh or by a light session. Only P1 and P4 stop: the tree is as P2 left it
         }
@@ -275,27 +275,15 @@ enum Reconcile {
 
     // MARK: P4 present
 
-    /// P4: the tray, then the layout of every workspace, then the native focus if the focus differs from
-    /// `nativeFocusBaseline`. A cancelled session presents nothing. `isTrayDeferred`: the light session updates the tray
-    /// after the layout's placements are posted (updateTrayText does launchservicesd IPC). `isLayout` false:
-    /// focus-follows-mouse doesn't lay out
-    static func present(nativeFocusBaseline: Window?, isTrayDeferred: Bool, isLayout: Bool = true) throws(CancellationError) {
+    /// P4: the layout of every workspace, the native focus if the focus differs from `nativeFocusBaseline`, then the
+    /// tray. A cancelled session presents nothing. `isLayout` false: focus-follows-mouse doesn't lay out
+    static func present(nativeFocusBaseline: Window?, isLayout: Bool = true) throws(CancellationError) {
         try checkCancellation()
-        if isTrayDeferred {
-            // Runs at the next suspension point
-            Task.startUnstructured {
-                updateTrayText()
-                world.ui.secureInputPanel.refresh()
-            }
-        } else {
-            updateTrayText()
-            world.ui.secureInputPanel.refresh()
-        }
         if isLayout { world.platform.apply(placements()) }
         let focused = focus.windowOrNil
-        if focused != nativeFocusBaseline {
-            focused?.nativeFocus() // syncFocusToMacOs
-        }
+        if focused != nativeFocusBaseline { focused?.nativeFocus() }
+        updateTrayText()
+        world.ui.secureInputPanel.refresh()
     }
 }
 

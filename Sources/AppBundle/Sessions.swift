@@ -38,7 +38,7 @@ final class Sessions {
 
     /// Runs `body` as a light session (design-m2.md D4): it cancels the scheduled heavy refresh, takes the native focus
     /// (``Reconcile/syncFocus(isStartup:)``), refreshes the model, runs `body`, refreshes the model again, presents
-    /// (``Reconcile/present(nativeFocusBaseline:isTrayDeferred:isLayout:)``) and schedules a heavy refresh.
+    /// (``Reconcile/present(nativeFocusBaseline:isLayout:)``) and schedules a heavy refresh.
     ///
     /// Focus follows mouse changes only the focus: it doesn't lay out, and it keeps the scheduled heavy refresh instead of
     /// replacing it. It runs on every mouse move, so cancelling would starve the heavy refresh while the mouse moves
@@ -59,7 +59,7 @@ final class Sessions {
         let result = try await body()
         await refreshModel(isFocusFollowsMouse)
 
-        try Reconcile.present(nativeFocusBaseline: focusBefore, isTrayDeferred: true, isLayout: !isFocusFollowsMouse)
+        try Reconcile.present(nativeFocusBaseline: focusBefore, isLayout: !isFocusFollowsMouse)
         // Only the startup's own heavy refresh registers windows the startup's way and skips P4 (RB-141)
         if !isFocusFollowsMouse { scheduleHeavy(event.isStartup ? .afterStartup : event) }
         return result
