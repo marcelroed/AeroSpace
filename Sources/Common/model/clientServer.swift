@@ -5,11 +5,18 @@ import Foundation
 //
 // One request per connection. The client sends a ClientRequest, the server answers with one ServerAnswer. After a
 // successful `subscribe` answer, the server sends a frame per ServerEvent until the connection closes.
+//
+// Both carry `protocolVersion`, so that the next change to the request or the answer is detected, not misread: the
+// server answers a request of another version with an error, and the client reports an answer of another version.
+// Version 1 was the protocol before the frames, which started with a version handshake (FrameReadError.legacyProtocol).
+
+public let socketProtocolVersion = 2
 
 public let EXIT_CODE_ZERO: Int32 = 0
 public let EXIT_CODE_TWO: Int32 = 2
 
 public struct ClientRequest: Codable, Sendable, Equatable {
+    public let protocolVersion: Int
     /// The subcommand and its args. The server parses them
     public let args: [String]
     /// Empty unless the command reads stdin (`--stdin`)
@@ -19,7 +26,8 @@ public struct ClientRequest: Codable, Sendable, Equatable {
     /// The client's AEROSPACE_WORKSPACE env variable
     public let workspace: String?
 
-    public init(args: [String], stdin: String, windowId: UInt32?, workspace: String?) {
+    public init(args: [String], stdin: String, windowId: UInt32?, workspace: String?, protocolVersion: Int = socketProtocolVersion) {
+        self.protocolVersion = protocolVersion
         self.args = args
         self.stdin = stdin
         self.windowId = windowId
@@ -28,15 +36,23 @@ public struct ClientRequest: Codable, Sendable, Equatable {
 }
 
 public struct ServerAnswer: Codable, Sendable, Equatable {
+    public let protocolVersion: Int
     public let exitCode: Int32
     public let stdout: String
     public let stderr: String
     public let serverVersionAndHash: String
 
     public init(exitCode: Int32, stdout: String = "", stderr: String = "", serverVersionAndHash: String) {
+        protocolVersion = socketProtocolVersion
         self.exitCode = exitCode
         self.stdout = stdout
         self.stderr = stderr
         self.serverVersionAndHash = serverVersionAndHash
     }
+}
+
+/// The protocol version of a request or an answer of any version. nil if the message isn't a JSON object, or has no version
+public func decodeProtocolVersion(_ data: Data) -> Int? {
+    struct Probe: Decodable { let protocolVersion: Int? }
+    return (try? JSONDecoder().decode(Probe.self, from: data))?.protocolVersion
 }

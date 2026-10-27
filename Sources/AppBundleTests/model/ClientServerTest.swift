@@ -6,45 +6,35 @@ import Testing
 @Suite
 struct ClientServerTest {
     @Test
-    func testClientRequestJsonV1_decoding() throws {
-        let data = #"{ "command": "deprecated", "args": ["foo", "bar"], "stdin": "stdin" }"#.data(using: .utf8)!
-        let expected = ClientRequest(args: ["foo", "bar"], stdin: "stdin", windowId: nil, workspace: nil)
-        #expect(try decode(data) == expected)
+    func testClientRequestJson_decoding() throws {
+        let data = #"{ "protocolVersion": 2, "args": ["foo", "bar"], "stdin": "stdin", "windowId": 1, "workspace": "foo" }"#.data(using: .utf8)!
+        #expect(try decode(data) == ClientRequest(args: ["foo", "bar"], stdin: "stdin", windowId: 1, workspace: "foo"))
     }
 
     @Test
-    func testClientRequestJsonV2_decoding() throws {
-        let data = #"{ "args": ["foo", "bar"], "stdin": "stdin" }"#.data(using: .utf8)!
-        let expected = ClientRequest(args: ["foo", "bar"], stdin: "stdin", windowId: nil, workspace: nil)
-        #expect(try decode(data) == expected)
-    }
-
-    @Test
-    func testClientRequestJsonV3_decoding() throws {
-        let data = #"{ "args": ["foo", "bar"], "stdin": "stdin", "windowId": null, "workspace": null }"#.data(using: .utf8)!
-        let expected = ClientRequest(args: ["foo", "bar"], stdin: "stdin", windowId: nil, workspace: nil)
-        #expect(try decode(data) == expected)
-    }
-
-    @Test
-    func testClientRequestJsonV3_decoding2() throws {
-        let data = #"{ "args": ["foo", "bar"], "stdin": "stdin", "windowId": 1, "workspace": "foo" }"#.data(using: .utf8)!
-        let expected = ClientRequest(args: ["foo", "bar"], stdin: "stdin", windowId: 1, workspace: "foo")
-        #expect(try decode(data) == expected)
-    }
-
-    @Test
-    func testClientRequestJsonV9999_decoding() {
-        let data = #"{ "args": ["foo", "bar"], "stdin": "stdin", "yet another future field": 1 }"#.data(using: .utf8)!
-        #expect(throws: Never.self) { try decode(data) }
+    func testClientRequestJson_decodingIgnoresUnknownFields() throws {
+        let data = #"{ "protocolVersion": 2, "args": ["foo", "bar"], "stdin": "stdin", "yet another future field": 1 }"#.data(using: .utf8)!
+        #expect(try decode(data) == ClientRequest(args: ["foo", "bar"], stdin: "stdin", windowId: nil, workspace: nil))
     }
 
     @Test
     func testClientRequestJson_decodingMissingIsNull() throws {
-        let data1 = #"{ "args": [], "stdin": "", "windowId": null }"#.data(using: .utf8)!
+        let data1 = #"{ "protocolVersion": 2, "args": [], "stdin": "", "windowId": null }"#.data(using: .utf8)!
         #expect(try decode(data1) == ClientRequest(args: [], stdin: "", windowId: nil, workspace: nil))
-        let data2 = #"{ "args": [], "stdin": "", "workspace": "w" }"#.data(using: .utf8)!
+        let data2 = #"{ "protocolVersion": 2, "args": [], "stdin": "", "workspace": "w" }"#.data(using: .utf8)!
         #expect(try decode(data2) == ClientRequest(args: [], stdin: "", windowId: nil, workspace: "w"))
+    }
+
+    @Test(arguments: [
+        (#"{ "protocolVersion": 3, "args": [] }"#, 3),
+        (#"{ "protocolVersion": 2 }"#, 2),
+        (#"{ "args": [], "stdin": "" }"#, nil),
+        (#"{ "protocolVersion": "2" }"#, nil),
+        ("[]", nil),
+        ("not json", nil),
+    ] as [(String, Int?)])
+    func protocolVersionOfAnyMessage(json: String, version: Int?) {
+        #expect(decodeProtocolVersion(Data(json.utf8)) == version)
     }
 
     @Test
@@ -52,16 +42,17 @@ struct ClientServerTest {
         let wrongFormat = "The data couldn’t be read because it isn’t in the correct format."
         let missing = "The data couldn’t be read because it is missing."
         let testData: [(json: String, kind: String, localizedDescription: String)] = [
-            (#"{ "args": ["foo"], "stdin": "", "windowId": "x" }"#, #"typeMismatch ["windowId"]"#, wrongFormat),
-            (#"{ "args": ["foo"], "stdin": "", "windowId": -1 }"#, "dataCorrupted []", wrongFormat),
-            (#"{ "args": ["foo"], "stdin": "", "windowId": 1.5 }"#, "dataCorrupted []", wrongFormat),
-            (#"{ "args": ["foo"], "stdin": "", "workspace": 1 }"#, #"typeMismatch ["workspace"]"#, wrongFormat),
-            (#"{ "args": ["foo"], "stdin": "", "windowId": "x", "workspace": 1 }"#, #"typeMismatch ["windowId"]"#, wrongFormat),
-            (#"{ "args": ["foo"], "windowId": "x" }"#, "keyNotFound stdin []", missing),
-            (#"{ "stdin": "" }"#, "keyNotFound args []", missing),
-            (#"{ "args": null, "stdin": "" }"#, #"valueNotFound ["args"]"#, missing),
-            (#"{ "args": [1], "stdin": "" }"#, #"typeMismatch ["args", "Index 0"]"#, wrongFormat),
-            (#"{ "args": [], "stdin": null }"#, #"valueNotFound ["stdin"]"#, missing),
+            (#"{ "protocolVersion": 2, "args": ["foo"], "stdin": "", "windowId": "x" }"#, #"typeMismatch ["windowId"]"#, wrongFormat),
+            (#"{ "protocolVersion": 2, "args": ["foo"], "stdin": "", "windowId": -1 }"#, "dataCorrupted []", wrongFormat),
+            (#"{ "protocolVersion": 2, "args": ["foo"], "stdin": "", "windowId": 1.5 }"#, "dataCorrupted []", wrongFormat),
+            (#"{ "protocolVersion": 2, "args": ["foo"], "stdin": "", "workspace": 1 }"#, #"typeMismatch ["workspace"]"#, wrongFormat),
+            (#"{ "protocolVersion": 2, "args": ["foo"], "stdin": "", "windowId": "x", "workspace": 1 }"#, #"typeMismatch ["windowId"]"#, wrongFormat),
+            (#"{ "protocolVersion": 2, "args": ["foo"], "windowId": "x" }"#, "keyNotFound stdin []", missing),
+            (#"{ "protocolVersion": 2, "stdin": "" }"#, "keyNotFound args []", missing),
+            (#"{ "protocolVersion": 2, "args": null, "stdin": "" }"#, #"valueNotFound ["args"]"#, missing),
+            (#"{ "protocolVersion": 2, "args": [1], "stdin": "" }"#, #"typeMismatch ["args", "Index 0"]"#, wrongFormat),
+            (#"{ "protocolVersion": 2, "args": [], "stdin": null }"#, #"valueNotFound ["stdin"]"#, missing),
+            (#"{ "args": [], "stdin": "" }"#, "keyNotFound protocolVersion []", missing),
             ("[]", "typeMismatch []", wrongFormat),
             ("not json", "dataCorrupted []", wrongFormat),
         ]
@@ -93,8 +84,8 @@ struct ClientServerTest {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let testData = [
-            (ClientRequest(args: ["args"], stdin: "stdin", windowId: 0, workspace: "foo"), #"{"args":["args"],"stdin":"stdin","windowId":0,"workspace":"foo"}"#),
-            (ClientRequest(args: ["args"], stdin: "stdin", windowId: nil, workspace: nil), #"{"args":["args"],"stdin":"stdin"}"#),
+            (ClientRequest(args: ["args"], stdin: "stdin", windowId: 0, workspace: "foo"), #"{"args":["args"],"protocolVersion":2,"stdin":"stdin","windowId":0,"workspace":"foo"}"#),
+            (ClientRequest(args: ["args"], stdin: "stdin", windowId: nil, workspace: nil), #"{"args":["args"],"protocolVersion":2,"stdin":"stdin"}"#),
         ]
         for (req, expectedJson) in testData {
             let data = try! encoder.encode(req)

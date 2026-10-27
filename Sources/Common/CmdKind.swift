@@ -279,6 +279,9 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
         }
     }
 
+    /// Whether the subcommand takes `--stdin`. Only then the CLI reads its stdin and sends it along
+    public var takesStdin: Bool { [.eval, .moveNodeToWorkspace, .workspace].contains(self) }
+
     /// One-line description in the `aerospace --help` subcommand list
     public var purpose: String {
         switch self {

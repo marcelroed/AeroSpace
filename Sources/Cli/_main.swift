@@ -27,16 +27,21 @@ struct Main {
         if subcommand == "--help" || subcommand == "-h" { exit(EXIT_CODE_ZERO, out: usage) }
         if subcommand == "--version" || subcommand == "-v" { await printVersionAndExit() }
 
-        // The options come before `--`. The server parses them the same way
+        // The options come before `--`. The server parses them the same way: a word that starts with a dash is never the
+        // value of an option there
         let options = args.dropFirst().prefix { $0 != "--" }
-        if let kind = CmdKind(rawValue: subcommand), kind != .execAndForget, options.contains(where: { $0 == "-h" || $0 == "--help" }) {
+        let kind = CmdKind(rawValue: subcommand)
+        if let kind, kind != .execAndForget, options.contains(where: { $0 == "-h" || $0 == "--help" }) {
             exit(EXIT_CODE_ZERO, out: kind.help)
         }
         // Optimizations
         if args == [CmdKind._true.rawValue] { exit(EXIT_CODE_ZERO) }
         if args == [CmdKind._false.rawValue] { exit(1) }
 
-        let stdin = options.contains("--stdin") ? readStdinOrExit() : ""
+        // The server rejects --stdin for the other subcommands, so don't wait for stdin first. Neither wait on a terminal,
+        // which has nothing to send
+        let readsStdin = kind?.takesStdin == true && options.contains("--stdin") && isatty(STDIN_FILENO) == 0
+        let stdin = readsStdin ? readStdinOrExit() : ""
         let connection = await connectOrExit()
         let env = ProcessInfo.processInfo.environment
         let request = ClientRequest(
@@ -76,30 +81,41 @@ private func connectOrExit() async -> NWConnection {
     return connection
 }
 
+/// Prints the client version, and the server version if the server answers. Exits with 2 if the server is there but
+/// doesn't answer: `--version` is how to tell that the CLI and the server don't fit
 private func printVersionAndExit() async -> Never {
     let connection = NWConnection(to: NWEndpoint.unix(path: socketPath), using: .tcp)
-    let serverVersionAndHash: String?
+    let server: Result<String, NoAnswer>?
     if let e = await connection.initConnection().error {
         eprint(e.localizedDescription)
-        serverVersionAndHash = nil
+        server = nil
     } else {
         // Any answer carries the server version, even the failure of an empty request
-        serverVersionAndHash = await send(connection, ClientRequest(args: [], stdin: "", windowId: nil, workspace: nil)).serverVersionAndHash
+        server = await trySend(connection, ClientRequest(args: [], stdin: "", windowId: nil, workspace: nil)).map(\.serverVersionAndHash)
+    }
+    let serverLine = switch server {
+        case nil: "Unknown. The server is not responding"
+        case .success(let it): it
+        case .failure(.incompatibleProtocol): "Unknown (incompatible protocol)"
+        case .failure(.failed): "Unknown (no answer)"
     }
     print(
         """
         aerospace CLI client version: \(cliClientVersionAndHash)
-        AeroSpace.app server version: \(serverVersionAndHash ?? "Unknown. The server is not responding")
+        AeroSpace.app server version: \(serverLine)
         """,
     )
-    if serverVersionAndHash != nil && cliClientVersionAndHash != serverVersionAndHash {
-        eprint(
-            """
-            Warning: AeroSpace client/server versions don't match. Possible fixes:
-              - Restart AeroSpace.app (server restart is required after each update)
-              - Reinstall and restart AeroSpace (corrupted installation)
-            """,
-        )
+    switch server {
+        case .failure(let e): exit(EXIT_CODE_TWO, err: e.message)
+        case .success(let it) where it != cliClientVersionAndHash:
+            eprint(
+                """
+                Warning: AeroSpace client/server versions don't match. Possible fixes:
+                  - Restart AeroSpace.app (server restart is required after each update)
+                  - Reinstall and restart AeroSpace (corrupted installation)
+                """,
+            )
+        case .success, nil: break
     }
     exit(EXIT_CODE_ZERO)
 }
@@ -118,22 +134,51 @@ private func readStdinOrExit() -> String {
 }
 
 private func send(_ connection: NWConnection, _ request: ClientRequest) async -> ServerAnswer {
-    if let e = await connection.writeAtomic(request).error {
-        exit(EXIT_CODE_TWO, err: "Failed to write to server socket: \(e)")
+    switch await trySend(connection, request) {
+        case .success(let answer): answer
+        case .failure(let e): exit(EXIT_CODE_TWO, err: e.message)
     }
-    switch await connection.readNonAtomic() {
-        case .success(let answer):
-            if let ans = try? JSONDecoder().decode(ServerAnswer.self, from: answer) { return ans }
-            exit(EXIT_CODE_TWO, err: "Failed to parse server response: \(String(data: answer, encoding: .utf8).prettyDescription)")
-        case .failure(let error):
-            exit(EXIT_CODE_TWO, err: "Failed to read from server socket: \(error)\nAre the CLI and AeroSpace.app from the same version? (Potential fix: restart AeroSpace.app)")
+}
+
+private enum NoAnswer: Error {
+    case incompatibleProtocol(serverVersion: String)
+    case failed(String)
+
+    var message: String {
+        switch self {
+            case .incompatibleProtocol(let serverVersion):
+                """
+                AeroSpace.app speaks protocol version \(serverVersion), and the CLI speaks version \(socketProtocolVersion).
+                Restart AeroSpace.app (a restart is required after each update), or use the CLI of the same AeroSpace version
+                """
+            case .failed(let msg): msg
+        }
+    }
+}
+
+private func trySend(_ connection: NWConnection, _ request: ClientRequest) async -> Result<ServerAnswer, NoAnswer> {
+    if let e = await connection.writeAtomic(request).error {
+        return .failure(.failed("Failed to write to server socket: \(e)"))
+    }
+    switch await connection.readFrame() {
+        case .success(let raw):
+            if let answer = try? JSONDecoder().decode(ServerAnswer.self, from: raw), answer.protocolVersion == socketProtocolVersion {
+                return .success(answer)
+            }
+            if let version = decodeProtocolVersion(raw), version != socketProtocolVersion {
+                return .failure(.incompatibleProtocol(serverVersion: "\(version)"))
+            }
+            return .failure(.failed("Failed to parse server response: \(String(data: raw, encoding: .utf8).prettyDescription)"))
+        case .failure(.legacyProtocol): return .failure(.incompatibleProtocol(serverVersion: "1"))
+        case .failure(.closed): return .failure(.failed("AeroSpace.app closed the connection without answering. Did it crash?"))
+        case .failure(let e): return .failure(.failed("Failed to read from server socket: \(e)"))
     }
 }
 
 /// After a successful `subscribe` answer, the server sends an event per frame until the connection closes
 private func printEventsAndExit(_ connection: NWConnection) async -> Never {
     while true {
-        switch await connection.readNonAtomic() {
+        switch await connection.readFrame() {
             case .success(let data):
                 guard let str = String(data: data, encoding: .utf8) else { exit(EXIT_CODE_TWO, err: "Can't convert bytes to utf8 String") }
                 print(str)

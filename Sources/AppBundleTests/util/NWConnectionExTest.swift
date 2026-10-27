@@ -9,7 +9,7 @@ import Testing
 struct NWConnectionExTest {
     @Test
     func roundTrip() async throws {
-        let server = try await TestSocketServer.start()
+        let server = try await TestSocketServer.start(.answer)
         defer { server.stop() }
         let connection = NWConnection(to: .unix(path: server.path), using: .tcp)
         defer { connection.cancel() }
@@ -17,13 +17,13 @@ struct NWConnectionExTest {
         #expect(await connection.initConnection().error == nil)
         let request = ClientRequest(args: ["list-workspaces", "--all"], stdin: "", windowId: 42, workspace: nil)
         #expect(await connection.writeAtomic(request).error == nil)
-        let answer = try JSONDecoder().decode(ServerAnswer.self, from: await connection.readNonAtomic().get())
+        let answer = try JSONDecoder().decode(ServerAnswer.self, from: await connection.readFrame().get())
         #expect(answer == ServerAnswer(exitCode: 0, stdout: "list-workspaces --all", stderr: "windowId=Optional(42)", serverVersionAndHash: "test-server"))
     }
 
-    @Test
-    func readFailsWhenPeerClosesMidAnswer() async throws {
-        let server = try await TestSocketServer.start(closeMidAnswer: true)
+    @Test(arguments: [TestSocketServer.Behavior.closeMidAnswer, .closeWithoutAnswer])
+    func readFailsWhenPeerCloses(behavior: TestSocketServer.Behavior) async throws {
+        let server = try await TestSocketServer.start(behavior)
         defer { server.stop() }
         let connection = NWConnection(to: .unix(path: server.path), using: .tcp)
         defer { connection.cancel() }
@@ -31,16 +31,46 @@ struct NWConnectionExTest {
         #expect(await connection.initConnection().error == nil)
         let request = ClientRequest(args: ["list-workspaces", "--all"], stdin: "", windowId: nil, workspace: nil)
         #expect(await connection.writeAtomic(request).error == nil)
-        // The receive after the end of the stream fails. If it didn't, the read would spin forever (RB-08)
-        switch await withTimeout(seconds: 5, { await connection.readNonAtomic() }) {
-            case .failure: break
-            case let other: Issue.record("Expected a failure, got \(other.map { "\($0)" } ?? "a timeout")")
+        // A read after the end of the stream must not spin (RB-08)
+        switch await withTimeout(seconds: 5, { await connection.readFrame() }) {
+            case .failure(.closed): break
+            case let other: Issue.record("Expected .closed, got \(other.map { "\($0)" } ?? "a timeout")")
         }
     }
 
     @Test
+    func clientDetectsServerOfLegacyProtocol() async throws {
+        let server = try await TestSocketServer.start(.legacyServer)
+        defer { server.stop() }
+        let connection = NWConnection(to: .unix(path: server.path), using: .tcp)
+        defer { connection.cancel() }
+
+        #expect(await connection.initConnection().error == nil)
+        let request = ClientRequest(args: ["list-workspaces", "--all"], stdin: "", windowId: nil, workspace: nil)
+        #expect(await connection.writeAtomic(request).error == nil)
+        switch await withTimeout(seconds: 5, { await connection.readFrame() }) {
+            case .failure(.legacyProtocol): break
+            case let other: Issue.record("Expected .legacyProtocol, got \(other.map { "\($0)" } ?? "a timeout")")
+        }
+    }
+
+    @Test
+    func frameLongerThanMaxSizeIsNotRead() async throws {
+        let server = try await TestSocketServer.start(.recordMaxSizeFailure)
+        defer { server.stop() }
+        let connection = NWConnection(to: .unix(path: server.path), using: .tcp)
+        defer { connection.cancel() }
+
+        #expect(await connection.initConnection().error == nil)
+        let request = ClientRequest(args: [String(repeating: "x", count: 200)], stdin: "", windowId: nil, workspace: nil)
+        #expect(await connection.writeAtomic(request).error == nil)
+        let answer = try JSONDecoder().decode(ServerAnswer.self, from: await connection.readFrame().get())
+        #expect(answer.stderr.starts(with: "The message is "), "\(answer)")
+    }
+
+    @Test
     func legacyClientGetsAnotherProtocolVersion() async throws {
-        let server = try await TestSocketServer.start()
+        let server = try await TestSocketServer.start(.answer)
         defer { server.stop() }
         let connection = NWConnection(to: .unix(path: server.path), using: .tcp)
         defer { connection.cancel() }
@@ -62,7 +92,7 @@ struct NWConnectionExTest {
 
     @Test
     func initConnectionFailsWhenCancelledBeforeReady() async throws {
-        let server = try await TestSocketServer.start()
+        let server = try await TestSocketServer.start(.answer)
         defer { server.stop() }
         let params = NWParameters.tcp
         params.defaultProtocolStack.applicationProtocols.insert(NWProtocolFramer.Options(definition: NeverReadyFramer.definition), at: 0)
@@ -119,7 +149,19 @@ nonisolated private func withTimeout<T: Sendable>(seconds: Int, _ body: @escapin
 }
 
 /// Mirrors the real server (server.swift): read one request, answer it
-nonisolated private final class TestSocketServer: Sendable {
+nonisolated final class TestSocketServer: Sendable {
+    enum Behavior: Sendable {
+        case answer
+        /// Announce an answer, then close the connection without sending it
+        case closeMidAnswer
+        case closeWithoutAnswer
+        /// Like a server from before the frames: read the frame length as the client's protocol version, answer with
+        /// version 1, and close the connection
+        case legacyServer
+        /// Accept requests of at most 100 bytes, and answer with the error
+        case recordMaxSizeFailure
+    }
+
     let path: String
     private let listener: NWListener
 
@@ -128,8 +170,7 @@ nonisolated private final class TestSocketServer: Sendable {
         self.listener = listener
     }
 
-    /// - closeMidAnswer: announce an answer, then close the connection without sending it
-    static func start(closeMidAnswer: Bool = false) async throws -> TestSocketServer {
+    static func start(_ behavior: Behavior) async throws -> TestSocketServer {
         let path = testSocketPath()
         let params = NWParameters.tcp
         params.requiredLocalEndpoint = .unix(path: path)
@@ -138,10 +179,30 @@ nonisolated private final class TestSocketServer: Sendable {
             Task.startUnstructured {
                 defer { connection.cancel() }
                 connection.start(queue: .global())
-                guard let raw = try? await connection.readRequestFrame()?.get() else { return }
-                if closeMidAnswer {
-                    await connection.sendAndWait(withUnsafeBytes(of: UInt32(100)) { unsafe Data($0) }) // The answer size
-                    return
+                switch behavior {
+                    case .answer, .closeMidAnswer, .closeWithoutAnswer: break
+                    case .legacyServer:
+                        _ = await connection.receiveUInt32()
+                        await connection.sendAndWait(withUnsafeBytes(of: UInt32(1)) { unsafe Data($0) })
+                        return
+                    case .recordMaxSizeFailure:
+                        if case .failure(let e) = await connection.readFrame(maxSize: 100) {
+                            _ = await connection.writeAtomic(ServerAnswer(exitCode: 2, stderr: "\(e)", serverVersionAndHash: "test-server"))
+                        }
+                        return
+                }
+                let raw: Data
+                switch await connection.readFrame() {
+                    case .success(let it): raw = it
+                    case .failure(.legacyProtocol): return await connection.answerLegacyHandshake()
+                    case .failure: return
+                }
+                switch behavior {
+                    case .closeMidAnswer:
+                        await connection.sendAndWait(withUnsafeBytes(of: UInt32(100)) { unsafe Data($0) }) // The answer size
+                        return
+                    case .closeWithoutAnswer: return
+                    case .answer, .legacyServer, .recordMaxSizeFailure: break
                 }
                 guard let request = try? JSONDecoder().decode(ClientRequest.self, from: raw) else { return }
                 let answer = ServerAnswer(

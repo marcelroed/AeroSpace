@@ -27,11 +27,25 @@ nonisolated func toggleReleaseServerIfDebug(_ state: ToggleEnum) async {
         return
     }
 
-    _ = await connection.writeAtomic(ClientRequest(args: ["enable", state.rawValue], stdin: "", windowId: nil, workspace: nil))
-    _ = await connection.readNonAtomic()
+    let request = ClientRequest(args: ["enable", state.rawValue], stdin: "", windowId: nil, workspace: nil)
+    let error: String? = if let e = await connection.writeAtomic(request).error {
+        "\(e)"
+    } else {
+        switch await connection.readFrame() {
+            case .success(let raw): decodeProtocolVersion(raw) == socketProtocolVersion ? nil : "It speaks another protocol version"
+            case .failure(let e): "\(e)"
+        }
+    }
+    if let error {
+        // Otherwise both window managers stay enabled. The old handshake isn't worth speaking for this single request
+        eprint("Warning: the release AeroSpace.app isn't turned \(state.rawValue). Quit it, or turn it \(state.rawValue) by hand. \(error)")
+    }
 }
 
 nonisolated private let serverVersionAndHash = "\(aeroSpaceAppVersion) \(gitHash)"
+
+/// A CLI request is its args and the CLI's stdin, which the CLI limits to 1000 lines
+nonisolated private let maxRequestSize: UInt32 = 16 << 20
 
 /// Answers the one request of the connection. Runs off the main actor: the connection I/O doesn't wait for the main
 /// thread
@@ -42,10 +56,14 @@ nonisolated private func newConnection(_ connection: NWConnection) async {
     }
 
     let rawRequest: Data
-    switch await connection.readRequestFrame() {
+    switch await connection.readFrame(maxSize: maxRequestSize) {
         case .success(let it): rawRequest = it
-        case .failure(let err): return await answer(exitCode: EXIT_CODE_TWO, stderr: "Error: \(err)")
-        case nil: return
+        case .failure(.legacyProtocol): return await connection.answerLegacyHandshake()
+        case .failure(.closed): return // Nobody to answer
+        case .failure(let err): return await answer(exitCode: EXIT_CODE_TWO, stderr: "Can't read the request. \(err)")
+    }
+    if let version = decodeProtocolVersion(rawRequest), version != socketProtocolVersion {
+        return await answer(exitCode: EXIT_CODE_TWO, stderr: incompatibleProtocolMessage(clientVersion: version))
     }
     let request: ClientRequest
     do {
@@ -64,6 +82,13 @@ nonisolated private func newConnection(_ connection: NWConnection) async {
             await answer(exitCode: EXIT_CODE_ZERO)
             await handleSubscribeAndWaitTillError(connection, args)
     }
+}
+
+nonisolated private func incompatibleProtocolMessage(clientVersion: Int) -> String {
+    """
+    The CLI speaks protocol version \(clientVersion), and AeroSpace.app speaks version \(socketProtocolVersion).
+    Use the CLI of the same AeroSpace version, or restart AeroSpace.app (a restart is required after each update)
+    """
 }
 
 private enum RequestOutcome {
