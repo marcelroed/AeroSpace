@@ -169,9 +169,9 @@ struct AxAppTest {
         defer { gate.signal() }
         hung.post { _ in gate.wait() }
         let shownJobs = ShownJobs(deadline: .now() + .seconds(10))
-        hung.postPlacements([], .shown(shownJobs, focus: nil))
+        hung.postPlacements([], .shown(shownJobs, focus: nil), trustsLastSeen: false)
         let target = ParkTarget(corner: .bottomRightCorner, monitor: testMonitor, monitors: NonEmptyArray(testMonitor), isFloating: false, isZoom: false)
-        parker.postPlacements([.park(1, target)], .parks(waitingFor: shownJobs)) // The parker has no window 1
+        parker.postPlacements([.park(1, target)], .parks(waitingFor: shownJobs), trustsLastSeen: false) // The parker has no window 1
 
         let start: DispatchTime = .now()
         await parker.run { _ in } // After the parks job
@@ -194,7 +194,7 @@ struct AxAppTest {
             log.append("the slow app wrote")
         }
         let shownJobs = ShownJobs(deadline: .now() + .seconds(10))
-        slow.postPlacements([], .shown(shownJobs, focus: nil))
+        slow.postPlacements([], .shown(shownJobs, focus: nil), trustsLastSeen: false)
         parker.post { _ in
             shownJobs.wait()
             log.append("the parker writes")
@@ -208,7 +208,7 @@ struct AxAppTest {
         hung.post { _ in hungGate.wait() }
         let start: DispatchTime = .now()
         let shownJobsWithAHungApp = ShownJobs(deadline: start + .milliseconds(100))
-        hung.postPlacements([], .shown(shownJobsWithAHungApp, focus: nil))
+        hung.postPlacements([], .shown(shownJobsWithAHungApp, focus: nil), trustsLastSeen: false)
         await parker.run { _ in shownJobsWithAHungApp.wait() }
         let waited = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
         #expect(waited >= 100_000_000 && waited < 5_000_000_000, "waited \(waited) ns")
@@ -227,7 +227,7 @@ struct AxAppTest {
         focused.postPlacements([], .shown(shownJobs, focus: { @Sendable _ in
             Thread.sleep(forTimeInterval: 0.05)
             log.append("the focus on \(Thread.current.name ?? "")")
-        }))
+        }), trustsLastSeen: false)
         parker.post { _ in
             shownJobs.wait()
             log.append("the parks go")

@@ -58,8 +58,9 @@ final class Sessions {
     ///   the body.
     /// - L3 the body. Shell refreshes the model after each command.
     /// - L4 refresh the model: the only refresh after a body that runs no command.
-    /// - L5 present (``Reconcile/present(nativeFocusBaseline:isLayout:trustsLastSeen:)``): L6's heavy refresh checks the
-    ///   windows that it trusts.
+    /// - L5 present (``Reconcile/present(nativeFocusBaseline:isLayout:trustsLastSeen:)``). It trusts what L6's heavy
+    ///   refresh checks in P4, unless AeroSpace was disabled at L1 or is now: a disabled heavy refresh stops at P0, and the
+    ///   windows may have moved while AeroSpace was disabled.
     /// - L6 schedule a heavy refresh.
     ///
     /// `isStartup`: the light session of ``startup(_:)``, which registers a new focused window the startup's way
@@ -72,6 +73,7 @@ final class Sessions {
         let state = signposter.beginInterval(#function, "event: \(String(describing: event))")
         defer { signposter.endInterval(#function, state) }
         cancelHeavy() // L1. Give priority to the light session
+        let wasEnabled = world.isEnabled
         updateMonitors() // While there are no screens, the commands fail with a message or work on the last monitors
         try await Reconcile.syncFocus(isStartup: isStartup)
         let focusBefore = focus.windowOrNil
@@ -80,7 +82,7 @@ final class Sessions {
         let result = try await body() // L3
         await refreshModel_nonCancellable() // L4
 
-        try Reconcile.present(nativeFocusBaseline: focusBefore, trustsLastSeen: true) // L5
+        try Reconcile.present(nativeFocusBaseline: focusBefore, trustsLastSeen: wasEnabled && world.isEnabled) // L5
         scheduleHeavy(event) // L6
         return result
     }

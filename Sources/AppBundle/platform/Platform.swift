@@ -62,7 +62,7 @@ protocol Platform: AnyObject, Sendable {
 
     /// Applies the placements in order. A newer placement of a window makes its pending older one stale. Then gives `focus`
     /// the native focus, as ``focus(_:)``: on LivePlatform, right after its app's own placement writes. `trustsLastSeen`:
-    /// a heavy refresh's P4 follows, see ``PlacementState/apply(_:to:trustsLastSeen:)``
+    /// see ``PlacementState/apply(_:to:trustsLastSeen:)``
     func apply(_ batch: [Placement], focus: WindowId?, trustsLastSeen: Bool)
     /// The window's size now is its floating size (``PlacementState/lastFloatingSize``)
     func rememberFloatingSize(_ id: WindowId)

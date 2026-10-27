@@ -227,10 +227,10 @@ final class LivePlatform: Platform {
         let shownJobs = ShownJobs(deadline: .now() + parkWaitLimit)
         for (pid, (ax, placements)) in shown {
             let focus = nativeFocus.flatMap { $0.app.info.pid == pid ? $0.run : nil }
-            ax.postPlacements(placements, .shown(shownJobs, focus: focus, trustsLastSeen: trustsLastSeen))
+            ax.postPlacements(placements, .shown(shownJobs, focus: focus), trustsLastSeen: trustsLastSeen)
         }
         for (ax, placements) in parks.values {
-            ax.postPlacements(placements, .parks(waitingFor: shownJobs, trustsLastSeen: trustsLastSeen))
+            ax.postPlacements(placements, .parks(waitingFor: shownJobs), trustsLastSeen: trustsLastSeen)
         }
         if let nativeFocus, shown[nativeFocus.app.info.pid] == nil {
             nativeFocus.runAlone()
