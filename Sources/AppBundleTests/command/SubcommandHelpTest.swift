@@ -1,9 +1,35 @@
 @testable import AppBundle
 import Common
+import Foundation
 import Testing
 
 @Suite
 struct SubcommandHelpTest: AeroSpaceTestSuite {
+    /// CmdKind is the source of the help; the docs repeat its synopsis and purpose
+    @Test(arguments: CmdKind.allCases)
+    func testDocsMatchHelp(kind: CmdKind) throws {
+        let adoc = try String(contentsOf: projectRoot.appending(path: "docs/aerospace-\(kind.rawValue).adoc"), encoding: .utf8)
+        let lines = adoc.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        #expect(lines.contains(":manpurpose: \(kind.purpose)"))
+        let start = try #require(lines.firstIndex { $0.contains("tag::synopsis") }) + 1
+        let end = try #require(lines.firstIndex { $0.contains("end::synopsis") })
+        var prefix = "USAGE:"
+        let help = lines[start ..< end].filter { !$0.isEmpty }.map { line in
+            let line = line.removePrefix("   ")
+            guard line.starts(with: "aerospace") else { return line }
+            defer { prefix = "   OR:" }
+            return prefix + line.removePrefix("aerospace")
+        }
+        #expect(help.joined(separator: "\n") == kind.help)
+    }
+
+    @Test
+    func testEveryDocsPageIsASubcommand() throws {
+        let pages = try FileManager.default.contentsOfDirectory(atPath: projectRoot.appending(path: "docs").path)
+            .filter { $0.starts(with: "aerospace-") && $0.hasSuffix(".adoc") }
+        #expect(Set(pages) == Set(CmdKind.allCases.map { "aerospace-\($0.rawValue).adoc" }))
+    }
+
     @Test
     func testEverySubcommandIsCovered() {
         let expected = Set(CmdKind.allCases.map(\.rawValue)).subtracting(["exec-and-forget"]).union(["move-through", "move-workspace-to-display"])

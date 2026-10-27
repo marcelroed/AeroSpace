@@ -1,6 +1,5 @@
-// FILE IS GENERATED FROM docs/aerospace-*.adoc files
-// TO REGENERATE THE FILE RUN generate.sh
-
+/// Every subcommand with its help. The single source of truth for help: the CLI prints it, and SubcommandHelpTest checks
+/// that the synopsis and purpose of each docs/aerospace-<subcommand>.adoc match it
 public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case balanceSizes = "balance-sizes"
     case closeAllWindowsButCurrent = "close-all-windows-but-current"
