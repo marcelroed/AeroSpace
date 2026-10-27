@@ -76,19 +76,4 @@ extension Sequence {
     public var withIndex: [(index: Int, value: Element)] { enumerated().map { (index: $0.offset, value: $0.element) } }
 
     public func toSet() -> Set<Element> where Element: Hashable { Set(self) }
-
-    public var sequencePattern: SequencePattern<Self> {
-        var iterator = makeIterator()
-        guard let first = iterator.next() else { return .empty }
-        guard let second = iterator.next() else { return .one(first) }
-        guard let _ = iterator.next() else { return .two(first, second) }
-        return .many
-    }
-}
-
-public enum SequencePattern<Seq: Sequence> {
-    case empty
-    case one(Seq.Element)
-    case two(Seq.Element, Seq.Element)
-    case many
 }
