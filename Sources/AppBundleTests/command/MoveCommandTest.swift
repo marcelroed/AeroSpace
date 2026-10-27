@@ -325,9 +325,8 @@ final class MoveCommandTest: XCTestCase {
             TestWindow.new(id: 2, parent: $0)
         }
         // No screens (e.g., during display reconfiguration) is a normal state, not a bug (RB-40)
-        let result = await $noScreensForTests.withValue(true) {
-            await parseCommand("move --boundaries all-monitors-outer-frame left").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        await $noScreensForTests.withValue(true) {
+            await assertRun("move --boundaries all-monitors-outer-frame left", exitCode: 2, stdout: [], stderr: ["Can't move the window across monitors while there are no screens"])
         }
-        assertEquals(result, CmdResult(stdout: [], stderr: ["Can't move the window across monitors while there are no screens"], exitCode: .fail))
     }
 }

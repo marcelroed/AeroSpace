@@ -28,7 +28,7 @@ struct ExecCommandTest: AeroSpaceTestSuite {
     @Test
     func testParseRequiresWhitespaceAfterCommandName() {
         // `exec-and-forgetfoo` used to parse as `exec-and-forget foo` (RB-15)
-        testParseCommandFail("exec-and-forgetfoo", msg: "Unrecognized subcommand 'exec-and-forgetfoo'", exitCode: 2)
+        testParseCommandFail("exec-and-forgetfoo", msg: "Unrecognized subcommand 'exec-and-forgetfoo'")
     }
 }
 

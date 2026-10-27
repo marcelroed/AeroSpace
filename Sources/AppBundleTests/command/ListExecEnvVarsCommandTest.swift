@@ -11,9 +11,6 @@ struct ListExecEnvVarsCommandTest: AeroSpaceTestSuite {
         let names = ["PATH", "HOME", "LANG", "A", "Z", "B", "Y", "C", "X", "FOO"]
         config.execConfig.envVariables = Dictionary(uniqueKeysWithValues: names.map { ($0, "value-\($0)") })
 
-        let result = await parseCommand("list-exec-env-vars").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, names.sorted().map { "\($0)=value-\($0)" })
+        await assertRun("list-exec-env-vars", exitCode: 0, stdout: names.sorted().map { "\($0)=value-\($0)" }, stderr: [])
     }
 }

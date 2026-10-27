@@ -415,18 +415,16 @@ final class FocusCommandTest: XCTestCase {
             TestWindow.new(id: 2, parent: $0)
         }
         // No screens (e.g., during display reconfiguration) is a normal state, not a bug (RB-40)
-        let result = await $noScreensForTests.withValue(true) {
-            await parseCommand("focus --boundaries all-monitors-outer-frame left").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        await $noScreensForTests.withValue(true) {
+            await assertRun("focus --boundaries all-monitors-outer-frame left", exitCode: 2, stdout: [], stderr: ["Can't focus across monitors while there are no screens"])
         }
-        assertEquals(result, CmdResult(stdout: [], stderr: ["Can't focus across monitors while there are no screens"], exitCode: .fail))
         assertEquals(focus.windowOrNil?.windowId, 1)
     }
 
     func testFocusDfsRelative_noWindow_failsWithMessage() async {
         assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
 
-        let result = await parseCommand("focus dfs-next").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result, CmdResult(stdout: [], stderr: [noWindowIsFocused], exitCode: .fail))
+        await assertRun("focus dfs-next", exitCode: 2, stdout: [], stderr: [noWindowIsFocused])
     }
 
     func testFocusDfsRelative_ignoredFloatingWindow_failsWithMessage() async {
@@ -435,8 +433,7 @@ final class FocusCommandTest: XCTestCase {
         let floating = TestWindow.new(id: 2, parent: workspace.floatingWindowsContainer, rect: Rect(topLeftX: 0, topLeftY: 0, width: 100, height: 100))
         assertEquals(floating.focusWindow(), true)
 
-        let result = await parseCommand("focus --ignore-floating dfs-prev").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result, CmdResult(stdout: [], stderr: ["The window isn't part of the workspace tree"], exitCode: .fail))
+        await assertRun("focus --ignore-floating dfs-prev", exitCode: 2, stdout: [], stderr: ["The window isn't part of the workspace tree"])
         assertEquals(focus.windowOrNil?.windowId, 2)
     }
 }

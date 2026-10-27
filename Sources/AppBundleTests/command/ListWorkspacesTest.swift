@@ -37,8 +37,7 @@ struct ListWorkspacesTest: AeroSpaceTestSuite {
         TestWindow.new(id: 1, parent: Workspace.get(byName: "1").rootTilingContainer)
         TestWindow.new(id: 2, parent: Workspace.get(byName: "01").rootTilingContainer)
         TestWindow.new(id: 3, parent: Workspace.get(byName: "001").rootTilingContainer)
-        let result = await parseCommand("list-workspaces --all").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.stdout, ["001", "01", "1", "setUpWorkspacesForTests"])
+        await assertRun("list-workspaces --all", exitCode: 0, stdout: ["001", "01", "1", "setUpWorkspacesForTests"])
     }
 
     @Test

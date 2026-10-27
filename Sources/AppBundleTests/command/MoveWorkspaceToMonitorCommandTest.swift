@@ -52,10 +52,9 @@ struct MoveWorkspaceToMonitorCommandTest: AeroSpaceTestSuite {
     @Test
     func testMoveWorkspaceToMonitorNext_noScreens_failsWithMessage() async {
         // No screens (e.g., during display reconfiguration) is a normal state, not a bug (RB-40)
-        let result = await $noScreensForTests.withValue(true) {
-            await parseCommand("move-workspace-to-monitor next").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        await $noScreensForTests.withValue(true) {
+            await assertRun("move-workspace-to-monitor next", exitCode: 2, stdout: [], stderr: ["Can't find the next monitor while there are no screens"])
         }
-        assertEquals(result, CmdResult(stdout: [], stderr: ["Can't find the next monitor while there are no screens"], exitCode: .fail))
     }
 }
 

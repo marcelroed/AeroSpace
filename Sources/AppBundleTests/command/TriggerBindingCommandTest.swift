@@ -31,9 +31,11 @@ struct TriggerBindingCommandTest: AeroSpaceTestSuite {
         let modeNames = ["main", "service", "resize", "move", "a", "z", "b", "y", "c", "x"]
         config.modes = Dictionary(uniqueKeysWithValues: modeNames.map { ($0, Mode(bindings: [:])) })
 
-        let result = await parseCommand("trigger-binding alt-h --mode unknown").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["Mode 'unknown' doesn't exist. Available modes: a,b,c,main,move,resize,service,x,y,z"])
+        await assertRun(
+            "trigger-binding alt-h --mode unknown",
+            exitCode: 2,
+            stdout: [],
+            stderr: ["Mode 'unknown' doesn't exist. Available modes: a,b,c,main,move,resize,service,x,y,z"],
+        )
     }
 }

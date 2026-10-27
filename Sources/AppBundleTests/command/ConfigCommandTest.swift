@@ -73,10 +73,8 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
     func testMajorKeys_sortedOutput() async {
         // Ten modes, so that the dictionary order can't match the sorted order by chance (RB-13)
         config.modes = manyModes()
-        let result = await parseCommand("config --major-keys").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, [([".", "mode"] + manyModeNames.sorted().map { "mode.\($0).binding" }).joined(separator: "\n")])
+        let expected = [".", "mode"] + manyModeNames.sorted().map { "mode.\($0).binding" }
+        await assertRun("config --major-keys", exitCode: 0, stdout: [expected.joined(separator: "\n")], stderr: [])
     }
 
     @Test
@@ -93,13 +91,10 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
         let bindings = [HotkeyBinding(.option, .k, command), HotkeyBinding(.option, .h, command), HotkeyBinding(.option, .j, command)]
         config.modes = manyModes(bindings: Dictionary(uniqueKeysWithValues: bindings.map { ($0.descriptionWithKeyCode, $0) }))
 
-        let result = await parseCommand("config --all-keys").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
         let expected = [".", "mode"] + manyModeNames.sorted().flatMap { mode in
             ["mode.\(mode)", "mode.\(mode).binding"] + ["alt-h", "alt-j", "alt-k"].map { "mode.\(mode).binding.\($0)" }
         }
-        assertEquals(result.stdout, [expected.joined(separator: "\n")])
+        await assertRun("config --all-keys", exitCode: 0, stdout: [expected.joined(separator: "\n")], stderr: [])
     }
 
     @Test
@@ -155,10 +150,7 @@ struct ConfigCommandTest: AeroSpaceTestSuite {
             OrderedJson.array(manyModeNames.sorted().map { .string($0) }),
         )
 
-        let result = await parseCommand("config --get mode --keys --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, [expected])
+        await assertRun("config --get mode --keys --json", exitCode: 0, stdout: [expected.orDie()], stderr: [])
     }
 
     @Test

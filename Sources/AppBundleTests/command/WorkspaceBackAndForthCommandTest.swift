@@ -11,10 +11,7 @@ struct WorkspaceBackAndForthCommandTest: AeroSpaceTestSuite {
         assertTrue(Workspace.get(byName: "a").focusWorkspace())
         _prevFocusedWorkspaceName = "b"
 
-        assertEquals(
-            await parseCommand("workspace-back-and-forth").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: [], exitCode: .succ),
-        )
+        await assertRun("workspace-back-and-forth", exitCode: 0, stdout: [], stderr: [])
         assertEquals(focus.workspace.name, "b")
     }
 
@@ -39,10 +36,7 @@ struct WorkspaceBackAndForthCommandTest: AeroSpaceTestSuite {
         assertTrue(Workspace.get(byName: "a").focusWorkspace())
         assertNil(prevFocusedWorkspace)
 
-        assertEquals(
-            await parseCommand("workspace-back-and-forth").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: ["There is no previously focused workspace"], exitCode: .fail),
-        )
+        await assertRun("workspace-back-and-forth", exitCode: 2, stdout: [], stderr: ["There is no previously focused workspace"])
         assertEquals(focus.workspace.name, "a")
     }
 }

@@ -50,15 +50,9 @@ struct RunCallbackCommandTest: AeroSpaceTestSuite {
         }
         assertEquals(config.onWindowDetected.count, 0)
 
-        assertEquals(
-            await parseCommand("run-callback on-window-detected").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)),
-        )
+        await assertRun("run-callback on-window-detected", exitCode: 0, stdout: [], stderr: [])
         assertEquals(MacWindow.allWindows.count, 0)
-        assertEquals(
-            await parseCommand("run-callback --for-every-window on-window-detected").cmdOrDie.run(.defaultEnv, .emptyStdin),
-            CmdResult(stdout: [], stderr: [], exitCode: Int32ExitCode(rawValue: 0)),
-        )
+        await assertRun("run-callback --for-every-window on-window-detected", exitCode: 0, stdout: [], stderr: [])
     }
 
     @Test

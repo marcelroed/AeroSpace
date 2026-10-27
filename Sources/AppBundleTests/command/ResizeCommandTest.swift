@@ -27,10 +27,10 @@ final class ResizeCommandTest: XCTestCase {
 
     func testParseCommand_acceptsAtMostOneSign() {
         // RB-33: UInt(...) accepts a sign too, so `+-10` and `++10` used to mean `+10`
-        testParseCommandFail("resize smart +-10", msg: "ERROR: <number> argument must be a number", exitCode: 2)
-        testParseCommandFail("resize smart ++10", msg: "ERROR: <number> argument must be a number", exitCode: 2)
-        testParseCommandFail("resize smart +-0", msg: "ERROR: <number> argument must be a number", exitCode: 2)
-        testParseCommandFail("resize smart +", msg: "ERROR: <number> argument must be a number", exitCode: 2)
+        testParseCommandFail("resize smart +-10", msg: "ERROR: <number> argument must be a number")
+        testParseCommandFail("resize smart ++10", msg: "ERROR: <number> argument must be a number")
+        testParseCommandFail("resize smart +-0", msg: "ERROR: <number> argument must be a number")
+        testParseCommandFail("resize smart +", msg: "ERROR: <number> argument must be a number")
     }
 
     func testWidthAdd_growsTargetShrinksSiblings() async {

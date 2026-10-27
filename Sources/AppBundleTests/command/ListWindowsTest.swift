@@ -100,9 +100,7 @@ final class ListWindowsTest: XCTestCase {
         for index: UInt32 in (1 ... 10).reversed() {
             TestWindow.new(id: 11 - index, parent: Workspace.get(byName: "w\(index)").rootTilingContainer)
         }
-        let result = await parseCommand("list-windows --all --format '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stdout, (1 ... 10).reversed().map(String.init))
+        await assertRun("list-windows --all --format '%{window-id}'", exitCode: 0, stdout: (1 ... 10).reversed().map(String.init))
     }
 
     func testRunWorkspace_windowsOfTheSameAppAndTitleAreInTreeOrder() async {
@@ -114,9 +112,7 @@ final class ListWindowsTest: XCTestCase {
             }
             TestWindow.new(id: 2, parent: $0)
         }
-        let result = await parseCommand("list-windows --workspace a --format '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stdout, ["3", "1", "2"])
+        await assertRun("list-windows --workspace a --format '%{window-id}'", exitCode: 0, stdout: ["3", "1", "2"])
     }
 
     func testRunCount() async {
