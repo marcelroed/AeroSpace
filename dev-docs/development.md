@@ -68,7 +68,7 @@ If you only plan to build the debug version of AeroSpace, you can run it from th
 The type checker is fast when types are known, and slow when it has to infer them through overloads, literals and generics.
 Debug builds pay for that on most edits: Swift Build recompiles every AppBundleTests file after any change to AppBundle's interface.
 -   Give globals and stored properties that other files use an explicit type, unless the initializer is a literal:
-    `var world: World = World()`. Without it, every compile job type-checks the initializer to learn the type.
+    `let world: World = World()`. Without it, every compile job type-checks the initializer to learn the type.
 -   Give `@Test(arguments:)` tables of tuples their element type: `] as [(String, CmdOutput)])`.
 -   Give multi-statement closures and closures in long chains a signature: `{ (mode: String) -> [String] in ... }`.
     Write `.map { String($0) }`, not `.map(String.init)`.
