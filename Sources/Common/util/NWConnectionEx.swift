@@ -1,6 +1,6 @@
 import Network
 import Foundation
-import os
+import Synchronization
 
 extension NWConnection {
     public func writeAtomic(_ msg: some Encodable, _ encoder: JSONEncoder = JSONEncoder()) async -> ((), error: NWError?) {
@@ -17,7 +17,7 @@ extension NWConnection {
 
     public func initConnection() async -> ((), error: InitConnectionError?) {
         let error1 = await withCheckedContinuation { cont in
-            let isDone = OSAllocatedUnfairLock(initialState: false)
+            let isDone = Mutex(false)
             stateUpdateHandler = { state in
                 let error: NWError?
                 switch state {
