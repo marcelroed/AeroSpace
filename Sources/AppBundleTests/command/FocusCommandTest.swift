@@ -298,4 +298,22 @@ final class FocusCommandTest: XCTestCase {
         assertEquals(await parseCommand("focus --boundaries-action wrap-around-the-workspace dfs-next").cmdOrDie.run(.defaultEnv, .emptyStdin).exitCode.rawValue, 0)
         assertEquals(focus.windowOrNil?.windowId, 1)
     }
+
+    func testFocusDfsRelative_noWindow_failsWithMessage() async {
+        assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
+
+        let result = await parseCommand("focus dfs-next").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result, CmdResult(stdout: [], stderr: [noWindowIsFocused], exitCode: .fail))
+    }
+
+    func testFocusDfsRelative_ignoredFloatingWindow_failsWithMessage() async {
+        let workspace = Workspace.get(byName: name)
+        TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        let floating = TestWindow.new(id: 2, parent: workspace.floatingWindowsContainer, rect: Rect(topLeftX: 0, topLeftY: 0, width: 100, height: 100))
+        assertEquals(floating.focusWindow(), true)
+
+        let result = await parseCommand("focus --ignore-floating dfs-prev").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result, CmdResult(stdout: [], stderr: ["The window isn't part of the workspace tree"], exitCode: .fail))
+        assertEquals(focus.windowOrNil?.windowId, 2)
+    }
 }

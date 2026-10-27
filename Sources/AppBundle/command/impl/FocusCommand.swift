@@ -46,8 +46,9 @@ struct FocusCommand: Command {
                 }
             case .dfsRelative(let nextPrev):
                 let windows = target.workspace.rootTilingContainer.allLeafWindowsRecursive
-                guard let currentIndex = windows.firstIndex(where: { $0 == target.windowOrNil }) else {
-                    return .fail
+                guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
+                guard let currentIndex = windows.firstIndex(of: window) else {
+                    return .fail(io.err("The window isn't part of the workspace tree")) // E.g. a floating window with --ignore-floating
                 }
                 var targetIndex = currentIndex + nextPrev.indexOffset
                 if !(0 ..< windows.count).contains(targetIndex) {
