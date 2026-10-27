@@ -10,25 +10,22 @@ struct MoveWorkspaceToMonitorCommand: Command {
         let focusedWorkspace = target.workspace
         let prevMonitor = focusedWorkspace.workspaceMonitor
 
-        switch args.target.val.resolve(target.workspace.workspaceMonitor, wrapAround: args.wrapAround) {
-            case .success(let targetMonitor):
-                if targetMonitor.monitorId_oneBased == prevMonitor.monitorId_oneBased {
-                    return .succ
-                }
-                if targetMonitor.setActiveWorkspace(focusedWorkspace) {
-                    let stubWorkspace = getStubWorkspace(for: prevMonitor)
-                    check(
-                        prevMonitor.setActiveWorkspace(stubWorkspace),
-                        "getStubWorkspace generated incompatible stub workspace (\(stubWorkspace)) for the monitor (\(prevMonitor)",
-                    )
-                    return .succ
-                } else {
-                    return .fail(io.err(
-                        "Can't move workspace '\(focusedWorkspace.name)' to monitor '\(targetMonitor.name)'. workspace-to-monitor-force-assignment doesn't allow it",
-                    ))
-                }
-            case .failure(let msg):
-                return .fail(io.err(msg))
+        guard let targetMonitor = args.target.val.resolve(target.workspace.workspaceMonitor, wrapAround: args.wrapAround)
+            .getOrNil(appendErrorTo: &io.stderr) else { return .fail }
+        if targetMonitor.monitorId_oneBased == prevMonitor.monitorId_oneBased {
+            return .succ
+        }
+        if targetMonitor.setActiveWorkspace(focusedWorkspace) {
+            let stubWorkspace = getStubWorkspace(for: prevMonitor)
+            check(
+                prevMonitor.setActiveWorkspace(stubWorkspace),
+                "getStubWorkspace generated incompatible stub workspace (\(stubWorkspace)) for the monitor (\(prevMonitor)",
+            )
+            return .succ
+        } else {
+            return .fail(io.err(
+                "Can't move workspace '\(focusedWorkspace.name)' to monitor '\(targetMonitor.name)'. workspace-to-monitor-force-assignment doesn't allow it",
+            ))
         }
     }
 }
