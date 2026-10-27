@@ -53,6 +53,13 @@ final class TilingContainer: Container {
 extension TilingContainer {
     var isRootContainer: Bool { parent is Workspace }
 
+    /// Setting it doesn't normalize the nested containers, unlike ``changeOrientation(_:)``: it puts back a saved state,
+    /// see ``World/withTemporaryTreeEdits(_:)``
+    var orientationAndLayout: (Orientation, Layout) {
+        get { (orientation, layout) }
+        set { (orientation, layout) = newValue }
+    }
+
     func changeOrientation(_ targetOrientation: Orientation) {
         if orientation == targetOrientation {
             return

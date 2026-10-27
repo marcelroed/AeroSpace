@@ -185,26 +185,31 @@ extension TreeNode {
     }
 }
 
-extension Workspace {
-    /// Runs `body`, then puts the workspace back exactly as it was: the children of every node, their order, their weights
-    /// and the MRU order. For edits that only last for a computation, e.g. focus sees floating windows as tiling windows.
-    /// `body` may move nodes within the workspace and create containers in it (they are dropped), but must not move windows
-    /// in or out. A workspace has no parent, so the edits can't mark anything outside it as most recent
-    func withTemporaryEdits<T, E: Error>(_ body: () throws(E) -> T) throws(E) -> T {
-        var saved: [(node: TreeNode, children: [TreeNode], weight: CGFloat, mruStamp: UInt64)] = []
+extension World {
+    /// Runs `body`, then puts every tree back exactly as it was: the workspaces' and the global containers'. That's the
+    /// children of every node, their order, their weights, the MRU order, and the orientation and layout of the tiling
+    /// containers. For edits that only last for a computation, e.g. focus sees floating windows as tiling windows.
+    /// Containers that `body` creates are dropped, and a workspace it creates is left empty. `body` must not create windows
+    func withTemporaryTreeEdits<T, E: Error>(_ body: () throws(E) -> T) throws(E) -> T {
+        typealias Saved = (node: TreeNode, children: [TreeNode], weight: CGFloat, mruStamp: UInt64, shape: (Orientation, Layout)?)
+        var saved: [Saved] = []
         func save(_ node: TreeNode) {
-            saved.append((node, node.children, node.weight, node.mruStamp))
+            saved.append((node, node.children, node.weight, node.mruStamp, (node as? TilingContainer)?.orientationAndLayout))
             node.children.forEach(save)
         }
-        save(self)
-        let windows = allLeafWindowsRecursive.toSet()
+        let workspaces: Set<Workspace> = workspacesByName.values.toSet()
+        let roots: [TreeNode] = Array(workspaces) + [macosMinimizedWindowsContainer, macosPopupWindowsContainer]
+        roots.forEach(save)
         defer {
-            check(allLeafWindowsRecursive.toSet() == windows, "Temporary edits moved windows in or out of \(prettyDescription)")
-            for (node, children, weight, mruStamp) in saved {
+            for workspace in workspacesByName.values where !workspaces.contains(workspace) {
+                workspace.children = [] // The nodes that body moved there are bound back below
+            }
+            for (node, children, weight, mruStamp, shape) in saved {
                 node.children = children
                 children.forEach { $0.parent = node }
                 node.weight = weight
                 node.mruStamp = mruStamp
+                if let shape, let container = node as? TilingContainer { container.orientationAndLayout = shape }
             }
         }
         return try body()

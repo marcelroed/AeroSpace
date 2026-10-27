@@ -127,7 +127,7 @@ struct FocusCommand: nonisolated Command {
         }
         let floatingWindows = floatingAsTiling ? await floatingWindowCenters(target.workspace) : []
         // Focus sees the floating windows as tiling windows only while it decides. Then the tree is as before: order and MRU
-        let change = try target.workspace.withTemporaryEdits { () throws(CmdFail) -> FocusChange? in
+        let change = try world.withTemporaryTreeEdits { () throws(CmdFail) -> FocusChange? in
             bindAsTiling(floatingWindows, target.workspace)
             return try findChange(target)
         }
