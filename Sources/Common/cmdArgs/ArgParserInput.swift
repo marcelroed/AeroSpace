@@ -1,4 +1,4 @@
-struct PosArgParserInput: ArgParserInput {
+public struct PosArgParserInput: ArgParserInput {
     /*conforms*/ let index: Int
     /*conforms*/ let args: StrArrSlice
     var sawDashDash: Bool
@@ -6,7 +6,7 @@ struct PosArgParserInput: ArgParserInput {
     var arg: String { args[index] }
 }
 
-struct SubArgParserInput: ArgParserInput {
+public struct SubArgParserInput: ArgParserInput {
     let superArg: String
     /*conforms*/ let index: Int
     /*conforms*/ let args: StrArrSlice

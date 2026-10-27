@@ -4,7 +4,7 @@ typealias SubArgParser<Root> = ArgParser<SubArgParserInput, Root>
 typealias PosArgParser<Root> = ArgParser<PosArgParserInput, Root>
 
 /// Parses a flag (and its values) or a positional argument into `Root`
-struct ArgParser<Input, Root>: Sendable {
+public struct ArgParser<Input, Root>: Sendable {
     /// Positional arguments only: the placeholder reported when the mandatory argument is missing, nil if it's optional
     let argPlaceholderIfMandatory: String?
     /// Parses `input` into `root`, appends the errors to `errors` and returns the number of consumed args
