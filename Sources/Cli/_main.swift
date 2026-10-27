@@ -166,7 +166,12 @@ private enum NoAnswer: Error {
 }
 
 private func trySend(_ connection: NWConnection, _ request: ClientRequest) async -> Result<ServerAnswer, NoAnswer> {
-    if let e = await connection.writeAtomic(request).error {
+    let payload = Result { try JSONEncoder().encode(request) }.getOrDie()
+    // The server would close the connection after the frame length, while the CLI still writes, so its error would be lost
+    if payload.count > Int(maxRequestSize) {
+        return .failure(.failed("The request is \(payload.count) bytes long. AeroSpace.app reads requests of at most \(maxRequestSize) bytes"))
+    }
+    if let e = await connection.writeFrame(payload).error {
         return .failure(.failed("Failed to write to server socket: \(e)"))
     }
     switch await connection.readFrame() {
@@ -179,7 +184,8 @@ private func trySend(_ connection: NWConnection, _ request: ClientRequest) async
             }
             return .failure(.failed("Failed to parse server response: \(String(data: raw, encoding: .utf8).prettyDescription)"))
         case .failure(.legacyProtocol): return .failure(.incompatibleProtocol(serverVersion: "1"))
-        case .failure(.closed): return .failure(.failed("AeroSpace.app closed the connection without answering. Did it crash?"))
+        case .failure(.endOfStream), .failure(.closed):
+            return .failure(.failed("AeroSpace.app closed the connection without answering. Did it crash?"))
         case .failure(let e): return .failure(.failed("Failed to read from server socket: \(e)"))
     }
 }
@@ -192,8 +198,8 @@ private func printEventsAndExit(_ connection: NWConnection) async -> Never {
                 guard let str = String(data: data, encoding: .utf8) else { exit(EXIT_CODE_TWO, err: "Can't convert bytes to utf8 String") }
                 print(str)
                 unsafe fflush(stdout)
-            case .failure(let e):
-                exit(EXIT_CODE_TWO, err: "subscribe error: \(e)")
+            case .failure(.endOfStream): exit(EXIT_CODE_TWO, err: "AeroSpace.app closed the connection") // It quit, for example
+            case .failure(let e): exit(EXIT_CODE_TWO, err: "subscribe error: \(e)")
         }
     }
 }

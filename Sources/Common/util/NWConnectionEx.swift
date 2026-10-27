@@ -4,7 +4,10 @@ import Synchronization
 
 extension NWConnection {
     public func writeAtomic(_ msg: some Encodable, _ encoder: JSONEncoder = JSONEncoder()) async -> ((), error: NWError?) {
-        let payload = Result { try encoder.encode(msg) }.getOrDie()
+        await writeFrame(Result { try encoder.encode(msg) }.getOrDie())
+    }
+
+    public func writeFrame(_ payload: Data) async -> ((), error: NWError?) {
         var data = withUnsafeBytes(of: UInt32(payload.count)) { pointer in unsafe Data.init(pointer) }
         check(data.count == 4)
         data.append(payload)
@@ -52,7 +55,7 @@ extension NWConnection {
             if let error { return .failure(.network(error)) }
             if let chunk { data.append(chunk) }
             // Without this check, a read after the end of the stream would fail, or spin if it didn't (RB-08)
-            if isComplete && data.count < size { return .failure(.closed) }
+            if isComplete && data.count < size { return .failure(data.isEmpty ? .endOfStream : .closed) }
         }
         check(data.count == size)
         return .success(data)
@@ -80,7 +83,8 @@ extension NWConnection {
         switch await readUInt32() {
             case .success(1): .failure(.legacyProtocol)
             case .success(let size) where size > maxSize: .failure(.tooLarge(size: size, maxSize: maxSize))
-            case .success(let size): await read(bytes: Int(size))
+            // The length was read, so the frame has begun
+            case .success(let size): await read(bytes: Int(size)).mapError { e in if case .endOfStream = e { .closed } else { e } }
             case .failure(let e): .failure(e)
         }
     }
@@ -96,6 +100,8 @@ extension NWConnection {
 
 /// Why `readFrame` failed
 public enum FrameReadError: Error, CustomStringConvertible {
+    /// The peer closed the connection before the first byte of the frame: after its last message, or without any
+    case endOfStream
     /// The peer closed the connection before the frame was complete
     case closed
     /// A frame of length 1, which a JSON frame never is: the peer speaks the protocol from before the frames. Its client
@@ -107,6 +113,7 @@ public enum FrameReadError: Error, CustomStringConvertible {
 
     public var description: String {
         switch self {
+            case .endOfStream: "The connection was closed"
             case .closed: "The connection was closed in the middle of a message"
             case .legacyProtocol: "The other side speaks the older protocol with a version handshake"
             case .tooLarge(let size, let maxSize): "The message is \(size) bytes long. The limit is \(maxSize) bytes"

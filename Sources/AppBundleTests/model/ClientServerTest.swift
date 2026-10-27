@@ -37,6 +37,18 @@ struct ClientServerTest {
         #expect(decodeProtocolVersion(Data(json.utf8)) == version)
     }
 
+    @Test(arguments: [
+        (#"{ "protocolVersion": 2, "args": [] }"#, nil),
+        (#"{ "protocolVersion": 3, "args": [] }"#, "The CLI speaks protocol version 3"),
+        (#"{ "args": [], "stdin": "" }"#, "The CLI speaks a protocol without a version"),
+        ("not json", "The CLI speaks a protocol without a version"),
+    ] as [(String, String?)])
+    func requestOfAnotherProtocolGetsTheProtocolMessage(json: String, client: String?) {
+        let fix: String = "Use the CLI of the same AeroSpace version, or restart AeroSpace.app (a restart is required after each update)"
+        let expected: String? = client.map { "\($0), and AeroSpace.app speaks version 2.\n\(fix)" }
+        #expect(protocolMismatchMessage(Data(json.utf8)) == expected)
+    }
+
     @Test
     func testClientRequestJson_decodingErrors() {
         let wrongFormat = "The data couldn’t be read because it isn’t in the correct format."

@@ -44,9 +44,6 @@ nonisolated func toggleReleaseServerIfDebug(_ state: ToggleEnum) async {
 
 nonisolated private let serverVersionAndHash = "\(aeroSpaceAppVersion) \(gitHash)"
 
-/// A CLI request is its args and the CLI's stdin, which the CLI limits to 1000 lines
-nonisolated private let maxRequestSize: UInt32 = 16 << 20
-
 /// Answers the one request of the connection. Runs off the main actor: the connection I/O doesn't wait for the main
 /// thread
 nonisolated private func newConnection(_ connection: NWConnection) async {
@@ -59,11 +56,11 @@ nonisolated private func newConnection(_ connection: NWConnection) async {
     switch await connection.readFrame(maxSize: maxRequestSize) {
         case .success(let it): rawRequest = it
         case .failure(.legacyProtocol): return await connection.answerLegacyHandshake()
-        case .failure(.closed): return // Nobody to answer
+        case .failure(.endOfStream), .failure(.closed): return // Nobody to answer
         case .failure(let err): return await answer(exitCode: EXIT_CODE_TWO, stderr: "Can't read the request. \(err)")
     }
-    if let version = decodeProtocolVersion(rawRequest), version != socketProtocolVersion {
-        return await answer(exitCode: EXIT_CODE_TWO, stderr: incompatibleProtocolMessage(clientVersion: version))
+    if let message = protocolMismatchMessage(rawRequest) {
+        return await answer(exitCode: EXIT_CODE_TWO, stderr: message)
     }
     let request: ClientRequest
     do {
@@ -84,11 +81,16 @@ nonisolated private func newConnection(_ connection: NWConnection) async {
     }
 }
 
-nonisolated private func incompatibleProtocolMessage(clientVersion: Int) -> String {
-    """
-    The CLI speaks protocol version \(clientVersion), and AeroSpace.app speaks version \(socketProtocolVersion).
-    Use the CLI of the same AeroSpace version, or restart AeroSpace.app (a restart is required after each update)
-    """
+/// The answer to a request that isn't of this protocol version, nil for one that is. A request without a version, or
+/// that isn't a JSON object at all, isn't of this version either: the client doesn't speak this protocol
+nonisolated func protocolMismatchMessage(_ rawRequest: Data) -> String? {
+    let clientVersion = decodeProtocolVersion(rawRequest)
+    if clientVersion == socketProtocolVersion { return nil }
+    let client = clientVersion.map { "The CLI speaks protocol version \($0)" } ?? "The CLI speaks a protocol without a version"
+    return """
+        \(client), and AeroSpace.app speaks version \(socketProtocolVersion).
+        Use the CLI of the same AeroSpace version, or restart AeroSpace.app (a restart is required after each update)
+        """
 }
 
 private enum RequestOutcome {

@@ -837,6 +837,7 @@ Every message, in either direction, is a length-prefixed JSON frame:
 `length` is the byte length of the JSON payload, *not* counting the 4 length-prefix bytes themselves.
 It is a 4-byte unsigned integer in host byte order, which is little-endian on every Mac that AeroSpace runs on.
 The payload is a UTF-8-encoded JSON object.
+Its fields can come in any order: the `aerospace` CLI and the server don't keep the order of the examples below.
 The server reads requests of at most 16 MiB.
 
 A connection carries exactly one request:
@@ -847,7 +848,7 @@ A connection carries exactly one request:
   The client must not send anything else on the connection.
 
 Both `ClientRequest` and `ServerAnswer` carry `protocolVersion`. The current version is `2`.
-The server answers a request of another version with a non-zero `exitCode` and an explanation in `stderr`, without running anything.
+The server answers a request of another version, or without `protocolVersion`, with a non-zero `exitCode` and an explanation in `stderr`, without running anything.
 A client should check the `protocolVersion` of the answer in the same way.
 
 NOTE: Version `1` of the protocol started every connection with a handshake: each side sent its version as a bare 4-byte integer, and a connection could carry several requests.

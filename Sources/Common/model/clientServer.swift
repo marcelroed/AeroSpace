@@ -7,10 +7,15 @@ import Foundation
 // successful `subscribe` answer, the server sends a frame per ServerEvent until the connection closes.
 //
 // Both carry `protocolVersion`, so that the next change to the request or the answer is detected, not misread: the
-// server answers a request of another version with an error, and the client reports an answer of another version.
-// Version 1 was the protocol before the frames, which started with a version handshake (FrameReadError.legacyProtocol).
+// server answers a request of another version, or without one, with an error, and the client reports an answer of
+// another version. Version 1 was the protocol before the frames, which started with a version handshake
+// (FrameReadError.legacyProtocol). JSONEncoder writes the fields in no particular order.
 
 public let socketProtocolVersion = 2
+
+/// The longest request frame the server reads. The CLI checks it before sending: the server closes the connection
+/// after the frame length, while the CLI is still writing, so the CLI wouldn't get the server's error
+public let maxRequestSize: UInt32 = 16 << 20
 
 public let EXIT_CODE_ZERO: Int32 = 0
 public let EXIT_CODE_TWO: Int32 = 2

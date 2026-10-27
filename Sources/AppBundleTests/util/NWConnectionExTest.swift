@@ -21,8 +21,8 @@ struct NWConnectionExTest {
         #expect(answer == ServerAnswer(exitCode: 0, stdout: "list-workspaces --all", stderr: "windowId=Optional(42)", serverVersionAndHash: "test-server"))
     }
 
-    @Test(arguments: [TestSocketServer.Behavior.closeMidAnswer, .closeWithoutAnswer])
-    func readFailsWhenPeerCloses(behavior: TestSocketServer.Behavior) async throws {
+    @Test(arguments: [(.closeMidAnswer, false), (.closeWithoutAnswer, true)] as [(TestSocketServer.Behavior, Bool)])
+    func readFailsWhenPeerCloses(behavior: TestSocketServer.Behavior, closesBeforeTheFrame: Bool) async throws {
         let server = try await TestSocketServer.start(behavior)
         defer { server.stop() }
         let connection = NWConnection(to: .unix(path: server.path), using: .tcp)
@@ -31,10 +31,10 @@ struct NWConnectionExTest {
         #expect(await connection.initConnection().error == nil)
         let request = ClientRequest(args: ["list-workspaces", "--all"], stdin: "", windowId: nil, workspace: nil)
         #expect(await connection.writeAtomic(request).error == nil)
-        // A read after the end of the stream must not spin (RB-08)
+        // A read after the end of the stream must not spin (RB-08). The end of a subscription comes before a frame
         switch await withTimeout(seconds: 5, { await connection.readFrame() }) {
-            case .failure(.closed): break
-            case let other: Issue.record("Expected .closed, got \(other.map { "\($0)" } ?? "a timeout")")
+            case .failure(.endOfStream) where closesBeforeTheFrame, .failure(.closed) where !closesBeforeTheFrame: break
+            case let other: Issue.record("Got \(other.map { "\($0)" } ?? "a timeout")")
         }
     }
 
