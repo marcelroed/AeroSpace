@@ -4,11 +4,15 @@ source ./script/setup.sh
 
 build_version="0.0.0-SNAPSHOT"
 codesign_identity="aerospace-codesign-certificate"
+notary_profile=""
 local_build=0
 while test $# -gt 0; do
     case $1 in
         --build-version) build_version="$2"; shift 2;;
         --codesign-identity) codesign_identity="$2"; shift 2;;
+        # Notarize with the credentials that `xcrun notarytool store-credentials <profile>` saved in the keychain.
+        # Needs a "Developer ID Application" --codesign-identity
+        --notary-profile) notary_profile="$2"; shift 2;;
         # Faster build for running the app locally. Not suitable for publishing:
         # incremental (no clean), no docs, shell completion, zip or brew casks
         --local) local_build=1; shift 1;;
@@ -23,6 +27,23 @@ if test $local_build = 1; then
     xcodebuild_actions=(build)
 else
     xcodebuild_actions=(clean build)
+fi
+
+# Xcode needs the team of an Apple-issued certificate, such as a Developer ID. A self-signed certificate has none
+development_team=$(security find-certificate -c "$codesign_identity" -p | openssl x509 -noout -subject -nameopt RFC2253 | sed -n 's/.*OU=\([A-Z0-9]*\).*/\1/p')
+if test -n "$development_team"; then
+    xcodebuild_settings+=(DEVELOPMENT_TEAM="$development_team")
+fi
+
+codesign_timestamp=()
+if test -n "$notary_profile"; then
+    if test $local_build = 1; then
+        echo "--notary-profile can't be combined with --local" > /dev/stderr
+        exit 1
+    fi
+    # Notarization requires a secure timestamp from Apple's server
+    codesign_timestamp=(--timestamp)
+    xcodebuild_settings+=(OTHER_CODE_SIGN_FLAGS=--timestamp)
 fi
 
 #############
@@ -77,7 +98,7 @@ cp -r "$cli_bin_path/aerospace" .release
 ### SIGN CLI ###
 ################
 
-codesign -s "$codesign_identity" .release/aerospace
+codesign --options runtime "${codesign_timestamp[@]}" -s "$codesign_identity" .release/aerospace
 
 ################
 ### VALIDATE ###
@@ -131,6 +152,25 @@ codesign -v .release/aerospace
 
 if test $local_build = 1; then
     exit 0 # The rest is only needed for publishing
+fi
+
+################
+### NOTARIZE ###
+################
+
+if test -n "$notary_profile"; then
+    cd .release
+        zip -qry notarize.zip AeroSpace.app aerospace
+        xcrun notarytool submit notarize.zip --keychain-profile "$notary_profile" --wait --output-format plist > notarize.plist || true
+        rm notarize.zip
+        if test "$(plutil -extract status raw notarize.plist 2> /dev/null)" != Accepted; then
+            cat notarize.plist > /dev/stderr
+            echo "Notarization failed. For details: xcrun notarytool log <id> --keychain-profile $notary_profile" > /dev/stderr
+            exit 1
+        fi
+        # A bare executable can't be stapled, so Gatekeeper looks up the CLI's ticket online
+        xcrun stapler staple AeroSpace.app
+    cd -
 fi
 
 ############
