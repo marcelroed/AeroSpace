@@ -10,21 +10,19 @@ while test $# -gt 0; do
         --build-version) build_version="$2"; shift 2;;
         --codesign-identity) codesign_identity="$2"; shift 2;;
         # Faster build for running the app locally. Not suitable for publishing:
-        # incremental (no clean), host architecture only, no docs, shell completion, zip or brew casks
+        # incremental (no clean), no docs, shell completion, zip or brew casks
         --local) local_build=1; shift 1;;
         *) echo "Unknown option $1" > /dev/stderr; exit 1 ;;
     esac
 done
 
+# macOS 27 runs only on Apple Silicon
+swift_build_cli=(build -c release --arch arm64 --product aerospace)
+xcodebuild_settings=(ARCHS=arm64 ONLY_ACTIVE_ARCH=YES)
 if test $local_build = 1; then
-    host_arch="$(uname -m)"
-    swift_build_cli=(build -c release --arch "$host_arch" --product aerospace)
     xcodebuild_actions=(build)
-    xcodebuild_settings=(ARCHS="$host_arch" ONLY_ACTIVE_ARCH=YES)
 else
-    swift_build_cli=(build -c release --arch arm64 --arch x86_64 --product aerospace)
     xcodebuild_actions=(clean build)
-    xcodebuild_settings=()
 fi
 
 #############
@@ -107,9 +105,9 @@ if test "$expected_layout" != "$(find .release/AeroSpace.app)"; then
     exit 1
 fi
 
-check-universal-binary() {
-    if ! file "$1" | grep --fixed-string -q "Mach-O universal binary with 2 architectures: [x86_64:Mach-O 64-bit executable x86_64] [arm64"; then
-        echo "$1 is not a universal binary"
+check-arm64-binary() {
+    if test "$(lipo -archs "$1")" != arm64; then
+        echo "$1 is not an arm64-only binary"
         exit 1
     fi
 }
@@ -122,10 +120,8 @@ check-contains-hash() {
     fi
 }
 
-if test $local_build = 0; then
-    check-universal-binary .release/AeroSpace.app/Contents/MacOS/AeroSpace
-    check-universal-binary .release/aerospace
-fi
+check-arm64-binary .release/AeroSpace.app/Contents/MacOS/AeroSpace
+check-arm64-binary .release/aerospace
 
 check-contains-hash .release/AeroSpace.app/Contents/MacOS/AeroSpace
 check-contains-hash .release/aerospace
