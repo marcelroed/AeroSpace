@@ -37,6 +37,19 @@ If you only plan to build the debug version of AeroSpace, you can run it from th
     -   Identity Type: `Self-Signed Root`
     -   Certificate Type: `Code Signing`
 
+### Sign with a Developer ID
+
+A self-signed build is blocked by Gatekeeper after downloading until the quarantine flag is removed.
+To publish a build that opens without that, sign it with a Developer ID and notarize it.
+This needs a paid Apple Developer account.
+
+1.  Create a `Developer ID Application` certificate: Xcode -> Settings -> Accounts -> Manage Certificates -> `+`
+2.  Create an app-specific password at https://account.apple.com and save the notarization credentials in the keychain:
+    `xcrun notarytool store-credentials aerospace-notary --apple-id <email> --team-id <team-id>`
+3.  `./build-release.sh --build-version <version> --codesign-identity "Developer ID Application" --notary-profile aerospace-notary`
+
+macOS ties the Accessibility permission to the signing certificate, so grant it again after switching certificates.
+
 ## 3. Entry point scripts
 
 **Debug build**

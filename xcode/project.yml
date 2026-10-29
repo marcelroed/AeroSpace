@@ -21,6 +21,7 @@ settings:
     # Specifies whether the app runs as an agent app. If this key is set to YES, Launch Services runs the app as an agent app.
     # Agent apps do not appear in the Dock or in the Force Quit window (cmd-opt-esc)
     INFOPLIST_KEY_LSUIElement: YES
+    CODE_SIGN_STYLE: Manual
     CODE_SIGN_IDENTITY: ${XCODEGEN_AEROSPACE_CODE_SIGN_IDENTITY}
 
 targets:
@@ -46,6 +47,7 @@ targets:
         Release:
           PRODUCT_NAME: AeroSpace
           PRODUCT_BUNDLE_IDENTIFIER: bobko.aerospace
+          ENABLE_HARDENED_RUNTIME: YES # Required for notarization
           SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
           GCC_TREAT_WARNINGS_AS_ERRORS: YES
     entitlements:
