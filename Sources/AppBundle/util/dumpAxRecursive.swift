@@ -1,7 +1,7 @@
 import AppKit
 import Common
 
-func dumpAxRecursive(_ ax: AXUIElement, _ kind: AxKind, recursionDepth: Int = 0) -> [String: Json] {
+nonisolated func dumpAxRecursive(_ ax: AXUIElement, _ kind: AxKind, recursionDepth: Int = 0) -> OrderedJson.JsonDict {
     if recursionDepth > 5 {
         return [
             "dumpAxRecursive infinite recursion": .bool(true),
@@ -9,23 +9,30 @@ func dumpAxRecursive(_ ax: AXUIElement, _ kind: AxKind, recursionDepth: Int = 0)
         ]
     }
     let recursionDepth = recursionDepth + 1
-    var result: [String: Json] = [:]
+    var result: OrderedJson.JsonDict = [:]
     var ignored: [String] = []
     var writable: [String] = []
     var failedAxRequest: [String] = []
-    for key: String in ax.attrs(failedAxRequest: &failedAxRequest) {
+    var attrNames: CFArray?
+    let attrNamesStatus = unsafe AXUIElementCopyAttributeNames(ax, &attrNames)
+    if attrNamesStatus != .success {
+        failedAxRequest.append("AXUIElementCopyAttributeNames(\(attrNamesStatus.repr))")
+    }
+    for key: String in attrNames as? [String] ?? [] {
         if globalIgnore.contains(key) || kindSpecificIgnore[kind]?.contains(key) == true {
             ignored.append(key)
         } else {
             var raw: AnyObject?
-            if let status = .some(unsafe AXUIElementCopyAttributeValue(ax, key as CFString, &raw)), status != .success {
-                failedAxRequest.append("get.\(key)(\(status.repr))")
+            let getStatus = unsafe AXUIElementCopyAttributeValue(ax, key as CFString, &raw)
+            if getStatus != .success {
+                failedAxRequest.append("get.\(key)(\(getStatus.repr))")
             }
             result[key] = prettyValue(raw as Any?, recursionDepth: recursionDepth)
 
             var isWritable: DarwinBoolean = false
-            if let status = .some(unsafe AXUIElementIsAttributeSettable(ax, key as CFString, &isWritable)), status != .success {
-                failedAxRequest.append("isWritable.\(key)(\(status.repr))")
+            let isWritableStatus = unsafe AXUIElementIsAttributeSettable(ax, key as CFString, &isWritable)
+            if isWritableStatus != .success {
+                failedAxRequest.append("isWritable.\(key)(\(isWritableStatus.repr))")
             }
             if isWritable.boolValue { writable.append(key) }
         }
@@ -36,26 +43,23 @@ func dumpAxRecursive(_ ax: AXUIElement, _ kind: AxKind, recursionDepth: Int = 0)
     return result
 }
 
-enum AxKind: Hashable {
+nonisolated enum AxKind: Hashable {
     case button
     case window
     case app
 }
 
-private func prettyValue(_ value: Any?, recursionDepth: Int) -> Json {
+nonisolated func prettyValue(_ value: Any?, recursionDepth: Int) -> OrderedJson {
     if let arr = value as? [Any?] {
         return .array(arr.map { prettyValue($0, recursionDepth: recursionDepth) })
     }
+    // AX booleans and numbers are CFBoolean/NSNumber, and all of them convert to Int. So booleans are dumped as 0/1
     if let value = value as? Int {
         return .int(value)
     }
-    if let value = value as? UInt32 {
-        return .int(value)
-    }
-    if let value = value as? Bool {
-        return .bool(value)
-    }
     if let value {
+        // Strings, AXValues and other values get here too. `as! AXUIElement` alone wouldn't check the type
+        guard CFGetTypeID(value as AnyObject) == AXUIElementGetTypeID() else { return .string(String(describing: value)) }
         let ax = value as! AXUIElement
         if ax.get(Ax.roleAttr) == kAXButtonRole {
             return .dict(dumpAxRecursive(ax, .button, recursionDepth: recursionDepth))
@@ -71,17 +75,7 @@ private func prettyValue(_ value: Any?, recursionDepth: Int) -> Json {
     return .null
 }
 
-extension AXUIElement {
-    fileprivate func attrs(failedAxRequest: inout [String]) -> [String] {
-        var rawArray: CFArray?
-        if let status = .some(unsafe AXUIElementCopyAttributeNames(self, &rawArray)), status != .success {
-            failedAxRequest.append("AXUIElementCopyAttributeNames(\(status.repr))")
-        }
-        return rawArray as? [String] ?? []
-    }
-}
-
-private let globalIgnore: Set<String> = [
+nonisolated private let globalIgnore: Set<String> = [
     "AXChildren", // too verbose
     "AXChildrenInNavigationOrder", // too verbose
     "AXFocusableAncestor", // infinite recursion
@@ -89,7 +83,7 @@ private let globalIgnore: Set<String> = [
     kAXRoleDescriptionAttribute, // localized - not helpful
 ]
 
-private let kindSpecificIgnore: [AxKind: Set<String>] = [
+nonisolated private let kindSpecificIgnore: [AxKind: Set<String>] = [
     .button: [
         "AXFrame",
         kAXEditedAttribute,
@@ -104,7 +98,7 @@ private let kindSpecificIgnore: [AxKind: Set<String>] = [
     ],
 ]
 
-extension AXError {
+nonisolated extension AXError {
     fileprivate var repr: String {
         switch self {
             case .actionUnsupported: "actionUnsupported"

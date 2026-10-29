@@ -7,7 +7,7 @@ extension JSONEncoder {
         return encoder
     }
 
-    public func encodeToString(_ value: Encodable) -> String? {
+    public func encodeToString(_ value: some Encodable) -> String? {
         guard let data = try? encode(value) else { return nil }
         return String(data: data, encoding: .utf8)
     }

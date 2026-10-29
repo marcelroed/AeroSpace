@@ -1,120 +1,34 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
-@MainActor
-final class EchoCommandTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
+@Suite(.aeroSpaceGlobalState)
+struct EchoCommandTest {
+    /// `tree` is the focused workspace, "setUpWorkspacesForTests". Without a focused window, `echo` describes the workspace
+    @Test(arguments: [
+        ("h_tiles()", "echo foo", CmdOutput(stdout: ["foo"])),
+        ("h_tiles()", "echo -- foo bar baz", CmdOutput(stdout: ["foo", "bar", "baz"])),
+        ("h_tiles()", "echo --stderr foo", CmdOutput(stderr: ["foo"])),
+        // After `--`, options are text
+        ("h_tiles()", "echo -- --stderr -h --", CmdOutput(stdout: ["--stderr", "-h", "--"])),
+        ("h_tiles(*42)", "echo -- 'id: %{window-id}'", CmdOutput(stdout: ["id: 42"])),
+        ("h_tiles(*5)", "echo --stderr -- '%{window-id}'", CmdOutput(stderr: ["5"])),
+        ("h_tiles(*1)", "echo '%{window-title}' '%{workspace}%{tab}%{monitor-name}'", CmdOutput(stdout: ["TestWindow(1)", "setUpWorkspacesForTests\tTest Monitor"])),
+        ("h_tiles(1 *2)", "echo --window-id 1 '%{window-id}'", CmdOutput(stdout: ["1"])),
+        ("h_tiles()", "echo 'a%{right-padding}b'", CmdOutput(stdout: ["ab"])), // A single line has nothing to pad
+        ("h_tiles()", "echo '%{workspace} %{workspace-is-focused}'", CmdOutput(stdout: ["setUpWorkspacesForTests true"])),
+        ("h_tiles()", "echo -- '%{window-id}'", .fail(noWindowIsFocused)),
+        // The first error wins: one line, not one per variable
+        ("h_tiles()", "echo -- '%{window-id} %{app-name}'", .fail(noWindowIsFocused)),
+        ("h_tiles(*1)", "echo --window-id 2 foo", .fail("Invalid <window-id> 2 passed to --window-id")),
 
-    func testParse() {
-        testParseSingleCommandSucc(
-            "echo -- foo",
-            EchoCmdArgs(rawArgs: []).copy(\.args, .initialized([[.literal("foo")]])),
-        )
-        testParseSingleCommandSucc(
-            "echo -- foo bar",
-            EchoCmdArgs(rawArgs: []).copy(\.args, .initialized([[.literal("foo")], [.literal("bar")]])),
-        )
-        testParseSingleCommandSucc(
-            "echo --stderr -- foo",
-            EchoCmdArgs(rawArgs: [])
-                .copy(\.args, .initialized([[.literal("foo")]]))
-                .copy(\.isStderr, true),
-        )
-        testParseSingleCommandSucc(
-            "echo -- '%{window-id}'",
-            EchoCmdArgs(rawArgs: []).copy(\.args, .initialized([[.interVar(.formatVar(.window(.windowId)))]])),
-        )
-        testParseSingleCommandSucc(
-            "echo -- 'id: %{window-id}'",
-            EchoCmdArgs(rawArgs: []).copy(\.args, .initialized([[.literal("id: "), .interVar(.formatVar(.window(.windowId)))]])),
-        )
-        testParseSingleCommandSucc(
-            "echo -- --stderr",
-            EchoCmdArgs(rawArgs: []).copy(\.args, .initialized([[.literal("--stderr")]])),
-        )
-        testParseSingleCommandSucc(
-            "echo -- -h",
-            EchoCmdArgs(rawArgs: []).copy(\.args, .initialized([[.literal("-h")]])),
-        )
-
-        testParseCommandFail("echo", msg: "ERROR: Argument '--' is mandatory\nERROR: Argument '<string>' is mandatory", exitCode: 2)
-        testParseCommandFail("echo --", msg: "ERROR: Argument '<string>' is mandatory", exitCode: 2)
-        testParseCommandFail("echo foo", msg: "ERROR: Expected: --. Got: 'foo'", exitCode: 2)
-        testParseCommandFail("echo --stderr foo", msg: "ERROR: Expected: --. Got: 'foo'", exitCode: 2)
-        testParseCommandFail("echo -- %{foo}", msg: "ERROR: Can't parse 'foo'.\n       Possible values: (window-id|window-is-fullscreen|window-title|window-layout|window-parent-container-layout|workspace|workspace-is-focused|workspace-is-visible|workspace-root-container-layout|app-bundle-id|app-name|app-pid|app-exec-path|app-bundle-path|monitor-id|monitor-appkit-nsscreen-screens-id|monitor-name|monitor-is-main|right-padding|newline|tab)", exitCode: 2)
-
-        testParseCommandHelp("echo -h")
-        testParseCommandHelp("echo --help")
-    }
-
-    func testRunPlainNoWindow() async {
-        assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
-        let result = await parseCommand("echo -- foo").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, ["foo"])
-    }
-
-    func testRunMultipleArgs() async {
-        assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
-        let result = await parseCommand("echo -- foo bar baz").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, ["foo", "bar", "baz"])
-    }
-
-    func testRunStderr() async {
-        assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
-        let result = await parseCommand("echo --stderr -- foo").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["foo"])
-    }
-
-    func testRunWindowInterpolation() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-        }
-        let result = await parseCommand("echo -- '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, ["1"])
-    }
-
-    func testRunWindowInterpolationNoWindow() async {
-        assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
-        let result = await parseCommand("echo -- '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, [noWindowIsFocused])
-    }
-
-    func testRunWorkspaceInterpolation() async {
-        assertEquals(Workspace.get(byName: name).focusWorkspace(), true)
-        let result = await parseCommand("echo -- '%{workspace}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, [name])
-    }
-
-    func testRunMixedLiteralAndInterpolation() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 42, parent: $0).focusWindow(), true)
-        }
-        let result = await parseCommand("echo -- 'id: %{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, ["id: 42"])
-    }
-
-    func testRunStderrWithInterpolation() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 5, parent: $0).focusWindow(), true)
-        }
-        let result = await parseCommand("echo --stderr -- '%{window-id}'").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["5"])
+        ("h_tiles()", "echo", .fail("Argument '<string>' is mandatory")),
+        ("h_tiles()", "echo --", .fail("Argument '<string>' is mandatory")),
+        ("h_tiles()", "echo --foo", .fail("Unknown flag '--foo'")),
+        ("h_tiles()", "echo -- %{foo}", .fail("Can't parse 'foo'.\nPossible values: \(FormatVar.unionLiteral)")),
+    ] as [(String, String, CmdOutput)])
+    func run(tree: String, command: String, expected: CmdOutput) async {
+        setUpTree(tree)
+        expectEqual(await runCmd(command), expected)
     }
 }

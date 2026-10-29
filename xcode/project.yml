@@ -27,7 +27,7 @@ targets:
   AeroSpace:
     type: application
     platform: macOS
-    deploymentTarget: "13.0"
+    deploymentTarget: "27.0"
     sources:
       - "../Sources/AeroSpaceApp"
       - "../resources"
@@ -37,6 +37,8 @@ targets:
         product: AppBundle
     # https://developer.apple.com/documentation/xcode/build-settings-reference
     settings:
+      base:
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor # Like Package.swift
       configs:
         Debug:
           PRODUCT_NAME: AeroSpace-Debug

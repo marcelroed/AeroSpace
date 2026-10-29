@@ -1,16 +1,48 @@
 import AppKit
 import Darwin
 import Foundation
+import Synchronization
 
-public let socketPath = "/tmp/\(aeroSpaceAppId)-\(unixUserName).sock"
+public let socketPath: String = "/tmp/\(aeroSpaceAppId)-\(unixUserName).sock"
 public let unixUserName = NSUserName()
 public let mainModeId = "main"
 
-@TaskLocal
-public var refreshSessionEvent: RefreshSessionEvent? = nil
+/// The thread that terminates the process: the first one to die, quit or get SIGINT/SIGTERM. Only it restores the windows
+/// (RB-06, RB-07)
+private let terminatingThreadId: Mutex<UInt64?> = Mutex(nil)
 
-@TaskLocal
-private var recursionDetectorDuringTermination = false
+public enum TerminationClaim: Equatable {
+    /// No thread was terminating: the caller is now
+    case first
+    /// The caller was already terminating: a die inside the termination handler, or the handler called from a die
+    case sameThread
+    /// Another thread is terminating: it restores the windows, then ends the process. The caller parks
+    case otherThread
+}
+
+/// The termination handler and every die claim termination for their thread
+public func claimTermination() -> TerminationClaim {
+    let me = currentThreadId()
+    return terminatingThreadId.withLock { owner in
+        if let owner { return owner == me ? .sameThread : .otherThread }
+        owner = me
+        return .first
+    }
+}
+
+/// For a thread that lost ``claimTermination()``: the terminating thread ends the process. That thread waits for an AX
+/// thread at most 2 s and never for main, so a parked thread can't hold it up
+public func parkForever() -> Never {
+    let never = DispatchSemaphore(value: 0)
+    while true { never.wait() }
+}
+
+/// Kernel id of the calling thread. Cheap, and unlike `Thread.current` usable in async code
+public func currentThreadId() -> UInt64 {
+    var id: UInt64 = 0
+    unsafe pthread_threadid_np(nil, &id)
+    return id
+}
 
 public func bugPrompt(
     _ __message: String = "",
@@ -22,6 +54,10 @@ public func bugPrompt(
 ) -> String {
     let _message = __message.contains("\n") ? "\n" + __message.prefixLines(with: "    ") : __message
     let thread = Thread.current
+    // AppKit doesn't document NSScreen as thread-safe, and the dying thread is often an AX thread
+    let notMainThread = "n/a (not main thread)"
+    let monitorCount = thread.isMainThread ? NSScreen.screens.count.description : notMainThread
+    let screensHaveSeparateSpaces = thread.isMainThread ? NSScreen.screensHaveSeparateSpaces.description : notMainThread
     return """
         Please report to:
             https://github.com/nikitabobko/AeroSpace/discussions/categories/potential-bugs
@@ -30,18 +66,15 @@ public func bugPrompt(
         Message: \(_message)
         Version: \(aeroSpaceAppVersion)
         Git hash: \(gitHash)
-        refreshSessionEvent: \(refreshSessionEvent.prettyDescription)
         Date: \(Date.now)
         Thread name: \(thread.name.prettyDescription)
         Is main thread: \(thread.isMainThread)
-        axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken.prettyDescription)
-        macOS version: \(ProcessInfo().operatingSystemVersionString)
+        macOS version: \(ProcessInfo.processInfo.operatingSystemVersionString)
         Coordinate: \(file):\(line):\(column) \(function)
-        recursionDetectorDuringTermination: \(recursionDetectorDuringTermination)
-        cli: \(isCli)
+        server: \(terminationHandler != nil)
         die: \(isDie)
-        Monitor count: \(NSScreen.screens.count)
-        Displays have separate spaces: \(NSScreen.screensHaveSeparateSpaces)
+        Monitor count: \(monitorCount)
+        Displays have separate spaces: \(screensHaveSeparateSpaces)
 
         Stacktrace:
         \(getStringStacktrace())
@@ -56,72 +89,22 @@ public func dieT<T>(
     function: String = #function,
 ) -> T {
     let message = bugPrompt(__message, isDie: true, file: file, line: line, column: column, function: function)
-    if !isUnitTest && isServer {
+    let claim = claimTermination()
+    if let terminationHandler { // The server, not the CLI or tests
         showMessageInGui(
-            filenameIfConsoleApp: recursionDetectorDuringTermination
-                ? "aerospace-runtime-error-recursion.txt"
-                : "aerospace-runtime-error.txt",
+            filenameIfConsoleApp: claim == .first ? "aerospace-runtime-error.txt" : "aerospace-runtime-error-recursion.txt",
             title: "AeroSpace Runtime Error",
             message: message,
         )
-    }
-    if let terminationHandler, !recursionDetectorDuringTermination {
-        MainActor.runSync {
-            $recursionDetectorDuringTermination.withValue(true) {
-                terminationHandler.beforeTermination()
-            }
+        switch claim {
+            // On the dying thread, without the main thread: main may be busy or blocked (RB-71)
+            case .first: terminationHandler.beforeTermination()
+            case .sameThread: break // A die inside the termination handler: don't restore again
+            case .otherThread: parkForever() // Let the terminating thread finish its restore and end the process
         }
     }
     fatalError("\n" + message)
 }
-
-extension MainActor {
-    static func runSync(block: @escaping @MainActor () -> ()) {
-        switch Thread.isMainThread {
-            case true: MainActor.assumeIsolated(block)
-            case false: DispatchQueue.main.asyncAndWait { block() }
-        }
-    }
-}
-
-public enum RefreshSessionEvent: Sendable, CustomStringConvertible {
-    case configAutoReload
-    case globalObserver(String)
-    case globalObserverLeftMouseUp
-    case menuBarButton
-    case hotkeyBinding
-    case startup
-    case socketServer(any CmdArgs)
-    case resetManipulatedWithMouse
-    case ax(String)
-    case focusFollowsMouse
-
-    public var isStartup: Bool {
-        if case .startup = self { return true } else { return false }
-    }
-
-    public var isFocusFollowsMouse: Bool {
-        if case .focusFollowsMouse = self { return true } else { return false }
-    }
-
-    public var description: String {
-        switch self {
-            case .ax(let str): "ax(\(str))"
-            case .configAutoReload: "configAutoReload"
-            case .globalObserver(let str): "globalObserver(\(str))"
-            case .globalObserverLeftMouseUp: "globalObserverLeftMouseUp"
-            case .hotkeyBinding: "hotkeyBinding"
-            case .menuBarButton: "menuBarButton"
-            case .resetManipulatedWithMouse: "resetManipulatedWithMouse"
-            case .socketServer(let args): "socketServer: \(args)"
-            case .startup: "startup"
-            case .focusFollowsMouse: "focusFollowsMouse"
-        }
-    }
-}
-
-// periphery:ignore
-public func throwT<T, E: Error>(_ error: E) throws(E) -> T { throw error }
 
 public func getStringStacktrace() -> String { Thread.callStackSymbols.joined(separator: "\n") }
 
@@ -148,8 +131,6 @@ public func check(
     }
 }
 
-public var isUnitTest: Bool { NSClassFromString("XCTestCase") != nil }
-
 extension CaseIterable where Self: RawRepresentable, RawValue == String {
     public static var cliArgsCases: [String] { allCases.map(\.rawValue) }
     public static var unionLiteral: String { cliArgsCases.joinedCliArgs }
@@ -157,10 +138,6 @@ extension CaseIterable where Self: RawRepresentable, RawValue == String {
 
 extension [String] {
     public var joinedCliArgs: String { "(" + self.joined(separator: "|") + ")" }
-}
-
-extension Int {
-    public func toDouble() -> Double { Double(self) }
 }
 
 public func + <K, V>(lhs: [K: V], rhs: [K: V]) -> [K: V] {
@@ -171,21 +148,6 @@ extension String {
     public func removePrefix(_ prefix: String) -> String {
         hasPrefix(prefix) ? String(dropFirst(prefix.count)) : self
     }
-
-    public func prependLines(_ prefix: String) -> String {
-        split(separator: "\n").map { prefix + $0 }.joined(separator: "\n")
-    }
-}
-
-extension Bool {
-    /// Implication
-    /// | a     | b     | a.implies(b) |
-    /// |-------|-------|--------------|
-    /// | false | false | true         |
-    /// | false | true  | true         |
-    /// | true  | false | false        |
-    /// | true  | true  | true         |
-    public func implies(_ mustHold: @autoclosure () -> Bool) -> Bool { !self || mustHold() }
 }
 
 extension URL {
@@ -199,21 +161,7 @@ public func eprint(_ msg: String) {
 }
 
 public func exit(_ exitCode: Int32, out: String? = nil, err: String? = nil) -> Never {
-    exitT(exitCode, out: out, err: err)
-}
-
-public func exitT<T>(_ exitCode: Int32, out: String? = nil, err: String? = nil) -> T {
     if let out { print(out) }
     if let err { eprint(err) }
-    exit(exitCode)
-}
-
-/// 'id' stands for 'identity'. It's a common name in functional programming
-public func id<T>(_ t: T) -> T { t }
-
-@inlinable public func zipIfCountsAreEqual<C1, C2>(_ c1: C1, _ c2: C2) -> Zip2Sequence<C1, C2>? where C1: Collection, C2: Collection {
-    switch c1.count == c2.count {
-        case true: zip(c1, c2)
-        case false: nil
-    }
+    Darwin.exit(exitCode)
 }

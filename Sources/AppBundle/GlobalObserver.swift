@@ -1,49 +1,27 @@
 import AppKit
 import Common
 
+/// The NSWorkspace notifications, the display changes and the global left mouse up. Each one goes to its handler in
+/// ``Sessions``
 enum GlobalObserver {
-    private static func onNotif(_ notification: Notification) {
+    // NotificationCenter calls these with a nonisolated closure type, even on the main queue
+    nonisolated private static func onNotif(_ notification: Notification) {
         // Third line of defence against lock screen window. See: closedWindowsCache
         // Second and third lines of defence are technically needed only to avoid potential flickering
-        if (notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier == lockScreenAppBundleId {
-            return
-        }
-        let notifName = notification.name.rawValue
+        let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+        if app?.bundleIdentifier == lockScreenAppBundleId { return }
+        let name = notification.name
         Task.startUnstructured { @MainActor in
-            if !TrayMenuModel.shared.isEnabled { return }
-            if notifName == NSWorkspace.didActivateApplicationNotification.rawValue {
-                scheduleCancellableCompleteRefreshSession(.globalObserver(notifName), optimisticallyPreLayoutWorkspaces: true)
-            } else {
-                scheduleCancellableCompleteRefreshSession(.globalObserver(notifName))
-            }
+            world.sessions.onWorkspaceNotification(name)
         }
     }
 
-    private static func onHideApp(_ notification: Notification) {
-        let notifName = notification.name.rawValue
+    nonisolated private static func onHideApp(_: Notification) {
         Task.startUnstructured { @MainActor in
-            guard let token: RunSessionGuard = .isServerEnabled else { return }
-            try await runLightSession(.globalObserver(notifName), token) {
-                if config.automaticallyUnhideMacosHiddenApps {
-                    if let w = prevFocus?.windowOrNil,
-                       w.macAppUnsafe.nsApp.isHidden,
-                       // "Hide others" (cmd-alt-h) -> don't force focus
-                       // "Hide app" (cmd-h) -> force focus
-                       MacApp.allAppsMap.values.count(where: { $0.nsApp.isHidden }) == 1
-                    {
-                        // Force focus
-                        _ = w.focusWindow()
-                        w.nativeFocus()
-                    }
-                    for app in MacApp.allAppsMap.values {
-                        app.nsApp.unhide()
-                    }
-                }
-            }
+            try await world.sessions.onAppHidden()
         }
     }
 
-    @MainActor
     static func initObserver() {
         let nc = NSWorkspace.shared.notificationCenter
         nc.addObserver(forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main, using: onNotif)
@@ -52,28 +30,32 @@ enum GlobalObserver {
         nc.addObserver(forName: NSWorkspace.didUnhideApplicationNotification, object: nil, queue: .main, using: onNotif)
         nc.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main, using: onNotif)
         nc.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main, using: onNotif)
+        // A display was plugged in, unplugged, rearranged or woke up. The heavy refresh takes a new snapshot of the monitors
+        NotificationCenter.default
+            .addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main, using: onNotif)
 
         NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { _ in
-            // todo reduce number of refreshSession in the callback
-            //  resetManipulatedWithMouseIfPossible might call its own refreshSession
-            //  The end of the callback calls refreshSession
             Task.startUnstructured { @MainActor in
-                guard let token: RunSessionGuard = .isServerEnabled else { return }
-                try await resetManipulatedWithMouseIfPossible()
-                let mouseLocation = mouseLocation
-                let clickedMonitor = mouseLocation.monitorApproximation
-                switch true {
-                    // Detect clicks on desktop of different monitors
-                    case clickedMonitor.visibleRect.contains(mouseLocation) && clickedMonitor.activeWorkspace != focus.workspace:
-                        _ = try await runLightSession(.globalObserverLeftMouseUp, token) {
-                            clickedMonitor.activeWorkspace.focusWorkspace()
-                        }
-                    // Detect close button clicks for unfocused windows. Yes, kAXUIElementDestroyedNotification is that unreliable
-                    //  And trigger new window detection that could be delayed due to mouseDown event
-                    default:
-                        scheduleCancellableCompleteRefreshSession(.globalObserverLeftMouseUp)
-                }
+                try await world.sessions.onLeftMouseUp()
             }
         }
+    }
+}
+
+/// With `automatically-unhide-macos-hidden-apps`, unhides the apps that the user hid. The body of the light session of
+/// ``Sessions/onAppHidden()``
+func unhideMacosHiddenAppsIfConfigured() {
+    if !config.automaticallyUnhideMacosHiddenApps { return }
+    if let w = prevFocus?.windowOrNil,
+       world.platform.isHidden(w.app),
+       // "Hide others" (cmd-alt-h) -> don't force focus
+       // "Hide app" (cmd-h) -> force focus
+       world.platform.runningApps().count(where: world.platform.isHidden) == 1
+    {
+        // Force focus. The light session gives it the native focus when it presents, after the unhide below
+        _ = w.focusWindow()
+    }
+    for app in world.platform.runningApps() where world.platform.isHidden(app) {
+        world.platform.unhideApp(app)
     }
 }

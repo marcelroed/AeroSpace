@@ -2,29 +2,27 @@ import AppKit
 import Common
 import SwiftUI
 
-public final class VolumePanel: NSPanelHud {
-    @MainActor public static var shared: VolumePanel = VolumePanel()
+final class VolumePanel: NSPanelHud {
+    private static let size = CGSize(width: 50, height: 206)
     private var timer: Timer?
-    private var panelFrame = NSRect(x: 0, y: 0, width: 50, height: 206)
+    private let hostingView = NSHostingView(rootView: VolumeView(volume: 0))
 
-    override private init() {
+    override init() {
         super.init()
+        hostingView.frame = NSRect(origin: .zero, size: Self.size)
+        self.contentView?.addSubview(hostingView)
     }
 
-    public func update(with volume: Float) {
+    func update(with volume: Float) {
         timer?.invalidate()
-        self.contentView?.subviews.removeAll()
-        let hostingView = NSHostingView(rootView: VolumeView(volume: volume))
-        hostingView.frame = NSRect(x: 0, y: 0, width: panelFrame.width, height: panelFrame.height)
-        self.contentView?.addSubview(hostingView)
-        panelFrame.origin.x = mainMonitorInfo.width - panelFrame.size.width - 20
-        panelFrame.origin.y = (mainMonitorInfo.height - panelFrame.size.height) / 2
-        self.setFrame(panelFrame, display: true)
+        hostingView.rootView = VolumeView(volume: volume)
+        let y = (world.monitors.main.height - Self.size.height) / 2
+        self.setFrame(rightEdgeFrame(size: Self.size, y: y), display: true)
         self.orderFrontRegardless()
         startTimer()
     }
 
-    func startTimer() {
+    private func startTimer() {
         timer = .scheduledTimer(withTimeInterval: 2 /* seconds */, repeats: false) { [weak self] _ in
             Task.startUnstructured { @MainActor in
                 self?.close()
@@ -34,7 +32,7 @@ public final class VolumePanel: NSPanelHud {
 }
 
 struct VolumeView: View {
-    @State var volume: Float? = nil
+    let volume: Float
 
     @Environment(\.colorScheme) var colorScheme: ColorScheme
     private var barColor: Color {
@@ -44,7 +42,6 @@ struct VolumeView: View {
         colorScheme == .dark ? Color.black : Color.white
     }
     private var speakerImage: String {
-        guard let volume else { return "speaker.fill" }
         switch volume {
             case 0.00 ..< 0.01: return "speaker.slash.fill"
             case 0.01 ..< 0.25: return "speaker.fill"
@@ -57,21 +54,19 @@ struct VolumeView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            if let volume {
-                Rectangle()
-                    .fill(Color.gray.opacity(0.8))
-                Rectangle()
-                    .fill(barColor)
-                    .frame(height: CGFloat(volume) * bar.height)
-                VStack {
-                    Text("\(Int(volume * 100))%")
-                        .font(.system(size: 12, weight: .bold))
-                    Image(systemName: speakerImage)
-                        .frame(width: 30, height: 30, alignment: .center)
-                        .padding(.bottom, 10)
-                }
-                .foregroundStyle(fontColor)
+            Rectangle()
+                .fill(Color.gray.opacity(0.8))
+            Rectangle()
+                .fill(barColor)
+                .frame(height: CGFloat(volume) * bar.height)
+            VStack {
+                Text("\(Int(volume * 100))%")
+                    .font(.system(size: 12, weight: .bold))
+                Image(systemName: speakerImage)
+                    .frame(width: 30, height: 30, alignment: .center)
+                    .padding(.bottom, 10)
             }
+            .foregroundStyle(fontColor)
         }
         .frame(width: bar.width, height: bar.height)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))

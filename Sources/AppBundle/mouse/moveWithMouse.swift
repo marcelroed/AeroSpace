@@ -1,119 +1,60 @@
 import AppKit
 import Common
 
-@MainActor
-private var moveWithMouseTask: Task<(), any Error>? = nil
-
-func movedObs(_: AXObserver, ax: AXUIElement, notif: CFString, _: UnsafeMutableRawPointer?) {
-    let windowId = ax.containingWindowId()
-    let notif = notif as String
-    Task.startUnstructured { @MainActor in
-        guard let token: RunSessionGuard = .isServerEnabled else { return }
-        guard let windowId, let window = Window.get(byId: windowId), try await isManipulatedWithMouse(window) else {
-            scheduleCancellableCompleteRefreshSession(.ax(notif))
-            return
-        }
-        moveWithMouseTask?.cancel()
-        moveWithMouseTask = Task.startUnstructured {
-            try checkCancellation()
-            try await runLightSession(.ax(notif), token) {
-                try await moveWithMouse(window)
-            }
-        }
-    }
-}
-
-@MainActor
-private func moveWithMouse(_ window: Window) async throws { // todo cover with tests
+func moveWithMouse(_ window: Window) async throws {
     resetClosedWindowsCache()
-    switch window.windowParentCases {
-        case .floatingWindowsContainer:
-            try await moveFloatingWindow(window)
-        case .macosFullscreenWindowsContainer, .macosMinimizedWindowsContainer, .macosPopupWindowsContainer, .macosHiddenAppsWindowsContainer:
+    switch window.placement {
+        case .floating: try await dragFloatingWindow(window)
+        case .tiling: moveTilingWindow(window)
+        case .macosFullscreen, .macosHiddenApp, .macosMinimized, .macosPopup, nil:
             return // Unconventional windows can't be moved with mouse
-        case .tilingContainer:
-            moveTilingWindow(window)
-        case .unbound: return
     }
 }
 
-@MainActor
-private func moveFloatingWindow(_ window: Window) async throws {
-    guard let targetWorkspace = try await window.getCenter(.cancellable)?.monitorApproximation.activeWorkspace else { return }
-    guard let parent = window.parent else { return }
-    if targetWorkspace != parent {
-        window.bindAsFloatingWindow(to: targetWorkspace)
-    }
+/// A floating window changes workspace at the mouse up (``dropDraggedFloatingWindow()``), not mid-drag: the focus would go
+/// with it to a monitor that the mouse may not be on yet, and `move-mouse monitor-lazy-center` in on-focused-monitor-changed
+/// would warp the mouse while the user holds the button
+private func dragFloatingWindow(_ window: Window) async throws {
+    guard let center = try await world.platform.observedRect(window.windowId)?.center else { return }
+    world.draggedFloatingWindow = (window.windowId, center)
+    // The mouse up came during the read. This session presents the focus that the drop leaves: the window takes it at once
+    if !world.platform.isLeftMouseDown { _ = dropDraggedFloatingWindow()?.focusWindow() }
 }
 
-@MainActor
+/// The end of a floating window's drag: the window goes to the workspace of the monitor that its center is on, as a new
+/// window does. Returns it if it moved there. AeroSpace's focus then falls to the workspace that it left, but macOS keeps
+/// it on the window that the user held: the next session takes it from macOS (``syncFocusFromMacOs(_:)``). Not at once:
+/// the mouse up's click detection would give the focus to the mouse's monitor, if the window isn't there
+@discardableResult
+func dropDraggedFloatingWindow() -> Window? {
+    guard let drag = world.draggedFloatingWindow else { return nil }
+    world.draggedFloatingWindow = nil
+    // The window may have closed or stopped floating (e.g. `layout tiling`) during the drag. Don't make it floating again
+    // (RB-87)
+    guard let window = Window.get(byId: drag.id), case .floating(let workspace) = window.placement else { return nil }
+    let target = world.monitors.approximation(drag.center).activeWorkspace
+    if target == workspace { return nil }
+    window.move(to: target.containerCreatingIfNeeded(.floating))
+    world.focusStore.lastKnownNativeFocusedWindowId = nil
+    return window
+}
+
 private func moveTilingWindow(_ window: Window) {
-    currentlyManipulatedWithMouseWindowId = window.windowId
+    world.mouseManipulatedWindowId = window.windowId
     window.lastAppliedLayoutPhysicalRect = nil
-    let mouseLocation = mouseLocation
-    let targetWorkspace = mouseLocation.monitorApproximation.activeWorkspace
-    let swapTarget = mouseLocation
-        .findWindowRecursively(in: targetWorkspace.rootTilingContainer, virtual: false, fullscreenCoversAll: false)?
-        .takeIf { $0 != window }
+    let mouseLocation = world.platform.mouseLocation
+    let targetWorkspace = world.monitors.approximation(mouseLocation).activeWorkspace
+    let windowUnderMouse = targetWorkspace.existingRootTilingContainer?.window(at: mouseLocation, virtual: false)
+    let swapTarget = windowUnderMouse == window ? nil : windowUnderMouse
     if targetWorkspace != window.nodeWorkspace { // Move window to a different monitor
-        let index: Int = if let swapTarget, let parent = swapTarget.parent as? TilingContainer, let targetRect = swapTarget.lastAppliedLayoutPhysicalRect {
-            mouseLocation.getProjection(parent.orientation) >= targetRect.center.getProjection(parent.orientation)
-                ? swapTarget.ownIndex.orDie() + 1
-                : swapTarget.ownIndex.orDie()
+        let index: Int = if let swapTarget, let (parent, index) = swapTarget.tilingSlot, let targetRect = swapTarget.lastAppliedLayoutPhysicalRect {
+            mouseLocation.getProjection(parent.orientation) >= targetRect.center.getProjection(parent.orientation) ? index + 1 : index
         } else {
             0
         }
-        window.bind(
-            to: swapTarget?.parent ?? targetWorkspace.rootTilingContainer,
-            adaptiveWeight: WEIGHT_AUTO,
-            index: index,
-        )
+        window.move(to: swapTarget?.parent ?? targetWorkspace.rootTilingContainerCreatingIfNeeded(), at: index)
+        _ = window.focusWindow() // The user holds it. Else the focus would stay on the workspace that it left
     } else if let swapTarget {
-        swapWindows(mruDominant: window, swapTarget)
-    }
-}
-
-@MainActor
-func swapWindows(mruDominant window1: Window, _ window2: Window) {
-    if window1 == window2 { return }
-
-    let binding2 = window2.unbindFromParent()
-    let binding1 = window1.unbindFromParent()
-
-    window2.bind(to: binding1.parent, adaptiveWeight: binding1.adaptiveWeight, index: binding1.index)
-    window1.bind(to: binding2.parent, adaptiveWeight: binding2.adaptiveWeight, index: binding2.index)
-}
-
-extension CGPoint {
-    @MainActor
-    func findWindowRecursively(
-        in tree: TilingContainer,
-        virtual: Bool,
-        fullscreenCoversAll: Bool,
-    ) -> Window? {
-        if fullscreenCoversAll {
-            if let window = tree.mostRecentWindowRecursive, window.isFullscreen {
-                return window
-            }
-        }
-        return _findWindowRecursively(in: tree, virtual: virtual)
-    }
-
-    @MainActor
-    private func _findWindowRecursively(in tree: TilingContainer, virtual: Bool) -> Window? {
-        let point = self
-        let target: TreeNode? = switch tree.layout {
-            case .tiles:
-                tree.children.first(where: {
-                    (virtual ? $0.lastAppliedLayoutVirtualRect : $0.lastAppliedLayoutPhysicalRect)?.contains(point) == true
-                })
-            case .accordion:
-                tree.mostRecentChild
-        }
-        guard let target else { return nil }
-        return switch target.tilingTreeNodeCasesOrDie() {
-            case .window(let window): window
-            case .tilingContainer(let container): _findWindowRecursively(in: container, virtual: virtual)
-        }
+        window.swap(with: swapTarget)
     }
 }

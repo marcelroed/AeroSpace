@@ -1,15 +1,14 @@
 import AppKit
 
-@MainActor var currentlyManipulatedWithMouseWindowId: UInt32? = nil
-var isLeftMouseButtonDown: Bool { NSEvent.pressedMouseButtons == 1 }
+/// For the platform's AX threads (#1001). The model reads ``Platform/isLeftMouseDown``
+nonisolated var isLeftMouseButtonDown: Bool { NSEvent.pressedMouseButtons == 1 }
 
-@MainActor
-func isManipulatedWithMouse(_ window: Window) async throws -> Bool {
-    try await (!window.isHiddenInCorner && // Don't allow to resize/move windows of hidden workspaces
-        isLeftMouseButtonDown &&
-        (currentlyManipulatedWithMouseWindowId == nil || window.windowId == currentlyManipulatedWithMouseWindowId))
-        .andAsync { @Sendable @MainActor in try await getNativeFocusedWindow(.cancellable) == window }
+/// Is the user moving or resizing `window` with the mouse right now
+func isManipulatedWithMouse(_ window: Window) async -> Bool {
+    guard window.nodeWorkspace?.isVisible != false, // Don't allow to resize/move windows of hidden workspaces
+          world.platform.isLeftMouseDown,
+          world.mouseManipulatedWindowId == nil || window.windowId == world.mouseManipulatedWindowId
+    else { return false }
+    // Only a cancelled session throws, and nothing cancels the AX event's task that awaits this
+    return (try? await world.platform.focusedWindow())?.windowId == window.windowId
 }
-
-/// Same motivation as in monitorFrameNormalized
-var mouseLocation: CGPoint { NSEvent.mouseLocation.withYAxisFlipped }

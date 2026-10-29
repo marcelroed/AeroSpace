@@ -57,6 +57,18 @@ if /bin/test -z "${NUKE_PATH:-}"; then
     export NUKE_PATH=1
 fi
 
+# Usage: generate-content | write-if-changed file
+# Rewriting a source file with the same content bumps its mtime, and SwiftPM recompiles the module
+write-if-changed() {
+    local tmp
+    tmp="$(mktemp)"
+    cat > "$tmp"
+    if ! cmp -s "$tmp" "$1"; then
+        cat "$tmp" > "$1"
+    fi
+    rm "$tmp"
+}
+
 xcodebuild-pretty() {
     log_file="$1"
     shift

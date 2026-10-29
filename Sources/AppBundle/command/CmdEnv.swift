@@ -1,19 +1,19 @@
 import Common
 
+/// The window or workspace that a command targets when its args name none. The CLI sends it from the AEROSPACE_WINDOW_ID
+/// and AEROSPACE_WORKSPACE variables, and a callback gets the focus that triggered it. At most one is set: a window
+/// implies its workspace
 struct CmdEnv {
-    var windowId: UInt32? = nil
+    var windowId: WindowId? = nil
     var workspaceName: String? = nil
 
     static let defaultEnv: CmdEnv = .init()
 
     consuming func withFocus(_ focus: LiveFocus) -> Self {
-        return switch focus.asLeaf {
-            case .window(let wd): withWindowId(wd.windowId)
-            case .emptyWorkspace(let ws): withWorkspaceName(ws.name)
-        }
+        if let window = focus.windowOrNil { withWindowId(window.windowId) } else { withWorkspaceName(focus.workspace.name) }
     }
 
-    consuming func withWindowId(_ windowId: UInt32) -> CmdEnv {
+    consuming func withWindowId(_ windowId: WindowId) -> CmdEnv {
         self.windowId = windowId
         self.workspaceName = nil
         return self
@@ -25,13 +25,14 @@ struct CmdEnv {
         return self
     }
 
+    /// The variables of the processes that `exec-and-forget` starts, so an `aerospace` call in them targets the same
     var asMap: [String: String] {
         var result = [String: String]()
         if let windowId {
             result[AEROSPACE_WINDOW_ID] = windowId.description
         }
         if let workspaceName {
-            result[AEROSPACE_WORKSPACE] = workspaceName.description
+            result[AEROSPACE_WORKSPACE] = workspaceName
         }
         return result
     }

@@ -57,6 +57,29 @@ If you only plan to build the debug version of AeroSpace, you can run it from th
     This script is "work in progress".
     Use it on your own risk.
 
+## Code style
+
+-   4-space indent, `case` indented inside `switch`, trailing commas, `if let x` shorthand, lowercase `// todo`.
+    `./format.sh` and SwiftLint enforce most of it.
+-   `orDie()` instead of force unwrapping with `!`, `check()` for invariants.
+-   Tests use Swift Testing. Check equality with `expectEqual(actual, expected)`, and other conditions with `#expect`.
+
+**Explicit types where the type checker works hard.**
+The type checker is fast when types are known, and slow when it has to infer them through overloads, literals and generics.
+Debug builds pay for that on most edits: Swift Build recompiles every AppBundleTests file after any change to AppBundle's interface.
+-   Give globals and stored properties that other files use an explicit type, unless the initializer is a literal:
+    `let world: World = World()`. Without it, every compile job type-checks the initializer to learn the type.
+-   Give `@Test(arguments:)` tables of tuples their element type: `] as [(String, CmdOutput)])`.
+-   Give multi-statement closures and closures in long chains a signature: `{ (mode: String) -> [String] in ... }`.
+    Write `.map { String($0) }`, not `.map(String.init)`.
+-   Turn long `||`/`==` chains over enum cases into a `switch` or an array lookup.
+    Split operator-heavy expressions with typed `let`s.
+-   `expectEqual(a, b)` instead of `#expect(a == b)`: the macro type-checks `==` twice, against many overloads.
+-   Don't annotate the trivial cases: `let x = f()` in a function body costs nothing.
+
+`script/typecheck-hotspots.sh` lists the function bodies and expressions that take longest to type-check.
+Build with Swift Build, SwiftPM's default. Don't use `--build-system native`: it is deprecated.
+
 ## IDE
 
 -   You can obviously [open the project in Xcode](#xcode).

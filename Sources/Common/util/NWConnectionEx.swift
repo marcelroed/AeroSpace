@@ -1,9 +1,13 @@
 import Network
 import Foundation
+import Synchronization
 
 extension NWConnection {
-    public func writeAtomic(_ msg: Codable, _ encoder: JSONEncoder = JSONEncoder()) async -> ((), error: NWError?) {
-        let payload = Result { try encoder.encode(msg) }.getOrDie()
+    public func writeAtomic(_ msg: some Encodable, _ encoder: JSONEncoder = JSONEncoder()) async -> ((), error: NWError?) {
+        await writeFrame(Result { try encoder.encode(msg) }.getOrDie())
+    }
+
+    public func writeFrame(_ payload: Data) async -> ((), error: NWError?) {
         var data = withUnsafeBytes(of: UInt32(payload.count)) { pointer in unsafe Data.init(pointer) }
         check(data.count == 4)
         data.append(payload)
@@ -14,67 +18,44 @@ extension NWConnection {
         }
     }
 
-    public func initConnection() async -> ((), error: InitConnectionError?) {
-        let error1 = await withCheckedContinuation { cont in
-            let isDone = IsDone()
+    public func initConnection() async -> ((), error: NWError?) {
+        await withCheckedContinuation { cont in
+            let isDone = Mutex(false)
             stateUpdateHandler = { state in
-                Task.startUnstructured {
-                    let error: NWError?
-                    switch state {
-                        case .cancelled, .preparing, .setup: return
-                        case .ready: error = nil
-                        case .failed(let e), .waiting(let e): error = e
-                        @unknown default: die("Unknown NWConnection.State: \(state)")
-                    }
-                    // Make sure to resume continuation only once
-                    if await isDone.markAsDone().wasAlreadyDone {
-                        return
-                    }
-                    self.stateUpdateHandler = nil
-                    cont.resume(returning: error.map(InitConnectionError.nwError))
+                let error: NWError?
+                switch state {
+                    case .preparing, .setup: return
+                    case .ready: error = nil
+                    case .failed(let e), .waiting(let e): error = e
+                    case .cancelled: error = .posix(.ECANCELED)
+                    @unknown default: die("Unknown NWConnection.State: \(state)")
                 }
+                // Make sure to resume continuation only once
+                let wasAlreadyDone = isDone.withLock { isDone in
+                    defer { isDone = true }
+                    return isDone
+                }
+                if wasAlreadyDone { return }
+                self.stateUpdateHandler = nil
+                cont.resume(returning: ((), error))
             }
             start(queue: .global())
         }
-        if error1 != nil { return ((), error1) }
-
-        let error2 = await writeUInt32(SOCKET_PROTOCOL_VERSION).error
-        if error2 != nil { return ((), error2.map(InitConnectionError.nwError)) }
-
-        switch await self.readUInt32() {
-            case .success(let serverVersion) where serverVersion != SOCKET_PROTOCOL_VERSION:
-                let msg = """
-                    Client SOCKET_PROTOCOL_VERSION: \(SOCKET_PROTOCOL_VERSION)
-                    Server SOCKET_PROTOCOL_VERSION: \(serverVersion)
-
-                    The client and server versions are incompatible. (Potential fix: restart AeroSpace)
-                    """
-                return ((), .customError(msg))
-            case .success:
-                return ((), nil)
-            case .failure(let error):
-                return ((), .nwError(error))
-        }
     }
 
-    public enum InitConnectionError: Sendable {
-        case nwError(NWError)
-        case customError(String)
-    }
-
-    private func read(bytes size: Int) async -> Result<Data, NWError> {
-        var data = Data(capacity: size)
+    private func read(bytes size: Int) async -> Result<Data, FrameReadError> {
+        var data = Data()
         while data.count < size {
             let remaining = size - data.count
-            let chunk: Result<Data, NWError> = await withCheckedContinuation { cont in
+            let (chunk, isComplete, error): (Data?, Bool, NWError?) = await withCheckedContinuation { cont in
                 receive(minimumIncompleteLength: remaining, maximumLength: remaining) { data, context, isComplete, error in
-                    cont.resume(returning: error.map(Result.failure) ?? Result.success(data ?? Data()))
+                    cont.resume(returning: (data, isComplete, error))
                 }
             }
-            switch chunk {
-                case .success(let chunk): data.append(chunk)
-                case .failure: return chunk
-            }
+            if let error { return .failure(.network(error)) }
+            if let chunk { data.append(chunk) }
+            // Without this check, a read after the end of the stream would fail, or spin if it didn't (RB-08)
+            if isComplete && data.count < size { return .failure(data.isEmpty ? .endOfStream : .closed) }
         }
         check(data.count == size)
         return .success(data)
@@ -91,36 +72,52 @@ extension NWConnection {
         }
     }
 
-    public func readUInt32() async -> Result<UInt32, NWError> {
+    private func readUInt32() async -> Result<UInt32, FrameReadError> {
         await read(bytes: 4).map { data in
-            unsafe data.withUnsafeBytes { pointer in unsafe pointer.load(as: UInt32.self) }
+            unsafe data.withUnsafeBytes { pointer in unsafe pointer.loadUnaligned(as: UInt32.self) }
         }
     }
 
-    public func writeUInt32(_ int: UInt32) async -> ((), error: NWError?) {
-        let data = withUnsafeBytes(of: int) { pointer in unsafe Data.init(pointer) }
-        check(data.count == 4)
-        return await withCheckedContinuation { cont in
-            send(content: data, completion: .contentProcessed { error in cont.resume(returning: ((), error)) })
-        }
-    }
-
-    public func readNonAtomic() async -> Result<Data, NWError> {
+    /// Reads one frame. A frame longer than `maxSize` isn't read
+    public func readFrame(maxSize: UInt32 = .max) async -> Result<Data, FrameReadError> {
         switch await readUInt32() {
-            case .success(let count):
-                return await read(bytes: Int(count))
-            case .failure(let e):
-                return .failure(e)
+            case .success(1): .failure(.legacyProtocol)
+            case .success(let size) where size > maxSize: .failure(.tooLarge(size: size, maxSize: maxSize))
+            // The length was read, so the frame has begun
+            case .success(let size): await read(bytes: Int(size)).mapError { e in if case .endOfStream = e { .closed } else { e } }
+            case .failure(let e): .failure(e)
         }
+    }
+
+    /// The server's answer to a client from before the frames (FrameReadError.legacyProtocol): protocol version 2. Any
+    /// version but its own makes the old client report that the client and the server are incompatible, rather than both
+    /// waiting for each other
+    public func answerLegacyHandshake() async {
+        let version = withUnsafeBytes(of: UInt32(2)) { pointer in unsafe Data(pointer) }
+        await withCheckedContinuation { cont in send(content: version, completion: .contentProcessed { _ in cont.resume() }) }
     }
 }
 
-private actor IsDone {
-    private var isDone: Bool = false
+/// Why `readFrame` failed
+public enum FrameReadError: Error, CustomStringConvertible {
+    /// The peer closed the connection before the first byte of the frame: after its last message, or without any
+    case endOfStream
+    /// The peer closed the connection before the frame was complete
+    case closed
+    /// A frame of length 1, which a JSON frame never is: the peer speaks the protocol from before the frames. Its client
+    /// starts with its protocol version, 1. Its server reads the length of a frame as a client's version, answers with
+    /// its own, 1, and closes the connection
+    case legacyProtocol
+    case tooLarge(size: UInt32, maxSize: UInt32)
+    case network(NWError)
 
-    func markAsDone() -> (wasAlreadyDone: Bool, ()) {
-        let old = isDone
-        isDone = true
-        return (old, ())
+    public var description: String {
+        switch self {
+            case .endOfStream: "The connection was closed"
+            case .closed: "The connection was closed in the middle of a message"
+            case .legacyProtocol: "The other side speaks the older protocol with a version handshake"
+            case .tooLarge(let size, let maxSize): "The message is \(size) bytes long. The limit is \(maxSize) bytes"
+            case .network(let e): "\(e)"
+        }
     }
 }

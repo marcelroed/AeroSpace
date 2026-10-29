@@ -1,6 +1,6 @@
 import AppKit
 
-enum AxUiElementWindowType: String {
+nonisolated enum AxUiElementWindowType: String {
     case window
     case dialog
     /// Not even a real window
@@ -16,7 +16,7 @@ enum AxUiElementWindowType: String {
 }
 
 // Covered by tests in ./axDumps in the repo root
-extension AxUiElementMock {
+nonisolated extension AxUiElementMock {
     // 'isDialogHeuristic' function name is referenced in the guide
     func isDialogHeuristic(
         _ id: KnownBundleId?,
@@ -93,8 +93,6 @@ extension AxUiElementMock {
         return false
     }
 
-    /// Alternative name: !isPopup
-    ///
     /// Why do we need to filter out non-windows?
     /// - "floating by default" workflow
     /// - It's annoying that the focus command treats these popups as floating windows
@@ -104,10 +102,7 @@ extension AxUiElementMock {
         _ activationPolicy: NSApplication.ActivationPolicy,
         _ windowLevel: MacOsWindowLevel?,
     ) -> Bool {
-        if windowLevel != .normalWindow &&
-            // Slowly roll out windowLevel for applications for which we have the appropriate dumps
-            (id == .slack || id == .chrome || id?.isFirefox == true || id == .braveBrowser || id == .screenstudio || id == .cleanshotx || id == .iterm2 || id == .outlook || id == .codex || id == .wisprFlow)
-        {
+        if usesWindowLevel(id) && windowLevel != .normalWindow {
             return false
         }
 
@@ -199,15 +194,63 @@ extension AxUiElementMock {
             id == .finder && subrole == "Quick Look" // Finder preview (hit space) is a floating window
     }
 
+    /// nil if the kind depends on the window's level and the level is unknown: the window server tells the levels of the
+    /// on-screen windows only. A window that is minimized, of a hidden app or on another Space has none. Guessing would
+    /// demote a picture-in-picture window to a window or a dialog, or make a window a popup (RB-85)
     func getWindowType(
         axApp: AxUiElementMock,
         _ id: KnownBundleId?,
         _ activationPolicy: NSApplication.ActivationPolicy,
         _ windowLevel: MacOsWindowLevel?,
-    ) -> AxUiElementWindowType {
-        .new(
+    ) -> AxUiElementWindowType? {
+        if windowLevel == nil && kindNeedsWindowLevel(id) { return nil }
+        return .new(
             isWindow: isWindowHeuristic(axApp: axApp, id, activationPolicy, windowLevel),
             isDialog: { isDialogHeuristic(id, windowLevel) },
         )
+    }
+}
+
+/// The apps whose windows' kind depends on the window level, see ``AXUIElement/getWindowType(axApp:_:_:_:)``
+nonisolated func kindNeedsWindowLevel(_ id: KnownBundleId?) -> Bool { usesWindowLevel(id) || id == ._1password }
+
+/// Slowly roll out windowLevel for applications for which we have the appropriate dumps
+nonisolated private func usesWindowLevel(_ id: KnownBundleId?) -> Bool {
+    switch id {
+        case .slack, .chrome, .braveBrowser, .screenstudio, .cleanshotx, .iterm2, .outlook, .codex, .wisprFlow: true
+        case let id?: id.isFirefox
+        case nil: false
+    }
+}
+
+/// The CoreGraphics window layer (`kCGWindowLayer`) of an on-screen window
+nonisolated enum MacOsWindowLevel: Sendable, Equatable {
+    case normalWindow
+    case alwaysOnTopWindow
+    case unknown(windowLevel: Int)
+
+    static func new(windowLevel: Int) -> MacOsWindowLevel {
+        switch windowLevel {
+            case 0: .normalWindow
+            case 3: .alwaysOnTopWindow
+            default: .unknown(windowLevel: windowLevel)
+        }
+    }
+
+    static func fromJson(_ json: OrderedJson) -> MacOsWindowLevel? {
+        switch json {
+            case .string("normalWindow"): .normalWindow
+            case .string("alwaysOnTopWindow"): .alwaysOnTopWindow
+            case .int(let int): .new(windowLevel: Int(exactly: int).orDie())
+            default: nil
+        }
+    }
+
+    func toJson() -> OrderedJson {
+        switch self {
+            case .normalWindow: .string("normalWindow")
+            case .alwaysOnTopWindow: .string("alwaysOnTopWindow")
+            case .unknown(let layerNumber): .int(layerNumber)
+        }
     }
 }

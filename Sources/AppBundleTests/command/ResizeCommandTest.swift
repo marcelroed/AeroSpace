@@ -1,166 +1,54 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
-@MainActor
-final class ResizeCommandTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
-
-    func testParseCommand() {
-        testParseSingleCommandSucc("resize smart +10", ResizeCmdArgs(rawArgs: [], dimension: .smart, units: .add(10)))
-        testParseSingleCommandSucc("resize smart -10", ResizeCmdArgs(rawArgs: [], dimension: .smart, units: .subtract(10)))
-        testParseSingleCommandSucc("resize smart 10", ResizeCmdArgs(rawArgs: [], dimension: .smart, units: .set(10)))
-
-        testParseSingleCommandSucc("resize smart-opposite +10", ResizeCmdArgs(rawArgs: [], dimension: .smartOpposite, units: .add(10)))
-        testParseSingleCommandSucc("resize smart-opposite -10", ResizeCmdArgs(rawArgs: [], dimension: .smartOpposite, units: .subtract(10)))
-        testParseSingleCommandSucc("resize smart-opposite 10", ResizeCmdArgs(rawArgs: [], dimension: .smartOpposite, units: .set(10)))
-
-        testParseSingleCommandSucc("resize height 10", ResizeCmdArgs(rawArgs: [], dimension: .height, units: .set(10)))
-        testParseSingleCommandSucc("resize width 10", ResizeCmdArgs(rawArgs: [], dimension: .width, units: .set(10)))
-
-        testParseCommandFail("resize s 10", msg: """
-            ERROR: Can't parse 's'.
-                   Possible values: (width|height|smart|smart-opposite)
-            """, exitCode: 2)
-        testParseCommandFail("resize smart foo", msg: "ERROR: <number> argument must be a number", exitCode: 2)
+@Suite(.aeroSpaceGlobalState)
+struct ResizeCommandTest {
+    @Test(arguments: [
+        ("resize s 10", "Can't parse 's'.\nPossible values: (width|height|smart|smart-opposite)"),
+        ("resize smart foo", "<number> argument must be a number"),
+        // RB-33: UInt(...) accepts a sign too, so `+-10` and `++10` used to mean `+10`
+        ("resize smart +-10", "<number> argument must be a number"),
+        ("resize smart ++10", "<number> argument must be a number"),
+        ("resize smart +-0", "<number> argument must be a number"),
+        ("resize smart +", "<number> argument must be a number"),
+    ] as [(String, String)])
+    func parseError(command: String, error: String) async {
+        let output = await runCmd(command)
+        expectEqual(output, .fail(error))
     }
 
-    func testWidthAdd_growsTargetShrinksSiblings() async {
-        var window1: Window!
-        var window2: Window!
-        var window3: Window!
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            window1 = TestWindow.new(id: 1, parent: $0, adaptiveWeight: 4)
-            window2 = TestWindow.new(id: 2, parent: $0, adaptiveWeight: 4)
-            window3 = TestWindow.new(id: 3, parent: $0, adaptiveWeight: 4)
-        }
-        _ = window1.focusWindow()
-
-        await parseCommand("resize width +2").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        // diff = +2, childDiff = 2 / (3 - 1) = 1
-        assertEquals(window1.hWeight, 6)
-        assertEquals(window2.hWeight, 3)
-        assertEquals(window3.hWeight, 3)
+    @Test(arguments: [
+        // The diff is split between the siblings: 2 / (3 - 1) = 1
+        ("h_tiles(*1:4 2:4 3:4)", "resize width +2", "h_tiles(*1:6 2:3 3:3)"),
+        ("h_tiles(*1:4 2:4 3:4)", "resize width -2", "h_tiles(*1:2 2:5 3:5)"),
+        ("h_tiles(*1:4 2:4 3:4)", "resize width 6", "h_tiles(*1:6 2:3 3:3)"), // diff = 6 - 4
+        // height climbs to the vertical container
+        ("h_tiles(0 v_tiles(*1:4 2:4))", "resize height +2", "h_tiles(0:1 v_tiles:1(*1:6 2:2))"),
+        // smart resizes along the axis of the parent, even if an ancestor qualifies too
+        ("h_tiles(v_tiles:4(*1:4 2:4) 3:4)", "resize smart +2", "h_tiles(v_tiles:4(*1:6 2:2) 3:4)"),
+        // smart-opposite climbs to the ancestor with the opposite orientation and resizes its child on the path
+        ("h_tiles(v_tiles:4(*1 2) 3:4)", "resize smart-opposite +2", "h_tiles(v_tiles:6(*1:1 2:1) 3:2)"),
+    ] as [(String, String, String)])
+    func succeeds(before: String, command: String, after: String) async {
+        setUpTree(before)
+        let output = await runCmd(command)
+        expectEqual(output, .ok)
+        expectEqual(describeTree(weights: true), after)
     }
 
-    func testWidthSubtract_shrinksTargetGrowsSiblings() async {
-        var window1: Window!
-        var window2: Window!
-        var window3: Window!
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            window1 = TestWindow.new(id: 1, parent: $0, adaptiveWeight: 4)
-            window2 = TestWindow.new(id: 2, parent: $0, adaptiveWeight: 4)
-            window3 = TestWindow.new(id: 3, parent: $0, adaptiveWeight: 4)
-        }
-        _ = window1.focusWindow()
-
-        await parseCommand("resize width -2").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        // diff = -2, childDiff = -1
-        assertEquals(window1.hWeight, 2)
-        assertEquals(window2.hWeight, 5)
-        assertEquals(window3.hWeight, 5)
-    }
-
-    func testWidthSet_diffIsAbsoluteMinusCurrent() async {
-        var window1: Window!
-        var window2: Window!
-        var window3: Window!
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            window1 = TestWindow.new(id: 1, parent: $0, adaptiveWeight: 4)
-            window2 = TestWindow.new(id: 2, parent: $0, adaptiveWeight: 4)
-            window3 = TestWindow.new(id: 3, parent: $0, adaptiveWeight: 4)
-        }
-        _ = window1.focusWindow()
-
-        await parseCommand("resize width 6").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        // diff = 6 - 4 = 2, childDiff = 1
-        assertEquals(window1.hWeight, 6)
-        assertEquals(window2.hWeight, 3)
-        assertEquals(window3.hWeight, 3)
-    }
-
-    func testHeight_climbsToVerticalAncestor() async {
-        // Root is horizontal; height must locate the nested vertical tile container.
-        var window1: Window!
-        var window2: Window!
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            TestWindow.new(id: 0, parent: $0)
-            TilingContainer.newVTiles(parent: $0, adaptiveWeight: 1).apply {
-                window1 = TestWindow.new(id: 1, parent: $0, adaptiveWeight: 4)
-                window2 = TestWindow.new(id: 2, parent: $0, adaptiveWeight: 4)
-            }
-        }
-        _ = window1.focusWindow()
-
-        await parseCommand("resize height +2").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        // diff = +2, childDiff = 2 / (2 - 1) = 2
-        assertEquals(window1.vWeight, 6)
-        assertEquals(window2.vWeight, 2)
-    }
-
-    func testSmart_usesImmediateParentOrientation() async {
-        // .smart resizes along the immediate tile container's axis, even when an ancestor
-        // would also qualify.
-        var window1: Window!
-        var window2: Window!
-        var sibling: Window!
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            TilingContainer.newVTiles(parent: $0, adaptiveWeight: 4).apply {
-                window1 = TestWindow.new(id: 1, parent: $0, adaptiveWeight: 4)
-                window2 = TestWindow.new(id: 2, parent: $0, adaptiveWeight: 4)
-            }
-            sibling = TestWindow.new(id: 3, parent: $0, adaptiveWeight: 4)
-        }
-        _ = window1.focusWindow()
-
-        await parseCommand("resize smart +2").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        // immediate parent is vertical; resize is along .v
-        assertEquals(window1.vWeight, 6)
-        assertEquals(window2.vWeight, 2)
-        // The horizontal sibling at the root is untouched.
-        assertEquals(sibling.hWeight, 4)
-    }
-
-    func testSmartOpposite_resizesAncestorContainer() async {
-        // .smart-opposite resolves to the opposite axis (.h here) and climbs to the
-        // ancestor tile container with that orientation. That ancestor's child — the
-        // intermediate vertical container — is the node that gets resized.
-        var verticalContainer: TilingContainer!
-        var sibling: Window!
-        var inner: Window!
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            verticalContainer = TilingContainer.newVTiles(parent: $0, adaptiveWeight: 4).apply {
-                inner = TestWindow.new(id: 1, parent: $0)
-                TestWindow.new(id: 2, parent: $0)
-            }
-            sibling = TestWindow.new(id: 3, parent: $0, adaptiveWeight: 4)
-        }
-        _ = inner.focusWindow()
-
-        await parseCommand("resize smart-opposite +2").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        // diff = +2 along .h; root has 2 children, childDiff = 2
-        assertEquals(verticalContainer.hWeight, 6)
-        assertEquals(sibling.hWeight, 2)
-    }
-
-    func testHeight_noVerticalAncestor_returnsFail() async {
-        // Root is horizontal; with no vertical container present, height has nothing to resize.
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-            TestWindow.new(id: 2, parent: $0)
-        }
-
-        let result = await parseCommand("resize height +2").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-    }
-
-    func testSingleChildParent_failsCleanly() async {
-        // The root has only one tiling child; dividing the diff across 0 siblings must fail.
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0, adaptiveWeight: 4).focusWindow(), true)
-        }
-
-        let result = await parseCommand("resize width +2").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
+    @Test(arguments: [
+        ("h_tiles(*1 2)", "resize height +2", "Can't resize: the window isn't inside a vertical tiles container"), // Not "floating windows"
+        ("h_accordion(*1 2)", "resize smart +2", "Can't resize: the window isn't inside a tiles container"),
+        ("h_tiles(2) floating(*1)", "resize width +2", "resize command doesn't support floating windows yet https://github.com/nikitabobko/AeroSpace/issues/9"),
+        ("h_tiles()", "resize width +2", "No window is focused"),
+        ("h_tiles(*1:4)", "resize width +2", "Can't resize: there are no other tiling windows to the left or right"), // RB-67
+    ] as [(String, String, String)])
+    func fails(tree: String, command: String, error: String) async {
+        setUpTree(tree)
+        let before = describeTree(weights: true)
+        let output = await runCmd(command)
+        expectEqual(output, .fail(error))
+        expectEqual(describeTree(weights: true), before)
     }
 }

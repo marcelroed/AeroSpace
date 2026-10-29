@@ -1,20 +1,12 @@
 extension Array {
+    /// The table must be rectangular: all rows have the same size
     public func transposed<T>() -> [[T]] where Self.Element == [T] {
-        if isEmpty {
-            return []
-        }
-        let table: [[T]] = self
-        var result: [[T]] = []
-        loop: for columnIndex in 0... {
-            switch columnIndex < table.first.orDie().count {
-                case true: result += [table.map { row in row.getOrNil(atIndex: columnIndex).orDie() }]
-                case false: break loop
-            }
-        }
-        return result
+        guard let firstRow = first else { return [] }
+        check(allSatisfy { $0.count == firstRow.count }, "transposed() needs a rectangular table. Row sizes: \(map(\.count))")
+        return firstRow.indices.map { columnIndex in map { row in row.getOrNil(atIndex: columnIndex).orDie() } }
     }
 
-    public func singleOrNil(where predicate: (Self.Element) throws -> Bool) rethrows -> Self.Element? {
+    @inlinable public func singleOrNil(where predicate: (Self.Element) throws -> Bool) rethrows -> Self.Element? {
         var found: Self.Element? = nil
         for elem in self where try predicate(elem) {
             switch found == nil {
@@ -24,19 +16,4 @@ extension Array {
         }
         return found
     }
-
-    @discardableResult
-    public mutating func remove(element: Self.Element) -> Int? where Self.Element: Equatable {
-        switch firstIndex(of: element) {
-            case nil: return nil
-            case let index?:
-                remove(at: index)
-                return index
-        }
-    }
-}
-
-public func - <T>(lhs: [T], rhs: [T]) -> [T] where T: Hashable {
-    let r = rhs.toSet()
-    return lhs.filter { !r.contains($0) }
 }

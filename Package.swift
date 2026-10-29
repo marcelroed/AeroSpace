@@ -6,13 +6,18 @@ import PackageDescription
 let swiftSettings: [SwiftSetting] = [
     .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
     .strictMemorySafety(),
+    // In the manifest rather than `-Xswiftc -warnings-as-errors` in the scripts: every `swift build`/`swift test`
+    // then has the same command line, and switching between two command lines rebuilds every module
+    .treatAllWarnings(as: .error),
 ]
+/// The app runs on the main thread, except for the AX app threads, the socket server and the signal handlers.
+/// Code that runs there is marked `nonisolated`
+let mainActorSwiftSettings: [SwiftSetting] = swiftSettings + [.defaultIsolation(MainActor.self)]
 
 let package = Package(
     name: "AeroSpacePackage",
-    // Runtime support for parameterized protocol types is only available in macOS 13.0.0 or newer
-    // And it specifies deploymentTarget for CLI
-    platforms: [.macOS(.v13)],
+    // Also the deployment target of the CLI. The app's is in xcode/project.yml
+    platforms: [.macOS("27.0")], // `.v27` needs swift-tools-version 6.4
     // Products define the executables and libraries a package produces, making them visible to other packages.
     products: [
         .executable(name: "aerospace", targets: ["Cli"]),
@@ -36,31 +41,34 @@ let package = Package(
             path: "Sources/PrivateApi",
             publicHeadersPath: "include",
         ),
+        // The git hash, in C so that a new commit doesn't recompile the Swift modules (see BuildInfo.h)
+        .target(name: "BuildInfo"),
         .target(
             name: "Common",
             dependencies: [
-                .product(name: "Collections", package: "swift-collections"),
+                .target(name: "BuildInfo"),
             ],
             swiftSettings: swiftSettings,
         ),
         .target(
             name: "AppBundle",
             dependencies: [
-                .product(name: "Collections", package: "swift-collections"),
+                // Only the module that is used: the `Collections` umbrella builds all of swift-collections (64k lines)
+                .product(name: "OrderedCollections", package: "swift-collections"),
                 .product(name: "HotKey", package: "HotKey"),
                 .product(name: "ISSoundAdditions", package: "ISSoundAdditions"),
                 .product(name: "TOMLDecoder", package: "TOMLDecoder"),
                 .target(name: "Common"),
                 .target(name: "PrivateApi"),
             ],
-            swiftSettings: swiftSettings,
+            swiftSettings: mainActorSwiftSettings,
         ),
         .executableTarget(
             name: "AeroSpaceApp",
             dependencies: [
                 .target(name: "AppBundle"),
             ],
-            swiftSettings: swiftSettings,
+            swiftSettings: mainActorSwiftSettings,
         ),
         .executableTarget(
             name: "Cli",
@@ -74,7 +82,7 @@ let package = Package(
             dependencies: [
                 .target(name: "AppBundle"),
             ],
-            swiftSettings: swiftSettings,
+            swiftSettings: mainActorSwiftSettings,
         ),
     ],
 )

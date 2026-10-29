@@ -1,94 +1,65 @@
 import AppKit
 import Common
 
-@MainActor
-private var resizeWithMouseTask: Task<(), any Error>? = nil
-
-func resizedObs(_: AXObserver, ax: AXUIElement, notif: CFString, _: UnsafeMutableRawPointer?) {
-    let notif = notif as String
-    let windowId = ax.containingWindowId()
-    Task.startUnstructured { @MainActor in
-        guard let token: RunSessionGuard = .isServerEnabled else { return }
-        guard let windowId, let window = Window.get(byId: windowId), try await isManipulatedWithMouse(window) else {
-            scheduleCancellableCompleteRefreshSession(.ax(notif))
-            return
-        }
-        resizeWithMouseTask?.cancel()
-        resizeWithMouseTask = Task.startUnstructured {
-            try checkCancellation()
-            try await runLightSession(.ax(notif), token) {
-                try await resizeWithMouse(window)
-            }
-        }
-    }
-}
-
-@MainActor
-func resetManipulatedWithMouseIfPossible() async throws {
-    if currentlyManipulatedWithMouseWindowId != nil {
-        currentlyManipulatedWithMouseWindowId = nil
+/// A mouse up ends the drag: a dragged floating window drops (``dropDraggedFloatingWindow()``), the layout stops leaving
+/// the dragged window to the mouse, and the next drag starts from the new weights. The mouse up's own session lays the
+/// windows out
+func resetManipulatedWithMouseIfPossible() {
+    dropDraggedFloatingWindow()
+    if world.mouseManipulatedWindowId != nil {
+        world.mouseManipulatedWindowId = nil
         for workspace in Workspace.all {
             workspace.resetResizeWeightBeforeResizeRecursive()
         }
-        scheduleCancellableCompleteRefreshSession(.resetManipulatedWithMouse, optimisticallyPreLayoutWorkspaces: true)
     }
 }
 
-private let adaptiveWeightBeforeResizeWithMouseKey = TreeNodeUserDataKey<CGFloat>(key: "adaptiveWeightBeforeResizeWithMouseKey")
-
-@MainActor
-private func resizeWithMouse(_ window: Window) async throws { // todo cover with tests
+func resizeWithMouse(_ window: Window) async throws {
     resetClosedWindowsCache()
-    switch window.windowParentCases {
-        case .unbound: return
-        case .floatingWindowsContainer, .macosMinimizedWindowsContainer, .macosFullscreenWindowsContainer,
-             .macosPopupWindowsContainer, .macosHiddenAppsWindowsContainer:
-            return // Nothing to do for floating, or unconventional windows
-        case .tilingContainer:
-            guard let rect = try await window.getAxRect(.cancellable) else { return }
-            guard let lastAppliedLayoutRect = window.lastAppliedLayoutPhysicalRect else { return }
-            let (lParent, lOwnIndex) = window.closestParent(hasChildrenInDirection: .left, withLayout: .tiles) ?? (nil, nil)
-            let (dParent, dOwnIndex) = window.closestParent(hasChildrenInDirection: .down, withLayout: .tiles) ?? (nil, nil)
-            let (uParent, uOwnIndex) = window.closestParent(hasChildrenInDirection: .up, withLayout: .tiles) ?? (nil, nil)
-            let (rParent, rOwnIndex) = window.closestParent(hasChildrenInDirection: .right, withLayout: .tiles) ?? (nil, nil)
-            let table: [(CGFloat, TilingContainer?, Int?, Int?)] = [
-                (lastAppliedLayoutRect.minX - rect.minX, lParent, 0,                        lOwnIndex),               // Horizontal, to the left of the window
-                (rect.maxY - lastAppliedLayoutRect.maxY, dParent, dOwnIndex.map { $0 + 1 }, dParent?.children.count), // Vertical, to the down of the window
-                (lastAppliedLayoutRect.minY - rect.minY, uParent, 0,                        uOwnIndex),               // Vertical, to the up of the window
-                (rect.maxX - lastAppliedLayoutRect.maxX, rParent, rOwnIndex.map { $0 + 1 }, rParent?.children.count), // Horizontal, to the right of the window
-            ]
-            for (diff, parent, startIndex, pastTheEndIndex) in table {
-                if let parent, let startIndex, let pastTheEndIndex, pastTheEndIndex - startIndex > 0 && abs(diff) > 5 { // 5 pixels should be enough to fight with accumulated floating precision error
-                    let siblingDiff = diff.div(pastTheEndIndex - startIndex).orDie()
-                    let orientation = parent.orientation
+    guard case .tiling(let parent) = window.placement else { return } // Nothing to do for floating, or unconventional windows
+    guard let rect = try await world.platform.observedRect(window.windowId) else { return }
+    if window.parent !== parent { return } // The window closed or moved at the suspension point above
+    guard let lastAppliedLayoutRect = window.lastAppliedLayoutPhysicalRect else { return }
+    let (lParent, lOwnIndex) = window.closestParent(hasChildrenIn: .left, layout: .tiles) ?? (nil, nil)
+    let (dParent, dOwnIndex) = window.closestParent(hasChildrenIn: .down, layout: .tiles) ?? (nil, nil)
+    let (uParent, uOwnIndex) = window.closestParent(hasChildrenIn: .up, layout: .tiles) ?? (nil, nil)
+    let (rParent, rOwnIndex) = window.closestParent(hasChildrenIn: .right, layout: .tiles) ?? (nil, nil)
+    let table: [(CGFloat, TilingContainer?, Int?, Int?)] = [
+        (lastAppliedLayoutRect.minX - rect.minX, lParent, 0,                        lOwnIndex),               // Horizontal, to the left of the window
+        (rect.maxY - lastAppliedLayoutRect.maxY, dParent, dOwnIndex.map { $0 + 1 }, dParent?.children.count), // Vertical, to the down of the window
+        (lastAppliedLayoutRect.minY - rect.minY, uParent, 0,                        uOwnIndex),               // Vertical, to the up of the window
+        (rect.maxX - lastAppliedLayoutRect.maxX, rParent, rOwnIndex.map { $0 + 1 }, rParent?.children.count), // Horizontal, to the right of the window
+    ]
+    for (diff, parent, startIndex, pastTheEndIndex) in table {
+        if let parent, let startIndex, let pastTheEndIndex, pastTheEndIndex - startIndex > 0 && abs(diff) > 5 { // 5 pixels should be enough to fight with accumulated floating precision error
+            let siblingDiff = diff.div(pastTheEndIndex - startIndex).orDie()
+            let orientation = parent.orientation
 
-                    window.parentsWithSelf.lazy
-                        .prefix(while: { $0 != parent })
-                        .filter {
-                            let parent = $0.parent as? TilingContainer
-                            return parent?.orientation == orientation && parent?.layout == .tiles
-                        }
-                        .forEach { $0.setWeight(orientation, $0.getWeightBeforeResize(orientation) + diff) }
-                    for sibling in parent.children[startIndex ..< pastTheEndIndex] {
-                        sibling.setWeight(orientation, sibling.getWeightBeforeResize(orientation) - siblingDiff)
-                    }
+            for step in window.tilingPath {
+                if step.node == parent { break }
+                if step.parent.orientation == orientation && step.parent.layout == .tiles {
+                    step.node.setWeight(orientation, step.node.getWeightBeforeResize(orientation) + diff)
                 }
             }
-            currentlyManipulatedWithMouseWindowId = window.windowId
+            for sibling in parent.children[startIndex ..< pastTheEndIndex] {
+                sibling.setWeight(orientation, sibling.getWeightBeforeResize(orientation) - siblingDiff)
+            }
+        }
     }
+    world.mouseManipulatedWindowId = window.windowId
 }
 
 extension TreeNode {
-    @MainActor
     fileprivate func getWeightBeforeResize(_ orientation: Orientation) -> CGFloat {
         let currentWeight = getWeight(orientation) // Check assertions
-        return getUserData(key: adaptiveWeightBeforeResizeWithMouseKey)
-            ?? (lastAppliedLayoutVirtualRect?.getDimension(orientation) ?? currentWeight)
-            .also { putUserData(key: adaptiveWeightBeforeResizeWithMouseKey, data: $0) }
+        if let weightBeforeResizeWithMouse { return weightBeforeResizeWithMouse }
+        let weight = lastAppliedLayoutVirtualRect?.getDimension(orientation) ?? currentWeight
+        weightBeforeResizeWithMouse = weight
+        return weight
     }
 
     fileprivate func resetResizeWeightBeforeResizeRecursive() {
-        cleanUserData(key: adaptiveWeightBeforeResizeWithMouseKey)
+        weightBeforeResizeWithMouse = nil
         for child in children {
             child.resetResizeWeightBeforeResizeRecursive()
         }

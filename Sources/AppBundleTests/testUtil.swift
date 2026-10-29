@@ -1,88 +1,155 @@
 @testable import AppBundle
+import AppKit
 import Common
-import Foundation
 import HotKey
-import XCTest
+import Testing
 
-let projectRoot: URL = {
+nonisolated let projectRoot: URL = {
     var url = URL(filePath: #filePath).absoluteURL
     check(FileManager.default.fileExists(atPath: url.path))
-    while !FileManager.default.fileExists(atPath: url.appending(component: ".git").path) {
+    while !FileManager.default.fileExists(atPath: url.appending(component: "Package.swift").path) {
+        check(url.path != "/", "Package.swift isn't found in any parent directory of \(#filePath)")
         url.deleteLastPathComponent()
     }
     return url
 }()
 
-@MainActor
 func setUpWorkspacesForTests() {
-    config = defaultConfig
-    configUrl = defaultConfigUrl
-    config.enableNormalizationFlattenContainers = false // Make layout tests more predictable
-    config.enableNormalizationOppositeOrientationForNestedContainers = false // Make layout tests more predictable
-    config.defaultRootContainerOrientation = .horizontal // Make default layout predictable
+    world.reset(platform: FakePlatform())
+    world.config.enableNormalizationFlattenContainers = false // Make layout tests more predictable
+    world.config.enableNormalizationOppositeOrientationForNestedContainers = false // Make layout tests more predictable
+    world.config.defaultRootContainerOrientation = .horizontal // Make default layout predictable
 
     // Don't create any bindings and workspaces for tests
-    config.modes = [mainModeId: Mode(bindings: [:])]
-    config.persistentWorkspaces = []
+    world.config.modes = [mainModeId: Mode(bindings: [:])]
+    world.config.persistentWorkspaces = []
 
-    for workspace in Workspace.all {
-        for child in workspace.children {
-            child.unbindFromParent()
-        }
-    }
+    updateMonitors([testMonitor])
     check(Workspace.get(byName: "setUpWorkspacesForTests").focusWorkspace())
+    armFocusChangedCallbacks()
     Workspace.garbageCollectUnusedWorkspaces()
     check(focus.workspace.isEffectivelyEmpty)
     check(focus.workspace === Workspace.all.singleOrNil(), Workspace.all.map(\.description).joined(separator: ", "))
-    check(mainMonitorInfo.setActiveWorkspace(focus.workspace))
-
-    TestApp.shared.focusedWindow = nil
-    TestApp.shared.windows = []
-
-    global_layoutForNextDetectedWindow = nil
 }
 
-extension ParsedCmd {
+/// The only monitor of a test, unless it sets others with ``updateMonitors(_:)``
+let testMonitor: MonitorInfo = makeTestMonitor(id: 1, "Test Monitor", Rect(topLeftX: 0, topLeftY: 0, width: 1920, height: 1080))
+/// Right of ``testMonitor``
+let rightTestMonitor: MonitorInfo = makeTestMonitor(id: 2, "Right Monitor", Rect(topLeftX: 1920, topLeftY: 0, width: 1920, height: 1080))
+
+private func makeTestMonitor(id: Int, _ name: String, _ rect: Rect) -> MonitorInfo {
+    MonitorInfo(monitorAppKitNsScreenScreensId: id, name: name, rect: rect, visibleRect: rect, isMain: rect.topLeftCorner == .zero)
+}
+
+/// Parses `raw` like the config and `eval` do
+func parseCommand(_ raw: String) -> Result<Shell<any Command>, CmdParseError> {
+    Result { () throws(CmdParseError) in try parseShell(raw, allowExecAndForget: true, allowEval: true) }
+}
+
+extension Result<Shell<any Command>, CmdParseError> {
+    /// The parse error. Nil if the command parses or asks for help
     var errorOrNil: String? {
         return switch self {
-            case .failure(let e): e.msg
-            case .cmd, .help: nil
+            case .failure(.invalid(let msg)): msg
+            case .success, .failure(.help): nil
         }
     }
 
-    var cmdOrDie: T { cmdOrNil ?? dieT("\(self)") }
+    var cmdOrDie: Shell<any Command> { (try? get()) ?? dieT("\(self)") }
 }
 
-func testParseCommandFail(_ command: String, msg expectedMsg: String, exitCode expectedExitCode: Int32, file: StaticString = #filePath, line: UInt = #line) {
-    let parsed = parseCommand(command)
-    switch parsed {
-        case .cmd(let command): XCTFail("\(command) isn't supposed to be parcelable")
-        case .help: die() // todo test help
-        case .failure(let failure):
-            assertEquals(failure, .init(expectedMsg, expectedExitCode), file: file, line: line)
-    }
-}
-
-extension WorkspaceCmdArgs {
-    init(target: WorkspaceTarget, autoBackAndForth: Bool? = nil, wrapAround: Bool? = nil) {
-        self = WorkspaceCmdArgs(rawArgs: [])
-        self.target = .initialized(target)
-        self._autoBackAndForth = autoBackAndForth
-        self._wrapAround = wrapAround
+extension Result {
+    var failureOrNil: Failure? {
+        return switch self {
+            case .failure(let failure): failure
+            case .success: nil
+        }
     }
 }
 
-extension MoveNodeToWorkspaceCmdArgs {
-    init(target: WorkspaceTarget, wrapAround: Bool? = nil) {
-        self = MoveNodeToWorkspaceCmdArgs(rawArgs: [])
-        self.target = .initialized(target)
-        self._wrapAround = wrapAround
+/// The command of `raw` if it parses as a single command of type `T`, nil otherwise
+func parsedCmd<T: Command>(_ raw: String, as _: T.Type) -> T? {
+    guard case .success(.cmd(let command)) = parseCommand(raw) else { return nil }
+    return command as? T
+}
+
+/// What a command printed, and its exit code
+nonisolated struct CmdOutput: Equatable {
+    var stdout: [String] = []
+    var stderr: [String] = []
+    var exitCode: Int32 = 0
+
+    /// Exit code 0 without output
+    static let ok = CmdOutput()
+
+    /// Exit code 2 with `stderr`
+    static func fail(_ stderr: String...) -> CmdOutput { CmdOutput(stderr: stderr, exitCode: 2) }
+}
+
+extension CmdOutput {
+    init(_ result: CmdResult) {
+        self.init(stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode)
     }
 
-    init(workspace: String) {
-        self = MoveNodeToWorkspaceCmdArgs(rawArgs: [])
-        self.target = .initialized(.direct(.parse(workspace).getOrDie()))
+    /// The way the CLI prints a parse error: the help on stdout, an error on stderr with exit code 2
+    init(_ error: CmdParseError) {
+        self = switch error {
+            case .help(let kind): CmdOutput(stdout: [kind.help])
+            case .invalid(let msg): .fail(msg)
+        }
     }
+}
+
+/// `json` with sorted keys and without whitespace, so that JSON compares by its keys, types and values only
+func compactJson(_ json: String) -> String {
+    let options: JSONSerialization.WritingOptions = [.sortedKeys, .withoutEscapingSlashes, .fragmentsAllowed]
+    guard let value = try? JSONSerialization.jsonObject(with: Data(json.utf8), options: .fragmentsAllowed),
+          let compact = try? JSONSerialization.data(withJSONObject: value, options: options)
+    else { return "Not JSON: \(json)" }
+    return String(decoding: compact, as: UTF8.self)
+}
+
+/// Runs `command` like the server runs a CLI request: `windowIdEnv` and `workspaceEnv` are the client's
+/// AEROSPACE_WINDOW_ID and AEROSPACE_WORKSPACE. A parse error and help come back as output, the way the CLI prints them.
+/// Every command behavior test runs its commands through this function, so that changes to how commands are parsed and
+/// run touch only this function.
+///
+/// Check the output with `expectEqual`, which shows both outputs on a mismatch. `#expect` doesn't show the values of an
+/// expression with `await`, so `#expect(await runCmd("...") == .ok)` would fail without the output
+@discardableResult
+func runCmd(_ command: String, stdin: String = "", windowIdEnv: WindowId? = nil, workspaceEnv: String? = nil) async -> CmdOutput {
+    switch parseCommand(command) {
+        case .success(let shell): await CmdOutput(shell.run(CmdEnv(windowId: windowIdEnv, workspaceName: workspaceEnv), CmdStdin(stdin)))
+        case .failure(let error): CmdOutput(error)
+    }
+}
+
+/// Parses `args` the way the server parses a CLI request, and runs the command like `runCmd`
+func runCliArgs(_ args: [String], stdin: String = "") async -> CmdOutput {
+    switch Result(catching: { () throws(CmdParseError) in try parseRequest(args) }) {
+        case .success(.command(let command)): await CmdOutput(Shell.cmd(command).run(CmdEnv(windowId: nil, workspaceName: nil), CmdStdin(stdin)))
+        case .success(.subscribe): .ok
+        case .failure(let error): CmdOutput(error)
+    }
+}
+
+/// Yields until no heavy refresh is scheduled or running. It records an issue if one still is after 100 yields: the test
+/// would go on to check a state that it never reached
+func untilHeavyIdle(sourceLocation: SourceLocation = #_sourceLocation) async {
+    for _ in 0 ..< 100 where !world.sessions.isHeavyIdle { await Task.yield() }
+    #expect(world.sessions.isHeavyIdle, "The heavy refresh didn't end in 100 yields", sourceLocation: sourceLocation)
+}
+
+extension Workspace {
+    /// Applies the workspace's placements, without the parks of the other workspaces
+    func layoutWorkspace() {
+        world.platform.apply(layoutPlacements())
+    }
+}
+
+extension MonitorDescription {
+    /// `.pattern` of a valid regex
+    nonisolated static func pattern(_ raw: String) -> MonitorDescription { .pattern((try? CaseInsensitiveRegex(raw)).orDie()) }
 }
 
 extension HotkeyBinding {
@@ -93,11 +160,3 @@ extension HotkeyBinding {
         self.init(modifiers, keyCode, commands, descriptionWithKeyNotation: descriptionWithKeyNotation)
     }
 }
-
-extension FocusCommand {
-    static func new(direction: CardinalDirection) -> FocusCommand {
-        FocusCommand(args: FocusCmdArgs(rawArgs: [], cardinalOrDfsDirection: .direction(direction)))
-    }
-}
-
-func parseCommand(_ raw: String) -> ParsedCmd<Shell<any Command>> { parseCommand(raw, allowExecAndForget: true, allowEval: true) }

@@ -3,81 +3,41 @@ import Common
 import Foundation
 import os
 
-let signposter = OSSignposter(subsystem: aeroSpaceAppId, category: .pointsOfInterest)
+nonisolated let signposter: OSSignposter = OSSignposter(subsystem: aeroSpaceAppId, category: .pointsOfInterest)
 
 let myPid = NSRunningApplication.current.processIdentifier
-let lockScreenAppBundleId = "com.apple.loginwindow"
+nonisolated let lockScreenAppBundleId = "com.apple.loginwindow"
 
-func interceptTermination(_ _signal: Int32) {
-    signal(_signal, { (signal: Int32) in
-        check(Thread.current.isMainThread)
-        Task.startUnstructured { @MainActor in
-            terminationHandler?.beforeTermination()
-            exit(signal)
-        }
-    } as sig_t)
-}
+private var signalSources: [any DispatchSourceSignal] = [] // A released source stops delivering the signal
 
-@MainActor
-func initTerminationHandler() {
-    unsafe _terminationHandler = AppServerTerminationHandler()
-}
-
-private struct AppServerTerminationHandler: TerminationHandler {
-    @MainActor
-    func beforeTermination() {
-        // Make all windows fullscreen before Quit
-        for window in MacWindow.allWindowsMap.values {
-            // makeAllWindowsVisibleAndRestoreSize may be invoked when something went wrong (e.g. some windows are unbound)
-            // that's why it's not allowed to use `.parent` call in here
-            let monitor = window.macApp.getAxRectForTermination(window.windowId)?.center.monitorApproximation ?? mainMonitorInfo
-            let monitorVisibleRect = monitor.visibleRect
-            let windowSize = window.lastFloatingSize ?? CGSize(width: monitorVisibleRect.width, height: monitorVisibleRect.height)
-            let point = CGPoint(
-                x: (monitorVisibleRect.width - windowSize.width) / 2,
-                y: (monitorVisibleRect.height - windowSize.height) / 2,
-            )
-            window.macApp.setAxFrameForTermination(window.windowId, point, windowSize)
-        }
-        if isDebug {
-            let semaphore = DispatchSemaphore(value: 0)
-            // Use Task.detached to avoid inheriting @MainActor.
-            // If @MainActor was inherited, it would cause a deadlock
-            Task.detached {
-                await toggleReleaseServerIfDebug(.on)
-                semaphore.signal()
-            }
-            semaphore.wait()
-        }
+func interceptTermination(_ sig: Int32) {
+    // A signal handler may only call async-signal-safe functions, and it runs on any thread.
+    // Ignore the signal instead (the dispatch source still sees it), and handle it on the main queue
+    signal(sig, SIG_IGN)
+    let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+    source.setEventHandler { // On the main queue, so the closure is main actor isolated
+        terminationHandler?.beforeTermination()
+        exit(sig)
     }
+    source.resume()
+    signalSources.append(source)
 }
 
-@MainActor
 func terminateApp() -> Never {
     NSApplication.shared.terminate(nil)
     die("Unreachable code")
 }
 
-extension String {
-    func copyToClipboard() {
-        let pasteboard = NSPasteboard.general
-        pasteboard.declareTypes([.string], owner: nil)
-        pasteboard.setString(self, forType: .string)
-    }
-}
-
-func - (a: CGPoint, b: CGPoint) -> CGPoint {
+nonisolated func - (a: CGPoint, b: CGPoint) -> CGPoint {
     CGPoint(x: a.x - b.x, y: a.y - b.y)
 }
 
-func + (a: CGPoint, b: CGPoint) -> CGPoint {
+nonisolated func + (a: CGPoint, b: CGPoint) -> CGPoint {
     CGPoint(x: a.x + b.x, y: a.y + b.y)
 }
 
-extension CGPoint: ConvenienceMutable {}
-
 extension CGPoint {
-    func distance(toOuterFrame rect: Rect) -> CGFloat {
+    nonisolated func distance(toOuterFrame rect: Rect) -> CGFloat {
         // Subtract 1 from maxX/maxY because the right/bottom bounds are
         // exclusive.
         let dx = max(rect.minX - x, 0, x - (rect.maxX - 1))
@@ -91,19 +51,17 @@ extension CGPoint {
         return CGPoint(x: x.coerce(in: xRange), y: y.coerce(in: yRange))
     }
 
-    func addingXOffset(_ offset: CGFloat) -> CGPoint { CGPoint(x: x + offset, y: y) }
-    func addingYOffset(_ offset: CGFloat) -> CGPoint { CGPoint(x: x, y: y + offset) }
-    func addingOffset(_ orientation: Orientation, _ offset: CGFloat) -> CGPoint { orientation == .h ? addingXOffset(offset) : addingYOffset(offset) }
+    func addingOffset(_ orientation: Orientation, _ offset: CGFloat) -> CGPoint {
+        orientation == .h ? CGPoint(x: x + offset, y: y) : CGPoint(x: x, y: y + offset)
+    }
 
     func getProjection(_ orientation: Orientation) -> Double { orientation == .h ? x : y }
 
-    var vectorLength: CGFloat { sqrt(x * x + y * y) }
-
-    var monitorApproximation: MonitorInfo { monitorInfos.minByOrDie { distance(toOuterFrame: $0.rect) } }
+    nonisolated var vectorLength: CGFloat { sqrt(x * x + y * y) }
 
     var withYAxisFlipped: CGPoint {
         consuming get {
-            self.y = mainMonitorInfo.height - self.y
+            self.y = world.monitors.main.height - self.y
             return self
         }
     }
@@ -114,7 +72,7 @@ extension CGFloat {
         denominator == 0 ? nil : self / CGFloat(denominator)
     }
 
-    func coerce(in range: ClosedRange<CGFloat>) -> CGFloat {
+    nonisolated func coerce(in range: ClosedRange<CGFloat>) -> CGFloat {
         switch true {
             case self > range.upperBound: range.upperBound
             case self < range.lowerBound: range.lowerBound
@@ -123,27 +81,14 @@ extension CGFloat {
     }
 }
 
-extension CGPoint: @retroactive Hashable { // todo migrate to self written Point
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(x)
-        hasher.combine(y)
-    }
-}
-
 #if DEBUG
-    let isDebug = true
+    nonisolated let isDebug = true
 #else
-    let isDebug = false
+    nonisolated let isDebug = false
 #endif
 
-@inlinable
-func checkCancellation(_ cm: CancellationMode = .cancellable) throws(CancellationError) {
-    if cm == .cancellable && Task.isCancelled {
+nonisolated func checkCancellation() throws(CancellationError) {
+    if Task.isCancelled {
         throw CancellationError()
     }
-}
-
-public enum CancellationMode: Equatable, Sendable {
-    case cancellable
-    case nonCancellable
 }

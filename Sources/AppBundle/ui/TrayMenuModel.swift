@@ -1,21 +1,49 @@
 import AppKit
 import Common
+import Observation
 
-public final class TrayMenuModel: ObservableObject {
-    @MainActor public static let shared = TrayMenuModel()
+/// The views re-render when a property that their body reads changes.
+/// Assigning an equal value doesn't notify them
+@Observable
+final class TrayMenuModel {
+    var trayText: String = ""
+    var trayItems: [TrayItem] = []
+    var workspaces: [WorkspaceViewModel] = []
+    /// A copy of `world.isEnabled`, which the views can observe
+    var isEnabled: Bool = true
+    var sponsorshipMessage: String = sponsorshipPrompts.randomElement().orDie()
+    var axPermissionStatus: AxPermissionStatus = .waitingWithPrompt
+    // Only the menu shows these, and nothing notifies us when they change. They are polled when a menu opens, not on
+    // every refresh: the editor lookup asks LaunchServices (about 100 µs)
+    var appearanceTheme: AppearanceTheme = .current
+    var textEditorToOpenConfig: URL = getTextEditorToOpenConfig()
 
-    private init() {}
+    // periphery:ignore - assign-only: dropping the token removes the observation
+    @ObservationIgnored private var menuOpenObservation: NotificationCenter.ObservationToken? = nil
 
-    @Published var trayText: String = ""
-    @Published var trayItems: [TrayItem] = []
-    /// Is "layouting" enabled
-    @Published var isEnabled: Bool = true
-    @Published var workspaces: [WorkspaceViewModel] = []
-    @Published var experimentalUISettings: ExperimentalUISettings = ExperimentalUISettings()
-    @Published var sponsorshipMessage: String = sponsorshipPrompts.randomElement().orDie()
-    @Published var lastReloadConfigContainedWarnings: Bool = false
-    @Published var axPermissionStatus: AxPermissionStatus = .waitingWithPrompt
+    init() {
+        menuOpenObservation = NotificationCenter.default.addObserver(of: NSMenu.self, for: .didBeginTracking) { [weak self] _ in
+            self?.appearanceTheme = .current
+            self?.textEditorToOpenConfig = getTextEditorToOpenConfig()
+        }
+    }
+
+    /// Stored in UserDefaults
+    var menuBarStyle: MenuBarStyle {
+        get {
+            access(keyPath: \.menuBarStyle)
+            return UserDefaults.standard.string(forKey: menuBarStyleKey).flatMap(MenuBarStyle.init(rawValue:)) ?? .monospacedText
+        }
+        set {
+            withMutation(keyPath: \.menuBarStyle) {
+                UserDefaults.standard.set(newValue.rawValue, forKey: menuBarStyleKey)
+                UserDefaults.standard.synchronize()
+            }
+        }
+    }
 }
+
+private let menuBarStyleKey = "displayStyle"
 
 enum AxPermissionStatus: Equatable {
     case granted
@@ -23,63 +51,67 @@ enum AxPermissionStatus: Equatable {
     case waitingWithPrompt
 }
 
-@MainActor func updateTrayText() {
-    let sortedMonitors = sortedMonitorInfos
-    let focus = focus
-    TrayMenuModel.shared.trayText = (activeMode?.takeIf { $0 != mainModeId }?.first.map { "(\($0.uppercased())) " } ?? "") +
-        sortedMonitors
-        .map {
-            let hasFullscreenWindows = $0.activeWorkspace.allLeafWindowsRecursive.contains { $0.isFullscreen }
-            let activeWorkspaceName = hasFullscreenWindows ? "[\($0.activeWorkspace.name)]" : $0.activeWorkspace.name
-            return ($0.activeWorkspace == focus.workspace && sortedMonitors.count > 1 ? "*" : "") + activeWorkspaceName
-        }
-        .joined(separator: " │ ")
-    TrayMenuModel.shared.workspaces = Workspace.all.map {
-        let apps = $0.allLeafWindowsRecursive.map { $0.app.name?.takeIf { !$0.isEmpty } }.filterNotNil().toSet()
-        let dash = " - "
-        let suffix = switch true {
-            case !apps.isEmpty: dash + apps.sorted().joinTruncating(separator: ", ", length: 25)
-            case $0.isVisible: dash + $0.workspaceMonitor.name
-            default: ""
-        }
-        let hasFullscreenWindows = $0.allLeafWindowsRecursive.contains { $0.isFullscreen }
-        return WorkspaceViewModel(
-            name: $0.name,
-            suffix: suffix,
-            isFocused: focus.workspace == $0,
-            isEffectivelyEmpty: $0.isEffectivelyEmpty,
-            isVisible: $0.isVisible,
-            hasFullscreenWindows: hasFullscreenWindows,
-        )
-    }
-    var items = sortedMonitors.map {
-        let hasFullscreenWindows = $0.activeWorkspace.allLeafWindowsRecursive.contains { $0.isFullscreen }
+/// Runs on every refresh: the menu bar icon, and the menu's list of workspaces
+func updateTrayText() {
+    let monitors = world.monitors.all
+    let focusedWorkspace = focus.workspace
+    let modeLetter: String? = world.activeMode == mainModeId ? nil : world.activeMode?.first?.uppercased()
+    let visibleWorkspaces = monitors.map { monitor in
+        let workspace = monitor.activeWorkspace
         return TrayItem(
             type: .workspace,
-            name: $0.activeWorkspace.name,
-            isActive: $0.activeWorkspace == focus.workspace,
-            hasFullscreenWindows: hasFullscreenWindows,
+            name: workspace.name,
+            isActive: workspace == focusedWorkspace,
+            hasFullscreenWindows: workspace.allLeafWindowsRecursive.hasFullscreenWindows,
         )
     }
-    let mode = activeMode?.takeIf { $0 != mainModeId }?.first.map {
-        TrayItem(type: .mode, name: $0.uppercased(), isActive: true, hasFullscreenWindows: false)
+    let workspaceTexts = visibleWorkspaces.map { item in
+        let name = item.hasFullscreenWindows ? "[\(item.name)]" : item.name
+        return (item.isActive && monitors.count > 1 ? "*" : "") + name
     }
-    if let mode {
-        items.insert(mode, at: 0)
-    }
-    TrayMenuModel.shared.trayItems = items
+    let modeItems = modeLetter.map { [TrayItem(type: .mode, name: $0, isActive: true, hasFullscreenWindows: false)] } ?? []
+
+    let model = world.ui.trayMenuModel
+    model.trayText = (modeLetter.map { "(\($0)) " } ?? "") + workspaceTexts.joined(separator: " │ ")
+    model.trayItems = modeItems + visibleWorkspaces
+    model.workspaces = Workspace.all.map { WorkspaceViewModel($0, isFocused: $0 == focusedWorkspace) }
+}
+
+extension [Window] {
+    fileprivate var hasFullscreenWindows: Bool { contains { $0.isFullscreen } }
 }
 
 struct WorkspaceViewModel: Hashable {
     let name: String
-    let suffix: String
+    let appsOrMonitor: String
     let isFocused: Bool
     let isEffectivelyEmpty: Bool
     let isVisible: Bool
     let hasFullscreenWindows: Bool
 }
 
-enum TrayItemType: String, Hashable {
+extension WorkspaceViewModel {
+    init(_ workspace: Workspace, isFocused: Bool) {
+        let windows = workspace.allLeafWindowsRecursive
+        let apps = windows.compactMap(\.app.name).filter { !$0.isEmpty }.toSet()
+        let dash = " - "
+        let appsOrMonitor = switch true {
+            case !apps.isEmpty: dash + apps.sorted().joinTruncating(separator: ", ", length: 25)
+            case workspace.isVisible: dash + workspace.workspaceMonitor.name
+            default: ""
+        }
+        self.init(
+            name: workspace.name,
+            appsOrMonitor: appsOrMonitor,
+            isFocused: isFocused,
+            isEffectivelyEmpty: workspace.isEffectivelyEmpty,
+            isVisible: workspace.isVisible,
+            hasFullscreenWindows: windows.hasFullscreenWindows,
+        )
+    }
+}
+
+enum TrayItemType: String {
     case mode
     case workspace
 }
@@ -92,12 +124,14 @@ struct TrayItem: Hashable, Identifiable {
     let isActive: Bool
     let hasFullscreenWindows: Bool
     var systemImageName: String? {
-        // System image type is only valid for numbers 0 to 50 and single capital char workspace name
-        switch Int(name) {
-            case let number?: if !(0 ... 50).contains(number) { return nil }
-            case nil where name.count == 1: if !validLetters.contains(name) { return nil }
-            default: return nil
+        // System image type is only valid for numbers 0 to 50 (also 00 to 09) and single capital char workspace name.
+        // Int(name) also accepts names such as "+5", "-0" and "005", which have no system image
+        let isSupported = if let number = Int(name) {
+            (0 ... 50).contains(number) && name.count <= 2 && name.allSatisfy(\.isWholeNumber)
+        } else {
+            name.count == 1 && validLetters.contains(name)
         }
+        guard isSupported else { return nil }
         let lowercasedName = name.lowercased()
         return switch type {
             case .mode: "\(lowercasedName).circle"

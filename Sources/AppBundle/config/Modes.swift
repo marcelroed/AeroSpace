@@ -1,0 +1,84 @@
+import AppKit
+import Common
+import HotKey
+
+struct Mode: Equatable, Sendable {
+    var bindings: [String: HotkeyBinding]
+
+    static let zero = Mode(bindings: [:])
+}
+
+struct HotkeyBinding: Equatable, Sendable {
+    let modifiers: NSEvent.ModifierFlags
+    let keyCode: Key
+    let commands: Shell<any Command>
+    let descriptionWithKeyCode: String
+    let descriptionWithKeyNotation: String
+
+    init(_ modifiers: NSEvent.ModifierFlags, _ keyCode: Key, _ commands: Shell<any Command>, descriptionWithKeyNotation: String) {
+        self.modifiers = modifiers
+        self.keyCode = keyCode
+        self.commands = commands
+        self.descriptionWithKeyCode = Self.descriptionWithKeyCode(modifiers, keyCode)
+        self.descriptionWithKeyNotation = descriptionWithKeyNotation
+    }
+
+    static func descriptionWithKeyCode(_ modifiers: NSEvent.ModifierFlags, _ keyCode: Key) -> String {
+        modifiers.isEmpty ? keyCode.toString() : modifiers.toString() + "-" + keyCode.toString()
+    }
+
+    static func == (lhs: HotkeyBinding, rhs: HotkeyBinding) -> Bool {
+        lhs.modifiers == rhs.modifiers &&
+            lhs.keyCode == rhs.keyCode &&
+            lhs.descriptionWithKeyCode == rhs.descriptionWithKeyCode &&
+            lhs.commands.strictEquals(rhs.commands)
+    }
+}
+
+func decodeModes(_ raw: OrderedJson, _ path: ConfigBacktrace, _ mapping: [String: Key], _ d: inout Diagnostics) -> [String: Mode] {
+    guard let table = decodeDict(raw, path, &d) else { return [:] }
+    let fields: [String: Field<Mode>] = ["binding": Field(\.bindings) { raw, path, d in decodeBindings(raw, path, mapping, &d) }]
+    var result: [String: Mode] = [:]
+    for (name, raw) in table {
+        var mode = Mode.zero
+        decodeTable(raw, into: &mode, fields, path + .key(name), &d)
+        result[name] = mode
+    }
+    if !result.keys.contains(mainModeId) {
+        d.error(path, "Please specify '\(mainModeId)' mode")
+    }
+    return result
+}
+
+/// A binding with a bad key, modifiers or command is dropped: the key stays with the apps.
+/// A redeclaration is reported even if one of the two bindings is dropped. The later of two usable bindings wins
+private func decodeBindings(_ raw: OrderedJson, _ path: ConfigBacktrace, _ mapping: [String: Key], _ d: inout Diagnostics) -> [String: HotkeyBinding]? {
+    guard let table = decodeDict(raw, path, &d) else { return nil }
+    var result: [String: HotkeyBinding] = [:]
+    var declared: Set<String> = []
+    for (notation, rawCommand) in table {
+        let path = path + .key(notation)
+        guard let (modifiers, key) = parseBinding(notation, path, mapping, &d) else { continue }
+        let descriptionWithKeyCode = HotkeyBinding.descriptionWithKeyCode(modifiers, key)
+        if !declared.insert(descriptionWithKeyCode).inserted {
+            d.error(path, "'\(descriptionWithKeyCode)' Binding redeclaration")
+        }
+        if let commands = decodeShellOfCommands(rawCommand, path, &d) {
+            result[descriptionWithKeyCode] = HotkeyBinding(modifiers, key, commands, descriptionWithKeyNotation: notation)
+        }
+    }
+    return result
+}
+
+private func parseBinding(_ raw: String, _ path: ConfigBacktrace, _ mapping: [String: Key], _ d: inout Diagnostics) -> (NSEvent.ModifierFlags, Key)? {
+    let parts = raw.split(separator: "-")
+    guard let modifiers = allOrNil(parts.dropLast().map { modifiersMap[String($0)] }) else {
+        d.error(path, "Can't parse modifiers in '\(raw)' binding")
+        return nil
+    }
+    guard let key = parts.last.flatMap({ mapping[String($0)] }) else {
+        d.error(path, "Can't parse the key in '\(raw)' binding")
+        return nil
+    }
+    return (NSEvent.ModifierFlags(modifiers), key)
+}

@@ -12,18 +12,12 @@ struct FrozenContainer: Sendable {
     let orientation: Orientation
     let weight: CGFloat
 
-    @MainActor init(_ container: TilingContainer) {
+    init(_ container: TilingContainer) {
         children = container.children.map {
-            switch $0.nodeCases {
-                case .window(let w): .window(FrozenWindow(w))
-                case .tilingContainer(let c): .container(FrozenContainer(c))
-                case .workspace,
-                     .floatingWindowsContainer,
-                     .macosMinimizedWindowsContainer,
-                     .macosHiddenAppsWindowsContainer,
-                     .macosFullscreenWindowsContainer,
-                     .macosPopupWindowsContainer:
-                    illegalChildParentRelation(child: $0, parent: container)
+            switch $0 {
+                case let w as Window: .window(FrozenWindow(w))
+                case let c as TilingContainer: .container(FrozenContainer(c))
+                default: dieT("\($0.prettyDescription) can't be a child of a tiling container")
             }
         }
         layout = container.layout
@@ -33,15 +27,15 @@ struct FrozenContainer: Sendable {
 }
 
 struct FrozenWindow: Sendable {
-    let id: UInt32
+    let id: WindowId
     let weight: CGFloat
 
-    @MainActor init(_ window: Window) {
+    init(_ window: Window) {
         id = window.windowId
         weight = getWeightOrNil(window) ?? 1
     }
 }
 
-@MainActor private func getWeightOrNil(_ node: TreeNode) -> CGFloat? {
+private func getWeightOrNil(_ node: TreeNode) -> CGFloat? {
     ((node.parent as? TilingContainer)?.orientation).map { node.getWeight($0) }
 }

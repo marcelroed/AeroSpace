@@ -1,21 +1,6 @@
 import SwiftUI
 
-struct ExperimentalUISettings {
-    var displayStyle: MenuBarStyle {
-        get {
-            switch UserDefaults.standard.string(forKey: ExperimentalUISettingsItems.displayStyle.rawValue) {
-                case let value?: MenuBarStyle(rawValue: value) ?? .monospacedText
-                case nil: .monospacedText
-            }
-        }
-        set {
-            UserDefaults.standard.setValue(newValue.rawValue, forKey: ExperimentalUISettingsItems.displayStyle.rawValue)
-            UserDefaults.standard.synchronize()
-        }
-    }
-}
-
-enum MenuBarStyle: String, CaseIterable, Identifiable, Equatable, Hashable {
+enum MenuBarStyle: String, CaseIterable, Identifiable {
     case monospacedText
     case systemText
     case squares
@@ -33,36 +18,31 @@ enum MenuBarStyle: String, CaseIterable, Identifiable, Equatable, Hashable {
     }
 }
 
-enum ExperimentalUISettingsItems: String {
-    case displayStyle
-}
-
-@MainActor
 func getExperimentalUISettingsMenu(viewModel: TrayMenuModel) -> some View {
-    let color = AppearanceTheme.current == .dark ? Color.white : Color.black
+    let color = viewModel.appearanceTheme == .dark ? Color.white : Color.black
     return Menu {
-        Text("Menu bar style (macOS 14 or later):")
-        ForEach(MenuBarStyle.allCases, id: \.id) { style in
-            MenuBarStyleButton(style: style, color: color).environmentObject(viewModel)
+        Text("Menu bar style:")
+        ForEach(MenuBarStyle.allCases) { style in
+            MenuBarStyleButton(viewModel: viewModel, style: style, color: color)
         }
     } label: {
         Text("Experimental UI Settings (No stability guarantees)")
     }
 }
 
-@MainActor
+// Keep this a separate View whose body reads viewModel.menuBarStyle: that is what redraws the checkmark after a selection.
+// Inlined into the menu, the checkmark stayed on the old style (f26736bf)
 struct MenuBarStyleButton: View {
-    @EnvironmentObject var viewModel: TrayMenuModel
+    let viewModel: TrayMenuModel
     let style: MenuBarStyle
     let color: Color
 
     var body: some View {
         Button {
-            viewModel.experimentalUISettings.displayStyle = style
+            viewModel.menuBarStyle = style
         } label: {
-            Toggle(isOn: .constant(viewModel.experimentalUISettings.displayStyle == style)) {
-                MenuBarLabel(style: style, color: color)
-                    .environmentObject(viewModel)
+            Toggle(isOn: .constant(viewModel.menuBarStyle == style)) {
+                MenuBarLabel(viewModel: viewModel, style: style, color: color)
                 Text(" -  " + style.title)
             }
         }

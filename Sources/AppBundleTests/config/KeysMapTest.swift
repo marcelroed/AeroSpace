@@ -1,0 +1,96 @@
+@testable import AppBundle
+import Common
+import HotKey
+import Testing
+
+@Suite
+struct KeysMapTest {
+    @Test
+    func testKeyToStringIsTheInverseOfKeyNotationToKeyCode() {
+        for (name, key) in keyNotationToKeyCode.sorted(by: { $0.key < $1.key }) {
+            expectEqual(key.toString(), name)
+        }
+    }
+
+    /// Pins the key names, the key codes and the modifier names independently of `Key.toString()`
+    @Test
+    func testQwertyPreset() {
+        expectEqual(getKeysPreset(.qwerty).sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value.carbonKeyCode)" }, [
+            "0=29", "1=18", "2=19", "3=20", "4=21", "5=23", "6=22", "7=26", "8=28", "9=25", "a=0", "b=11", "backslash=42",
+            "backspace=51", "backtick=50", "c=8", "comma=43", "d=2", "down=125", "e=14", "end=119", "enter=36", "equal=24",
+            "esc=53", "f=3", "f1=122", "f10=109", "f11=103", "f12=111", "f13=105", "f14=107", "f15=113", "f16=106",
+            "f17=64", "f18=79", "f19=80", "f2=120", "f20=90", "f3=99", "f4=118", "f5=96", "f6=97", "f7=98", "f8=100",
+            "f9=101", "forwardDelete=117", "g=5", "h=4", "home=115", "i=34", "j=38", "k=40", "keypad0=82", "keypad1=83",
+            "keypad2=84", "keypad3=85", "keypad4=86", "keypad5=87", "keypad6=88", "keypad7=89", "keypad8=91", "keypad9=92",
+            "keypadClear=71", "keypadDecimalMark=65", "keypadDivide=75", "keypadEnter=76", "keypadEqual=81", "keypadMinus=78",
+            "keypadMultiply=67", "keypadPlus=69", "l=37", "left=123", "leftSquareBracket=33", "m=46", "minus=27",
+            "n=45", "o=31", "p=35", "pageDown=121", "pageUp=116", "period=47", "q=12", "quote=39", "r=15", "right=124",
+            "rightSquareBracket=30", "s=1", "sectionSign=10", "semicolon=41", "slash=44", "space=49", "t=17", "tab=48",
+            "u=32", "up=126", "v=9", "w=13", "x=7", "y=16", "z=6",
+        ])
+        expectEqual(modifiersMap.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value.rawValue)" }, [
+            "alt=524288", "cmd=1048576", "ctrl=262144", "shift=131072",
+        ])
+    }
+
+    /// Every preset has the same key names. dvorak and colemak differ from qwerty only in the listed keys
+    /// (`name=qwertyName`: the key name maps to the key that has `qwertyName` on qwerty)
+    @Test
+    func testDvorakAndColemakPresets() {
+        for preset in KeyMapping.Preset.allCases {
+            expectEqual(Set(getKeysPreset(preset).keys), Set(keyNotationToKeyCode.keys))
+        }
+        func differencesFromQwerty(_ preset: KeyMapping.Preset) -> [String] {
+            getKeysPreset(preset).filter { $0.value != keyNotationToKeyCode[$0.key] }
+                .sorted { $0.key < $1.key }
+                .map { "\($0.key)=\($0.value.toString())" }
+        }
+        expectEqual(differencesFromQwerty(.dvorak), [
+            "b=n", "c=i", "comma=w", "d=h", "e=d", "equal=rightSquareBracket", "f=y", "g=u", "h=j", "i=g", "j=c",
+            "k=v", "l=p", "leftSquareBracket=minus", "minus=quote", "n=l", "o=s", "p=r", "period=e", "q=x", "quote=q",
+            "r=o", "rightSquareBracket=equal", "s=semicolon", "semicolon=z", "slash=leftSquareBracket", "t=k", "u=f",
+            "v=period", "w=comma", "x=b", "y=t", "z=slash",
+        ])
+        expectEqual(differencesFromQwerty(.colemak), [
+            "d=g", "e=k", "f=e", "g=t", "i=l", "j=y", "k=n", "l=u", "n=j", "o=semicolon", "p=r", "r=s", "s=d", "semicolon=p",
+            "t=f", "u=i", "y=o",
+        ])
+    }
+
+    @Test
+    func testBindingDescriptionWithKeyCode() {
+        let result = parseConfig(
+            """
+            key-mapping.preset = 'dvorak'
+            [mode.main.binding]
+                alt-quote = 'focus left'
+                cmd-shift-ctrl-alt-backtick = 'focus right'
+                keypadDecimalMark = 'focus up'
+            """,
+        )
+        expectEqual(result.errors, [])
+        let bindings = result.config.modes[mainModeId]?.bindings.values.sorted { $0.descriptionWithKeyCode < $1.descriptionWithKeyCode } ?? []
+        expectEqual(bindings.map(\.descriptionWithKeyCode), ["alt-ctrl-cmd-shift-backtick", "alt-q", "keypadDecimalMark"])
+        expectEqual(bindings.map(\.descriptionWithKeyNotation), ["cmd-shift-ctrl-alt-backtick", "alt-quote", "keypadDecimalMark"])
+    }
+
+    /// A redeclaration is reported even if one of the two bindings is dropped. The later of two usable bindings wins
+    @Test(arguments: [
+        ("focus right", ["[ERROR] mode.main.binding.shift-alt-h: 'alt-shift-h' Binding redeclaration"], "shift-alt-h"),
+        ("bogus", [
+            "[ERROR] mode.main.binding.shift-alt-h: 'alt-shift-h' Binding redeclaration",
+            "[ERROR] mode.main.binding.shift-alt-h: Unrecognized subcommand 'bogus'",
+        ], "alt-shift-h"),
+    ] as [(String, [String], String)])
+    func bindingRedeclaration(secondCommand: String, errors: [String], winner: String) {
+        let result = parseConfig(
+            """
+            [mode.main.binding]
+                alt-shift-h = 'focus left'
+                shift-alt-h = '\(secondCommand)'
+            """,
+        )
+        expectEqual(result.strErrors, errors)
+        expectEqual(result.config.modes[mainModeId]?.bindings["alt-shift-h"]?.descriptionWithKeyNotation, winner)
+    }
+}

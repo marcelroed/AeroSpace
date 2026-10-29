@@ -1,48 +1,42 @@
 import AppKit
-import Carbon
 import SwiftUI
 
 private let iconSize = CGSize(width: 50, height: 50)
 private let textSize = CGSize(width: 440, height: 110)
 
-public final class SecureInputPanel: NSPanelHud {
-    @MainActor public static var shared: SecureInputPanel = SecureInputPanel()
-    private var hostingView = NSHostingView(rootView: SecureInputView())
+final class SecureInputPanel: NSPanelHud {
+    private var hostingView: NSHostingView<SecureInputView>?
 
-    override private init() {
-        super.init()
+    /// The hotkeys don't work while secure input is on
+    static var isNeeded: Bool {
+        guard let activeMode = world.activeMode, world.isEnabled else { return false }
+        return config.modes[activeMode]?.bindings.isEmpty == false && world.platform.isSecureInputEnabled
     }
 
-    @MainActor
-    public func refresh() {
-        if let activeMode, TrayMenuModel.shared.isEnabled &&
-            config.modes[activeMode]?.bindings.isEmpty == false && IsSecureEventInputEnabled()
-        {
+    func refresh() {
+        if Self.isNeeded {
             if isVisible { return }
             self.contentView?.subviews.removeAll()
-            hostingView = NSHostingView(rootView: SecureInputView())
-            hostingView.frame = NSRect(x: 0, y: 0, width: iconSize.width, height: iconSize.height)
+            // A new view on every open, so that it starts minimized
+            let hostingView = NSHostingView(rootView: SecureInputView(panel: self))
+            self.hostingView = hostingView
             self.contentView?.addSubview(hostingView)
-            let x = mainMonitorInfo.width - iconSize.width - 20
-            let panelFrame = NSRect(x: x, y: 20, width: iconSize.width, height: iconSize.width)
-            self.setFrame(panelFrame, display: true)
+            updateFrame(isMinimized: true)
             self.orderFrontRegardless()
         } else {
             close()
         }
     }
 
-    public func updateFrame(isMinimized: Bool) {
-        let width = isMinimized ? iconSize.width : textSize.width
-        let height = isMinimized ? iconSize.height : textSize.height
-        hostingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
-        let x = mainMonitorInfo.width - width - 20
-        let panelFrame = NSRect(x: x, y: 20, width: width, height: height)
-        self.setFrame(panelFrame, display: true)
+    func updateFrame(isMinimized: Bool) {
+        let size = isMinimized ? iconSize : textSize
+        hostingView?.frame = NSRect(origin: .zero, size: size)
+        self.setFrame(rightEdgeFrame(size: size, y: 20), display: true)
     }
 }
 
 struct SecureInputView: View {
+    let panel: SecureInputPanel
     @State var isMinimized: Bool = true
 
     @Environment(\.colorScheme) var colorScheme: ColorScheme
@@ -69,10 +63,10 @@ struct SecureInputView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .onTapGesture {
             if !isMinimized {
-                SecureInputPanel.shared.refresh()
+                panel.refresh()
             }
             isMinimized.toggle()
-            SecureInputPanel.shared.updateFrame(isMinimized: isMinimized)
+            panel.updateFrame(isMinimized: isMinimized)
         }
         .frame(
             width: isMinimized ? iconSize.width : textSize.width,

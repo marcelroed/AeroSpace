@@ -19,10 +19,13 @@ aerospace workspace-back-and-forth [-h|--help]
 // tag::body[]
 {manpurpose}
 
-Unlike `focus-back-and-forth`, `workspace-back-and-forth` always succeeds.
+Unlike `focus-back-and-forth`, `workspace-back-and-forth` succeeds even if the previously focused workspace was destroyed.
 Because unlike windows, workspaces can not be "closed".
 Workspaces are name-addressable objects.
 They are created and destroyed on the fly.
+
+If there is no previously focused workspace yet (e.g. right after AeroSpace starts),
+the command will exit with non-zero exit code.
 
 Also see: <<focus-back-and-forth, focus-back-and-forth>>
 // end::body[]

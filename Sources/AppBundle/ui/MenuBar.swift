@@ -2,98 +2,138 @@ import Common
 import Foundation
 import SwiftUI
 
-@MainActor
-public func menuBar(viewModel: TrayMenuModel) -> some Scene { // todo should it be converted to "SwiftUI struct"?
+public func menuBar(_ ui: Ui) -> some Scene {
     MenuBarExtra {
+        MenuBarMenu(viewModel: ui.trayMenuModel)
+    } label: {
+        MenuBarIcon(viewModel: ui.trayMenuModel, messageModel: ui.messageModel)
+    }
+}
+
+// The views that show the model's state are View structs whose body reads it. Then a change re-renders them.
+// Re-evaluating the scene doesn't update the menu (see MenuBarStyleButton). The buttons check that AeroSpace is enabled
+// when they are pressed: `world` isn't observable, only its copy in the model is
+private struct MenuBarMenu: View {
+    let viewModel: TrayMenuModel
+
+    var body: some View {
         let shortIdentification = "\(aeroSpaceAppName) v\(aeroSpaceAppVersion) \(gitShortHash)"
         let identification      = "\(aeroSpaceAppName) v\(aeroSpaceAppVersion) \(gitHash)"
         Text(shortIdentification)
-        Button("Copy to clipboard") { identification.copyToClipboard() }
-            .keyboardShortcut("C", modifiers: .command)
+        Button("Copy to clipboard") {
+            let pasteboard = NSPasteboard.general
+            pasteboard.declareTypes([.string], owner: nil)
+            pasteboard.setString(identification, forType: .string)
+        }.keyboardShortcut("C", modifiers: .command)
         Divider()
 
         if viewModel.axPermissionStatus == .granted {
-            if let token: RunSessionGuard = .isServerEnabled, viewModel.lastReloadConfigContainedWarnings {
-                Button {
-                    Task.startUnstructured {
-                        try await runLightSession(.menuBarButton, token) {
-                            let args: ReloadConfigCmdArgs = ReloadConfigCmdArgs(rawArgs: []).copy(\.warningsAsErrors, true)
-                            _ = await reloadConfig_nonCancellable(args: args)
-                        }
-                    }
-                } label: {
-                    Label("Config contains warnings...", systemImage: "exclamationmark.triangle.fill")
-                }
+            if viewModel.isEnabled {
+                workspacesSection(viewModel)
                 Divider()
             }
-            if let token: RunSessionGuard = .isServerEnabled {
-                Text("Workspaces:")
-                ForEach(viewModel.workspaces, id: \.name) { workspace in
-                    Button {
-                        Task.startUnstructured {
-                            try await runLightSession(.menuBarButton, token) { _ = Workspace.get(byName: workspace.name).focusWorkspace() }
-                        }
-                    } label: {
-                        Toggle(isOn: .constant(workspace.isFocused)) {
-                            Text(workspace.name + workspace.suffix).font(.system(.body, design: .monospaced))
-                        }
-                    }
-                }
-                Divider()
-            }
-            Button {
-                NSWorkspace.shared.open(URL(string: "https://github.com/sponsors/nikitabobko").orDie())
-                viewModel.sponsorshipMessage = sponsorshipPrompts.randomElement().orDie()
-            } label: {
-                Text("Sponsor AeroSpace on GitHub")
-                Text(viewModel.sponsorshipMessage)
-            }
+            sponsorButton(viewModel)
             Divider()
-            Button(viewModel.isEnabled ? "Disable" : "Enable") {
-                Task.startUnstructured {
-                    try await runLightSession(.menuBarButton, .forceRun) {
-                        _ = await EnableCommand(args: EnableCmdArgs(rawArgs: [], targetState: .toggle))
-                            .run(.defaultEnv, .emptyStdin)
-                    }
-                }
-            }.keyboardShortcut("E", modifiers: .command)
+            enableToggleButton(viewModel)
             getExperimentalUISettingsMenu(viewModel: viewModel)
-            openConfigButton()
-            reloadConfigButton(warningsAsErrors: false)
+            openConfigButton(editorName: viewModel.textEditorToOpenConfig.lastPathComponent)
+            reloadConfigButton(viewModel)
         } else {
             Button("AeroSpace requires accessibility permission to move windows") {
                 viewModel.axPermissionStatus = .waitingWithPrompt
             }
         }
-        Button("Quit \(aeroSpaceAppName)") {
+        quitButton()
+    }
+}
+
+@ViewBuilder
+private func workspacesSection(_ viewModel: TrayMenuModel) -> some View {
+    Text("Workspaces:")
+    ForEach(viewModel.workspaces, id: \.name) { workspace in
+        Button {
             Task.startUnstructured {
-                terminationHandler?.beforeTermination()
-                terminateApp()
+                guard let token: RunSessionGuard = .isServerEnabled else { return }
+                try await world.sessions.light(.menuBarButton, token) { _ = Workspace.get(byName: workspace.name).focusWorkspace() }
             }
-        }.keyboardShortcut("Q", modifiers: .command)
-    } label: {
-        switch (viewModel.axPermissionStatus, viewModel.isEnabled) {
-            case (.granted, true):
-                MenuBarLabel().environmentObject(viewModel)
-            case (.granted, false):
-                Image(systemName: "pause.circle.fill")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-            case (_, _):
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+        } label: {
+            Toggle(isOn: .constant(workspace.isFocused)) {
+                Text(workspace.name + workspace.appsOrMonitor).font(.system(.body, design: .monospaced))
+            }
         }
     }
 }
 
-@MainActor @ViewBuilder
-func openConfigButton(showShortcutGroup: Bool = false) -> some View {
-    let editor = getTextEditorToOpenConfig()
-    let button = Button("Open config in '\(editor.lastPathComponent)'") {
+private func sponsorButton(_ viewModel: TrayMenuModel) -> some View {
+    Button {
+        NSWorkspace.shared.open(URL(string: "https://github.com/sponsors/nikitabobko").orDie())
+        viewModel.sponsorshipMessage = sponsorshipPrompts.randomElement().orDie()
+    } label: {
+        Text("Sponsor AeroSpace on GitHub")
+        Text(viewModel.sponsorshipMessage)
+    }
+}
+
+private func enableToggleButton(_ viewModel: TrayMenuModel) -> some View {
+    Button(viewModel.isEnabled ? "Disable" : "Enable") {
+        Task.startUnstructured {
+            try await world.sessions.light(.menuBarButton, .forceRun) {
+                _ = await Shell.cmd(EnableCommand(targetState: .toggle)).run(.defaultEnv, .emptyStdin)
+            }
+        }
+    }.keyboardShortcut("E", modifiers: .command)
+}
+
+private func quitButton() -> some View {
+    Button("Quit \(aeroSpaceAppName)") {
+        Task.startUnstructured {
+            terminationHandler?.beforeTermination()
+            terminateApp()
+        }
+    }.keyboardShortcut("Q", modifiers: .command)
+}
+
+/// The menu bar extra's label. The extra has no isInserted binding, so the label lives as long as the app. That makes
+/// it the view that opens the config diagnostics window: SwiftUI documents Observation tracking for a View's body,
+/// not for the App's or a Scene's body
+struct MenuBarIcon: View {
+    let viewModel: TrayMenuModel
+    let messageModel: MessageModel
+    @Environment(\.openWindow) private var openWindow: OpenWindowAction
+
+    var body: some View {
+        // initial: the message may be set before the label first appears (a config error at startup)
+        icon.onChange(of: messageModel.message, initial: true) { _, message in
+            if message != nil {
+                openWindow(id: messageWindowId)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var icon: some View {
+        let granted = viewModel.axPermissionStatus == .granted
+        if granted && viewModel.isEnabled {
+            MenuBarLabel(viewModel: viewModel)
+        } else {
+            Image(systemName: granted ? "pause.circle.fill" : "exclamationmark.triangle.fill")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+        }
+    }
+}
+
+@ViewBuilder
+func openConfigButton(editorName: String = getTextEditorToOpenConfig().lastPathComponent, showShortcutGroup: Bool = false) -> some View {
+    let button = Button("Open config in '\(editorName)'") {
+        // Looked up again: the label may name the editor that was polled when the menu opened, before the user changed it
+        let editor = getTextEditorToOpenConfig()
         let fallbackConfig: URL = FileManager.default.homeDirectoryForCurrentUser.appending(path: configDotfileName)
         switch findCustomConfigUrl() {
             case .file(let url):
+                if !FileManager.default.fileExists(atPath: url.path) { // The --config-path file was deleted after the startup
+                    _ = try? FileManager.default.copyItem(atPath: defaultConfigUrl.path, toPath: url.path)
+                }
                 url.open(with: editor)
             case .noCustomConfigExists:
                 _ = try? FileManager.default.copyItem(atPath: defaultConfigUrl.path, toPath: fallbackConfig.path)
@@ -108,20 +148,25 @@ func openConfigButton(showShortcutGroup: Bool = false) -> some View {
     }
 }
 
-@MainActor @ViewBuilder
-func reloadConfigButton(showShortcutGroup: Bool = false, warningsAsErrors: Bool) -> some View {
-    if let token: RunSessionGuard = .isServerEnabled {
+/// Only while AeroSpace is enabled. `viewModel` is the observed copy of that state
+@ViewBuilder
+func reloadConfigButton(_ viewModel: TrayMenuModel, showShortcutGroup: Bool = false) -> some View {
+    if viewModel.isEnabled {
         let button = Button("Reload config") {
-            Task.startUnstructured {
-                try await runLightSession(.menuBarButton, token) {
-                    let args: ReloadConfigCmdArgs = ReloadConfigCmdArgs(rawArgs: []).copy(\.warningsAsErrors, warningsAsErrors)
-                    _ = await reloadConfig_nonCancellable(args: args)
-                }
-            }
+            reloadConfigFromMenu()
         }.keyboardShortcut("R", modifiers: .command)
         switch showShortcutGroup {
             case true: shortcutGroup(label: Text("⌘ R"), content: button)
             case false: button
+        }
+    }
+}
+
+private func reloadConfigFromMenu() {
+    Task.startUnstructured {
+        guard let token: RunSessionGuard = .isServerEnabled else { return }
+        try await world.sessions.light(.menuBarButton, token) {
+            _ = reloadConfig()
         }
     }
 }
@@ -137,7 +182,11 @@ func shortcutGroup(label: some View, content: some View) -> some View {
 }
 
 func getTextEditorToOpenConfig() -> URL {
-    NSWorkspace.shared.urlForApplication(toOpen: findCustomConfigUrl().urlOrNil ?? defaultConfigUrl)?
-        .takeIf { $0.lastPathComponent != "Xcode.app" } // Blacklist Xcode. It is too heavy to open plain text files
-        ?? URL(filePath: "/System/Applications/TextEdit.app")
+    // urlForApplication(toOpen:) returns nil for a missing file, e.g. a deleted --config-path file.
+    // "Open config" recreates such a file from the default config
+    let customConfig = findCustomConfigUrl().urlOrNil
+    let config = if let customConfig, FileManager.default.fileExists(atPath: customConfig.path) { customConfig } else { defaultConfigUrl }
+    // Blacklist Xcode. It is too heavy to open plain text files
+    if let editor = NSWorkspace.shared.urlForApplication(toOpen: config), editor.lastPathComponent != "Xcode.app" { return editor }
+    return URL(filePath: "/System/Applications/TextEdit.app")
 }

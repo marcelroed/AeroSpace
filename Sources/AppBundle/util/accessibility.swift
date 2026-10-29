@@ -1,22 +1,23 @@
 import AppKit
 import Common
 import PrivateApi
+import Synchronization
 
-@MainActor
 func waitForAccessibilityPermission_nonCancellable() async {
     let options = [axTrustedCheckOptionPrompt: true]
     while true {
-        let status = TrayMenuModel.shared.axPermissionStatus == .waitingWithPrompt
+        let model = world.ui.trayMenuModel
+        let status = model.axPermissionStatus == .waitingWithPrompt
             ? AXIsProcessTrustedWithOptions(options as CFDictionary)
             : AXIsProcessTrusted()
         if status {
-            TrayMenuModel.shared.axPermissionStatus = .granted
+            model.axPermissionStatus = .granted
             break
         }
-        if TrayMenuModel.shared.axPermissionStatus == .waitingWithPrompt {
+        if model.axPermissionStatus == .waitingWithPrompt {
             resetAccessibility() // Because macOS doesn't reset it for us when the app signature changes...
         }
-        TrayMenuModel.shared.axPermissionStatus = .waiting
+        model.axPermissionStatus = .waiting
         try? await Task.sleep(for: .seconds(1))
     }
 }
@@ -25,156 +26,19 @@ private func resetAccessibility() {
     _ = try? Process.run(URL(filePath: "/usr/bin/tccutil"), arguments: ["reset", "Accessibility", aeroSpaceAppId])
 }
 
-protocol ReadableAttr: Sendable {
+// The AX attributes are read and written on the AX app threads
+nonisolated protocol ReadableAttr: Sendable {
     associatedtype T
     var getter: @Sendable (AnyObject) -> T? { get }
     var key: String { get }
 }
 
-protocol WritableAttr: ReadableAttr, Sendable {
+nonisolated protocol WritableAttr: ReadableAttr, Sendable {
     var setter: @Sendable (T) -> CFTypeRef? { get }
 }
 
-// Quick reference:
-//
-// // informational attributes
-// kAXRoleAttribute
-// kAXSubroleAttribute
-// kAXRoleDescriptionAttribute
-// kAXTitleAttribute
-// kAXDescriptionAttribute
-// kAXHelpAttribute
-//
-// // hierarchy or relationship attributes
-// kAXParentAttribute
-// kAXChildrenAttribute
-// kAXSelectedChildrenAttribute
-// kAXVisibleChildrenAttribute
-// kAXWindowAttribute
-// kAXTopLevelUIElementAttribute
-// kAXTitleUIElementAttribute
-// kAXServesAsTitleForUIElementsAttribute
-// kAXLinkedUIElementsAttribute
-// kAXSharedFocusElementsAttribute
-//
-// // visual state attributes
-// kAXEnabledAttribute
-// kAXFocusedAttribute
-// kAXPositionAttribute
-// kAXSizeAttribute
-//
-// // value attributes
-// kAXValueAttribute
-// kAXValueDescriptionAttribute
-// kAXMinValueAttribute
-// kAXMaxValueAttribute
-// kAXValueIncrementAttribute
-// kAXValueWrapsAttribute
-// kAXAllowedValuesAttribute
-//
-// // text-specific attributes
-// kAXSelectedTextAttribute
-// kAXSelectedTextRangeAttribute
-// kAXSelectedTextRangesAttribute
-// kAXVisibleCharacterRangeAttribute
-// kAXNumberOfCharactersAttribute
-// kAXSharedTextUIElementsAttribute
-// kAXSharedCharacterRangeAttribute
-//
-// // window, sheet, or drawer-specific attributes
-// kAXMainAttribute
-// kAXMinimizedAttribute
-// kAXCloseButtonAttribute
-// kAXZoomButtonAttribute
-// kAXMinimizeButtonAttribute
-// kAXToolbarButtonAttribute
-// kAXProxyAttribute
-// kAXGrowAreaAttribute
-// kAXModalAttribute
-// kAXDefaultButtonAttribute
-// kAXCancelButtonAttribute
-//
-// // menu or menu item-specific attributes
-// kAXMenuItemCmdCharAttribute
-// kAXMenuItemCmdVirtualKeyAttribute
-// kAXMenuItemCmdGlyphAttribute
-// kAXMenuItemCmdModifiersAttribute
-// kAXMenuItemMarkCharAttribute
-// kAXMenuItemPrimaryUIElementAttribute
-//
-// // application element-specific attributes
-// kAXMenuBarAttribute
-// kAXWindowsAttribute
-// kAXFrontmostAttribute
-// kAXHiddenAttribute
-// kAXMainWindowAttribute
-// kAXFocusedWindowAttribute
-// kAXFocusedUIElementAttribute
-// kAXExtrasMenuBarAttribute
-//
-// // date/time-specific attributes
-// kAXHourFieldAttribute
-// kAXMinuteFieldAttribute
-// kAXSecondFieldAttribute
-// kAXAMPMFieldAttribute
-// kAXDayFieldAttribute
-// kAXMonthFieldAttribute
-// kAXYearFieldAttribute
-//
-// // table, outline, or browser-specific attributes
-// kAXRowsAttribute
-// kAXVisibleRowsAttribute
-// kAXSelectedRowsAttribute
-// kAXColumnsAttribute
-// kAXVisibleColumnsAttribute
-// kAXSelectedColumnsAttribute
-// kAXSortDirectionAttribute
-// kAXColumnHeaderUIElementsAttribute
-// kAXIndexAttribute
-// kAXDisclosingAttribute
-// kAXDisclosedRowsAttribute
-// kAXDisclosedByRowAttribute
-//
-// // matte-specific attributes
-// kAXMatteHoleAttribute
-// kAXMatteContentUIElementAttribute
-//
-// // ruler-specific attributes
-// kAXMarkerUIElementsAttribute
-// kAXUnitsAttribute
-// kAXUnitDescriptionAttribute
-// kAXMarkerTypeAttribute
-// kAXMarkerTypeDescriptionAttribute
-//
-// // miscellaneous or role-specific attributes
-// kAXHorizontalScrollBarAttribute
-// kAXVerticalScrollBarAttribute
-// kAXOrientationAttribute
-// kAXHeaderAttribute
-// kAXEditedAttribute
-// kAXTabsAttribute
-// kAXOverflowButtonAttribute
-// kAXFilenameAttribute
-// kAXExpandedAttribute
-// kAXSelectedAttribute
-// kAXSplittersAttribute
-// kAXContentsAttribute
-// kAXNextContentsAttribute
-// kAXPreviousContentsAttribute
-// kAXDocumentAttribute
-// kAXIncrementorAttribute
-// kAXDecrementButtonAttribute
-// kAXIncrementButtonAttribute
-// kAXColumnTitleAttribute
-// kAXURLAttribute
-// kAXLabelUIElementsAttribute
-// kAXLabelValueAttribute
-// kAXShownMenuUIElementAttribute
-// kAXIsApplicationRunningAttribute
-// kAXFocusedApplicationAttribute
-// kAXElementBusyAttribute
-// kAXAlternateUIVisibleAttribute
-enum Ax {
+// Attribute names: kAX*Attribute constants in ApplicationServices/HIServices/AXAttributeConstants.h
+nonisolated enum Ax {
     struct ReadableAttrImpl<T>: ReadableAttr {
         var key: String
         var getter: @Sendable (AnyObject) -> T?
@@ -186,192 +50,160 @@ enum Ax {
         var setter: @Sendable (T) -> CFTypeRef?
     }
 
-    static let parentWindowRecursive = ReadableAttrImpl<AXUIElement>(
-        key: kAXWindowAttribute,
-        getter: { ($0 as! AXUIElement) },
-    )
-    static let titleAttr = WritableAttrImpl<String>(
-        key: kAXTitleAttribute,
-        getter: { $0 as? String },
-        setter: { $0 as CFTypeRef },
-    )
-    static let roleAttr = WritableAttrImpl<String>(
-        key: kAXRoleAttribute,
-        getter: { $0 as? String },
-        setter: { $0 as CFTypeRef },
-    )
-    static let subroleAttr = WritableAttrImpl<String>(
-        key: kAXSubroleAttribute,
-        getter: { $0 as? String },
-        setter: { $0 as CFTypeRef },
-    )
-    static let identifierAttr = ReadableAttrImpl<String>(
-        key: kAXIdentifierAttribute,
-        getter: { $0 as? String },
-    )
-    // static let modalAttr = ReadableAttrImpl<Bool>(
-    //     key: kAXModalAttribute,
-    //     getter: { $0 as? Bool },
-    // )
-    static let enabledAttr = ReadableAttrImpl<Bool>(
-        key: kAXEnabledAttribute,
-        getter: { $0 as? Bool },
-    )
-    static let enhancedUserInterfaceAttr = WritableAttrImpl<Bool>(
-        key: "AXEnhancedUserInterface",
-        getter: { $0 as? Bool },
-        setter: { $0 as CFTypeRef },
-    )
-    static let minimizedAttr = WritableAttrImpl<Bool>(
-        key: kAXMinimizedAttribute,
-        getter: { $0 as? Bool },
-        setter: { $0 as CFTypeRef },
-    )
-    //static let minimizedAttr = ReadableAttrImpl<Bool>(
-    //    key: kAXMinimizedAttribute,
-    //    getter: { $0 as? Bool }
-    //)
-    static let isFullscreenAttr = WritableAttrImpl<Bool>(
-        key: "AXFullScreen",
-        getter: { $0 as? Bool },
-        setter: { $0 as CFTypeRef },
-    )
-    static let isFocused = ReadableAttrImpl<Bool>(
-        key: kAXFocusedAttribute,
-        getter: { $0 as? Bool },
-    )
-    static let isMainAttr = WritableAttrImpl<Bool>(
-        key: kAXMainAttribute,
-        getter: { $0 as? Bool },
-        setter: { $0 as CFTypeRef },
-    )
-    static let sizeAttr = WritableAttrImpl<CGSize>(
-        key: kAXSizeAttribute,
-        getter: {
-            var raw: CGSize = .zero
-            check(unsafe AXValueGetValue($0 as! AXValue, .cgSize, &raw))
-            return raw
-        },
-        setter: {
-            var size = $0
-            return unsafe AXValueCreate(.cgSize, &size) as CFTypeRef
-        },
-    )
-    static let topLeftCornerAttr = WritableAttrImpl<CGPoint>(
-        key: kAXPositionAttribute,
-        getter: {
-            var raw: CGPoint = .zero
-            check(unsafe AXValueGetValue($0 as! AXValue, .cgPoint, &raw))
-            return raw
-        },
-        setter: {
-            var size = $0
-            return unsafe AXValueCreate(.cgPoint, &size) as CFTypeRef
-        },
-    )
+    private static func readableString(_ key: String) -> ReadableAttrImpl<String> {
+        ReadableAttrImpl(key: key, getter: { $0 as? String })
+    }
+
+    private static func readableBool(_ key: String) -> ReadableAttrImpl<Bool> {
+        ReadableAttrImpl(key: key, getter: { $0 as? Bool })
+    }
+
+    private static func writableBool(_ key: String) -> WritableAttrImpl<Bool> {
+        WritableAttrImpl(key: key, getter: { $0 as? Bool }, setter: { $0 as CFTypeRef })
+    }
+
+    private static func readableAxUiElementMock(_ key: String) -> ReadableAttrImpl<any AxUiElementMock> {
+        ReadableAttrImpl(key: key, getter: { axUiElementOrNil($0) })
+    }
+
+    private static func readableAxUiElement(_ key: String) -> ReadableAttrImpl<AXUIElement> {
+        ReadableAttrImpl(key: key, getter: axUiElementOrNil)
+    }
+
+    private static func writableAxValue<V: BitwiseCopyable & Sendable>(_ key: String, _ type: AXValueType, _ zero: V) -> WritableAttrImpl<V> {
+        WritableAttrImpl(
+            key: key,
+            getter: {
+                // The app can return a value of any type. AXValueGetValue returns false for an AXValue of another type
+                guard CFGetTypeID($0) == AXValueGetTypeID() else { return nil }
+                var raw = zero
+                return unsafe AXValueGetValue($0 as! AXValue, type, &raw) ? raw : nil
+            },
+            setter: {
+                var value = $0
+                return unsafe AXValueCreate(type, &value) as CFTypeRef
+            },
+        )
+    }
+
+    static let parentWindowRecursive = readableAxUiElement(kAXWindowAttribute)
+    static let titleAttr = readableString(kAXTitleAttribute)
+    static let roleAttr = readableString(kAXRoleAttribute)
+    static let subroleAttr = readableString(kAXSubroleAttribute)
+    static let identifierAttr = readableString(kAXIdentifierAttribute)
+    static let enabledAttr = readableBool(kAXEnabledAttribute)
+    static let enhancedUserInterfaceAttr = writableBool("AXEnhancedUserInterface")
+    static let minimizedAttr = writableBool(kAXMinimizedAttribute)
+    static let isFullscreenAttr = writableBool("AXFullScreen")
+    static let isFocused = readableBool(kAXFocusedAttribute)
+    static let isMainAttr = writableBool(kAXMainAttribute)
+    static let sizeAttr = writableAxValue(kAXSizeAttribute, .cgSize, CGSize.zero)
+    static let topLeftCornerAttr = writableAxValue(kAXPositionAttribute, .cgPoint, CGPoint.zero)
     /// Returns windows visible on all monitors
     /// If some windows are located on not active macOS Spaces then they won't be returned
-    static let windowsAttr = ReadableAttrImpl<[WindowIdAndAxUiElement]>(
+    static let windowsAttr: ReadableAttrImpl<[WindowIdAndAxUiElement]> = ReadableAttrImpl(
         key: kAXWindowsAttribute,
-        getter: { ($0 as? NSArray)?.compactMap(windowOrNil).map { ($0.windowId, $0.ax.cast) } ?? [] },
+        getter: { ($0 as? NSArray)?.compactMap { axWindowOrNil($0 as AnyObject) } ?? [] },
     )
-    static let focusedWindowAttr = ReadableAttrImpl<WindowIdAndAxUiElementMock>(
+    /// ``windowsAttr`` without the window ids: each id is an AX call, see ``AxApp/windowId(of:)``
+    static let windowElementsAttr: ReadableAttrImpl<[AXUIElement]> = ReadableAttrImpl(
+        key: kAXWindowsAttribute,
+        getter: { ($0 as? NSArray)?.compactMap { axUiElementOrNil($0 as AnyObject) } ?? [] },
+    )
+    static let focusedWindowAttr: ReadableAttrImpl<WindowIdAndAxUiElementMock> = ReadableAttrImpl(
         key: kAXFocusedWindowAttribute,
-        getter: windowOrNil,
+        getter: { axWindowOrNil($0).map { ($0.windowId, $0.ax) } },
     )
-    //static let mainWindowAttr = ReadableAttrImpl<AXUIElement>(
-    //    key: kAXMainWindowAttribute,
-    //    getter: tryGetWindow
-    //)
-    static let closeButtonAttr = ReadableAttrImpl<any AxUiElementMock>(
-        key: kAXCloseButtonAttribute,
-        getter: castToAxUiElementMock,
-    )
+    /// ``focusedWindowAttr`` without the window id
+    static let focusedWindowElementAttr = readableAxUiElement(kAXFocusedWindowAttribute)
+    static let closeButtonAttr = readableAxUiElementMock(kAXCloseButtonAttribute)
     // Note! fullscreen is not the same as "zoom" (green plus)
-    static let fullscreenButtonAttr = ReadableAttrImpl<any AxUiElementMock>(
-        key: kAXFullScreenButtonAttribute,
-        getter: castToAxUiElementMock,
-    )
+    static let fullscreenButtonAttr = readableAxUiElementMock(kAXFullScreenButtonAttribute)
     // green plus
-    static let zoomButtonAttr = ReadableAttrImpl<any AxUiElementMock>(
-        key: kAXZoomButtonAttribute,
-        getter: castToAxUiElementMock,
-    )
-    static let minimizeButtonAttr = ReadableAttrImpl<any AxUiElementMock>(
-        key: kAXMinimizeButtonAttribute,
-        getter: castToAxUiElementMock,
-    )
-    //static let growAreaAttr = ReadableAttrImpl<AXUIElement>(
-    //    key: kAXGrowAreaAttribute,
-    //    getter: { ($0 as! AXUIElement) }
-    //)
+    static let zoomButtonAttr = readableAxUiElementMock(kAXZoomButtonAttribute)
+    static let minimizeButtonAttr = readableAxUiElementMock(kAXMinimizeButtonAttribute)
 }
 
-let kAXAeroSynthetic = "Aero.synthetic"
+nonisolated let kAXAeroSynthetic = "Aero.synthetic"
 
-private func castToAxUiElementMock(_ a: AnyObject) -> AxUiElementMock {
-    if isUnitTest {
-        if let str = a as? String, let commaIndex = str.firstIndex(of: ",") {
-            let windowId = UInt32.init(String(str.prefix(upTo: commaIndex)).removePrefix("AXUIElement(AxWindowId="))
-            if let windowId {
-                return castToAxUiElementMock([
-                    "Aero.axWindowId": Json.int(windowId),
-                    kAXAeroSynthetic: Json.bool(true),
-                ] as AnyObject)
-            }
-        }
-        if let dict = a as? [String: Json] { // Convert from _SwiftDeferredNSDictionary<String, Json>
-            return dict as? AxUiElementMock ?? dieT("Cannot cast \(type(of: a)) to AxUiElementMock")
-        }
-        die("Can't convert \(a) to AxUiElementMock")
-    }
-    return a as! AXUIElement
+// `as! AXUIElement` doesn't check anything at runtime (it's a CoreFoundation type). Check the type ID instead. The dumps of
+// the tests give their nested elements without this getter
+nonisolated private func axUiElementOrNil(_ object: AnyObject) -> AXUIElement? {
+    CFGetTypeID(object) == AXUIElementGetTypeID() ? (object as! AXUIElement) : nil
 }
 
 typealias WindowIdAndAxUiElement = (windowId: UInt32, ax: AXUIElement)
-typealias WindowIdAndAxUiElementMock = (windowId: UInt32, ax: AxUiElementMock)
+typealias WindowIdAndAxUiElementMock = (windowId: UInt32, ax: any AxUiElementMock)
 
-private func windowOrNil(_ any: Any?) -> WindowIdAndAxUiElementMock? {
-    guard let any else { return nil }
-    let potentialWindow = castToAxUiElementMock(any as AnyObject)
+nonisolated private func axWindowOrNil(_ object: AnyObject) -> WindowIdAndAxUiElement? {
+    guard let potentialWindow = axUiElementOrNil(object) else { return nil }
     // Filter out non-window objects (e.g. Finder's desktop)
-    return switch potentialWindow.containingWindowId() {
-        case let windowId?: (windowId, potentialWindow)
-        case nil: nil
-    }
+    return potentialWindow.containingWindowId().map { ($0, potentialWindow) }
 }
 
-extension AXUIElement: AxUiElementMock {
-    func get<Attr: ReadableAttr>(_ attr: Attr) -> Attr.T? {
-        let state = signposter.beginInterval(#function, "attr: \(attr.key) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug)")
+nonisolated extension AXUIElement: AxUiElementMock {
+    func get<Attr: ReadableAttr>(_ attr: Attr) -> Attr.T? { getWithError(attr).value }
+
+    /// Like ``get(_:)``, but tells why it failed: e.g. `.cannotComplete` after the AX timeout of a hung app
+    func getWithError<Attr: ReadableAttr>(_ attr: Attr) -> (error: AXError, value: Attr.T?) {
+        let state = signposter.beginInterval(#function, "attr: \(attr.key)")
         defer { signposter.endInterval(#function, state) }
+        countAxCall("get \(attr.key)")
         var raw: AnyObject?
-        return unsafe AXUIElementCopyAttributeValue(self, attr.key as CFString, &raw) == .success
-            ? raw.flatMap(attr.getter)
-            : nil
+        let error = unsafe AXUIElementCopyAttributeValue(self, attr.key as CFString, &raw)
+        return (error, error == .success ? raw.flatMap(attr.getter) : nil)
     }
 
     @discardableResult func set<Attr: WritableAttr>(_ attr: Attr, _ value: Attr.T) -> Bool {
         if serverArgs.isReadOnly { return false }
-        let state = signposter.beginInterval(#function, "attr: \(attr.key) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug)")
+        let state = signposter.beginInterval(#function, "attr: \(attr.key)")
         defer { signposter.endInterval(#function, state) }
         guard let value = attr.setter(value) else { return false }
+        countAxCall("set \(attr.key)")
         return AXUIElementSetAttributeValue(self, attr.key as CFString, value) == .success
     }
 
-    func containingWindowId() -> CGWindowID? {
-        let state = signposter.beginInterval(#function, "axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug)")
+    func containingWindowId() -> CGWindowID? { containingWindowIdWithError().windowId }
+
+    /// Like ``containingWindowId()``, but tells why it failed: e.g. `.cannotComplete` after the AX timeout of a busy app
+    func containingWindowIdWithError() -> (error: AXError, windowId: CGWindowID?) {
+        let state = signposter.beginInterval(#function)
         defer { signposter.endInterval(#function, state) }
+        countAxCall("windowId")
         var cgWindowId = CGWindowID()
-        return unsafe _AXUIElementGetWindow(self, &cgWindowId) == .success && cgWindowId != kCGNullWindowID
-            ? cgWindowId
-            : nil
+        let error = unsafe _AXUIElementGetWindow(self, &cgWindowId)
+        return (error, error == .success && cgWindowId != kCGNullWindowID ? cgWindowId : nil)
     }
 }
 
-extension AXObserver {
-    static func new(_ pid: pid_t, _ handler: AXObserverCallback) -> AXObserver? {
-        var observer: AXObserver? = nil
-        return unsafe AXObserverCreate(pid, handler, &observer) == .success ? observer : nil
+nonisolated extension AXUIElement {
+    @discardableResult func perform(_ action: String) -> Bool {
+        if serverArgs.isReadOnly { return false }
+        countAxCall("perform \(action)")
+        return AXUIElementPerformAction(self, action as CFString) == .success
     }
+
+    /// One IPC for several attributes. A failed attribute comes back as an AXValue error
+    func getMultiple(_ keys: [String]) -> (AXError, [AnyObject]?) {
+        countAxCall("getMultiple \(keys.joined(separator: ","))")
+        var raw: CFArray?
+        let error = unsafe AXUIElementCopyMultipleAttributeValues(self, keys as CFArray, [], &raw)
+        return (error, raw as? [AnyObject])
+    }
+}
+
+nonisolated extension NSRunningApplication {
+    /// The write of native focus. Counted with the AX calls
+    func activateForNativeFocus() {
+        countAxCall("activate")
+        activate(options: []) // `.activateIgnoringOtherApps` has no effect since macOS 14
+    }
+}
+
+/// How many AX calls AeroSpace made, per call and attribute (e.g. "set AXPosition"), for dogfooding: to see how many
+/// window moves happen, read it in a debugger. It costs one lock per AX call, which is an IPC
+nonisolated let axCallCounts: Mutex<[String: Int]> = Mutex([:])
+
+nonisolated private func countAxCall(_ call: String) {
+    axCallCounts.withLock { $0[call, default: 0] += 1 }
 }

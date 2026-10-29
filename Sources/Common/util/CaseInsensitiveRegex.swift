@@ -4,15 +4,15 @@ public struct CaseInsensitiveRegex: Equatable, Sendable {
     public let origin: String
     fileprivate nonisolated(unsafe) let regex: Regex<AnyRegexOutput>
 
-    private init(_ origin: String, _ regex: Regex<AnyRegexOutput>) {
+    public init(_ origin: String) throws(CmdParseError) {
+        let regex: Regex<AnyRegexOutput>
+        do {
+            regex = try Regex(origin)
+        } catch {
+            throw "Can't parse \(origin.singleQuoted) regex: \(error)" // localizedDescription is a generic text with an unstable type name
+        }
         self.origin = origin
-        unsafe self.regex = regex
-    }
-
-    public static func new(_ str: String) -> ResOrStr<CaseInsensitiveRegex> {
-        Result { try Regex(str) }
-            .mapError { e in "Can't parse \(str.singleQuoted) regex: \(e.localizedDescription)" }
-            .map { CaseInsensitiveRegex(str, $0.ignoresCase()) }
+        unsafe self.regex = regex.ignoresCase()
     }
 
     public static func == (lhs: Self, rhs: Self) -> Bool { lhs.origin == rhs.origin }

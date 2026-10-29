@@ -1,19 +1,17 @@
 extension Workspace {
-    @MainActor func normalizeContainers() {
-        rootTilingContainer.unbindEmptyAndAutoFlatten() // Beware! rootTilingContainer may change after this line of code
+    func normalizeContainers() {
+        existingRootTilingContainer?.unbindEmptyAndAutoFlatten() // Beware! The root may change: flattening replaces it
         if config.enableNormalizationOppositeOrientationForNestedContainers {
-            rootTilingContainer.normalizeOppositeOrientationForNestedContainers()
+            existingRootTilingContainer?.normalizeOppositeOrientationForNestedContainers()
         }
     }
 }
 
 extension TilingContainer {
-    @MainActor fileprivate func unbindEmptyAndAutoFlatten() {
+    fileprivate func unbindEmptyAndAutoFlatten() {
         if let child = children.singleOrNil(), config.enableNormalizationFlattenContainers && (child is TilingContainer || !isRootContainer) {
-            child.unbindFromParent()
             let mru = parent?.mostRecentChild
-            let previousBinding = unbindFromParent()
-            child.bind(to: previousBinding.parent, adaptiveWeight: previousBinding.adaptiveWeight, index: previousBinding.index)
+            child.move(to: destroy().orDie()) // The child takes the container's place
             (child as? TilingContainer)?.unbindEmptyAndAutoFlatten()
             if mru != self {
                 mru?.markAsMostRecentChild()
@@ -25,7 +23,7 @@ extension TilingContainer {
                 (child as? TilingContainer)?.unbindEmptyAndAutoFlatten()
             }
             if children.isEmpty && !isRootContainer {
-                unbindFromParent()
+                destroy()
             }
         }
     }

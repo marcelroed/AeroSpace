@@ -1,7 +1,7 @@
 import AppKit
 import Common
 
-struct Rect: ConvenienceMutable, AeroAny {
+nonisolated struct Rect: Equatable {
     var topLeftX: CGFloat
     var topLeftY: CGFloat
 
@@ -26,22 +26,14 @@ struct Rect: ConvenienceMutable, AeroAny {
 }
 
 extension CGRect {
-    func monitorFrameNormalized() -> Rect {
-        let mainMonitorHeight: CGFloat = mainMonitorInfo.height
-        let rect = toRect()
-        return rect.copy(\.topLeftY, mainMonitorHeight - rect.topLeftY)
+    func monitorFrameNormalized(mainMonitorHeight: CGFloat) -> Rect {
+        Rect(topLeftX: minX, topLeftY: mainMonitorHeight - maxY, width: width, height: height)
     }
 }
 
-extension CGRect {
-    func toRect() -> Rect {
-        Rect(topLeftX: minX, topLeftY: maxY, width: width, height: height)
-    }
-}
-
-extension Rect {
+nonisolated extension Rect {
     func contains(_ point: CGPoint) -> Bool {
-        minX.until(excl: maxX)?.contains(point.x) == true && minY.until(excl: maxY)?.contains(point.y) == true
+        minX <= point.x && point.x < maxX && minY <= point.y && point.y < maxY
     }
 
     var center: CGPoint {
@@ -49,8 +41,6 @@ extension Rect {
     }
 
     var topLeftCorner: CGPoint { CGPoint(x: topLeftX, y: topLeftY) }
-    // periphery:ignore
-    var topRightCorner: CGPoint { CGPoint(x: maxX, y: minY) }
     var bottomRightCorner: CGPoint { CGPoint(x: maxX, y: maxY) }
     var bottomLeftCorner: CGPoint { CGPoint(x: minX, y: maxY) }
 

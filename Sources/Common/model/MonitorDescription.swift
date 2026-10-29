@@ -3,29 +3,17 @@ public enum MonitorDescription: Equatable, Sendable {
     case main
     case secondary
     case pattern(CaseInsensitiveRegex)
-
-    public static func pattern(_ raw: String) -> MonitorDescription? {
-        switch CaseInsensitiveRegex.new(raw) {
-            case .success(let regex): .pattern(regex)
-            case .failure: nil
-        }
-    }
 }
 
-public func parseMonitorDescription(_ raw: String) -> ResOrStr<MonitorDescription> {
+public func parseMonitorDescription(_ raw: String) throws(CmdParseError) -> MonitorDescription {
     if let int = Int(raw) {
-        return int >= 1
-            ? .success(.sequenceNumber(int))
-            : .failure("Monitor sequence numbers uses 1-based indexing. Values less than 1 are illegal")
+        guard int >= 1 else { throw "Monitor sequence numbers uses 1-based indexing. Values less than 1 are illegal" }
+        return .sequenceNumber(int)
     }
-    if raw == "main" {
-        return .success(.main)
+    return switch raw {
+        case "main": .main
+        case "secondary": .secondary
+        case "": throw "Empty string is an illegal monitor description"
+        default: .pattern(try CaseInsensitiveRegex(raw))
     }
-    if raw == "secondary" {
-        return .success(.secondary)
-    }
-
-    return raw.isEmpty
-        ? .failure("Empty string is an illegal monitor description")
-        : CaseInsensitiveRegex.new(raw).map(MonitorDescription.pattern)
 }

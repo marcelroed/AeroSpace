@@ -1,222 +1,150 @@
 @testable import AppBundle
 import Common
+import Foundation
 import HotKey
-import XCTest
+import Testing
 
-@MainActor
-final class ConfigCommandTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
-
-    func testParse() {
-        assertNil(parseCommand("config --major-keys").errorOrNil)
-        assertNil(parseCommand("config --all-keys").errorOrNil)
-        assertNil(parseCommand("config --config-path").errorOrNil)
-        assertNil(parseCommand("config --get foo").errorOrNil)
-        assertNil(parseCommand("config --get foo --keys").errorOrNil)
-        assertNil(parseCommand("config --get foo --json").errorOrNil)
-        assertNil(parseCommand("config --get foo --keys --json").errorOrNil)
-
-        assertEquals(
-            parseCommand("config").errorOrNil,
-            "Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)",
-        )
-        // --keys/--json alone still trigger the mandatory-flag check first because they don't
-        // contribute to the mandatory-flag set.
-        assertEquals(
-            parseCommand("config --keys").errorOrNil,
-            "Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)",
-        )
-        assertEquals(
-            parseCommand("config --json").errorOrNil,
-            "Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)",
-        )
-        assertEquals(parseCommand("config --major-keys --keys").errorOrNil, "--keys flag requires --get flag")
-        assertEquals(parseCommand("config --major-keys --json").errorOrNil, "--json flag requires --get flag")
-
-        // Two mandatory flags are mutually exclusive. The collection of conflicting flag names
-        // comes from a Set so we can't rely on the order, only the message shape.
-        let conflictErr = parseCommand("config --major-keys --all-keys").errorOrNil
-        assertTrue(conflictErr?.hasPrefix("Conflicting flags are specified:") == true)
-        assertTrue(conflictErr?.contains("--major-keys") == true)
-        assertTrue(conflictErr?.contains("--all-keys") == true)
+@Suite(.aeroSpaceGlobalState)
+struct ConfigCommandTest {
+    @Test(arguments: [
+        ("config --major-keys", nil),
+        ("config --all-keys", nil),
+        ("config --config-path", nil),
+        ("config --get foo", nil),
+        ("config --get foo --keys", nil),
+        ("config --get foo --json", nil),
+        ("config --get foo --keys --json", nil),
+        ("config", "Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)"),
+        // --keys and --json aren't mandatory flags, so the mandatory-flag check comes first
+        ("config --keys", "Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)"),
+        ("config --json", "Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path)"),
+        ("config --major-keys --keys", "--keys flag requires --get flag"),
+        ("config --major-keys --json", "--json flag requires --get flag"),
+    ] + conflictingFlags as [(String, String?)])
+    func parse(args: String, error: String?) {
+        expectEqual(parseCommand(args).errorOrNil, error)
     }
 
+    @Test
     func testConfigPath() async {
-        let result = await parseCommand("config --config-path").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, [configUrl.absoluteURL.path])
+        let output = await runCmd("config --config-path")
+        expectEqual(output, CmdOutput(stdout: [world.configUrl.absoluteURL.path]))
     }
 
-    func testMajorKeys() async {
-        config.modes = [
-            "main": Mode(bindings: [:]),
-            "service": Mode(bindings: [:]),
-        ]
-        let result = await parseCommand("config --major-keys").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        // The whole listing comes back as one stdout entry separated by newlines.
-        // Dict iteration order isn't stable, so sort before asserting.
-        let lines = (result.stdout.singleOrNil() ?? "").split(separator: "\n").map(String.init).sorted()
-        assertEquals(lines, [".", "mode", "mode.main.binding", "mode.service.binding"])
+    /// The listings are sorted. The `--json` output stays literal: the Raycast extension parses it
+    @Test(arguments: [
+        (.manyModes, "config --major-keys", """
+            .
+            mode
+            mode.a.binding
+            mode.b.binding
+            mode.c.binding
+            mode.main.binding
+            mode.move.binding
+            mode.resize.binding
+            mode.service.binding
+            mode.x.binding
+            mode.y.binding
+            mode.z.binding
+            """),
+        (.manyModes, "config --all-keys", ([".", "mode"] + manyModeNames.sorted().flatMap { (mode: String) -> [String] in
+            ["mode.\(mode)", "mode.\(mode).binding", "mode.\(mode).binding.alt-h", "mode.\(mode).binding.alt-j", "mode.\(mode).binding.alt-k"]
+        }).joined(separator: "\n")),
+        (.manyModes, "config --get mode --keys", "a\nb\nc\nmain\nmove\nresize\nservice\nx\ny\nz"),
+        (.manyModes, "config --get mode --keys --json", """
+            [
+              "a",
+              "b",
+              "c",
+              "main",
+              "move",
+              "resize",
+              "service",
+              "x",
+              "y",
+              "z"
+            ]
+            """),
+        (.oneMode, "config --get . --keys", "mode"),
+        (.oneMode, "config --get . --keys --json", "[\n  \"mode\"\n]"),
+        (.oneMode, "config --get mode.main --keys --json", "[\n  \"binding\"\n]"),
+        (.oneMode, "config --get mode.main.binding.alt-h", "focus left"),
+        (.oneMode, "config --get mode.main.binding.alt-h --json", "\"focus left\""),
+        (.oneMode, "config --get mode --json", """
+            {
+              "main" : {
+                "binding" : {
+                  "alt-h" : "focus left",
+                  "alt-j" : "focus down"
+                }
+              }
+            }
+            """),
+        (.oneMode, "config --get . --json", """
+            {
+              "mode" : {
+                "main" : {
+                  "binding" : {
+                    "alt-h" : "focus left",
+                    "alt-j" : "focus down"
+                  }
+                }
+              }
+            }
+            """),
+    ] as [(ConfigFixture, String, String)])
+    func get(fixture: ConfigFixture, args: String, stdout: String) async {
+        fixture.install()
+        let output = await runCmd(args)
+        expectEqual(output, CmdOutput(stdout: [stdout]))
     }
 
-    func testAllKeys() async {
-        let command = parseCommand("focus left").cmdOrDie
-        let binding = HotkeyBinding(.option, .h, command)
-        config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
-
-        let result = await parseCommand("config --all-keys").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        // Single mode + single binding => dict iteration order doesn't affect the output.
-        assertEquals(
-            result.stdout,
-            [".\nmode\nmode.main\nmode.main.binding\nmode.main.binding.alt-h"],
-        )
-    }
-
-    func testGetRoot_complexObject_fails() async {
-        let result = await parseCommand("config --get .").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(
-            result.stderr,
-            ["Complicated objects can be printed only with --json flag. Alternatively, you can try to inspect keys of the object with --keys flag"],
-        )
-    }
-
-    func testGetRoot_keys() async {
-        config.modes = ["main": Mode(bindings: [:])]
-        let result = await parseCommand("config --get . --keys").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, ["mode"])
-    }
-
-    func testGetRoot_json() async {
-        config.modes = ["main": Mode(bindings: [:])]
-        let expectedMap: ConfigMapValue = .map(["mode": .map(["main": .map(["binding": .map([:])])])])
-        let expectedJson = JSONEncoder.aeroSpaceDefault.encodeToString(expectedMap)
-
-        let result = await parseCommand("config --get . --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, [expectedJson])
-    }
-
-    func testGetRoot_keysJson() async {
-        config.modes = ["main": Mode(bindings: [:])]
-        // --keys converts the map into an array of string-scalar keys, which is then JSON-encoded.
-        let expected = JSONEncoder.aeroSpaceDefault.encodeToString(
-            ConfigMapValue.array([.scalar(.string("mode"))]),
-        )
-
-        let result = await parseCommand("config --get . --keys --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, [expected])
-    }
-
-    func testGetMode_keys_sortedOutput() async {
-        config.modes = [
-            "main": Mode(bindings: [:]),
-            "service": Mode(bindings: [:]),
-        ]
-        let result = await parseCommand("config --get mode --keys").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        // Plain (non-json) array output is sorted before printing.
-        assertEquals(result.stdout, ["main\nservice"])
-    }
-
-    func testGetScalar() async {
-        let command = parseCommand("focus left").cmdOrDie
-        let binding = HotkeyBinding(.option, .h, command)
-        config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
-
-        let result = await parseCommand("config --get mode.main.binding.alt-h").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(result.stderr, [])
-        assertEquals(result.stdout, [command.shellOfCommandsDescription])
-    }
-
-    func testGetScalar_keys_fails() async {
-        let command = parseCommand("focus left").cmdOrDie
-        let binding = HotkeyBinding(.option, .h, command)
-        config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
-
-        let result = await parseCommand("config --get mode.main.binding.alt-h --keys").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        // The error message interpolates the enum directly, yielding the default Swift case repr.
-        assertEquals(result.stderr, ["--keys flag cannot be applied to scalar object 'string(\"\(command.shellOfCommandsDescription)\")'"])
-    }
-
-    func testGetScalar_dereference_fails() async {
-        let command = parseCommand("focus left").cmdOrDie
-        let binding = HotkeyBinding(.option, .h, command)
-        config.modes = ["main": Mode(bindings: [binding.descriptionWithKeyCode: binding])]
-
-        let result = await parseCommand("config --get mode.main.binding.alt-h.foo").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["Can't dereference scalar value '\(command.shellOfCommandsDescription)'"])
-    }
-
-    func testGetMissingKey_fails() async {
-        let result = await parseCommand("config --get nonExistent").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["No value at key token 'nonExistent'"])
-    }
-
-    func testGetInvalidPath_emptyKey() async {
-        let result = await parseCommand("config --get ''").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["Invalid empty key"])
-    }
-
-    func testGetInvalidPath_doubleDot() async {
-        let result = await parseCommand("config --get a..b").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["Invalid key 'a..b'"])
-    }
-
-    func testGetInvalidPath_trailingDot() async {
-        let result = await parseCommand("config --get a.").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(result.stdout, [])
-        assertEquals(result.stderr, ["Invalid key 'a.'"])
-    }
-
-    // The naturally-built configMap (buildConfigMap) never produces arrays, so the array branches
-    // of ConfigMapValue.find/dumpAllKeysRecursive are exercised directly here.
-    func testFindArrayIndex_success() {
-        let arr: ConfigMapValue = .array([.scalar(.string("a")), .scalar(.string("b"))])
-        switch arr.find(keyPath: ["1"].slice) {
-            case .success(.scalar(.string(let s))): assertEquals(s, "b")
-            default: XCTFail("expected .scalar(.string(\"b\"))")
-        }
-    }
-
-    func testFindArrayIndex_outOfBounds() {
-        let arr: ConfigMapValue = .array([.scalar(.string("a"))])
-        assertFail(arr.find(keyPath: ["5"].slice), "Index out of bounds. Index: 5, Size: 1")
-    }
-
-    func testFindArrayIndex_notInt() {
-        let arr: ConfigMapValue = .array([.scalar(.string("a"))])
-        assertFail(arr.find(keyPath: ["foo"].slice), "Can't convert key token 'foo' to Int")
-    }
-
-    func testDumpAllKeys_array() {
-        let value: ConfigMapValue = .array([.scalar(.string("a")), .map(["k": .scalar(.int(1))])])
-        var result: [String] = []
-        value.dumpAllKeysRecursive(path: ".", result: &result)
-        assertEquals(result, [".", "0", "1", "1.k"])
+    @Test(arguments: [
+        ("config --get .", "Complicated objects can be printed only with --json flag. Alternatively, you can try to inspect keys of the object with --keys flag"),
+        ("config --get mode.main.binding.alt-h --keys", "--keys flag cannot be applied to scalar object 'focus left'"),
+        ("config --get mode.main.binding.alt-h.foo", "Can't dereference scalar value 'focus left'"),
+        ("config --get nonExistent", "No value at key token 'nonExistent'"),
+        ("config --get ''", "Invalid empty key"),
+        ("config --get a..b", "Invalid key 'a..b'"),
+        ("config --get a.", "Invalid key 'a.'"),
+    ] as [(String, String)])
+    func getFails(args: String, error: String) async {
+        ConfigFixture.oneMode.install()
+        let output = await runCmd(args)
+        expectEqual(output, .fail(error))
     }
 }
+
+nonisolated enum ConfigFixture: Sendable {
+    /// alt-h and alt-j in the main mode
+    case oneMode
+    /// Enough modes that a dictionary order can't match the sorted order by chance (RB-13), each with alt-h, alt-j and alt-k
+    case manyModes
+
+    @MainActor
+    func install() {
+        switch self {
+            case .oneMode:
+                let bindings = [HotkeyBinding(.option, .h, parseCommand("focus left").cmdOrDie), HotkeyBinding(.option, .j, parseCommand("focus down").cmdOrDie)]
+                world.config.modes = [mainModeId: Mode(bindings: Dictionary(uniqueKeysWithValues: bindings.map { ($0.descriptionWithKeyCode, $0) }))]
+            case .manyModes:
+                let command = parseCommand("focus left").cmdOrDie
+                let bindings = [HotkeyBinding(.option, .k, command), HotkeyBinding(.option, .h, command), HotkeyBinding(.option, .j, command)]
+                let mode = Mode(bindings: Dictionary(uniqueKeysWithValues: bindings.map { ($0.descriptionWithKeyCode, $0) }))
+                world.config.modes = Dictionary(uniqueKeysWithValues: manyModeNames.map { ($0, mode) })
+        }
+    }
+}
+
+nonisolated private let manyModeNames = ["main", "service", "resize", "move", "a", "z", "b", "y", "c", "x"]
+
+/// Every combination of two or more mandatory flags, passed in reverse order. The flags used to be collected in a Set,
+/// whose order is random. The eleven combinations make an unordered collection fail reliably (RB-13)
+nonisolated private let conflictingFlags: [(String, String?)] = {
+    let flags: [(name: String, args: String)] =
+        [("--get", "--get foo"), ("--major-keys", "--major-keys"), ("--all-keys", "--all-keys"), ("--config-path", "--config-path")]
+    return (0 ..< (1 << flags.count)).filter { $0.nonzeroBitCount >= 2 }.map { (mask: Int) -> (String, String?) in
+        let combination = flags.indices.filter { mask & (1 << $0) != 0 }.map { flags[$0] }
+        return ("config " + combination.reversed().map(\.args).joined(separator: " "), "Conflicting flags are specified: " + combination.map(\.name).joined(separator: ", "))
+    }
+}()

@@ -1,25 +1,14 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
-@MainActor
-final class BalanceSizesCommandTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
-
-    func testBalanceSizesCommand() async {
-        let workspace = Workspace.get(byName: name).apply { wsp in
-            wsp.rootTilingContainer.apply {
-                TestWindow.new(id: 1, parent: $0).setWeight(wsp.rootTilingContainer.orientation, 1)
-                TestWindow.new(id: 2, parent: $0).setWeight(wsp.rootTilingContainer.orientation, 2)
-                TestWindow.new(id: 3, parent: $0).setWeight(wsp.rootTilingContainer.orientation, 3)
-            }
-        }
-
-        await parseCommand("balance-sizes").cmdOrDie
-            .run(.defaultEnv.withWorkspaceName(name), .emptyStdin)
-
-        for window in workspace.rootTilingContainer.children {
-            assertEquals(window.getWeight(workspace.rootTilingContainer.orientation), 1)
-        }
+@Suite(.aeroSpaceGlobalState)
+struct BalanceSizesCommandTest {
+    @Test
+    func balancesTheWeights() async {
+        let workspace = setUpTree("h_tiles(1:1 v_tiles:2(2:1 3:3) *4:3)")
+        let output = await runCmd("balance-sizes", workspaceEnv: workspace.name)
+        expectEqual(output, .ok)
+        expectEqual(describeTree(weights: true), "h_tiles(1:1 v_tiles:1(2:1 3:1) *4:1)")
     }
 }

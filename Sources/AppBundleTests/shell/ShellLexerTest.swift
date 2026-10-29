@@ -1,119 +1,79 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
-final class ShellLexerTest: XCTestCase {
-    func testLexer() {
-        assertSucc("echo foo".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 6, "foo"), .end(l: 1, c: 9)])
-        assertSucc("echo  foo".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 7, "foo"), .end(l: 1, c: 10)])
-        assertSucc("echo 'foo' &&".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 6, "foo"), .and(l: 1, c: 12), .end(l: 1, c: 14)])
-        assertSucc("echo 'foo' \\ \n&&".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 6, "foo"), .and(l: 2, c: 1), .end(l: 2, c: 3)])
-        assertFail("echo 'foo'\n &&".shellLexerTokens(), "Line 1 Column 11: Please escape newline with backslash character.")
-        assertFail("echo 'foo' \n &&".shellLexerTokens(), "Line 1 Column 12: Please escape newline with backslash character.")
+@Suite
+struct ShellLexerTest {
+    static let lexRows: [(label: String, input: String, tokens: [LexerToken])] = [
+        ("words", "echo  foo", [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 7, "foo"), .end(l: 1, c: 10)]),
+        ("empty input", "", [.end(l: 1, c: 1)]),
+        ("tabs are whitespace", "\techo\tfoo", [.word(l: 1, c: 2, "echo"), .word(l: 1, c: 7, "foo"), .end(l: 1, c: 10)]),
+        ("a comment runs to the end of the line", "echo # hi\nfoo", [.word(l: 1, c: 1, "echo"), .newline(l: 1, c: 10), .word(l: 2, c: 1, "foo"), .end(l: 2, c: 4)]),
+        ("a comment needs no space before it", "echo#nospace", [.word(l: 1, c: 1, "echo"), .end(l: 1, c: 13)]),
+        ("single quotes keep spaces and double quotes", "echo 'a \"b'", [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 6, "a \"b"), .end(l: 1, c: 12)]),
+        ("double quotes keep spaces and single quotes", "echo \"it's here\"", [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 6, "it's here"), .end(l: 1, c: 17)]),
+        ("a quoted word may be empty", "echo ''", [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 6, ""), .end(l: 1, c: 8)]),
+        ("a quoted newline is part of the word", "echo 'foo\nbar'", [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 6, "foo\nbar"), .end(l: 2, c: 5)]),
+        ("operators need no spaces", "a|b||c&&d;e", [
+            .word(l: 1, c: 1, "a"), .pipe(l: 1, c: 2), .word(l: 1, c: 3, "b"), .or(l: 1, c: 4), .word(l: 1, c: 6, "c"),
+            .and(l: 1, c: 7), .word(l: 1, c: 9, "d"), .semicolon(l: 1, c: 10), .word(l: 1, c: 11, "e"), .end(l: 1, c: 12),
+        ]),
+        ("parens need no spaces", "(a)", [.lParen(l: 1, c: 1), .word(l: 1, c: 2, "a"), .rParen(l: 1, c: 3), .end(l: 1, c: 4)]),
+        ("&& may follow a closing quote", "'a'&&b", [.word(l: 1, c: 1, "a"), .and(l: 1, c: 4), .word(l: 1, c: 6, "b"), .end(l: 1, c: 7)]),
+        ("~= is a word, although ~ is reserved", "a ~= b", [.word(l: 1, c: 1, "a"), .word(l: 1, c: 3, "~="), .word(l: 1, c: 6, "b"), .end(l: 1, c: 7)]),
+        ("newlines are tokens", "a\n\nb\n", [
+            .word(l: 1, c: 1, "a"), .newline(l: 1, c: 2), .newline(l: 2, c: 1), .word(l: 3, c: 1, "b"), .newline(l: 3, c: 2), .end(l: 4, c: 1),
+        ]),
+        ("a backslash escapes the newline", "echo \\\nfoo", [.word(l: 1, c: 1, "echo"), .word(l: 2, c: 1, "foo"), .end(l: 2, c: 4)]),
+        ("whitespace and a comment may follow the backslash", "echo \\ # hi\nfoo", [.word(l: 1, c: 1, "echo"), .word(l: 2, c: 1, "foo"), .end(l: 2, c: 4)]),
+        ("an escaped newline may come before an operator", "echo \\\n&& foo", [.word(l: 1, c: 1, "echo"), .and(l: 2, c: 1), .word(l: 2, c: 4, "foo"), .end(l: 2, c: 7)]),
+        ("a backslash may end the input", "echo \\", [.word(l: 1, c: 1, "echo"), .end(l: 1, c: 7)]),
+        // A Unicode Prepend character (U+0600) and the next character are one Character, but whitespace or a quote after it
+        // still ends the word
+        ("a Prepend character ends the input", "echo \u{0600}", [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 6, "\u{0600}"), .end(l: 1, c: 7)]),
+        ("a Prepend character before a space", "\u{0600} foo", [.word(l: 1, c: 1, "\u{0600}"), .word(l: 1, c: 3, "foo"), .end(l: 1, c: 6)]),
+        ("a Prepend character before a closing quote", "'\u{0600}'", [.word(l: 1, c: 1, "\u{0600}"), .end(l: 1, c: 4)]),
+        ("a CR LF line break is a newline", "a\r\nb", [.word(l: 1, c: 1, "a"), .newline(l: 1, c: 3), .word(l: 2, c: 1, "b"), .end(l: 2, c: 2)]),
+    ]
 
-        assertSucc("echo ''".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 6, ""), .end(l: 1, c: 8)])
+    // `await`: the rows hold AppBundle types, which are MainActor-isolated, and the arguments are evaluated off the main actor
+    @Test(arguments: await lexRows)
+    func lexes(label: String, input: String, tokens: [LexerToken]) {
+        expectEqual(lex(input), .success(tokens), Comment(rawValue: label))
     }
 
-    func testLexerEmpty() {
-        assertSucc("".shellLexerTokens(), [.end(l: 1, c: 1)])
-        assertSucc("   ".shellLexerTokens(), [.end(l: 1, c: 4)])
-        assertSucc("\t".shellLexerTokens(), [.end(l: 1, c: 2)])
-    }
-
-    func testLexerLeadingWhitespace() {
-        assertSucc("  echo".shellLexerTokens(), [.word(l: 1, c: 3, "echo"), .end(l: 1, c: 7)])
-        assertSucc("\techo\tfoo".shellLexerTokens(), [.word(l: 1, c: 2, "echo"), .word(l: 1, c: 7, "foo"), .end(l: 1, c: 10)])
-    }
-
-    func testLexerComments() {
-        assertSucc("# hello".shellLexerTokens(), [.end(l: 1, c: 8)])
-        assertSucc("echo # comment".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .end(l: 1, c: 15)])
-        assertSucc("echo#nospace".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .end(l: 1, c: 13)])
-        assertSucc("echo # hi\nfoo".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .newline(l: 1, c: 10), .word(l: 2, c: 1, "foo"), .end(l: 2, c: 4)])
-    }
-
-    func testLexerSingleQuotes() {
-        assertSucc("echo 'hello world'".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 6, "hello world"), .end(l: 1, c: 19)])
-        assertSucc("'foo'".shellLexerTokens(), [.word(l: 1, c: 1, "foo"), .end(l: 1, c: 6)])
-        assertSucc("echo 'a\"b'".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 6, "a\"b"), .end(l: 1, c: 11)])
-    }
-
-    func testLexerDoubleQuotes() {
-        assertSucc("echo \"hello world\"".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 6, "hello world"), .end(l: 1, c: 19)])
-        assertSucc("\"foo\"".shellLexerTokens(), [.word(l: 1, c: 1, "foo"), .end(l: 1, c: 6)])
-        assertSucc("echo \"it's\"".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 6, "it's"), .end(l: 1, c: 12)])
-    }
-
-    func testLexerQuotedNewline() {
-        assertSucc("echo 'foo\nbar'".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 6, "foo\nbar"), .end(l: 2, c: 5)])
-    }
-
-    func testLexerPipeAndOr() {
-        assertSucc("echo foo | bar".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 6, "foo"), .pipe(l: 1, c: 10), .word(l: 1, c: 12, "bar"), .end(l: 1, c: 15)])
-        assertSucc("echo foo || bar".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 6, "foo"), .or(l: 1, c: 10), .word(l: 1, c: 13, "bar"), .end(l: 1, c: 16)])
-        assertSucc("a|b".shellLexerTokens(), [.word(l: 1, c: 1, "a"), .pipe(l: 1, c: 2), .word(l: 1, c: 3, "b"), .end(l: 1, c: 4)])
-        assertSucc("a||b".shellLexerTokens(), [.word(l: 1, c: 1, "a"), .or(l: 1, c: 2), .word(l: 1, c: 4, "b"), .end(l: 1, c: 5)])
-        assertSucc("a&&b".shellLexerTokens(), [.word(l: 1, c: 1, "a"), .and(l: 1, c: 2), .word(l: 1, c: 4, "b"), .end(l: 1, c: 5)])
-    }
-
-    func testLexerSemicolon() {
-        assertSucc("echo a;b".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 6, "a"), .semicolon(l: 1, c: 7), .word(l: 1, c: 8, "b"), .end(l: 1, c: 9)])
-        assertSucc("echo foo; echo bar".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 6, "foo"), .semicolon(l: 1, c: 9), .word(l: 1, c: 11, "echo"), .word(l: 1, c: 16, "bar"), .end(l: 1, c: 19)])
-    }
-
-    func testLexerParens() {
-        assertSucc("(echo)".shellLexerTokens(), [.lParen(l: 1, c: 1), .word(l: 1, c: 2, "echo"), .rParen(l: 1, c: 6), .end(l: 1, c: 7)])
-        assertSucc("( echo foo )".shellLexerTokens(), [.lParen(l: 1, c: 1), .word(l: 1, c: 3, "echo"), .word(l: 1, c: 8, "foo"), .rParen(l: 1, c: 12), .end(l: 1, c: 13)])
-    }
-
-    func testLexerBackslashLineContinuation() {
-        assertSucc("echo \\\n foo".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .word(l: 2, c: 2, "foo"), .end(l: 2, c: 5)])
-        assertSucc("echo \\\nfoo".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .word(l: 2, c: 1, "foo"), .end(l: 2, c: 4)])
-        assertSucc("echo \\ \nfoo".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .word(l: 2, c: 1, "foo"), .end(l: 2, c: 4)])
-    }
-
-    func testLexerMultipleNewlines() {
-        assertSucc("\n\n\n".shellLexerTokens(), [.newline(l: 1, c: 1), .newline(l: 2, c: 1), .newline(l: 3, c: 1), .end(l: 4, c: 1)])
-        assertSucc("echo foo\necho bar".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 6, "foo"), .newline(l: 1, c: 9), .word(l: 2, c: 1, "echo"), .word(l: 2, c: 6, "bar"), .end(l: 2, c: 9)])
-        assertSucc("echo foo\n".shellLexerTokens(), [.word(l: 1, c: 1, "echo"), .word(l: 1, c: 6, "foo"), .newline(l: 1, c: 9), .end(l: 2, c: 1)])
-    }
-
-    func testLexerFailUnclosedQuote() {
-        assertFail("echo 'foo".shellLexerTokens(), "Line 1 Column 10: Last quote ' isn't closed.")
-        assertFail("echo \"foo".shellLexerTokens(), "Line 1 Column 10: Last quote \" isn't closed.")
-    }
-
-    func testLexerFailQuoteInMiddleOfWord() {
-        assertFail("echo foo'bar'".shellLexerTokens(), "Line 1 Column 9: Please put a space in front of the quote character.")
-    }
-
-    func testLexerFailMissingSpaceAfterClosingQuote() {
-        assertFail("echo 'foo'bar".shellLexerTokens(), "Line 1 Column 11: Please put a space after closing quote.")
-    }
-
-    func testLexerFailReservedChar() {
-        assertFail("echo $foo".shellLexerTokens(), "Line 1 Column 6: Bare word '$foo' contains reserved character: $. Please quote the bare word if you want to use the character.")
-        assertFail("echo *".shellLexerTokens(), "Line 1 Column 6: Bare word '*' contains reserved character: *. Please quote the bare word if you want to use the character.")
-        assertFail("echo ~".shellLexerTokens(), "Line 1 Column 6: Bare word '~' contains reserved character: ~. Please quote the bare word if you want to use the character.")
-    }
-
-    func testLexerFailBackslashFollowedByNonWhitespace() {
-        assertFail("echo \\a".shellLexerTokens(), "Line 1 Column 7: backslash can be followed only by whitespaces, newlines and comments, but it is followed by 'a'.")
-    }
-
-    func testLexerFailBackslashFollowedByComment() {
-        assertFail("echo \\#foo".shellLexerTokens(), "Line 1 Column 6: Please put a space between backslash and a comment start")
+    @Test(arguments: [
+        ("an unclosed quote", "echo 'foo", "Line 1 Column 10: Last quote ' isn't closed."),
+        ("a quote inside a bare word", "echo foo'bar'", "Line 1 Column 9: Please put a space in front of the quote character."),
+        ("a quote right after a closing quote", "echo 'a'\"b\"", "Line 1 Column 9: Please put a space in front of the quote character."),
+        ("a word right after a closing quote", "echo 'foo'bar", "Line 1 Column 11: Please put a space after closing quote."),
+        ("a reserved character in a bare word", "echo $foo", "Line 1 Column 6: Bare word '$foo' contains reserved character: $. Please quote the bare word if you want to use the character."),
+        ("~ is reserved", "echo ~", "Line 1 Column 6: Bare word '~' contains reserved character: ~. Please quote the bare word if you want to use the character."),
+        ("a backslash followed by a word", "echo \\a", "Line 1 Column 7: backslash can be followed only by whitespaces, newlines and comments, but it is followed by 'a'."),
+        ("a backslash right before a comment", "echo \\#foo", "Line 1 Column 6: Please put a space between backslash and a comment start"),
+    ] as [(String, String, String)])
+    func lexFails(label: String, input: String, message: String) {
+        expectEqual(lex(input), .failure(.invalid(message)), Comment(rawValue: label))
     }
 }
 
 extension LexerToken {
-    public static func word(l: Int, c: Int, _ str: String) -> Self { .init(Location(line: l, column: c), .word(str)) }
-    public static func and(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .and) }
-    public static func or(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .or) }
-    public static func pipe(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .pipe) }
-    public static func lParen(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .lParen) }
-    public static func rParen(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .rParen) }
-    public static func semicolon(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .semicolon) }
-    public static func end(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .end) }
-    public static func newline(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .newline) }
+    static func word(l: Int, c: Int, _ str: String) -> Self { .init(Location(line: l, column: c), .word(str)) }
+    static func and(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .and) }
+    static func or(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .or) }
+    static func pipe(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .pipe) }
+    static func lParen(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .lParen) }
+    static func rParen(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .rParen) }
+    static func semicolon(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .semicolon) }
+    static func end(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .end) }
+    static func newline(l: Int, c: Int) -> Self { .init(Location(line: l, column: c), .newline) }
+}
+
+private func lex(_ raw: String) -> Result<[LexerToken], CmdParseError> {
+    Result { () throws(CmdParseError) in
+        var lexer = ShellLexer(raw)
+        var tokens: [LexerToken] = [try lexer.nextToken()]
+        while tokens.last?.payload != .end { tokens.append(try lexer.nextToken()) }
+        return tokens
+    }
 }

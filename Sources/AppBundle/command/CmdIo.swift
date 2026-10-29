@@ -1,5 +1,6 @@
 import Common
 
+/// The stdin of a request. Not copyable, so only one command reads it
 struct CmdStdin: ~Copyable {
     private var input: String = ""
     init(_ input: String) {
@@ -14,42 +15,32 @@ struct CmdStdin: ~Copyable {
     }
 }
 
-protocol CmdIo: AnyObject {
-    var stdout: [String] { get set }
-    var stderr: [String] { get set }
-    func readStdin() -> String
-}
-
-extension CmdIo {
-    @discardableResult func out(_ msg: String) -> IoSideEffect { stdout.append(msg); return .instance }
-    @discardableResult func err(_ msg: String) -> IoSideEffect { stderr.append(msg); return .instance }
-    @discardableResult func out(_ msg: [String]) -> IoSideEffect { stdout += msg; return .instance }
-    // periphery:ignore
-    @discardableResult func err(_ msg: [String]) -> IoSideEffect { stderr += msg; return .instance }
-}
-
-final class CmdIoImpl: CmdIo {
+/// What a command reads and writes. The server sends `stdout` and `stderr` back to the CLI. A class: the commands of one
+/// shell line share it
+final class CmdIo {
     private var stdin: CmdStdin
+    /// The left side of a pipe reads the stdin of the line on demand: what it doesn't read stays for the next command
+    private let stdinSource: CmdIo?
     var stdout: [String] = []
     var stderr: [String] = []
 
-    init(stdin: consuming CmdStdin) { self.stdin = stdin }
-    func readStdin() -> String { stdin.readAll() }
+    init(stdin: consuming CmdStdin) {
+        self.stdin = stdin
+        stdinSource = nil
+    }
 
-    static var emptyStdinIgnoringOut: CmdIo { CmdIoImpl(stdin: .emptyStdin) }
-}
+    init(forwardingStdinOf stdinSource: CmdIo) {
+        stdin = .emptyStdin
+        self.stdinSource = stdinSource
+    }
 
-final class CmdIoForwardingStdin: CmdIo {
-    private var stdin: CmdIo
-    var stdout: [String] = []
-    var stderr: [String] = []
+    func readStdin() -> String { stdinSource?.readStdin() ?? stdin.readAll() }
 
-    init(stdin: CmdIo) { self.stdin = stdin }
-    func readStdin() -> String { stdin.readStdin() }
+    static var emptyStdinIgnoringOut: CmdIo { CmdIo(stdin: .emptyStdin) }
 }
 
 struct CmdResult: Equatable {
     let stdout: [String]
     let stderr: [String]
-    let exitCode: Int32ExitCode
+    let exitCode: Int32
 }

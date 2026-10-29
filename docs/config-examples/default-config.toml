@@ -1,11 +1,6 @@
 # Place a copy of this config to ~/.aerospace.toml
 # After that, you can edit ~/.aerospace.toml to your liking
 
-# Config version for compatibility and deprecations
-# See: https://nikitabobko.github.io/AeroSpace/guide#config-version
-# Fallback value (if you omit the key): config-version = 1
-config-version = 2
-
 # You can use it to add commands that run after AeroSpace startup.
 # Available commands : https://nikitabobko.github.io/AeroSpace/commands
 after-startup-command = []
@@ -48,7 +43,6 @@ automatically-unhide-macos-hidden-apps = false
 
 # List of workspaces that should stay alive even when they contain no windows,
 # even when they are invisible.
-# This config option is only available since 'config-version = 2'
 # Fallback value (if you omit the key): persistent-workspaces = []
 persistent-workspaces = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B",
                          "C", "D", "E", "F", "G", "I", "M", "N", "O", "P", "Q",
@@ -59,6 +53,8 @@ persistent-workspaces = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B",
 # See: https://nikitabobko.github.io/AeroSpace/commands#mode
 on-mode-changed = []
 
+# Focus the window under the mouse when the mouse moves
+# Work in progress: https://github.com/nikitabobko/AeroSpace/issues/12
 focus-follows-mouse.enabled = false
 
 # Possible values: (qwerty|dvorak|colemak)
@@ -79,6 +75,30 @@ gaps.outer.left =       0
 gaps.outer.bottom =     0
 gaps.outer.top =        0
 gaps.outer.right =      0
+
+# A callback that runs every time the focused window or workspace changes
+# See: https://nikitabobko.github.io/AeroSpace/guide#on-focus-changed-callbacks
+# Fallback value (if you omit the key): on-focus-changed = []
+
+# A process that runs every time the focused workspace changes
+# See: https://nikitabobko.github.io/AeroSpace/guide#exec-on-workspace-change-callback
+# Fallback value (if you omit the key): exec-on-workspace-change = []
+
+# Commands that run every time a new window is detected
+# See: https://nikitabobko.github.io/AeroSpace/guide#on-window-detected-callback
+# Fallback value (if you omit the key): on-window-detected = []
+
+# Assign workspaces to monitors
+# See: https://nikitabobko.github.io/AeroSpace/guide#assign-workspaces-to-monitors
+# Fallback value (if you omit the key): workspace-to-monitor-force-assignment = {}
+
+# Environment variables of exec-* commands and callbacks
+# See: https://nikitabobko.github.io/AeroSpace/guide#exec-env-vars
+# Fallback value (if you omit the 'exec' table):
+# [exec]
+#     inherit-env-vars = true
+# [exec.env-vars]
+#     PATH = '/opt/homebrew/bin:/opt/homebrew/sbin:${PATH}'
 
 # 'main' binding mode declaration
 # See: https://nikitabobko.github.io/AeroSpace/guide#binding-modes

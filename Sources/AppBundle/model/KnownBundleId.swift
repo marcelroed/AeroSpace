@@ -1,11 +1,11 @@
-enum KnownBundleId: String, Equatable {
-
+nonisolated enum KnownBundleId: String {
     case _1password = "com.1password.1password"
     case activityMonitor = "com.apple.ActivityMonitor"
     case alacritty = "org.alacritty"
     case braveBrowser = "com.brave.Browser"
     case chrome = "com.google.Chrome"
     case cleanshotx = "pl.maketheweb.cleanshotx"
+    case cmux = "com.cmuxterm.app"
     case codex = "com.openai.codex"
     case emacs = "org.gnu.Emacs"
     case finder = "com.apple.finder"

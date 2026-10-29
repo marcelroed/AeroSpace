@@ -3,166 +3,201 @@ import Darwin
 import Foundation
 import Network
 
-let usage =
+let usage: String =
     """
     USAGE: \(CommandLine.arguments.first ?? "aerospace") [-h|--help] [-v|--version] <subcommand> [<args>...]
 
     SUBCOMMANDS:
-    \(subcommandDescriptions.sortedBy { $0[0] }.toPaddingTable(columnSeparator: "   ").joined(separator: "\n"))
+    \(subcommandTable.joined(separator: "\n"))
     """
 
+private let cliClientVersionAndHash: String = "\(aeroSpaceAppVersion) \(gitHash)"
+
+private let subcommandTable: [String] = CmdKind.allCases
+    .filter { $0 != CmdKind.execAndForget } // exec-and-forget isn't a CLI subcommand
+    .map { (kind: CmdKind) -> [String] in ["  \(kind.rawValue)", kind.purpose] }
+    .sortedBy { $0[0] }
+    .toPaddingTable(columnSeparator: "   ")
+
+/// The CLI is thin: the server parses the args. The CLI answers only what needs no server: the usage, the version,
+/// the help of a subcommand, and `true`/`false`
 @main
 struct Main {
     static func main() async {
-        let args = CommandLine.arguments.slice(1...) ?? []
+        let args = Array(CommandLine.arguments.dropFirst())
+        guard let subcommand = args.first else { exit(EXIT_CODE_TWO, err: usage) }
+        if subcommand == "--help" || subcommand == "-h" { exit(EXIT_CODE_ZERO, out: usage) }
+        if subcommand == "--version" || subcommand == "-v" { await printVersionAndExit() }
 
-        if args.isEmpty {
-            exit(EXIT_CODE_TWO, err: usage)
+        // The options come before `--`. The server parses them the same way: a word that starts with a dash is never the
+        // value of an option there
+        let options = args.dropFirst().prefix { $0 != "--" }
+        let kind = CmdKind(rawValue: subcommand)
+        if let kind, kind != .execAndForget, options.contains(where: { $0 == "-h" || $0 == "--help" }) {
+            exit(EXIT_CODE_ZERO, out: kind.help)
         }
-        if args.first == "--help" || args.first == "-h" {
-            exit(EXIT_CODE_ZERO, out: usage)
+        if args == [CmdKind._true.rawValue] { exit(EXIT_CODE_ZERO) }
+        if args == [CmdKind._false.rawValue] { exit(EXIT_CODE_ONE) }
+
+        // The server rejects --stdin for the other subcommands, so don't wait for stdin first
+        let readsStdin = kind?.takesStdin == true && options.contains("--stdin")
+        if readsStdin && isatty(STDIN_FILENO) != 0 {
+            // Nothing would end the input. An empty one would fail later, with a message that doesn't say why
+            exit(EXIT_CODE_TWO, err: "--stdin needs piped input, but stdin is a terminal")
         }
-
-        if args.first == "--version" || args.first == "-v" {
-            let connection = NWConnection(to: NWEndpoint.unix(path: socketPath), using: .tcp)
-            let serverVersionAndHash: String?
-            switch await connection.initConnection().error {
-                case nil:
-                    let ans = await run(connection, [], stdin: "", windowId: nil, workspace: nil, failExitCode: EXIT_CODE_TWO)
-                    serverVersionAndHash = ans.serverVersionAndHash
-                case .nwError(let e):
-                    eprint(e.localizedDescription)
-                    serverVersionAndHash = nil
-                case .customError(let msg):
-                    exit(EXIT_CODE_TWO, err: msg)
-            }
-            print(
-                """
-                aerospace CLI client version: \(cliClientVersionAndHash)
-                AeroSpace.app server version: \(serverVersionAndHash ?? "Unknown. The server is not responding")
-                """,
-            )
-            if serverVersionAndHash != nil && cliClientVersionAndHash != serverVersionAndHash {
-                eprint(
-                    """
-                    Warning: AeroSpace client/server versions don't match. Possible fixes:
-                      - Restart AeroSpace.app (server restart is required after each update)
-                      - Reinstall and restart AeroSpace (corrupted installation)
-                    """,
-                )
-            }
-            exit(EXIT_CODE_ZERO)
-        }
-
-        let parsedArgs: any CmdArgs
-        switch parseCmdArgs(args) {
-            // Optimizations
-            case .cmd(_ as TrueCmdArgs): exit(ConditionalExitCode._true.rawValue)
-            case .cmd(_ as FalseCmdArgs): exit(ConditionalExitCode._false.rawValue)
-
-            case .cmd(let _parsedArgs): parsedArgs = _parsedArgs
-            case .help(let help): exit(EXIT_CODE_ZERO, out: help)
-            case .failure(let e): exit(e.exitCode, err: e.msg)
-        }
-
-        let failExitCode = parsedArgs.failExitCode
-
-        let connection = NWConnection(to: NWEndpoint.unix(path: socketPath), using: .tcp)
-
-        switch await connection.initConnection().error {
-            case nil: break
-            case .customError(let msg):
-                exit(failExitCode, err: msg)
-            case .nwError(let e):
-                exit(failExitCode, err: "Can't connect to AeroSpace server. Is AeroSpace.app running?\n\(e.localizedDescription)")
-        }
-
-        var stdin = ""
-        if parsedArgs.commonState.explicitStdinFlag == true ||
-            // todo: drop after a couple of versions
-            (parsedArgs.commonState.explicitStdinFlag != false && (parsedArgs is WorkspaceCmdArgs && (parsedArgs as! WorkspaceCmdArgs).target.val.isRelatve || parsedArgs is MoveNodeToWorkspaceCmdArgs && (parsedArgs as! MoveNodeToWorkspaceCmdArgs).target.val.isRelatve) && hasStdin())
-        {
-            if parsedArgs is WorkspaceCmdArgs && parsedArgs.commonState.explicitStdinFlag == nil ||
-                parsedArgs is MoveNodeToWorkspaceCmdArgs && parsedArgs.commonState.explicitStdinFlag == nil
-            {
-                exit(
-                    failExitCode,
-                    err: """
-                        ERROR: Implicit stdin is detected (stdin is not TTY). Implicit stdin was forbidden in AeroSpace v0.20.0.
-                        1. Please supply '--stdin' flag to make stdin explicit and preserve old AeroSpace behavior
-                        2. You can also use '--no-stdin' flag to behave as if no stdin was supplied
-                        Breaking change issue: https://github.com/nikitabobko/AeroSpace/issues/1683
-                        """,
-                )
-            }
-            var index = 0
-            while let line = readLine(strippingNewline: false) {
-                stdin += line
-                index += 1
-                if index > 1000 {
-                    exit(failExitCode, err: "stdin number of lines limit is exceeded")
-                }
-            }
-        }
-
-        let windowId = ProcessInfo.processInfo.environment[AEROSPACE_WINDOW_ID].flatMap(UInt32.init)
-        let workspace = ProcessInfo.processInfo.environment[AEROSPACE_WORKSPACE]
-
-        // Handle subscribe command specially
-        if parsedArgs is SubscribeCmdArgs {
-            await runSubscribe(connection, args, windowId: windowId, workspace: workspace, failExitCode: parsedArgs.failExitCode)
-            exit(EXIT_CODE_ZERO) // Should not reach here
-        }
-
-        let ans = await run(connection, args, stdin: stdin, windowId: windowId, workspace: workspace, failExitCode: failExitCode)
+        let stdin = readsStdin ? readStdinOrExit() : ""
+        let connection = await connectOrExit()
+        let env = ProcessInfo.processInfo.environment
+        let request = ClientRequest(
+            args: args,
+            stdin: stdin,
+            windowId: env[AEROSPACE_WINDOW_ID].flatMap(UInt32.init),
+            workspace: env[AEROSPACE_WORKSPACE],
+        )
+        let ans = await send(connection, request)
 
         if !ans.stdout.isEmpty { print(ans.stdout) }
         if !ans.stderr.isEmpty { eprint(ans.stderr) }
-        if ans.exitCode != EXIT_CODE_ZERO && ans.serverVersionAndHash != cliClientVersionAndHash {
-            eprint(
-                """
-                Warning: AeroSpace client/server versions don't match
-                  - aerospace CLI client version: \(cliClientVersionAndHash)
-                  - AeroSpace.app server version: \(ans.serverVersionAndHash)
-                  Possible fixes:
-                  - Restart AeroSpace.app (server restart is required after each update)
-                  - Reinstall and restart AeroSpace (corrupted installation)
-                """,
-            )
+        if ans.exitCode != EXIT_CODE_ZERO { warnIfVersionsDiffer(serverVersionAndHash: ans.serverVersionAndHash) }
+        if subcommand == CmdKind.subscribe.rawValue && ans.exitCode == EXIT_CODE_ZERO {
+            await printEventsAndExit(connection)
         }
         exit(ans.exitCode)
     }
 }
 
-func runSubscribe(_ connection: NWConnection, _ args: StrArrSlice, windowId: UInt32?, workspace: String?, failExitCode: Int32) async {
-    if let e = await connection.writeAtomic(ClientRequest(args: args.toArray(), stdin: "", windowId: windowId, workspace: workspace)).error {
-        exit(failExitCode, err: "Failed to write to server socket: \(e)")
+private func connectOrExit() async -> NWConnection {
+    let connection = NWConnection(to: NWEndpoint.unix(path: socketPath), using: .tcp)
+    if let e = await connection.initConnection().error {
+        exit(EXIT_CODE_TWO, err: "Can't connect to AeroSpace server. Is AeroSpace.app running?\n\(e.localizedDescription)")
     }
+    return connection
+}
 
-    while true {
-        switch await connection.readNonAtomic() {
-            case .success(let data):
-                if let str = String(data: data, encoding: .utf8) {
-                    print(str)
-                    unsafe fflush(stdout)
-                } else {
-                    exit(failExitCode, err: "Can't convert bytes to utf8 String")
-                }
-            case .failure(let e):
-                exit(failExitCode, err: "runSubscribe error: \(e)")
+/// `--version` is how to tell what's wrong with AeroSpace.app, also when its main thread is stuck, so it doesn't wait long
+private let versionAnswerTimeoutSeconds = 3
+
+/// Prints the client version, and the server version if the server answers. Exits with 2 if the server is there but
+/// doesn't answer: `--version` is how to tell that the CLI and the server don't fit
+private func printVersionAndExit() async -> Never {
+    let connection = NWConnection(to: NWEndpoint.unix(path: socketPath), using: .tcp)
+    let server: Result<String, NoAnswer>?
+    if let e = await connection.initConnection().error {
+        eprint(e.localizedDescription)
+        server = nil
+    } else {
+        // Any answer carries the server version, even the failure of an empty request
+        let request = ClientRequest(args: [], stdin: "", windowId: nil, workspace: nil)
+        let answer = await withTimeout(.seconds(versionAnswerTimeoutSeconds)) { await trySend(connection, request) }
+        let timeout = NoAnswer.failed("AeroSpace.app accepted the connection, but didn't answer within \(versionAnswerTimeoutSeconds) seconds")
+        server = (answer ?? .failure(timeout)).map(\.serverVersionAndHash)
+    }
+    let serverLine = switch server {
+        case nil: "Unknown. The server is not responding"
+        case .success(let it): it
+        case .failure(.incompatibleProtocol): "Unknown (incompatible protocol)"
+        case .failure(.failed): "Unknown (no answer)"
+    }
+    print(
+        """
+        aerospace CLI client version: \(cliClientVersionAndHash)
+        AeroSpace.app server version: \(serverLine)
+        """,
+    )
+    switch server {
+        case .failure(let e): exit(EXIT_CODE_TWO, err: e.message)
+        case .success(let it): warnIfVersionsDiffer(serverVersionAndHash: it)
+        case nil: break
+    }
+    exit(EXIT_CODE_ZERO)
+}
+
+/// AeroSpace.app runs its old version after an update until it restarts, and the CLI is already the new one
+private func warnIfVersionsDiffer(serverVersionAndHash: String) {
+    if serverVersionAndHash == cliClientVersionAndHash { return }
+    eprint(
+        """
+        Warning: AeroSpace client/server versions don't match
+          - aerospace CLI client version: \(cliClientVersionAndHash)
+          - AeroSpace.app server version: \(serverVersionAndHash)
+          Possible fixes:
+          - Restart AeroSpace.app (server restart is required after each update)
+          - Reinstall and restart AeroSpace (corrupted installation)
+        """,
+    )
+}
+
+private func readStdinOrExit() -> String {
+    var stdin = ""
+    var index = 0
+    while let line = readLine(strippingNewline: false) {
+        stdin += line
+        index += 1
+        if index > 1000 {
+            exit(EXIT_CODE_TWO, err: "stdin number of lines limit is exceeded")
+        }
+    }
+    return stdin
+}
+
+private func send(_ connection: NWConnection, _ request: ClientRequest) async -> ServerAnswer {
+    switch await trySend(connection, request) {
+        case .success(let answer): answer
+        case .failure(let e): exit(EXIT_CODE_TWO, err: e.message)
+    }
+}
+
+private enum NoAnswer: Error {
+    case incompatibleProtocol(serverVersion: String)
+    case failed(String)
+
+    var message: String {
+        switch self {
+            case .incompatibleProtocol(let serverVersion):
+                """
+                AeroSpace.app speaks protocol version \(serverVersion), and the CLI speaks version \(socketProtocolVersion).
+                Restart AeroSpace.app (a restart is required after each update), or use the CLI of the same AeroSpace version
+                """
+            case .failed(let msg): msg
         }
     }
 }
 
-func run(_ connection: NWConnection, _ args: StrArrSlice, stdin: String, windowId: UInt32?, workspace: String?, failExitCode: Int32) async -> ServerAnswer {
-    if let e = await connection.writeAtomic(ClientRequest(args: args.toArray(), stdin: stdin, windowId: windowId, workspace: workspace)).error {
-        exit(failExitCode, err: "Failed to write to server socket: \(e)")
+private func trySend(_ connection: NWConnection, _ request: ClientRequest) async -> Result<ServerAnswer, NoAnswer> {
+    let payload = Result { try JSONEncoder().encode(request) }.getOrDie()
+    // The server would close the connection after the frame length, while the CLI still writes, so its error would be lost
+    if payload.count > Int(maxRequestSize) {
+        return .failure(.failed("The request is \(payload.count) bytes long. AeroSpace.app reads requests of at most \(maxRequestSize) bytes"))
     }
+    if let e = await connection.writeFrame(payload).error {
+        return .failure(.failed("Failed to write to server socket: \(e)"))
+    }
+    switch await connection.readFrame() {
+        case .success(let raw):
+            if let answer = try? JSONDecoder().decode(ServerAnswer.self, from: raw), answer.protocolVersion == socketProtocolVersion {
+                return .success(answer)
+            }
+            if let version = decodeProtocolVersion(raw), version != socketProtocolVersion {
+                return .failure(.incompatibleProtocol(serverVersion: "\(version)"))
+            }
+            return .failure(.failed("Failed to parse server response: \(String(data: raw, encoding: .utf8).prettyDescription)"))
+        case .failure(.legacyProtocol): return .failure(.incompatibleProtocol(serverVersion: "1"))
+        case .failure(.endOfStream), .failure(.closed):
+            return .failure(.failed("AeroSpace.app closed the connection without answering. Did it crash?"))
+        case .failure(let e): return .failure(.failed("Failed to read from server socket: \(e)"))
+    }
+}
 
-    switch await connection.readNonAtomic() {
-        case .success(let answer):
-            return (try? JSONDecoder().decode(ServerAnswer.self, from: answer)) ?? exitT(EXIT_CODE_TWO, err: "Failed to parse server response: \(String(data: answer, encoding: .utf8).prettyDescription)")
-        case .failure(let error):
-            exit(failExitCode, err: "Failed to read from server socket: \(error)")
+/// After a successful `subscribe` answer, the server sends an event per frame until the connection closes
+private func printEventsAndExit(_ connection: NWConnection) async -> Never {
+    while true {
+        switch await connection.readFrame() {
+            case .success(let data):
+                guard let str = String(data: data, encoding: .utf8) else { exit(EXIT_CODE_TWO, err: "Can't convert bytes to utf8 String") }
+                print(str)
+                unsafe fflush(stdout)
+            case .failure(.endOfStream): exit(EXIT_CODE_TWO, err: "AeroSpace.app closed the connection") // It quit, for example
+            case .failure(let e): exit(EXIT_CODE_TWO, err: "subscribe error: \(e)")
+        }
     }
 }

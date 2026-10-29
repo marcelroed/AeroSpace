@@ -138,9 +138,8 @@ A notes on how to setup the project, build it, how to run the tests, etc. can be
 
 ## macOS compatibility
 
-* AeroSpace binary runs on: macOS 13+
-* AeroSpace debug build from sources is supported on: macOS 14+
-* AeroSpace release build from sources is supported on: macOS 15+ (Requires: Swift 6.4, Xcode 26.6+)
+* AeroSpace binary runs on: macOS 27+
+* AeroSpace build from sources is supported on: macOS 27+ (Requires: Swift 6.4, Xcode 27+)
 
 ## Sponsorship
 

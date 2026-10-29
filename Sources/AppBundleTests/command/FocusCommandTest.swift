@@ -1,285 +1,264 @@
 @testable import AppBundle
+import AppKit
 import Common
-import XCTest
+import Testing
 
-// todo write tests
-//
-// test 1
-//     horizontal
-//         window1
-//         vertical
-//             vertical
-//                 window2 <-- focused
-//             vertical
-//                 window5
-//                 horizontal
-//                     window3
-//                     window4
-// pre-condition: focus_wrapping force_workspace
-// action: focus up
-// expected: mru(window3, window4) is focused
-
-@MainActor
-final class FocusCommandTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
-
-    func testParse() {
-        XCTAssertTrue(parseCommand("focus --boundaries left").errorOrNil?.contains("Possible values") == true)
-        var expected = FocusCmdArgs(rawArgs: [], cardinalOrDfsDirection: .direction(.left))
-        expected.rawBoundaries = .workspace
-        testParseSingleCommandSucc("focus --boundaries workspace left", expected)
-
-        assertEquals(
-            parseCommand("focus --boundaries workspace --boundaries workspace left").errorOrNil,
-            "ERROR: Duplicated option '--boundaries'",
-        )
-        assertEquals(
-            parseCommand("focus --window-id 42 --ignore-floating").errorOrNil,
-            "--window-id is incompatible with other options",
-        )
-        assertEquals(
-            parseCommand("focus --boundaries all-monitors-outer-frame dfs-next").errorOrNil,
-            "(dfs-next|dfs-prev) only supports --boundaries workspace",
-        )
-
-        assertEquals(
-            parseCommand("focus --window-id 42 --wrap-around").errorOrNil,
-            "--window-id is incompatible with other options",
-        )
-        assertEquals(
-            parseCommand("focus left --boundaries-action wrap-around-the-workspace --wrap-around").errorOrNil,
-            "ERROR: Conflicting options: --boundaries-action, --wrap-around",
-        )
-        assertEquals(
-            parseCommand("focus dfs-next --fail-if-fullscreen").errorOrNil,
-            "--fail-if-fullscreen/--fail-if-macos-native-fullscreen require using (left|down|up|right) argument",
-        )
-        assertEquals(
-            parseCommand("focus --fail-if-macos-native-fullscreen --window-id 42").errorOrNil,
-            "--window-id is incompatible with other options",
-        )
-        assertNil(parseCommand("focus --fail-if-fullscreen --fail-if-macos-native-fullscreen left").errorOrNil)
+@Suite(.aeroSpaceGlobalState)
+struct FocusCommandTest {
+    @Test(arguments: [
+        ("focus --boundaries workspace --boundaries workspace left", "Duplicated option '--boundaries'"),
+        ("focus --window-id 42 --ignore-floating", "--window-id is incompatible with other options"),
+        ("focus --boundaries all-monitors-outer-frame dfs-next", "(dfs-next|dfs-prev) only supports --boundaries workspace"),
+        ("focus --window-id 42 --wrap-around", "--window-id is incompatible with other options"),
+        ("focus left --boundaries-action wrap-around-the-workspace --wrap-around", "Conflicting options: --boundaries-action, --wrap-around"),
+        ("focus dfs-next --fail-if-fullscreen", "--fail-if-fullscreen/--fail-if-macos-native-fullscreen require using (left|down|up|right) argument"),
+        ("focus --fail-if-macos-native-fullscreen --window-id 42", "--window-id is incompatible with other options"),
+        ("focus --boundaries", "'--boundaries' must be followed by '<boundary>'"),
+        ("focus --boundaries-action", "'--boundaries-action' must be followed by '<action>'"),
+        ("focus --boundaries-action foo left", "Can't parse 'foo'.\nPossible values: (stop|fail|wrap-around-the-workspace|wrap-around-all-monitors)"),
+        ("focus foo", "Can't parse 'foo'.\nPossible values: (left|down|up|right|dfs-next|dfs-prev)"),
+        ("focus --boundaries-action wrap-around-all-monitors dfs-next", "workspace and wrap-around-all-monitors is an invalid combination of values"),
+        ("focus --dfs-index 0 left", "--dfs-index is incompatible with other options"),
+        // An option is rejected even when it is given with its default value
+        ("focus --window-id 42 --boundaries workspace", "--window-id is incompatible with other options"),
+        ("focus --dfs-index 0 --boundaries-action stop", "--dfs-index is incompatible with other options"),
+        // The target's errors come before the boundaries' errors, which come before the errors of the target's options
+        ("focus --boundaries-action wrap-around-all-monitors", "Mandatory argument is missing. (left|down|up|right|dfs-next|dfs-prev), --window-id or --dfs-index is required"),
+        ("focus left --window-id 1 --boundaries-action wrap-around-all-monitors", "--window-id is incompatible with other options"),
+        ("focus --window-id 1 --boundaries-action wrap-around-all-monitors", "workspace and wrap-around-all-monitors is an invalid combination of values"),
+        ("focus dfs-next --fail-if-fullscreen --boundaries-action wrap-around-all-monitors", "workspace and wrap-around-all-monitors is an invalid combination of values"),
+    ] as [(String, String)])
+    func parseError(command: String, error: String) async {
+        let output = await runCmd(command)
+        expectEqual(output, .fail(error))
     }
 
-    func testFailIfFullscreen() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            let window = TestWindow.new(id: 1, parent: $0)
-            assertEquals(window.focusWindow(), true)
-            window.isFullscreen = true
-            TestWindow.new(id: 2, parent: $0)
-        }
-
-        let result = await parseCommand("focus --fail-if-fullscreen right").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(focus.windowOrNil?.windowId, 1)
+    @Test(arguments: [
+        ("h_tiles(*1 2)", "focus right", "h_tiles(1 *2)"),
+        ("h_tiles(*1 2)", "focus --fail-if-fullscreen --fail-if-macos-native-fullscreen right", "h_tiles(1 *2)"),
+        // Across the orientation of the root
+        ("h_tiles(1 *2)", "focus up", "h_tiles(1 *2)"),
+        ("h_tiles(1 *2)", "focus down", "h_tiles(1 *2)"),
+        // No wrapping by default
+        ("h_tiles(*1 2)", "focus left", "h_tiles(*1 2)"),
+        ("h_tiles(*1 2)", "focus --boundaries workspace --boundaries-action wrap-around-the-workspace left", "h_tiles(1 *2)"),
+        // Out of the container
+        ("h_tiles(1 v_tiles(*2))", "focus left", "h_tiles(*1 v_tiles(2))"),
+        ("h_tiles(1 h_tiles(*2))", "focus left", "h_tiles(*1 h_tiles(2))"),
+        ("h_tiles(*1 v_tiles())", "focus right", "h_tiles(*1)"), // An empty container is no neighbor. Then normalization drops it
+        ("h_tiles(*1 2)", "focus --boundaries-action stop dfs-prev", "h_tiles(*1 2)"),
+        ("h_tiles(*1 2)", "focus --boundaries-action wrap-around-the-workspace dfs-prev", "h_tiles(1 *2)"),
+        ("h_tiles(1 *2)", "focus --boundaries-action stop dfs-next", "h_tiles(1 *2)"),
+        ("h_tiles(1 *2)", "focus --boundaries-action wrap-around-the-workspace dfs-next", "h_tiles(*1 2)"),
+        // The test monitor is the only monitor, so the monitor in the direction wraps around to the same monitor
+        ("h_tiles(*1 2)", "focus --boundaries all-monitors-outer-frame --boundaries-action stop left", "h_tiles(*1 2)"),
+        ("h_tiles(*1 2)", "focus --boundaries all-monitors-outer-frame --boundaries-action wrap-around-the-workspace left", "h_tiles(1 *2)"),
+        // Along the orientation, the leaf snapped to the opposite side is focused
+        ("h_tiles(1 2 *3)", "focus --boundaries all-monitors-outer-frame --boundaries-action wrap-around-all-monitors right", "h_tiles(*1 2 3)"),
+        ("h_tiles()", "focus --boundaries all-monitors-outer-frame --boundaries-action wrap-around-all-monitors left", "h_tiles()"),
+    ] as [(String, String, String)])
+    func succeeds(before: String, command: String, after: String) async {
+        setUpTree(before)
+        let output = await runCmd(command)
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), after)
     }
 
-    func testFailIfMacosNativeFullscreen() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            let window = TestWindow.new(id: 1, parent: $0)
-            assertEquals(window.focusWindow(), true)
-            window.isMacosFullscreenForTest = true
-
-            TestWindow.new(id: 2, parent: $0)
-        }
-
-        let result = await parseCommand("focus --fail-if-macos-native-fullscreen right").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 2)
-        assertEquals(focus.windowOrNil?.windowId, 1)
+    @Test(arguments: [
+        ("h_tiles(*1 2)", "focus --boundaries-action fail dfs-prev", .fail()),
+        ("h_tiles(1 *2)", "focus --boundaries-action fail dfs-next", .fail()),
+        ("h_tiles(*1 2)", "focus --boundaries all-monitors-outer-frame --boundaries-action fail left", .fail()),
+        ("h_tiles()", "focus --boundaries workspace --boundaries-action wrap-around-the-workspace left", .fail("No window is focused")),
+        ("h_tiles()", "focus --boundaries all-monitors-outer-frame --boundaries-action wrap-around-the-workspace left", .fail("No window is focused")),
+        ("h_tiles()", "focus dfs-next", .fail("No window is focused")),
+        ("h_tiles(1) floating(*2)", "focus --ignore-floating dfs-prev", .fail("The window isn't part of the workspace tree")),
+    ] as [(String, String, CmdOutput)])
+    func fails(tree: String, command: String, expected: CmdOutput) async {
+        setUpTree(tree)
+        let output = await runCmd(command)
+        expectEqual(output, expected)
+        expectEqual(describeTree(), tree)
     }
 
-    func testFailIfFullscreenAllowsRegularWindows() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-            TestWindow.new(id: 2, parent: $0)
+    /// `focus` and `move` with the flag of the fullscreen that the focused window is in
+    @Test(arguments: ["focus", "move"], ["--fail-if-fullscreen", "--fail-if-macos-native-fullscreen"])
+    func failIfFullscreen(command: String, flag: String) async {
+        setUpTree("h_tiles(*1 2)")
+        if flag == "--fail-if-fullscreen" {
+            testWindow(1).isFullscreen = true
+        } else {
+            testWindow(1).isMacosFullscreenForTest = true
         }
-
-        let result = await parseCommand("focus --fail-if-fullscreen --fail-if-macos-native-fullscreen right").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(result.exitCode.rawValue, 0)
-        assertEquals(focus.windowOrNil?.windowId, 2)
+        let output = await runCmd("\(command) \(flag) right")
+        expectEqual(output, .fail())
+        expectEqual(describeTree(), "h_tiles(*1 2)")
     }
 
-    func testFocus() {
-        assertEquals(focus.windowOrNil, nil)
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            TestWindow.new(id: 1, parent: $0)
-            assertEquals(TestWindow.new(id: 2, parent: $0).focusWindow(), true)
-            TestWindow.new(id: 3, parent: $0)
+    @Test
+    func focusOverFloatingWindows() async {
+        let workspace = setUpTree("h_tiles() floating(1 *2 3)")
+        for id: UInt32 in 1 ... 3 {
+            let offset = CGFloat(id - 1) * 10
+            testWindow(WindowId(raw: id)).rect = rect(offset, offset, 100, 100)
         }
-        assertEquals(focus.windowOrNil?.windowId, 2)
+        let output = await runCmd("focus right")
+        expectEqual(output, .ok)
+        // Focus sees the floating windows as tiling windows only while it decides. They keep their order and MRU order
+        let tree: String = "h_tiles() floating(1 2 *3)"
+        expectEqual(describeTree(), tree)
+        let mru: String = "floating(*3 2 1) h_tiles()"
+        expectEqual(describeNode(workspace, mru: true), mru)
     }
 
-    func testFocusOverFloatingWindows() async {
-        assertEquals(focus.windowOrNil, nil)
-        Workspace.get(byName: name).floatingWindowsContainer.apply {
-            TestWindow.new(id: 1, parent: $0, rect: Rect(topLeftX: 0, topLeftY: 0, width: 100, height: 100))
-            assertEquals(TestWindow.new(id: 2, parent: $0, rect: Rect(topLeftX: 10, topLeftY: 10, width: 100, height: 100)).focusWindow(), true)
-            TestWindow.new(id: 3, parent: $0, rect: Rect(topLeftX: 20, topLeftY: 20, width: 100, height: 100))
-        }
-
-        assertEquals(focus.windowOrNil?.windowId, 2)
-        await parseCommand("focus right").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(focus.windowOrNil?.windowId, 3)
+    @Test
+    func focusOverFloatingWindowsLeavesTheTilingMruAlone() async {
+        let workspace = setUpFloatingWindowAboveTiles("h_tiles(v_tiles(1 2) 3) floating(*4)")
+        let mruBefore = describeNode(workspace, mru: true)
+        let output = await runCmd("focus left") // Nothing on the left
+        expectEqual(output, .ok)
+        expectEqual(describeNode(workspace, mru: true), mruBefore)
+        let tree: String = "h_tiles(v_tiles(1 2) 3) floating(*4)"
+        expectEqual(describeTree(), tree)
     }
 
-    func testFocusAlongTheContainerOrientation() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-            TestWindow.new(id: 2, parent: $0)
-        }
-
-        assertEquals(focus.windowOrNil?.windowId, 1)
-        await parseCommand("focus right").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(focus.windowOrNil?.windowId, 2)
+    /// Focus used to focus while the floating windows were bound as tiling windows. Focusing window 4 made v_tiles the most
+    /// recent child of the root, and layout let window 2 go fullscreen instead of window 3
+    @Test
+    func focusingAFloatingWindowKeepsTheFullscreenTilingWindow() async {
+        let workspace = setUpFloatingWindowAboveTiles("h_tiles(v_tiles(1 2) 3) floating(4)")
+        #expect(testWindow(2).focusWindow() && testWindow(3).focusWindow())
+        testWindow(3).isFullscreen = true
+        let output = await runCmd("focus --window-id 4")
+        expectEqual(output, .ok)
+        expectEqual(workspace.existingRootTilingContainer?.mostRecentWindowRecursive?.windowId, 3)
+        workspace.layoutWorkspace()
+        let fullscreen: AxFrame = AxFrame(topLeft: CGPoint(x: 0, y: 0), size: CGSize(width: 1920, height: 1080))
+        expectEqual(testWindow(3).setAxFrameHistory.last, fullscreen)
     }
 
-    func testFocusAcrossTheContainerOrientation() async {
-        Workspace.get(byName: name).apply {
-            TestWindow.new(id: 1, parent: $0.rootTilingContainer)
-            TestWindow.new(id: 2, parent: $0.rootTilingContainer)
-            assertEquals($0.focusWorkspace(), true)
+    /// Across its orientation, focus enters a container at its most recent child. Along it, at the child on the near side
+    @Test(arguments: [
+        ("h_tiles(*1 v_tiles(h_tiles(2 5) 3))", [], "focus right", "h_tiles(1 v_tiles(h_tiles(2 5) *3))"),
+        ("h_tiles(*1 v_tiles(h_tiles(2 5) 3))", [2], "focus right", "h_tiles(1 v_tiles(h_tiles(*2 5) 3))"),
+        ("h_tiles(*1 v_tiles(h_tiles(2 5) 3))", [3, 5], "focus right", "h_tiles(1 v_tiles(h_tiles(*2 5) 3))"),
+        // Wrapping around the workspace enters the bottom of the outer v_tiles
+        (
+            "h_tiles(1 v_tiles(v_tiles(*2) v_tiles(5 h_tiles(3 4))))", [3], "focus --boundaries-action wrap-around-the-workspace up",
+            "h_tiles(1 v_tiles(v_tiles(2) v_tiles(5 h_tiles(*3 4))))",
+        ),
+    ] as [(String, [WindowId], String, String)])
+    func focusFindsTheMostRecentLeaf(before: String, mostRecent: [WindowId], command: String, after: String) async {
+        setUpTree(before)
+        let focused = focus.windowOrNil.orDie()
+        for id in mostRecent {
+            testWindow(id).markAsMostRecentChild()
         }
-
-        assertEquals(focus.windowOrNil?.windowId, 2)
-        await parseCommand("focus up").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(focus.windowOrNil?.windowId, 2)
-        await parseCommand("focus down").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(focus.windowOrNil?.windowId, 2)
+        #expect(focused.focusWindow()) // The focused window is the most recent one again
+        let output = await runCmd(command)
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), after)
     }
 
-    func testFocusNoWrapping() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-            TestWindow.new(id: 2, parent: $0)
+    @Test
+    func focusDfsRelative() async {
+        setUpTree("h_tiles(v_tiles(*1 h_tiles(2 3)) 4)")
+        for (command, focused): (String, WindowId) in [
+            ("dfs-next", 2), ("dfs-next", 3), ("dfs-next", 4),
+            ("dfs-prev", 3), ("dfs-prev", 2), ("dfs-prev", 1),
+        ] {
+            let output = await runCmd("focus \(command)")
+            expectEqual(output, .ok)
+            expectEqual(focus.windowOrNil?.windowId, focused)
         }
-
-        assertEquals(focus.windowOrNil?.windowId, 1)
-        await parseCommand("focus left").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(focus.windowOrNil?.windowId, 1)
     }
 
-    func testFocusWrapping() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-            TestWindow.new(id: 2, parent: $0)
-        }
-
-        assertEquals(focus.windowOrNil?.windowId, 1)
-        await parseCommand("focus --boundaries workspace --boundaries-action wrap-around-the-workspace left").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(focus.windowOrNil?.windowId, 2)
+    @Test
+    func allMonitorsOuterFrame_wrapAroundAllMonitors_acrossTheOrientation() async {
+        setUpTree("h_tiles(1 *2 3)")
+        testWindow(3).markAsMostRecentChild()
+        // The most recent leaf of the wrapped monitor's workspace is focused
+        let output = await runCmd("focus --boundaries all-monitors-outer-frame --boundaries-action wrap-around-all-monitors down")
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), "h_tiles(1 2 *3)")
     }
 
-    func testFocusFindMruLeaf() async {
-        let workspace = Workspace.get(byName: name)
-        var startWindow: Window!
-        var window2: Window!
-        var window3: Window!
-        var unrelatedWindow: Window!
-        workspace.rootTilingContainer.apply {
-            startWindow = TestWindow.new(id: 1, parent: $0)
-            TilingContainer.newVTiles(parent: $0, adaptiveWeight: 1).apply {
-                TilingContainer.newHTiles(parent: $0, adaptiveWeight: 1).apply {
-                    window2 = TestWindow.new(id: 2, parent: $0)
-                    unrelatedWindow = TestWindow.new(id: 5, parent: $0)
-                }
-                window3 = TestWindow.new(id: 3, parent: $0)
-            }
+    // Floating windows are seen as tiling windows next to the tiling window under their center
+    @Test
+    func floatingAsTiling_tiles() async {
+        setUpTree("h_tiles(1 2) floating(*3 4)")
+        for (id, x): (WindowId, CGFloat) in [(1, 0), (2, 960)] {
+            testWindow(id).rect = rect(x, 0, 960, 1080)
+            testWindow(id).lastAppliedLayoutVirtualRect = rect(x, 0, 960, 1080)
         }
+        testWindow(3).rect = rect(1400, 400, 200, 200) // The center is to the right of window 2's center
+        testWindow(4).rect = rect(1200, 400, 200, 200) // The center is to the left of window 2's center
 
-        assertEquals(workspace.mostRecentWindowRecursive?.windowId, 3) // The latest bound
-        _ = startWindow.focusWindow()
-        await parseCommand("focus right").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(focus.windowOrNil?.windowId, 3)
+        var output = await runCmd("focus left")
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), "h_tiles(1 *2) floating(3 4)")
 
-        window2.markAsMostRecentChild()
-        _ = startWindow.focusWindow()
-        await parseCommand("focus right").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(focus.windowOrNil?.windowId, 2)
-
-        window3.markAsMostRecentChild()
-        unrelatedWindow.markAsMostRecentChild()
-        _ = startWindow.focusWindow()
-        await parseCommand("focus right").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(focus.windowOrNil?.windowId, 2)
+        #expect(testWindow(4).focusWindow())
+        output = await runCmd("focus left")
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), "h_tiles(*1 2) floating(3 4)")
     }
 
-    func testFocusOutsideOfTheContainer() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            TestWindow.new(id: 1, parent: $0)
-            TilingContainer.newVTiles(parent: $0, adaptiveWeight: 1).apply {
-                assertEquals(TestWindow.new(id: 2, parent: $0).focusWindow(), true)
-            }
-        }
+    @Test
+    func floatingAsTiling_accordion() async {
+        setUpTree("h_accordion(1 2) floating(*3 4)")
+        testWindow(1).rect = rect(0, 0, 1920, 1080)
+        testWindow(2).rect = rect(0, 0, 1920, 1080)
+        testWindow(3).rect = rect(1500, 400, 200, 200) // The center is to the right of the most recent window's center
+        testWindow(4).rect = rect(100, 400, 200, 200) // The center is to the left of the most recent window's center
 
-        await parseCommand("focus left").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(focus.windowOrNil?.windowId, 1)
+        var output = await runCmd("focus --ignore-floating left")
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), "h_accordion(1 2) floating(*3 4)") // Floating windows aren't seen as tiling
+        output = await runCmd("focus left")
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), "h_accordion(1 *2) floating(3 4)")
+
+        #expect(testWindow(4).focusWindow())
+        output = await runCmd("focus right")
+        expectEqual(output, .ok)
+        expectEqual(describeTree(), "h_accordion(*1 2) floating(3 4)")
     }
 
-    func testFocusOutsideOfTheContainer2() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            TestWindow.new(id: 1, parent: $0)
-            TilingContainer.newHTiles(parent: $0, adaptiveWeight: 1).apply {
-                assertEquals(TestWindow.new(id: 2, parent: $0).focusWindow(), true)
-            }
+    /// Workspace a is `h_tiles(*1 2)`, b is `h_tiles(3)`. Each command runs on the state that the previous one left, and the
+    /// focus check that the session runs after each command remembers the previous focus
+    @Test(arguments: focusBackAndForthCases)
+    func focusBackAndForth(steps: [(command: String, expected: CmdOutput, focused: WindowId?)]) async {
+        setUpTree("h_tiles(*1 2)", workspace: "a")
+        setUpTree("h_tiles(3)", workspace: "b")
+        await checkOnFocusChangedCallbacks_nonCancellable()
+        for (command, expected, focused) in steps {
+            let output = await runCmd(command)
+            expectEqual(output, expected, "\(command)")
+            await checkOnFocusChangedCallbacks_nonCancellable()
+            expectEqual(focus.windowOrNil?.windowId, focused, "after '\(command)'")
         }
-
-        await parseCommand("focus left").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(focus.windowOrNil?.windowId, 1)
-    }
-
-    func testFocusDfsRelative() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            TilingContainer.newVTiles(parent: $0, adaptiveWeight: 1).apply {
-                assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-                TilingContainer.newHTiles(parent: $0, adaptiveWeight: 1).apply {
-                    TestWindow.new(id: 2, parent: $0)
-                    TestWindow.new(id: 3, parent: $0)
-                }
-            }
-            TestWindow.new(id: 4, parent: $0)
-        }
-
-        assertEquals(focus.windowOrNil?.windowId, 1)
-
-        await parseCommand("focus dfs-next").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(focus.windowOrNil?.windowId, 2)
-        await parseCommand("focus dfs-next").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(focus.windowOrNil?.windowId, 3)
-        await parseCommand("focus dfs-next").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(focus.windowOrNil?.windowId, 4)
-
-        await parseCommand("focus dfs-prev").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(focus.windowOrNil?.windowId, 3)
-        await parseCommand("focus dfs-prev").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(focus.windowOrNil?.windowId, 2)
-        await parseCommand("focus dfs-prev").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(focus.windowOrNil?.windowId, 1)
-    }
-
-    func testFocusDfsRelativeWrapping() async {
-        Workspace.get(byName: name).rootTilingContainer.apply {
-            assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
-            TestWindow.new(id: 2, parent: $0)
-        }
-
-        assertEquals(focus.windowOrNil?.windowId, 1)
-
-        assertEquals(await parseCommand("focus --boundaries-action stop dfs-prev").cmdOrDie.run(.defaultEnv, .emptyStdin).exitCode.rawValue, 0)
-        assertEquals(focus.windowOrNil?.windowId, 1)
-
-        assertEquals(await parseCommand("focus --boundaries-action fail dfs-prev").cmdOrDie.run(.defaultEnv, .emptyStdin).exitCode.rawValue, 2)
-        assertEquals(focus.windowOrNil?.windowId, 1)
-
-        assertEquals(await parseCommand("focus --boundaries-action wrap-around-the-workspace dfs-prev").cmdOrDie.run(.defaultEnv, .emptyStdin).exitCode.rawValue, 0)
-        assertEquals(focus.windowOrNil?.windowId, 2)
-
-        assertEquals(await parseCommand("focus --boundaries-action stop dfs-next").cmdOrDie.run(.defaultEnv, .emptyStdin).exitCode.rawValue, 0)
-        assertEquals(focus.windowOrNil?.windowId, 2)
-
-        assertEquals(await parseCommand("focus --boundaries-action fail dfs-next").cmdOrDie.run(.defaultEnv, .emptyStdin).exitCode.rawValue, 2)
-        assertEquals(focus.windowOrNil?.windowId, 2)
-
-        assertEquals(await parseCommand("focus --boundaries-action wrap-around-the-workspace dfs-next").cmdOrDie.run(.defaultEnv, .emptyStdin).exitCode.rawValue, 0)
-        assertEquals(focus.windowOrNil?.windowId, 1)
     }
 }
+
+/// The tiles fill the 1920x1080 test monitor, and floating window 4 is above window 1: focus sees it as the first tiling
+/// window of v_tiles
+private func setUpFloatingWindowAboveTiles(_ spec: String) -> Workspace {
+    let workspace = setUpTree(spec)
+    let rects: [(WindowId, Rect)] = [(1, rect(0, 0, 960, 540)), (2, rect(0, 540, 960, 540)), (3, rect(960, 0, 960, 1080))]
+    for (id, rect) in rects {
+        testWindow(id).rect = rect
+        testWindow(id).lastAppliedLayoutVirtualRect = rect
+    }
+    testWindow(1).parent?.lastAppliedLayoutVirtualRect = rect(0, 0, 960, 1080) // v_tiles
+    testWindow(4).rect = rect(100, 100, 200, 200)
+    return workspace
+}
+
+nonisolated private let focusBackAndForthCases: [[(command: String, expected: CmdOutput, focused: WindowId?)]] = [
+    [("focus right", .ok, 2), ("focus-back-and-forth", .ok, 1), ("focus-back-and-forth", .ok, 2)],
+    [("workspace b", .ok, 3), ("focus-back-and-forth", .ok, 1)],
+    // The previous focus is an empty workspace
+    [("workspace c", .ok, nil), ("focus-back-and-forth", .ok, 1), ("focus-back-and-forth", .ok, nil)],
+    // The previous window closed. Its workspace's focus is the current focus
+    [("focus right", .ok, 2), ("close --window-id 1", .ok, 2), ("focus-back-and-forth", .fail("Prev window has been closed"), 2)],
+]

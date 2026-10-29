@@ -1,26 +1,44 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
-@MainActor
-final class MoveWorkspaceToMonitorCommandTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
-
-    func testParse() {
-        assertEquals(parseMoveWorkspaceToMonitorTarget("move-workspace-to-monitor next"), .relative(.next))
-        assertEquals(parseMoveWorkspaceToMonitorTarget("move-workspace-to-monitor main"), .patterns([.main]))
+@Suite(.aeroSpaceGlobalState)
+struct MoveWorkspaceToMonitorCommandTest {
+    @Test(arguments: [
+        ("move-workspace-to-monitor --", "Argument '(left|down|up|right|next|prev|<monitor-pattern>)' is mandatory"),
+        ("move-workspace-to-monitor --wrap-around 2", "--wrap-around is incompatible with <monitor-pattern> argument"),
+    ] as [(String, String)])
+    func parseError(command: String, error: String) async {
+        let output = await runCmd(command)
+        expectEqual(output, .fail(error))
     }
 
-    func testParseDashDash() {
-        assertEquals(parseMoveWorkspaceToMonitorTarget("move-workspace-to-monitor -- next"), .patterns([.pattern("next")!]))
-        assertEquals(parseCommand("move-workspace-to-monitor --").errorOrNil, "ERROR: Argument \'(left|down|up|right|next|prev|<monitor-pattern>)\' is mandatory")
+    @Test(arguments: ["--wrap-around next", "--wrap-around left", "main"])
+    func singleMonitor_sameMonitor_succeedsSilently(target: String) async {
+        let workspace = focus.workspace
+        let output = await runCmd("move-workspace-to-monitor \(target)")
+        expectEqual(output, .ok)
+        expectEqual(focus.workspace, workspace)
+        expectEqual(testMonitor.activeWorkspace, workspace)
     }
-}
 
-@MainActor
-private func parseMoveWorkspaceToMonitorTarget(_ raw: String) -> MonitorTarget? {
-    guard case .cmd(.cmd(let cmd)) = parseCommand(raw),
-          let args = cmd.args as? MoveWorkspaceToMonitorCmdArgs
-    else { return nil }
-    return args.target.val
+    @Test
+    func twoMonitors_movesTheWorkspaceAndLeavesAStub() async {
+        updateMonitors([testMonitor, rightTestMonitor])
+        let workspace = focus.workspace
+        let output = await runCmd("move-workspace-to-monitor next")
+        expectEqual(output, .ok)
+        expectEqual(rightTestMonitor.activeWorkspace, workspace)
+        #expect(testMonitor.activeWorkspace != workspace)
+    }
+
+    /// The monitor of an invisible workspace keeps its visible workspace
+    @Test
+    func twoMonitors_movesAnInvisibleWorkspace() async {
+        updateMonitors([testMonitor, rightTestMonitor])
+        let visible = focus.workspace
+        let output = await runCmd("move-workspace-to-monitor --workspace other next")
+        expectEqual(output, .ok)
+        expectEqual(world.monitors.all.map(\.activeWorkspace.name), [visible.name, "other"])
+    }
 }

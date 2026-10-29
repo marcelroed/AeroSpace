@@ -1,45 +1,37 @@
 import Common
+import Observation
 import SwiftUI
 
-@MainActor
-public func getMessageWindow(messageModel: MessageModel) -> some Scene {
+/// The config diagnostics window
+public func messageWindow(_ ui: Ui) -> some Scene {
     // Using SwiftUI.Window because another class in AeroSpace is already called Window
-    SwiftUI.Window(messageModel.message?.title ?? aeroSpaceAppName, id: messageWindowId) {
-        MessageView(model: messageModel)
+    SwiftUI.Window(aeroSpaceAppName, id: messageWindowId) {
+        MessageView(model: ui.messageModel, trayMenuModel: ui.trayMenuModel)
             .onAppear {
                 // Set activation policy; otherwise, AeroSpace windows won't be able to receive focus and accept keyboard input
                 NSApp.setActivationPolicy(.accessory)
-                NSApplication.shared.windows.forEach {
-                    if $0.identifier?.rawValue == messageWindowId {
-                        $0.level = .floating
-                        $0.styleMask.remove(.miniaturizable) // Disable minimize button, because we don't unminimize the window on config error
-                    }
-                }
             }
-        // .windowMinimizeBehavior(WindowInteractionBehavior.disabled) // SwiftUI way of hiding minimize button. Available only since macOS 15
+            .windowMinimizeBehavior(.disabled) // Disable minimize button, because we don't unminimize the window on config error
     }
     .windowResizability(.contentMinSize)
-    //.windowLevel(.floating) //This might be the SwiftUI way of doing window level instead of the onAppear block above, but it's only available from macOS 15.0
+    .windowLevel(.floating)
 }
 
-public let messageWindowId = "\(aeroSpaceAppName).messageView"
+let messageWindowId: String = "\(aeroSpaceAppName).messageView"
 
 struct MessageView: View {
-    @StateObject private var model: MessageModel
+    let model: MessageModel
+    let trayMenuModel: TrayMenuModel
     @Environment(\.dismiss) private var dismiss: DismissAction
-    @FocusState var focus: Bool
+    @FocusState private var focus: Bool
 
-    init(model: MessageModel) {
-        self._model = .init(wrappedValue: model)
-    }
-
-    public var body: some View {
+    var body: some View {
         VStack(alignment: .leading) {
             HStack(alignment: .center) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundColor(.yellow)
+                    .foregroundStyle(.yellow)
                     .font(.system(size: 48))
-                Text("\(model.message?.description ?? "")")
+                Text(verbatim: model.message == nil ? "" : "AeroSpace Config Diagnostics")
                     .padding(.horizontal)
                     .focusable()
             }
@@ -58,7 +50,6 @@ struct MessageView: View {
                         TextEditor(text: cancelOnEnterBinding)
                             .font(.system(size: 12).monospaced())
                             .focused($focus)
-                        //  .onKeyPress(.return) { return .handled } // enter handling alternative. Only available since macOS 14
                         Spacer()
                     }
                     Spacer()
@@ -70,12 +61,9 @@ struct MessageView: View {
             .padding(.horizontal)
             HStack {
                 Spacer()
-                if let type = model.message?.type {
-                    switch type {
-                        case .config:
-                            reloadConfigButton(showShortcutGroup: true, warningsAsErrors: model.message?.containsWarnings == true)
-                            openConfigButton(showShortcutGroup: true)
-                    }
+                if model.message != nil {
+                    reloadConfigButton(trayMenuModel, showShortcutGroup: true)
+                    openConfigButton(showShortcutGroup: true)
                 }
                 let closeButton = Button("Close") { model.message = nil }.keyboardShortcut(.defaultAction)
                 shortcutGroup(label: Image(systemName: "return.left"), content: closeButton)
@@ -84,7 +72,7 @@ struct MessageView: View {
         }
         .textSelection(.enabled)
         .frame(minWidth: 480, maxWidth: 960, minHeight: 200)
-        .onChange(of: model.message) { message in
+        .onChange(of: model.message) { _, message in
             if message == nil {
                 self.dismiss()
             }
@@ -99,35 +87,12 @@ struct MessageView: View {
     }
 }
 
-public final class MessageModel: ObservableObject {
-    @MainActor public static let shared = MessageModel()
-    @Published public var message: Message? = nil
-
-    private init() {}
+@Observable
+final class MessageModel {
+    var message: Message? = nil
 }
 
-public enum MessageType {
-    case config
-}
-
-public struct Message: Hashable, Equatable {
-    public let type: MessageType
-    public let title: String
-    public let description: String
-    public let body: String
-    public let containsWarnings: Bool
-
-    init(
-        type: MessageType = .config,
-        title: String = aeroSpaceAppName,
-        description: String = "AeroSpace Config Diagnostics",
-        body: String,
-        containsWarnings: Bool,
-    ) {
-        self.type = type
-        self.title = title
-        self.description = description
-        self.body = body
-        self.containsWarnings = containsWarnings
-    }
+/// A config diagnostics message
+struct Message: Hashable {
+    let body: String
 }
