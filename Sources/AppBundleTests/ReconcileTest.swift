@@ -803,6 +803,31 @@ struct ReconcileTest {
         expectEqual(describeTree("a"), "h_tiles(1 5) floating(4)")
         expectEqual(describeTree("b"), "h_tiles(*3 6)")
     }
+
+    /// A dialog that an app opens in the background goes to the workspace of the app's last focused window: on the
+    /// focused workspace it would hide, or pull the focus back once the app is activated on its own workspace. A new
+    /// window of a background app, and a dialog of the frontmost app, go to the focused workspace
+    @Test
+    func aDialogThatABackgroundAppOpensGoesToTheWorkspaceOfTheAppsLastFocusedWindow() async {
+        fake.apps = [testApp, appB]
+        setUpTree("h_tiles(1)", workspace: "a")
+        setUpTree("h_tiles(2)", workspace: "c")
+        testWindow(1).markAsMostRecentChild() // The app's last focused window
+        fake.windows[3] = FakeWindow(app: appB, rect: nil, title: "3")
+        _ = Window(id: 3, appB, parent: Workspace.get(byName: "b").rootTilingContainerCreatingIfNeeded(), weight: 1, index: nil)
+        #expect(testWindow(3).focusWindow())
+        fake.focused = 3 // appB is frontmost
+        openWindow(4)
+        fake.windows[4]?.kind = .dialog
+        openWindow(5)
+        openWindow(6, appB)
+        fake.windows[6]?.kind = .dialog
+
+        await heavyRefresh()
+        expectEqual(describeTree("a"), "h_tiles(1) floating(4)")
+        expectEqual(describeTree("b"), "h_tiles(*3 5) floating(6)")
+        expectEqual(describeTree("c"), "h_tiles(2)")
+    }
 }
 
 private let appA = AppInfo(pid: 1, bundleId: "test.a", name: "A", execPath: nil, bundlePath: nil)

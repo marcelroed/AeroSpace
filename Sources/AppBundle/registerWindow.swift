@@ -18,12 +18,20 @@ func registerWindow(_ id: WindowId, _ app: AppInfo, _ detected: DetectedWindow, 
 /// - A window with a window server parent (e.g. an AppKit child window) goes to its owner's workspace (see
 ///   ``windowServerOwner(of:_:)``): macOS moves it along with its owner, so on another workspace a park would drag it
 ///   away, and an unpark would bring it to the wrong workspace
+/// - A dialog that an app opens in the background (e.g. an alert, or a window that it makes its key window without
+///   activating) goes to the workspace of the app's last focused window. On the focused workspace, it would hide while
+///   the user is on the app's workspace, or pull the focus back when the app is activated there: the app gives the focus
+///   to its key window
 /// - Otherwise the focused workspace
 func newWindowWorkspace(_ id: WindowId, _ app: AppInfo, _ kind: AxUiElementWindowType) -> Workspace {
     if kind == .popup { return focus.workspace }
     let popups = macosPopupWindowsContainer.children.lazy.compactMap { ($0 as? Window)?.windowId }
     let parents = world.platform.windowServerParents([id] + popups)
     if let workspace = windowServerOwner(of: id, parents)?.workspacePlacement?.workspace { return workspace }
+    if kind == .dialog && world.platform.frontmostAppPid != app.pid {
+        let appWindows: [TreeNode] = world.windows.values.filter { $0.app.pid == app.pid && $0.workspacePlacement != nil }
+        if let workspace = (appWindows.mostRecent as? Window)?.workspacePlacement?.workspace { return workspace }
+    }
     return focus.workspace
 }
 
