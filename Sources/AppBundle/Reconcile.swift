@@ -248,11 +248,12 @@ enum Reconcile {
         // 5. The macOS states: fullscreen, minimized, hidden app
         normalizeLayoutReason(o.facts, o.detected)
 
-        // 6. A popup that isn't one anymore (e.g. a tab dragged out of a browser window) goes where its kind goes. Only an
-        // on-screen read can tell that: an off-screen popup (e.g. picture in picture while its app is hidden) stays one
+        // 6. A popup that isn't one anymore (e.g. a tab dragged out of a browser window) goes where its kind goes, as a
+        // new window does. Only an on-screen read can tell that: an off-screen popup (e.g. picture in picture while its
+        // app is hidden) stays one
         for case let popup as Window in macosPopupWindowsContainer.children {
             guard let kind = o.detected[popup.windowId]?.kindOnScreen, kind != .popup else { continue }
-            popup.relayoutWindow(on: focus.workspace, as: kind)
+            popup.relayoutWindow(on: newWindowWorkspace(popup.windowId, popup.app, kind), as: kind)
             detected.append(popup.windowId)
         }
 

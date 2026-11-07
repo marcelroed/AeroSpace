@@ -46,23 +46,11 @@ private func popupPlacements() -> (unparks: [Placement], parks: [Placement]) {
     let popups = macosPopupWindowsContainer.children.filterIsInstance(of: Window.self)
     if popups.isEmpty { return ([], []) }
     let parents = world.platform.windowServerParents(popups.map(\.windowId))
-    func owner(of popup: Window) -> Window? {
-        var id = popup.windowId
-        for _ in 0 ..< 8 { // A popup of a popup of a window. The bound guards against a cycle
-            guard let parentId = parents[id], let parent = Window.get(byId: parentId) else { return nil }
-            if case .macosPopup = parent.placement {
-                id = parentId
-                continue
-            }
-            return parent
-        }
-        return nil
-    }
     let monitors = world.monitors
     var unparks: [Placement] = []
     var parks: [Placement] = []
     for popup in popups {
-        guard let (workspace, placement) = owner(of: popup)?.workspacePlacement else { continue }
+        guard let (workspace, placement) = windowServerOwner(of: popup.windowId, parents)?.workspacePlacement else { continue }
         if case .macosHiddenApp = placement { continue }
         if !world.isEnabled || workspace.isVisible {
             unparks.append(.unparkPopup(popup.windowId))

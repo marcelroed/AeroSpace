@@ -1,16 +1,45 @@
 import AppKit
 
 /// Registers a new window where its kind goes (see ``unbindAndGetSlotForNewWindow(_:_:window:)``). At startup, on the
-/// workspace of the monitor under the window's center, otherwise on the focused workspace. Sync, so the workspace is read
-/// when the window is bound (RB-86). The closed-windows cache or on-window-detected may move it afterwards
+/// workspace of the monitor under the window's center, otherwise on ``newWindowWorkspace(_:_:_:)``. Sync, so the
+/// workspace is read when the window is bound (RB-86). The closed-windows cache or on-window-detected may move it
+/// afterwards
 func registerWindow(_ id: WindowId, _ app: AppInfo, _ detected: DetectedWindow, isStartup: Bool) -> Window {
     let workspace = if isStartup {
         (detected.rect.map { world.monitors.approximation($0.center) } ?? world.monitors.main).activeWorkspace
     } else {
-        focus.workspace
+        newWindowWorkspace(id, app, detected.kind)
     }
     let slot = unbindAndGetSlotForNewWindow(detected.kind, workspace, window: nil)
     return Window(id: id, app, parent: slot.parent, weight: nil, index: slot.index)
+}
+
+/// The workspace of a new window (a popup has none: it goes to ``macosPopupWindowsContainer``):
+/// - A window with a window server parent (e.g. an AppKit child window) goes to its owner's workspace (see
+///   ``windowServerOwner(of:_:)``): macOS moves it along with its owner, so on another workspace a park would drag it
+///   away, and an unpark would bring it to the wrong workspace
+/// - Otherwise the focused workspace
+func newWindowWorkspace(_ id: WindowId, _ app: AppInfo, _ kind: AxUiElementWindowType) -> Workspace {
+    if kind == .popup { return focus.workspace }
+    let popups = macosPopupWindowsContainer.children.lazy.compactMap { ($0 as? Window)?.windowId }
+    let parents = world.platform.windowServerParents([id] + popups)
+    if let workspace = windowServerOwner(of: id, parents)?.workspacePlacement?.workspace { return workspace }
+    return focus.workspace
+}
+
+/// The window that `id` belongs to: its window server parent, or the parent's owner if that's a popup (e.g. a
+/// submenu of a popup). nil if AeroSpace doesn't know it. `parents`: see ``Platform/windowServerParents(_:)``
+func windowServerOwner(of id: WindowId, _ parents: [WindowId: WindowId]) -> Window? {
+    var id = id
+    for _ in 0 ..< 8 { // The bound guards against a cycle
+        guard let parentId = parents[id], let parent = Window.get(byId: parentId) else { return nil }
+        if case .macosPopup = parent.placement {
+            id = parentId
+            continue
+        }
+        return parent
+    }
+    return nil
 }
 
 extension Window {

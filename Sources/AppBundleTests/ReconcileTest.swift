@@ -784,6 +784,25 @@ struct ReconcileTest {
         for _ in 0 ..< 100 where Window.get(byId: 3) == nil { await Task.yield() } // Let the heavy refresh run
         expectEqual(describeTree(), "h_tiles(1 *2 3)")
     }
+
+    /// A child window (e.g. an AppKit child window, or a popup's) goes to the workspace of its window server parent, not
+    /// to the focused one: macOS moves it along with its parent, so a park of the parent would drag it away
+    @Test
+    func aChildWindowRegistersOnTheWorkspaceOfItsParent() async {
+        setUpTree("h_tiles(1) macos_popup(2)", workspace: "a")
+        fake.windows[2]?.kind = .popup
+        setUpTree("h_tiles(*3)", workspace: "b")
+        fake.focused = 3
+        openWindow(4)
+        fake.windows[4]?.kind = .dialog
+        openWindow(5)
+        openWindow(6)
+        fake.parents = [2: 1, 4: 1, 5: 2] // 5 is a child window of the popup of 1. 6 has no parent
+
+        await heavyRefresh()
+        expectEqual(describeTree("a"), "h_tiles(1 5) floating(4)")
+        expectEqual(describeTree("b"), "h_tiles(*3 6)")
+    }
 }
 
 private let appA = AppInfo(pid: 1, bundleId: "test.a", name: "A", execPath: nil, bundlePath: nil)
