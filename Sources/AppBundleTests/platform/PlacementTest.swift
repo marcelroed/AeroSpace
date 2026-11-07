@@ -105,6 +105,21 @@ struct PlacementTest {
     }
 
     /// The popup of a hidden app's window stays: macOS hides it with the app
+    /// 1Password's popups (e.g. its always-on-top mini window) show on every workspace: they don't follow their parent
+    @Test
+    func aPopupOf1PasswordStaysOnEveryWorkspace() {
+        setUpTree("h_tiles(1)", workspace: "a") // Not shown: its windows park
+        let onePassword = AppInfo(pid: 1, bundleId: KnownBundleId._1password.rawValue, name: "1Password", execPath: nil, bundlePath: nil)
+        fake.windows[2] = FakeWindow(app: onePassword, rect: rect(1500, 900, 400, 500), title: "2")
+        _ = Window(id: 2, onePassword, parent: macosPopupWindowsContainer, weight: 1, index: nil)
+        fake.parents = [2: 1]
+
+        fake.apply(placements())
+
+        expectEqual(fake.calls(of: .park).map(\.windowId), [1])
+        expectEqual(fake.windows[2]?.rect?.topLeftCorner, CGPoint(x: 1500, y: 900))
+    }
+
     @Test
     func aPopupOfAHiddenAppsWindowStays() {
         setUpTree("macos_hidden(1) macos_popup(2)", workspace: "a")

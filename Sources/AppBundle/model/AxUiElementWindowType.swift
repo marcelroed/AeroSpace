@@ -24,10 +24,6 @@ nonisolated extension AxUiElementMock {
     ) -> Bool {
         // Note: a lot of windows don't have title on startup. So please don't rely on the title
 
-        if id == ._1password && windowLevel != .normalWindow {
-            return true
-        }
-
         if id == .iphonesimulator {
             return true
         }
@@ -102,6 +98,8 @@ nonisolated extension AxUiElementMock {
         _ activationPolicy: NSApplication.ActivationPolicy,
         _ windowLevel: MacOsWindowLevel?,
     ) -> Bool {
+        // E.g. 1Password's mini window and large type window: they're always on top. As popups, they stay where 1Password
+        // puts them and show on every workspace
         if usesWindowLevel(id) && windowLevel != .normalWindow {
             return false
         }
@@ -212,12 +210,12 @@ nonisolated extension AxUiElementMock {
 }
 
 /// The apps whose windows' kind depends on the window level, see ``AXUIElement/getWindowType(axApp:_:_:_:)``
-nonisolated func kindNeedsWindowLevel(_ id: KnownBundleId?) -> Bool { usesWindowLevel(id) || id == ._1password }
+nonisolated func kindNeedsWindowLevel(_ id: KnownBundleId?) -> Bool { usesWindowLevel(id) }
 
 /// Slowly roll out windowLevel for applications for which we have the appropriate dumps
 nonisolated private func usesWindowLevel(_ id: KnownBundleId?) -> Bool {
     switch id {
-        case .slack, .chrome, .braveBrowser, .screenstudio, .cleanshotx, .iterm2, .outlook, .codex, .wisprFlow: true
+        case ._1password, .slack, .chrome, .braveBrowser, .screenstudio, .cleanshotx, .iterm2, .outlook, .codex, .wisprFlow: true
         case let id?: id.isFirefox
         case nil: false
     }

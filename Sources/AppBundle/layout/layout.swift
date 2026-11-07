@@ -89,13 +89,13 @@ extension [Placement] {
 /// popup of a window of an invisible workspace parks, see ``ParkTarget/followsParent``, and it unparks when the workspace
 /// shows. The unparks come first: the parents' unparks take the popups along. The parks come last: a child window that
 /// its parent's park took off-screen stays there. A popup whose parent is a popup follows that one's parent. A popup
-/// without such a parent (e.g. a picture in picture window, a menu bar app's popover) and a popup of a hidden app's window
-/// (macOS hides them) stay where they are
+/// without such a parent (e.g. a picture in picture window, a menu bar app's popover), a popup of a hidden app's window
+/// (macOS hides them) and 1Password's popups (its mini window shows on every workspace) stay where they are
 private func popupPlacements(_ popups: [Window], _ parents: [WindowId: WindowId]) -> (unparks: [Placement], parks: [Placement]) {
     let monitors = world.monitors
     var unparks: [Placement] = []
     var parks: [Placement] = []
-    for popup in popups {
+    for popup in popups where popup.app.knownBundleId != ._1password {
         guard let (workspace, placement) = windowServerOwner(of: popup.windowId, parents)?.workspacePlacement else { continue }
         if case .macosHiddenApp = placement { continue }
         if !world.isEnabled || workspace.isVisible {
