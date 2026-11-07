@@ -20,6 +20,59 @@ struct PlacementTest {
         expectEqual(testWindow(2).rect?.topLeftCorner, CGPoint(x: 1920, y: 1080)) // #527
     }
 
+    /// A popup follows the workspace of its window server parent. Chromium keeps a bubble that opens while its window is
+    /// parked at the screen's edge, where it would show on every workspace: it parks, and it goes back where it was before
+    /// its parent unparks. So does a popup of that popup. A child window that its parent's park took off-screen stays
+    /// there, and a popup without a parent (e.g. picture in picture) stays where it is
+    @Test
+    func aPopupFollowsTheWorkspaceOfItsParent() {
+        let workspace = setUpTree("h_tiles(1) macos_popup(2 3 4 5)", workspace: "a") // Not shown: its windows park
+        fake.parents = [2: 1, 3: 1, 5: 2]
+        testWindow(1).rect = rect(100, 100, 400, 300)
+        testWindow(2).rect = rect(1500, 900, 300, 150) // On screen
+        testWindow(3).rect = rect(2100, 1200, 100, 50) // Off-screen along with its parent
+        testWindow(4).rect = rect(500, 500, 300, 200) // No parent
+        testWindow(5).rect = rect(1600, 950, 100, 50) // A popup of popup 2
+
+        fake.apply(placements())
+
+        expectEqual(testWindow(1).rect?.topLeftCorner, CGPoint(x: 1919, y: 1079))
+        expectEqual(testWindow(2).rect?.topLeftCorner, CGPoint(x: 1919, y: 1079))
+        expectEqual(testWindow(3).rect?.topLeftCorner, CGPoint(x: 2100, y: 1200))
+        expectEqual(testWindow(4).rect?.topLeftCorner, CGPoint(x: 500, y: 500))
+        expectEqual(testWindow(5).rect?.topLeftCorner, CGPoint(x: 1919, y: 1079))
+        expectEqual(fake.calls(of: .park).map(\.windowId), [1, 2, 3, 5]) // The popups after their parents
+
+        #expect(workspace.focusWorkspace())
+        fake.resetCalls()
+        fake.apply(placements())
+
+        expectEqual(testWindow(2).rect?.topLeftCorner, CGPoint(x: 1500, y: 900))
+        expectEqual(testWindow(3).rect?.topLeftCorner, CGPoint(x: 2100, y: 1200))
+        expectEqual(testWindow(4).rect?.topLeftCorner, CGPoint(x: 500, y: 500))
+        expectEqual(testWindow(5).rect?.topLeftCorner, CGPoint(x: 1600, y: 950))
+        // The popups before their parent: an AppKit child window moves along with its parent
+        let writes: [WindowId] = fake.calls.compactMap { if case .frame(let id, _, _) = $0 { id } else { nil } }
+        expectEqual(writes, [2, 5, 1])
+
+        fake.resetCalls()
+        fake.apply(placements())
+        expectEqual(fake.calls(of: .axRead).filter { $0.windowId != 1 }, []) // An unparked popup costs no AX call
+    }
+
+    /// The popup of a hidden app's window stays: macOS hides it with the app
+    @Test
+    func aPopupOfAHiddenAppsWindowStays() {
+        setUpTree("macos_hidden(1) macos_popup(2)", workspace: "a")
+        fake.parents = [2: 1]
+        testWindow(2).rect = rect(1500, 900, 300, 150)
+
+        fake.apply(placements())
+
+        expectEqual(fake.calls(of: .park).map(\.windowId), [1])
+        expectEqual(testWindow(2).rect?.topLeftCorner, CGPoint(x: 1500, y: 900))
+    }
+
     @Test
     func theBottomLeftCornerReadsTheSizeAgainWhenTheWindowParksAgain() {
         fake.windows[1] = FakeWindow(app: testApp, rect: rect(100, 100, 400, 300), title: "1")
@@ -246,7 +299,7 @@ struct PlacementTest {
         _ monitors: NonEmptyArray<MonitorInfo>? = nil,
         isFloating: Bool = false,
     ) -> ParkTarget {
-        ParkTarget(corner: corner, monitor: monitor, monitors: monitors ?? NonEmptyArray(monitor), isFloating: isFloating, isZoom: false)
+        ParkTarget(corner: corner, monitor: monitor, monitors: monitors ?? NonEmptyArray(monitor), isFloating: isFloating, isZoom: false, isPopup: false)
     }
 }
 

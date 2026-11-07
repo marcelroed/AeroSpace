@@ -42,6 +42,9 @@ final class LivePlatform: Platform {
     var mouseLocation: CGPoint { NSEvent.mouseLocation.withYAxisFlipped }
     var isSecureInputEnabled: Bool { IsSecureEventInputEnabled() }
     var counters: [String: Int] { axCallCounts.withLock { $0 } }
+    func windowServerParents(_ ids: [WindowId]) -> [WindowId: WindowId] {
+        AppBundle.windowServerParents(ids.map(\.raw)).reduce(into: [:]) { $0[WindowId(raw: $1.key)] = WindowId(raw: $1.value) }
+    }
 
     // MARK: Observe reads
 

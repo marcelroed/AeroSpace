@@ -17,10 +17,14 @@ nonisolated enum Placement: Equatable, Sendable {
     /// fullscreen window remembered its fullscreen frame: an unpark after the fullscreen ends would move it to the top left
     /// corner of its monitor
     case leave(WindowId)
+    /// A popup (e.g. a Chromium permission bubble) whose window server parent is a window of a shown workspace: if a park
+    /// of ``ParkTarget/isPopup`` hid it, it goes back where it was then. It comes before its parent's placement: the parent
+    /// takes it along when it unparks (an AppKit child window), or its app places it again (Chromium)
+    case unparkPopup(WindowId)
 
     var windowId: WindowId {
         switch self {
-            case .frame(let id, _, _), .floating(let id, _), .park(let id, _), .leave(let id): id
+            case .frame(let id, _, _), .floating(let id, _), .park(let id, _), .leave(let id), .unparkPopup(let id): id
         }
     }
 }
@@ -46,6 +50,12 @@ nonisolated struct ParkTarget: Equatable, Sendable {
     let isFloating: Bool
     /// A window of Zoom keeps no pixel on the monitor: Zoom would jump off with one (#527)
     let isZoom: Bool
+    /// A popup whose window server parent is a window of the workspace. A child window moves along with its parent, so it
+    /// is usually off-screen already. But some apps keep a popup of a parked window on screen: Chromium places a bubble
+    /// that opens while its window is parked (a permission prompt, an extension popup) at the screen's edge, where it
+    /// shows on every workspace. So the park moves a popup only while it shows on a monitor, and it remembers where the
+    /// popup was, as is: ``Placement/unparkPopup(_:)`` puts it back there before the parent unparks
+    let isPopup: Bool
 }
 
 /// A window as ``PlacementState`` sees it: an AX window of AxApp, or a window of FakePlatform
@@ -105,7 +115,9 @@ nonisolated struct PlacementState {
                 }
             case .floating(_, let target):
                 if let parked {
-                    let topLeft = unparkTopLeft(proportional: parked.at, monitorRect: target.monitor.rect, lastFloatingSize: lastFloatingSize)
+                    let topLeft = parked.isPopup // A popup that turned into a floating window: the next check moves it
+                        ? parked.at
+                        : unparkTopLeft(proportional: parked.at, monitorRect: target.monitor.rect, lastFloatingSize: lastFloatingSize)
                     // Unparked once it's written. A stale unpark leaves the window parked for the next one
                     guard window.setFrame(topLeft: topLeft, size: nil) else { return }
                     self.parked = nil
@@ -118,8 +130,12 @@ nonisolated struct PlacementState {
             case .park(_, let target):
                 if parked == nil {
                     guard let rect = window.rect() else { return }
+                    // A popup that went off-screen along with its parent stays where it is: its parent brings it back
+                    if target.isPopup && !rect.showsOnAMonitor(target.monitors) { return }
                     // Remember the position only once: a repeated park would remember the corner (90a7c672)
-                    parked = Parked(at: proportionalPosition(of: rect, monitors: target.monitors))
+                    parked = target.isPopup
+                        ? Parked(at: rect.topLeftCorner, isPopup: true)
+                        : Parked(at: proportionalPosition(of: rect, monitors: target.monitors))
                     if target.isFloating {
                         lastFloatingSize = rect.size
                     }
@@ -147,6 +163,14 @@ nonisolated struct PlacementState {
                 }
             case .leave:
                 parked = nil
+            case .unparkPopup:
+                guard let parked, parked.isPopup else { return }
+                // A park that turned stale before its write left the popup where it was
+                if parked.cornerX != nil {
+                    // Unparked once it's written. A stale unpark leaves the popup parked for the next one
+                    guard window.setFrame(topLeft: parked.at, size: nil) else { return }
+                }
+                self.parked = nil
         }
     }
 
@@ -165,8 +189,10 @@ nonisolated struct PlacementState {
 
 /// A parked window of ``PlacementState``
 nonisolated private struct Parked {
-    /// Where the window was, relative to the monitor it was on
+    /// Where the window was, relative to the monitor it was on. A popup's is its top left corner as it was
     let at: CGPoint
+    /// Parked by a park of ``ParkTarget/isPopup``
+    var isPopup: Bool = false
     /// The x that the last park write sent the window to. nil until one is sent
     var cornerX: CGFloat? = nil
 }
@@ -176,6 +202,14 @@ nonisolated extension Rect {
     fileprivate func isAt(_ frame: Rect) -> Bool {
         let differences: [CGFloat] = [topLeftX - frame.topLeftX, topLeftY - frame.topLeftY, width - frame.width, height - frame.height]
         return differences.allSatisfy { abs($0) < 1 }
+    }
+
+    /// More than a point of it in both directions is on a monitor. A parked window keeps only one point on its monitor
+    fileprivate func showsOnAMonitor(_ monitors: NonEmptyArray<MonitorInfo>) -> Bool {
+        monitors.contains { monitor in
+            let rect = monitor.rect
+            return min(maxX, rect.maxX) - max(minX, rect.minX) > 1 && min(maxY, rect.maxY) - max(minY, rect.minY) > 1
+        }
     }
 }
 

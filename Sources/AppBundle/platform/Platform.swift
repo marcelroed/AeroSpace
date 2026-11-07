@@ -29,6 +29,9 @@ protocol Platform: AnyObject, Sendable {
     var isSecureInputEnabled: Bool { get }
     /// The AX calls so far, per call and attribute (e.g. "set AXPosition"), for dogfooding
     var counters: [String: Int] { get }
+    /// The window server parent of each window that has one: e.g. the window of a sheet, an AppKit child window or a
+    /// Chromium bubble. A window without one, or that is gone, is missing
+    func windowServerParents(_ ids: [WindowId]) -> [WindowId: WindowId]
 
     // MARK: Observe reads
     // The heavy refresh's reads (Reconcile.swift, P1). Each is one batch: the apps answer in parallel, each on its own

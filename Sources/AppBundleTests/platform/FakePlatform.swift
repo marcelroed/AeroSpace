@@ -19,6 +19,8 @@ final class FakePlatform: Platform {
     var isLeftMouseDown: Bool = false
     var mouseLocation: CGPoint = .zero
     var isSecureInputEnabled: Bool = false
+    /// The window server parent of each child window (e.g. a popup's window)
+    var parents: [WindowId: WindowId] = [:]
     /// Every call in order, and the AX reads and frame writes of the placements. The frame writes are only here: a
     /// per-window copy cost as much as the layout itself in the perf benchmarks
     private(set) var calls: [PlatformCall] = []
@@ -59,6 +61,9 @@ final class FakePlatform: Platform {
     func isHidden(_ app: AppInfo) -> Bool { hiddenApps.contains(app.pid) }
     var frontmostAppPid: pid_t? { focused.flatMap { windows[$0]?.app.pid } }
     var counters: [String: Int] { [:] }
+    func windowServerParents(_ ids: [WindowId]) -> [WindowId: WindowId] {
+        ids.reduce(into: [:]) { result, id in result[id] = windows[id] == nil ? nil : parents[id] }
+    }
 
     // MARK: Observe reads
 
@@ -161,6 +166,7 @@ final class FakePlatform: Platform {
                 case .floating(let id, let target): calls.append(.floating(id, target))
                 case .park(let id, let target): calls.append(.park(id, target))
                 case .leave(let id): calls.append(.leave(id))
+                case .unparkPopup(let id): calls.append(.unparkPopup(id))
             }
             let id = placement.windowId
             guard let window = windows[id] else { continue }
@@ -347,7 +353,7 @@ enum PlatformCall: Equatable {
     case classify([WindowId]), nativeFacts([WindowId]), observedRect(WindowId)
     case rect(WindowId), title(WindowId), facts(WindowId), kind(WindowId), windowCount(pid_t), debugInfo(WindowId)
     /// The placements but `.frame`, whose frame write is its entry
-    case floating(WindowId, FloatingTarget), park(WindowId, ParkTarget), leave(WindowId)
+    case floating(WindowId, FloatingTarget), park(WindowId, ParkTarget), leave(WindowId), unparkPopup(WindowId)
     /// What the placements do: one AX read (the position and the size in one call), a frame write (size, position, size:
     /// up to 3 AX writes)
     case axRead(WindowId), frame(WindowId, topLeft: CGPoint?, size: CGSize?)
@@ -358,7 +364,7 @@ enum PlatformCall: Equatable {
     enum Kind: Equatable {
         case listWindows, focusedWindow, classify, nativeFacts, observedRect
         case rect, title, facts, kind, windowCount, debugInfo
-        case floating, park, leave, axRead, frame, rememberFloatingSize, restoreFloatingSize
+        case floating, park, leave, unparkPopup, axRead, frame, rememberFloatingSize, restoreFloatingSize
         case focus, close, setNative, unhideApp, quit, warpMouse, launch
     }
 
@@ -378,6 +384,7 @@ enum PlatformCall: Equatable {
             case .floating: .floating
             case .park: .park
             case .leave: .leave
+            case .unparkPopup: .unparkPopup
             case .axRead: .axRead
             case .frame: .frame
             case .rememberFloatingSize: .rememberFloatingSize
@@ -396,7 +403,7 @@ enum PlatformCall: Equatable {
     var windowId: WindowId? {
         switch self {
             case .observedRect(let id), .rect(let id), .title(let id), .facts(let id), .kind(let id), .debugInfo(let id),
-                 .floating(let id, _), .park(let id, _), .leave(let id), .axRead(let id), .frame(let id, _, _),
+                 .floating(let id, _), .park(let id, _), .leave(let id), .unparkPopup(let id), .axRead(let id), .frame(let id, _, _),
                  .rememberFloatingSize(let id), .restoreFloatingSize(let id), .focus(let id), .close(let id), .setNative(let id, _):
                 id
             case .listWindows, .focusedWindow, .classify, .nativeFacts, .windowCount, .unhideApp, .quit, .warpMouse, .launch: nil

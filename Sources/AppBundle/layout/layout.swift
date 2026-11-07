@@ -1,16 +1,17 @@
 import AppKit
 import Common
 
-/// The placement batch of P4. Its order is the contract: the visible workspaces' placements, then a park per window of
-/// the invisible workspaces (to reduce flicker). While AeroSpace is disabled, every workspace's placements: every window
-/// unparks
+/// The placement batch of P4. Its order is the contract: the unparks of the popups, the visible workspaces' placements,
+/// then a park per window of the invisible workspaces (to reduce flicker), then the parks of their popups (see
+/// ``popupPlacements()``). While AeroSpace is disabled, every workspace's placements: every window unparks
 func placements() -> [Placement] {
     // No screens (e.g., the screens disappeared in the middle of the refresh session): wait for them. Don't hide windows in
     // the corners of a monitor that doesn't exist. AeroSpace can't be disabled while there are no screens (EnableCommand),
     // so the windows were unhidden when it was disabled, unless the screens vanished during that session. Then the next
     // `enable off` with screens unhides them
     if !world.platform.hasScreens { return [] }
-    var placements: [Placement] = []
+    let popups = popupPlacements()
+    var placements: [Placement] = popups.unparks
     if !world.isEnabled {
         for workspace in Workspace.all {
             placements += workspace.layoutPlacements() // Unparks every window
@@ -26,11 +27,55 @@ func placements() -> [Placement] {
         let corner = monitors.hideCorner(of: monitor)
         for window in workspace.allLeafWindowsRecursive {
             let isZoom = window.app.knownBundleId == .zoom
-            let target = ParkTarget(corner: corner, monitor: monitor, monitors: monitors.all, isFloating: window.isFloating, isZoom: isZoom)
+            let target = ParkTarget(
+                corner: corner, monitor: monitor, monitors: monitors.all, isFloating: window.isFloating, isZoom: isZoom, isPopup: false,
+            )
             placements.append(.park(window.windowId, target))
         }
     }
-    return placements
+    return placements + popups.parks
+}
+
+/// The popups follow the workspace of their window server parent (an AppKit child window, a sheet, a Chromium bubble): a
+/// popup of a window of an invisible workspace parks, see ``ParkTarget/isPopup``, and it unparks when the workspace shows.
+/// The unparks come first: the parents' unparks take the popups along. The parks come last: a child window that its
+/// parent's park took off-screen stays there. A popup whose parent is a popup follows that one's parent. A popup without
+/// such a parent (e.g. a picture in picture window, a menu bar app's popover) and a popup of a hidden app's window (macOS
+/// hides them) stay where they are
+private func popupPlacements() -> (unparks: [Placement], parks: [Placement]) {
+    let popups = macosPopupWindowsContainer.children.filterIsInstance(of: Window.self)
+    if popups.isEmpty { return ([], []) }
+    let parents = world.platform.windowServerParents(popups.map(\.windowId))
+    func owner(of popup: Window) -> Window? {
+        var id = popup.windowId
+        for _ in 0 ..< 8 { // A popup of a popup of a window. The bound guards against a cycle
+            guard let parentId = parents[id], let parent = Window.get(byId: parentId) else { return nil }
+            if case .macosPopup = parent.placement {
+                id = parentId
+                continue
+            }
+            return parent
+        }
+        return nil
+    }
+    let monitors = world.monitors
+    var unparks: [Placement] = []
+    var parks: [Placement] = []
+    for popup in popups {
+        guard let (workspace, placement) = owner(of: popup)?.workspacePlacement else { continue }
+        if case .macosHiddenApp = placement { continue }
+        if !world.isEnabled || workspace.isVisible {
+            unparks.append(.unparkPopup(popup.windowId))
+        } else {
+            let monitor = workspace.workspaceMonitor
+            let target = ParkTarget(
+                corner: monitors.hideCorner(of: monitor), monitor: monitor, monitors: monitors.all, isFloating: false, isZoom: false,
+                isPopup: true,
+            )
+            parks.append(.park(popup.windowId, target))
+        }
+    }
+    return (unparks, parks)
 }
 
 extension Workspace {

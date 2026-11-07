@@ -407,7 +407,7 @@ private struct Phase {
                 case .title(let id), .facts(let id), .debugInfo(let id): cost.read(id, 1, .commandOther) // debugInfo: more, unused here
                 case .kind(let id): cost.read(id, 5, .commandOther)
                 case .windowCount(let pid): cost.appRead(1 + after.appOf.values.count { $0 == pid }, .commandOther)
-                case .floating, .park, .leave, .rememberFloatingSize, .restoreFloatingSize: break // See .axRead and .frame
+                case .floating, .park, .leave, .unparkPopup, .rememberFloatingSize, .restoreFloatingSize: break // See .axRead and .frame
                 case .axRead(let id):
                     let kind: AxCallKind = switch placement {
                         case .park: .checkPark
