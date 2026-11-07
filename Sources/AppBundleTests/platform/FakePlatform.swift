@@ -21,6 +21,8 @@ final class FakePlatform: Platform {
     var isSecureInputEnabled: Bool = false
     /// The window server parent of each child window (e.g. a popup's window)
     var parents: [WindowId: WindowId] = [:]
+    /// The child windows that move along with their parent, as AppKit's do (a Chromium bubble doesn't: Chromium places it)
+    var movesWithParent: Set<WindowId> = []
     /// Every call in order, and the AX reads and frame writes of the placements. The frame writes are only here: a
     /// per-window copy cost as much as the layout itself in the perf benchmarks
     private(set) var calls: [PlatformCall] = []
@@ -281,8 +283,22 @@ private struct FakeAxWindow: @MainActor PlacementWindow {
                 width: size?.width ?? rect.width,
                 height: size?.height ?? rect.height,
             )
+            if let topLeft { platform.moveChildren(of: id, by: topLeft - rect.topLeftCorner) }
         }
         return topLeft != nil
+    }
+}
+
+extension FakePlatform {
+    /// macOS moves the children in ``movesWithParent`` along with their parent, and theirs along with them
+    fileprivate func moveChildren(of id: WindowId, by delta: CGPoint) {
+        for child in movesWithParent where parents[child] == id {
+            guard let rect = windows[child]?.rect else { continue }
+            windows[child]?.rect = Rect(
+                topLeftX: rect.topLeftX + delta.x, topLeftY: rect.topLeftY + delta.y, width: rect.width, height: rect.height,
+            )
+            moveChildren(of: child, by: delta)
+        }
     }
 }
 

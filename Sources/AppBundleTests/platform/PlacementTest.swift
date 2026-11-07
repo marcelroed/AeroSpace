@@ -52,12 +52,56 @@ struct PlacementTest {
         expectEqual(testWindow(4).rect?.topLeftCorner, CGPoint(x: 500, y: 500))
         expectEqual(testWindow(5).rect?.topLeftCorner, CGPoint(x: 1600, y: 950))
         // The popups before their parent: an AppKit child window moves along with its parent
-        let writes: [WindowId] = fake.calls.compactMap { if case .frame(let id, _, _) = $0 { id } else { nil } }
-        expectEqual(writes, [2, 5, 1])
+        expectEqual(writes(), [2, 5, 1])
 
         fake.resetCalls()
         fake.apply(placements())
         expectEqual(fake.calls(of: .axRead).filter { $0.windowId != 1 }, []) // An unparked popup costs no AX call
+    }
+
+    /// A floating child window (e.g. an AppKit child window, a wxWidgets dialog) moves along with its parent. It parks
+    /// before its parent, while it's where the user put it: after its parent's park, AppKit would keep a titled one at
+    /// the screen's edge, and it would remember that. It unparks after its parent, which takes it along
+    @Test
+    func aFloatingChildWindowParksBeforeItsParentAndUnparksAfterIt() {
+        let workspace = setUpTree("h_tiles(1) floating(4 2 3)", workspace: "a") // The child 4 before its parent 3
+        fake.parents = [2: 1, 4: 3]
+        fake.movesWithParent = [2, 4]
+        testWindow(1).rect = rect(100, 100, 400, 300)
+        testWindow(2).rect = rect(150, 150, 200, 100)
+        testWindow(3).rect = rect(600, 300, 400, 300)
+        testWindow(4).rect = rect(650, 350, 200, 100)
+
+        fake.apply(placements())
+
+        expectEqual(fake.calls(of: .park).map(\.windowId), [4, 2, 1, 3]) // The children before their parents
+        expectEqual(writes(), [4, 2, 1, 3])
+
+        #expect(workspace.focusWorkspace())
+        fake.resetCalls()
+        fake.apply(placements())
+
+        expectEqual(writes(), [1, 3, 4, 2]) // The parents take their children along, then the children go back
+        expectEqual(testWindow(3).rect?.topLeftCorner, CGPoint(x: 600, y: 300))
+        expectEqual(testWindow(4).rect?.topLeftCorner, CGPoint(x: 650, y: 350))
+        expectEqual(testWindow(2).rect?.topLeftCorner, CGPoint(x: 150, y: 150))
+    }
+
+    /// A child window that shows only because its parent's park took it to the screen's edge (AppKit keeps a titled one
+    /// 40 points on screen) and that was parked already stays parked where it was before
+    @Test
+    func aParkedChildWindowThatItsParentsParkTookToTheEdgeParksAgain() {
+        setUpTree("h_tiles(1) floating(2)", workspace: "a")
+        fake.parents = [2: 1]
+        testWindow(1).rect = rect(100, 100, 400, 300)
+        testWindow(2).rect = rect(150, 150, 200, 100)
+        fake.apply(placements())
+        testWindow(2).rect = rect(1880, 1050, 200, 100) // AppKit moved it back on screen
+
+        fake.resetCalls()
+        fake.apply(placements())
+        expectEqual(writes(), [2])
+        expectEqual(testWindow(2).rect?.topLeftCorner, CGPoint(x: 1919, y: 1079))
     }
 
     /// The popup of a hidden app's window stays: macOS hides it with the app
@@ -299,7 +343,7 @@ struct PlacementTest {
         _ monitors: NonEmptyArray<MonitorInfo>? = nil,
         isFloating: Bool = false,
     ) -> ParkTarget {
-        ParkTarget(corner: corner, monitor: monitor, monitors: monitors ?? NonEmptyArray(monitor), isFloating: isFloating, isZoom: false, isPopup: false)
+        ParkTarget(corner: corner, monitor: monitor, monitors: monitors ?? NonEmptyArray(monitor), isFloating: isFloating, isZoom: false, followsParent: false)
     }
 }
 
@@ -330,4 +374,9 @@ private final class CallLog {
     var items: [String] = []
 
     func append(_ item: String) { items.append(item) }
+}
+
+/// The windows of the frame writes, in order
+private func writes() -> [WindowId] {
+    fake.calls.compactMap { if case .frame(let id, _, _) = $0 { id } else { nil } }
 }

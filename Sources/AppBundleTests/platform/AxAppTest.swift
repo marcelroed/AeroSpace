@@ -170,7 +170,7 @@ struct AxAppTest {
         hung.post { _ in gate.wait() }
         let shownJobs = ShownJobs(deadline: .now() + .seconds(10))
         hung.postPlacements([], .shown(shownJobs, focus: nil), trustsLastSeen: false)
-        let target = ParkTarget(corner: .bottomRightCorner, monitor: testMonitor, monitors: NonEmptyArray(testMonitor), isFloating: false, isZoom: false, isPopup: false)
+        let target = ParkTarget(corner: .bottomRightCorner, monitor: testMonitor, monitors: NonEmptyArray(testMonitor), isFloating: false, isZoom: false, followsParent: false)
         parker.postPlacements([.park(1, target)], .parks(waitingFor: shownJobs), trustsLastSeen: false) // The parker has no window 1
 
         let start: DispatchTime = .now()

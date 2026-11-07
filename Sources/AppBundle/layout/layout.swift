@@ -3,49 +3,95 @@ import Common
 
 /// The placement batch of P4. Its order is the contract: the unparks of the popups, the visible workspaces' placements,
 /// then a park per window of the invisible workspaces (to reduce flicker), then the parks of their popups (see
-/// ``popupPlacements()``). While AeroSpace is disabled, every workspace's placements: every window unparks
+/// ``popupPlacements(_:_:)``). While AeroSpace is disabled, every workspace's placements: every window unparks. A floating
+/// child window parks before its parent and unparks after it (see ``floatingChildDepths(_:_:)``)
 func placements() -> [Placement] {
     // No screens (e.g., the screens disappeared in the middle of the refresh session): wait for them. Don't hide windows in
     // the corners of a monitor that doesn't exist. AeroSpace can't be disabled while there are no screens (EnableCommand),
     // so the windows were unhidden when it was disabled, unless the screens vanished during that session. Then the next
     // `enable off` with screens unhides them
     if !world.platform.hasScreens { return [] }
-    let popups = popupPlacements()
-    var placements: [Placement] = popups.unparks
+    let popups = macosPopupWindowsContainer.children.filterIsInstance(of: Window.self)
+    let floating = Workspace.all.flatMap(\.floatingWindows)
+    let ids = (popups + floating).map(\.windowId)
+    let parents = ids.isEmpty ? [:] : world.platform.windowServerParents(ids)
+    let childDepths = floatingChildDepths(floating, parents)
+    let popupPlacements = popupPlacements(popups, parents)
+    var shown: [Placement] = []
+    var parks: [Placement] = []
     if !world.isEnabled {
         for workspace in Workspace.all {
-            placements += workspace.layoutPlacements() // Unparks every window
+            shown += workspace.layoutPlacements() // Unparks every window
         }
-        return placements
-    }
-    let monitors = world.monitors
-    for monitor in monitors.all {
-        placements += monitor.activeWorkspace.layoutPlacements()
-    }
-    for workspace in Workspace.all where !workspace.isVisible {
-        let monitor = workspace.workspaceMonitor
-        let corner = monitors.hideCorner(of: monitor)
-        for window in workspace.allLeafWindowsRecursive {
-            let isZoom = window.app.knownBundleId == .zoom
-            let target = ParkTarget(
-                corner: corner, monitor: monitor, monitors: monitors.all, isFloating: window.isFloating, isZoom: isZoom, isPopup: false,
-            )
-            placements.append(.park(window.windowId, target))
+    } else {
+        let monitors = world.monitors
+        for monitor in monitors.all {
+            shown += monitor.activeWorkspace.layoutPlacements()
+        }
+        for workspace in Workspace.all where !workspace.isVisible {
+            let monitor = workspace.workspaceMonitor
+            let corner = monitors.hideCorner(of: monitor)
+            for window in workspace.allLeafWindowsRecursive {
+                let isZoom = window.app.knownBundleId == .zoom
+                let target = ParkTarget(
+                    corner: corner, monitor: monitor, monitors: monitors.all, isFloating: window.isFloating, isZoom: isZoom,
+                    followsParent: childDepths[window.windowId] != nil,
+                )
+                parks.append(.park(window.windowId, target))
+            }
         }
     }
-    return placements + popups.parks
+    return popupPlacements.unparks + shown.sorted(byDepth: childDepths, deepestFirst: false)
+        + parks.sorted(byDepth: childDepths, deepestFirst: true) + popupPlacements.parks
+}
+
+/// The floating windows whose window server owner (see ``windowServerOwner(of:_:)``) is a window of the same workspace
+/// (e.g. an AppKit child window, a wxWidgets dialog), with their depth: 1 for a child of a window that isn't such a child,
+/// 2 for a child of that child, and so on. macOS moves a child window along with its parent, and AppKit keeps a titled
+/// one 40 points on screen: after its parent's park, it shows at the screen's edge. So a child parks before its parent,
+/// while it's still where the user put it, and it remembers that position as is (``ParkTarget/followsParent``). Parked
+/// after its parent, it would remember the edge, and its unpark would put it there. It unparks after its parent, which
+/// takes it along: its unpark puts it back where it was
+private func floatingChildDepths(_ floating: [Window], _ parents: [WindowId: WindowId]) -> [WindowId: Int] {
+    var owners: [WindowId: WindowId] = [:]
+    for window in floating {
+        guard let owner = windowServerOwner(of: window.windowId, parents), owner != window,
+              let workspace = owner.workspacePlacement?.workspace, workspace == window.workspacePlacement?.workspace
+        else { continue }
+        owners[window.windowId] = owner.windowId
+    }
+    var depths: [WindowId: Int] = [:]
+    for id in owners.keys {
+        var depth = 0
+        var current = id
+        while let owner = owners[current], depth < 8 { // The bound guards against a cycle
+            depth += 1
+            current = owner
+        }
+        depths[id] = depth
+    }
+    return depths
+}
+
+extension [Placement] {
+    /// Stable, by the depth of the window in `childDepths` (0 if it isn't there)
+    fileprivate func sorted(byDepth childDepths: [WindowId: Int], deepestFirst: Bool) -> [Placement] {
+        if childDepths.isEmpty { return self }
+        func key(_ item: (offset: Int, element: Placement)) -> (Int, Int) {
+            let depth = childDepths[item.element.windowId] ?? 0
+            return (deepestFirst ? -depth : depth, item.offset)
+        }
+        return enumerated().sorted { key($0) < key($1) }.map(\.element)
+    }
 }
 
 /// The popups follow the workspace of their window server parent (an AppKit child window, a sheet, a Chromium bubble): a
-/// popup of a window of an invisible workspace parks, see ``ParkTarget/isPopup``, and it unparks when the workspace shows.
-/// The unparks come first: the parents' unparks take the popups along. The parks come last: a child window that its
-/// parent's park took off-screen stays there. A popup whose parent is a popup follows that one's parent. A popup without
-/// such a parent (e.g. a picture in picture window, a menu bar app's popover) and a popup of a hidden app's window (macOS
-/// hides them) stay where they are
-private func popupPlacements() -> (unparks: [Placement], parks: [Placement]) {
-    let popups = macosPopupWindowsContainer.children.filterIsInstance(of: Window.self)
-    if popups.isEmpty { return ([], []) }
-    let parents = world.platform.windowServerParents(popups.map(\.windowId))
+/// popup of a window of an invisible workspace parks, see ``ParkTarget/followsParent``, and it unparks when the workspace
+/// shows. The unparks come first: the parents' unparks take the popups along. The parks come last: a child window that
+/// its parent's park took off-screen stays there. A popup whose parent is a popup follows that one's parent. A popup
+/// without such a parent (e.g. a picture in picture window, a menu bar app's popover) and a popup of a hidden app's window
+/// (macOS hides them) stay where they are
+private func popupPlacements(_ popups: [Window], _ parents: [WindowId: WindowId]) -> (unparks: [Placement], parks: [Placement]) {
     let monitors = world.monitors
     var unparks: [Placement] = []
     var parks: [Placement] = []
@@ -58,7 +104,7 @@ private func popupPlacements() -> (unparks: [Placement], parks: [Placement]) {
             let monitor = workspace.workspaceMonitor
             let target = ParkTarget(
                 corner: monitors.hideCorner(of: monitor), monitor: monitor, monitors: monitors.all, isFloating: false, isZoom: false,
-                isPopup: true,
+                followsParent: true,
             )
             parks.append(.park(popup.windowId, target))
         }
