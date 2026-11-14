@@ -81,10 +81,23 @@ struct PlacementTest {
         fake.resetCalls()
         fake.apply(placements())
 
-        expectEqual(writes(), [1, 3, 4, 2]) // The parents take their children along, then the children go back
+        // The parents take their children along, then the children go back. Each in MRU order: 3 was bound last
+        expectEqual(writes(), [3, 1, 2, 4])
         expectEqual(testWindow(3).rect?.topLeftCorner, CGPoint(x: 600, y: 300))
         expectEqual(testWindow(4).rect?.topLeftCorner, CGPoint(x: 650, y: 350))
         expectEqual(testWindow(2).rect?.topLeftCorner, CGPoint(x: 150, y: 150))
+    }
+
+    /// An app places its windows one after another, and a slow one (Finder: ~100 ms per window that moves to another
+    /// monitor) would show the window that the user looks at last. The most recently used window goes first
+    @Test
+    func theMostRecentlyUsedWindowIsPlacedFirst() {
+        setUpTree("v_accordion(1 2 *3 4)")
+        #expect(testWindow(2).focusWindow())
+
+        fake.apply(placements())
+
+        expectEqual(writes(), [2, 3, 4, 1])
     }
 
     /// A child window that shows only because its parent's park took it to the screen's edge (AppKit keeps a titled one

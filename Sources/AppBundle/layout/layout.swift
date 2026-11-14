@@ -4,7 +4,8 @@ import Common
 /// The placement batch of P4. Its order is the contract: the unparks of the popups, the visible workspaces' placements,
 /// then a park per window of the invisible workspaces (to reduce flicker), then the parks of their popups (see
 /// ``popupPlacements(_:_:)``). While AeroSpace is disabled, every workspace's placements: every window unparks. A floating
-/// child window parks before its parent and unparks after it (see ``floatingChildDepths(_:_:)``)
+/// child window parks before its parent and unparks after it (see ``floatingChildDepths(_:_:)``). The shown placements go
+/// the most recently used window first (``mostRecentFirst()``)
 func placements() -> [Placement] {
     // No screens (e.g., the screens disappeared in the middle of the refresh session): wait for them. Don't hide windows in
     // the corners of a monitor that doesn't exist. AeroSpace can't be disabled while there are no screens (EnableCommand),
@@ -41,7 +42,7 @@ func placements() -> [Placement] {
             }
         }
     }
-    return popupPlacements.unparks + shown.sorted(byDepth: childDepths, deepestFirst: false)
+    return popupPlacements.unparks + shown.mostRecentFirst().sorted(byDepth: childDepths, deepestFirst: false)
         + parks.sorted(byDepth: childDepths, deepestFirst: true) + popupPlacements.parks
 }
 
@@ -74,6 +75,22 @@ private func floatingChildDepths(_ floating: [Window], _ parents: [WindowId: Win
 }
 
 extension [Placement] {
+    /// The most recently used window first (``TreeNode/markAsMostRecentChild()``), so the focused one. An app places its
+    /// windows one after another, and some apps are slow at it: Finder takes ~100 ms per window that moves to another
+    /// monitor, whether it writes the size twice or once. The window that the user looks at (in an accordion, the one on
+    /// top) goes first then: with five Finder windows, `move-workspace-to-monitor` shows the focused one after ~120 ms,
+    /// not after up to ~600 ms in tree order
+    fileprivate func mostRecentFirst() -> [Placement] {
+        let windows: [TreeNode] = compactMap { Window.get(byId: $0.windowId) }
+        var rank: [WindowId: Int] = [:]
+        for (index, node) in windows.mostRecentFirst.enumerated() {
+            if let window = node as? Window { rank[window.windowId] = index }
+        }
+        return enumerated()
+            .sorted { (rank[$0.element.windowId] ?? Int.max, $0.offset) < (rank[$1.element.windowId] ?? Int.max, $1.offset) }
+            .map(\.element)
+    }
+
     /// Stable, by the depth of the window in `childDepths` (0 if it isn't there)
     fileprivate func sorted(byDepth childDepths: [WindowId: Int], deepestFirst: Bool) -> [Placement] {
         if childDepths.isEmpty { return self }
