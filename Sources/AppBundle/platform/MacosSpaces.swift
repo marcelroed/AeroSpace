@@ -216,16 +216,16 @@ func bringBackWindowsOfLastRun() async {
     guard config.experimentalParkOnMacosSpace, let spaces = MacosSpaces.shared, let snapshot = spaces.snapshot(),
           let shown = snapshot.shown, let parking = snapshot.parking
     else { return }
-    let ids = spaces.windows(on: parking)
-    guard !ids.isEmpty,
-          let infos = CGWindowListCreateDescriptionFromArray(ids.map { NSNumber(value: $0) } as CFArray) as? [NSDictionary]
-    else { return }
+    let ids = Set(spaces.windows(on: parking))
+    // Not CGWindowListCreateDescriptionFromArray: it takes an array of raw window ids, which Swift can't make safely
+    guard !ids.isEmpty, let infos = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [NSDictionary] else { return }
     let appWindows: [UInt32] = infos.compactMap { info in
-        guard (info[kCGWindowLayer] as? NSNumber)?.intValue == 0,
+        guard let id = (info[kCGWindowNumber] as? NSNumber)?.uint32Value, ids.contains(id),
+              (info[kCGWindowLayer] as? NSNumber)?.intValue == 0,
               let pid = (info[kCGWindowOwnerPID] as? NSNumber)?.int32Value,
               NSRunningApplication(processIdentifier: pid)?.activationPolicy == .regular
         else { return nil }
-        return (info[kCGWindowNumber] as? NSNumber)?.uint32Value
+        return id
     }
     if appWindows.isEmpty { return }
     spaces.move(appWindows, to: shown, parks: false)
