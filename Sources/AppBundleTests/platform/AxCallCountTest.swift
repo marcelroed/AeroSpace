@@ -382,7 +382,7 @@ private struct Phase {
         var placement: PlatformCall? = nil
         for call in calls {
             switch call {
-                case .axRead(let id), .frame(let id, _, _): if placement?.windowId != id { placement = nil }
+                case .axRead(let id), .frame(let id, _, _), .moveToSpace(let id, _): if placement?.windowId != id { placement = nil }
                 default: placement = call
             }
             switch call {
@@ -408,6 +408,7 @@ private struct Phase {
                 case .kind(let id): cost.read(id, 5, .commandOther)
                 case .windowCount(let pid): cost.appRead(1 + after.appOf.values.count { $0 == pid }, .commandOther)
                 case .floating, .park, .leave, .unparkPopup, .rememberFloatingSize, .restoreFloatingSize: break // See .axRead and .frame
+                case .moveToSpace: break // A window server call, not an AX call
                 case .axRead(let id):
                     let kind: AxCallKind = switch placement {
                         case .park: .checkPark

@@ -365,6 +365,148 @@ struct PlacementTest {
         expectEqual(current.log.items.first, "setFrame")
     }
 
+    // MARK: experimental-park-on-macos-space
+
+    /// A park on the parking desktop moves the window as it is: no AX call. A window that the window server shows there
+    /// already doesn't move again. Its unpark reads the tile (AX tells the frame of a window on another desktop), and
+    /// only moves it back
+    @Test
+    func aWindowParksOnTheParkingDesktopAsItIsAndItsUnparkOnlyMovesItBack() {
+        let workspace = setUpParkingOnSpace("h_tiles(1)", workspace: "a") // Not shown: its windows park
+        testWindow(1).rect = rect(100, 100, 400, 300)
+        #expect(workspace.focusWorkspace())
+        fake.apply(placements())
+        let tile = testWindow(1).rect
+        #expect(Workspace.get(byName: "b").focusWorkspace())
+        fake.resetCalls()
+
+        fake.apply(placements())
+
+        expectEqual(fake.windows[1]?.space, secondDesktop)
+        expectEqual(fake.calls.filter { $0.kind != .park }, [.moveToSpace(1, secondDesktop)])
+        expectEqual(testWindow(1).rect, tile)
+        #expect(!fake.isParked(1))
+
+        fake.resetCalls()
+        fake.apply(placements())
+        expectEqual(fake.calls.filter { $0.kind != .park }, []) // There already
+
+        #expect(workspace.focusWorkspace())
+        fake.resetCalls()
+        fake.apply(placements())
+        expectEqual(fake.calls, [.axRead(1), .moveToSpace(1, firstDesktop)])
+        expectEqual(fake.windows[1]?.space, firstDesktop)
+
+        fake.resetCalls()
+        fake.apply(placements())
+        expectEqual(fake.calls(of: .moveToSpace), []) // Back already
+    }
+
+    /// A window parked on the parking desktop whose workspace moved to another monitor meanwhile: its frame is written
+    /// before it moves back, so that it shows at once where it belongs
+    @Test
+    func aParkedTileThatTheLayoutMovedIsWrittenBeforeItMovesBack() {
+        let workspace = setUpParkingOnSpace("h_tiles(1)", workspace: "a")
+        testWindow(1).rect = rect(100, 100, 400, 300) // Not the layout's frame
+        fake.apply(placements())
+        expectEqual(fake.windows[1]?.space, secondDesktop)
+
+        #expect(workspace.focusWorkspace())
+        fake.resetCalls()
+        fake.apply(placements())
+
+        expectEqual(fake.calls.map(\.kind), [.axRead, .frame, .moveToSpace])
+        expectEqual(fake.windows[1]?.space, firstDesktop)
+    }
+
+    /// A floating window remembers its size when it parks on the parking desktop, for `layout floating`, and keeps its
+    /// frame there: its unpark only moves it back
+    @Test
+    func aFloatingWindowParkedOnTheParkingDesktopKeepsItsFrame() {
+        let workspace = setUpParkingOnSpace("h_tiles() floating(1)", workspace: "a")
+        testWindow(1).rect = rect(100, 100, 400, 300)
+
+        fake.apply(placements())
+        expectEqual(fake.windows[1]?.placement.lastFloatingSize, CGSize(width: 400, height: 300))
+        expectEqual(fake.windows[1]?.space, secondDesktop)
+
+        #expect(workspace.focusWorkspace())
+        fake.resetCalls()
+        fake.apply(placements())
+        expectEqual(fake.calls(of: .frame), [])
+        expectEqual(testWindow(1).rect, rect(100, 100, 400, 300))
+        expectEqual(fake.windows[1]?.space, firstDesktop)
+    }
+
+    /// A window that shows on every Space, a macOS fullscreen window (it has its own Space) and a hidden app's window park
+    /// in the corner
+    @Test
+    func someWindowsParkInTheCornerEvenWithTheParkingDesktop() {
+        _ = setUpParkingOnSpace("h_tiles(1) floating(2) macos_fullscreen(3) macos_hidden(4)", workspace: "a")
+        for id: WindowId in [1, 2, 3, 4] {
+            testWindow(id).rect = rect(100, 100, 400, 300)
+        }
+        fake.windows[2]?.space = nil // On every Space
+
+        fake.apply(placements())
+
+        expectEqual(fake.windows[1]?.space, secondDesktop)
+        for id: WindowId in [2, 3, 4] {
+            expectEqual(testWindow(id).rect?.topLeftCorner, CGPoint(x: 1919, y: 1079))
+        }
+        expectEqual(fake.windows[3]?.space, firstDesktop)
+        expectEqual(fake.windows[4]?.space, firstDesktop)
+    }
+
+    /// Without a parking desktop (e.g. a fullscreen app's Space is active, or the user removed the second desktop), the
+    /// windows park in the corner
+    @Test
+    func withoutAParkingDesktopTheWindowsParkInTheCorner() {
+        _ = setUpParkingOnSpace("h_tiles(1)", workspace: "a")
+        testWindow(1).rect = rect(100, 100, 400, 300)
+        fake.parkingSpace = nil
+
+        fake.apply(placements())
+
+        expectEqual(testWindow(1).rect?.topLeftCorner, CGPoint(x: 1919, y: 1079))
+        expectEqual(fake.calls(of: .moveToSpace), [])
+    }
+
+    /// Once the config turns the parking off, a window on the parking desktop parks in the corner, then moves back
+    @Test
+    func aWindowOnTheParkingDesktopComesBackOnceTheConfigTurnsTheParkingOff() {
+        _ = setUpParkingOnSpace("h_tiles(1)", workspace: "a")
+        testWindow(1).rect = rect(100, 100, 400, 300)
+        fake.apply(placements())
+        expectEqual(fake.windows[1]?.space, secondDesktop)
+
+        world.config.experimentalParkOnMacosSpace = false
+        fake.resetCalls()
+        fake.apply(placements())
+
+        expectEqual(fake.calls.filter { $0.kind != .park && $0.kind != .axRead }.map(\.kind), [.frame, .moveToSpace])
+        expectEqual(testWindow(1).rect?.topLeftCorner, CGPoint(x: 1919, y: 1079))
+        expectEqual(fake.windows[1]?.space, firstDesktop)
+    }
+
+    /// The user switched to the parking desktop (or macOS did, to activate an app whose window was parked there): it's
+    /// the active desktop now, and the first one parks. The shown windows come to the active desktop, and the parked
+    /// ones leave it
+    @Test
+    func theWindowsFollowTheActiveDesktop() {
+        _ = setUpParkingOnSpace("h_tiles(1)", workspace: "a")
+        _ = setUpTree("h_tiles(2)", workspace: "b") // Shown
+        testWindow(1).rect = rect(100, 100, 400, 300)
+        fake.apply(placements())
+        expectEqual(fake.windows[1]?.space, secondDesktop)
+
+        (fake.shownSpace, fake.parkingSpace) = (secondDesktop, firstDesktop)
+        fake.apply(placements())
+
+        expectEqual(fake.windows[1]?.space, firstDesktop)
+        expectEqual(fake.windows[2]?.space, secondDesktop)
+    }
+
     private func parkTarget(
         _ corner: OptimalHideCorner,
         _ monitor: MonitorInfo,
@@ -395,6 +537,12 @@ private struct StaleAfter: @MainActor PlacementWindow {
         log.append("setFrame")
         return topLeft != nil
     }
+
+    func moveToSpace(_ space: SpaceId, parks: Bool) -> Bool {
+        guard isCurrent() else { return false }
+        log.append("moveToSpace")
+        return true
+    }
 }
 
 private final class CallLog {
@@ -402,6 +550,16 @@ private final class CallLog {
     var items: [String] = []
 
     func append(_ item: String) { items.append(item) }
+}
+
+/// The tree on workspace `workspace`, with `experimental-park-on-macos-space` and a parking desktop. Workspace "b" is shown
+@MainActor
+private func setUpParkingOnSpace(_ spec: String, workspace: String) -> Workspace {
+    let result = setUpTree(spec, workspace: workspace)
+    world.config.experimentalParkOnMacosSpace = true
+    (fake.shownSpace, fake.parkingSpace) = (firstDesktop, secondDesktop)
+    #expect(Workspace.get(byName: "b").focusWorkspace())
+    return result
 }
 
 /// The windows of the frame writes, in order

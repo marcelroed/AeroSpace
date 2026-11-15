@@ -2,8 +2,8 @@ import AppKit
 
 /// Where a window goes, see ``Platform/apply(_:focus:trustsLastSeen:)``. The platform runs the placements of each app in
 /// the batch's order (the shown workspaces' placements, then the parks), latest wins per window. AxApp and FakePlatform
-/// decide each window's AX calls with the same code, ``PlacementState``. Only AxApp runs the apps in parallel, where the
-/// parks also wait for the other apps' shown placements (``ShownJobs``)
+/// decide each window's AX calls and Space moves with the same code, ``PlacementState``. Only AxApp runs the apps in
+/// parallel, where the parks also wait for the other apps' shown placements (``ShownJobs``)
 nonisolated enum Placement: Equatable, Sendable {
     /// The layout's frame of a window. It's written only if the window isn't there already, see
     /// ``PlacementState/apply(_:to:trustsLastSeen:)``
@@ -11,7 +11,7 @@ nonisolated enum Placement: Equatable, Sendable {
     /// A floating window of a workspace: it unparks to where it was, then it stays where it is unless it's off the
     /// workspace's monitor, see ``floatingTopLeft(current:target:)``
     case floating(WindowId, FloatingTarget)
-    /// Hides the window in a corner of its workspace's monitor, see ``ParkTarget``
+    /// Hides the window in a corner of its workspace's monitor, or on the parking desktop, see ``ParkTarget``
     case park(WindowId, ParkTarget)
     /// A macOS fullscreen window of a shown workspace: it stays where it is, and it's no longer parked. A park of a
     /// fullscreen window remembered its fullscreen frame: an unpark after the fullscreen ends would move it to the top left
@@ -39,7 +39,8 @@ nonisolated struct FloatingTarget: Equatable, Sendable {
     let isShown: Bool
 }
 
-/// Where a ``Placement/park(_:_:)`` window hides: it keeps one pixel on the monitor, so that macOS doesn't move it back
+/// Where a ``Placement/park(_:_:)`` window hides: in a corner, where it keeps one pixel on the monitor, so that macOS
+/// doesn't move it back. Or, if ``onMacosSpace``, on the parking desktop
 nonisolated struct ParkTarget: Equatable, Sendable {
     let corner: OptimalHideCorner
     /// The workspace's monitor: the window goes to the corner of its visible rect
@@ -58,6 +59,10 @@ nonisolated struct ParkTarget: Equatable, Sendable {
     /// and it remembers where the window was, as is: ``Placement/unparkPopup(_:)``, or the `.floating` unpark after the
     /// parent's, puts it back there
     let followsParent: Bool
+    /// `experimental-park-on-macos-space`: the window moves as is to the batch's parking desktop
+    /// (``BatchSpaces/parking``), where macOS doesn't draw it. It parks in the corner if there's none, or if it can't move
+    /// there (e.g. it shows on every Space)
+    var onMacosSpace: Bool = false
 }
 
 /// A window as ``PlacementState`` sees it: an AX window of AxApp, or a window of FakePlatform
@@ -70,6 +75,10 @@ nonisolated protocol PlacementWindow {
     /// wrote the position
     @discardableResult
     func setFrame(topLeft: CGPoint?, size: CGSize?) -> Bool
+    /// Asks the window server to move the window to the desktop (see ``MacosSpaces/move(_:to:parks:)``). `parks`: the move
+    /// hides the window. A park's first move waits for the shown jobs, as its first write does. true if the move was
+    /// sent. false if the window isn't current, or if it can't move: it's gone, or it shows on every Space
+    func moveToSpace(_ space: SpaceId, parks: Bool) -> Bool
 }
 
 /// The state of a window's placements, which AxApp keeps per window on the app's thread (FakePlatform keeps the same). A
@@ -84,6 +93,9 @@ nonisolated struct PlacementState {
     /// Where the window was last seen: what the platform's last read of its rect found (``recordRead(_:)``), or the
     /// frame that the last `.frame` placement found it at or wrote
     private var lastFrame: Rect? = nil
+    /// The desktop that the window's last Space move sent it to. nil until one. A park on the parking desktop doesn't set
+    /// ``parked``: the window keeps its frame there, so that its unpark only moves it back
+    private var space: SpaceId? = nil
 
     init(lastFloatingSize: CGSize?) {
         self.lastFloatingSize = lastFloatingSize
@@ -100,9 +112,54 @@ nonisolated struct PlacementState {
 
     /// `trustsLastSeen`: the caller promises that a heavy refresh's P4 follows and checks the windows. Then the re-park of a
     /// window that the last park wrote to this corner makes no AX call: if the app or the user moved the window meanwhile,
-    /// P4 puts it back
-    mutating func apply(_ placement: Placement, to window: some PlacementWindow, trustsLastSeen: Bool) {
+    /// P4 puts it back. `spaces`: the desktops of the batch. Any other placement than a park on the parking desktop brings
+    /// the window back to the active desktop after its AX writes (``bringToShownSpace(_:_:_:)``)
+    mutating func apply(_ placement: Placement, to window: some PlacementWindow, trustsLastSeen: Bool, spaces: BatchSpaces = .none) {
         guard window.isCurrent() else { return } // Before any AX call: termination waits for this job
+        if case .park(let id, let target) = placement, target.onMacosSpace, let parking = spaces.parking,
+           parkOnSpace(id, parking, target, window, spaces)
+        {
+            return
+        }
+        applyOnMonitor(placement, to: window, trustsLastSeen: trustsLastSeen)
+        bringToShownSpace(placement.windowId, window, spaces)
+    }
+
+    /// A park of ``ParkTarget/onMacosSpace``: the window moves to the parking desktop as it is. A window that the window
+    /// server shows there already doesn't move. false if the window can't move (the caller parks it in the corner then)
+    private mutating func parkOnSpace(
+        _ id: WindowId,
+        _ parking: SpaceId,
+        _ target: ParkTarget,
+        _ window: some PlacementWindow,
+        _ spaces: BatchSpaces,
+    ) -> Bool {
+        if space == parking && spaces.onParkingSpace.contains(id) { return true }
+        // A floating window's size, for `layout floating` (a corner park remembered it already). Its unpark leaves it where
+        // it is: it keeps its frame on the parking desktop
+        if target.isFloating && parked == nil, let rect = window.rect() {
+            lastFloatingSize = rect.size
+        }
+        if window.moveToSpace(parking, parks: true) {
+            space = parking
+            return true
+        }
+        return !window.isCurrent() // A stale park stops here
+    }
+
+    /// The window belongs on the active desktop: it moves there if a Space move sent it elsewhere, or if the window server
+    /// showed it on the parking desktop (e.g. the user switched desktops, see ``BatchSpaces/onParkingSpace``). After the AX
+    /// writes: a window that comes back from the parking desktop shows at once where it belongs
+    private mutating func bringToShownSpace(_ id: WindowId, _ window: some PlacementWindow, _ spaces: BatchSpaces) {
+        guard let shown = spaces.shown else { return }
+        let isAway = space.map { $0 != shown } == true || spaces.onParkingSpace.contains(id)
+        if isAway && window.moveToSpace(shown, parks: false) {
+            space = shown
+        }
+    }
+
+    /// The placement's AX calls: everything but the Space moves. The window was current just before
+    private mutating func applyOnMonitor(_ placement: Placement, to window: some PlacementWindow, trustsLastSeen: Bool) {
         switch placement {
             case .frame(_, let topLeft, let size):
                 // It writes only a window that isn't there: each write makes the app lay out the window again. It reads

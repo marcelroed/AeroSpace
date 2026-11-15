@@ -32,6 +32,7 @@ public func initAppBundle() -> Ui {
 
         bootstrapConfig()
         _ = reloadConfig()
+        await bringBackWindowsOfLastRun() // Before the first listing: AX lists the windows of the active desktop only
         initWorkspaces() // After the config: it picks the workspaces
 
         startUnixSocketServer()

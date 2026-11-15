@@ -437,6 +437,23 @@ That means, that if AeroSpace crashes badly you will still be able to manually "
 If you want to minimize the visibility of hidden windows, it's recommended to place Dock in the bottom (and additionally turn automatic hiding on)
 ====
 
+[#park-on-macos-space]
+=== Hiding windows on a macOS Space (experimental)
+
+macOS keeps drawing the corner-parked windows: they cost the window server time on every frame, and their apps never learn that they are hidden.
+With `experimental-park-on-macos-space = true`, AeroSpace instead moves the windows of the invisible workspaces to the last macOS desktop, and back when their workspace shows.
+There, they aren't drawn at all, and they keep their frames, so that switching to their workspace only moves them back.
+
+* It needs a second desktop: add one in Mission Control. AeroSpace uses the last desktop for the hidden windows, and you keep using the first one.
+  Without a second desktop, or while a macOS fullscreen window's Space is active, the windows park in the corner as usual.
+* It needs macOS 26.4 or later, and it doesn't work with `Displays have separate Spaces` and more than one monitor.
+  It uses a private macOS API: a macOS update may break it, and the windows then park in the corner.
+* When an app whose windows are all hidden activates (e.g. you click it in the Dock), macOS may switch to the last desktop.
+  AeroSpace then treats that desktop as the shown one, and moves the other windows accordingly.
+  Turn off `System Settings -> Desktop & Dock -> When switching to an application, switch to a Space with open windows for the application` to avoid the switch.
+* When AeroSpace quits, it moves the hidden windows back to the active desktop.
+  If it gets killed instead, it moves them back at its next start.
+
 === Proper monitor arrangement
 
 Since AeroSpace needs a free space to hide windows in,

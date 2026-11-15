@@ -23,6 +23,7 @@ let configFields: [String: Field<Config>] = [
     "start-at-login": Field(\.startAtLogin, decodeBool),
     "auto-reload-config": Field(\.autoReloadConfig, decodeBool),
     "automatically-unhide-macos-hidden-apps": Field(\.automaticallyUnhideMacosHiddenApps, decodeBool),
+    "experimental-park-on-macos-space": Field(\.experimentalParkOnMacosSpace, decodeBool),
     "accordion-padding": Field(\.accordionPadding, decodeInt),
     "persistent-workspaces": Field(\.persistentWorkspaces, decodePersistentWorkspaces),
     "exec-on-workspace-change": Field(\.execOnWorkspaceChange, decodeStringArray),

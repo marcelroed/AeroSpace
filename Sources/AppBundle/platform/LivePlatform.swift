@@ -227,6 +227,10 @@ final class LivePlatform: Platform {
     /// ~80 ms after the command instead of ~33 ms. Not after the on-screen wait either: the focus would wait for the app's
     /// lag (cmux: ~25 ms). Without a shown job of its app, the focus runs as ``focus(_:)``. If a hung app holds its shown
     /// job, see `NativeFocus.activateIfHung()`
+    ///
+    /// With Space moves (``batchSpaces()``), the shown job moves its windows back from the parking desktop after their
+    /// writes, and waits until the window server shows them on the active desktop before the native focus. The parks job
+    /// moves its windows to the parking desktop, after the same wait for the shown jobs
     func apply(_ batch: [Placement], focus: WindowId?, trustsLastSeen: Bool) {
         var shown: [pid_t: (ax: AxApp, placements: [Placement])] = [:]
         var parks: [pid_t: (ax: AxApp, placements: [Placement])] = [:]
@@ -240,19 +244,30 @@ final class LivePlatform: Platform {
         }
         let nativeFocus = focus.flatMap(decideNativeFocus)
         let focusRoute = nativeFocus.map { NativeFocusRoute(focusedApp: $0.app.info.pid, shownApps: shown.keys) }
+        let spaces = batch.isEmpty ? .none : batchSpaces()
         let shownJobs = ShownJobs(deadline: .now() + parkWaitLimit)
         for (pid, (ax, placements)) in shown {
             let jobFocus = focusRoute == .shownJob(of: pid) ? nativeFocus?.run : nil
-            ax.postPlacements(placements, .shown(shownJobs, focus: jobFocus), trustsLastSeen: trustsLastSeen)
+            ax.postPlacements(placements, .shown(shownJobs, focus: jobFocus), trustsLastSeen: trustsLastSeen, spaces: spaces)
         }
         for (ax, placements) in parks.values {
-            ax.postPlacements(placements, .parks(waitingFor: shownJobs), trustsLastSeen: trustsLastSeen)
+            ax.postPlacements(placements, .parks(waitingFor: shownJobs), trustsLastSeen: trustsLastSeen, spaces: spaces)
         }
         guard let nativeFocus, let focusRoute else { return }
         switch focusRoute {
             case .shownJob: nativeFocus.activateIfHung()
             case .alone: nativeFocus.runAlone()
         }
+    }
+
+    /// The desktops of a batch (~0.25 ms): with `experimental-park-on-macos-space`, or once a park moved a window to
+    /// another desktop, so that the windows come back after the config turned it off. `.none` otherwise: no window moves
+    private func batchSpaces() -> BatchSpaces {
+        guard config.experimentalParkOnMacosSpace || MacosSpaces.hasMovedWindows, let spaces = MacosSpaces.shared,
+              let snapshot = spaces.snapshot()
+        else { return .none }
+        let onParkingSpace = snapshot.parking.map { Set(spaces.windows(on: $0).map(WindowId.init(raw:))) } ?? []
+        return BatchSpaces(shown: snapshot.shown, parking: snapshot.parking, onParkingSpace: onParkingSpace)
     }
 
     /// A FIFO read: it sees the window before the session's placements
@@ -332,8 +347,13 @@ final class LivePlatform: Platform {
 
     // MARK: Termination
 
+    /// The AX restore first: on main, it waits for each app's pending jobs, so that no park moves a window to the parking
+    /// desktop after the windows came back
     nonisolated func restoreForTermination() {
         terminationMirror.restoreWindows()
+        if MacosSpaces.hasMovedWindows {
+            MacosSpaces.shared?.bringBackParkedWindows(timeout: .milliseconds(300))
+        }
     }
 
     // MARK: The registry

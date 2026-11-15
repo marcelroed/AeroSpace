@@ -17,6 +17,9 @@ struct Config {
     var startAtLogin: Bool = false
     var autoReloadConfig: Bool = false
     var automaticallyUnhideMacosHiddenApps: Bool = false
+    /// The windows of the invisible workspaces park on the last macOS desktop instead of a monitor corner, see
+    /// ``MacosSpaces``
+    var experimentalParkOnMacosSpace: Bool = false
     var accordionPadding: Int = 30
     var enableNormalizationOppositeOrientationForNestedContainers: Bool = true
     var persistentWorkspaces: OrderedSet<String> = []

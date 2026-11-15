@@ -103,12 +103,12 @@ actor AxApp {
     /// Posts one job for the app's placements of a batch, in the batch's order. Each placement is its window's latest
     /// write until a newer write of the window is posted (as ``postWindowWrite(_:_:)``), and it stops, also between its AX
     /// calls, once it's stale or termination starts. The batch's jobs wait for each other, see ``ShownJobs``
-    nonisolated func postPlacements(_ placements: [Placement], _ job: PlacementJob, trustsLastSeen: Bool) {
+    nonisolated func postPlacements(_ placements: [Placement], _ job: PlacementJob, trustsLastSeen: Bool, spaces: BatchSpaces) {
         let generations: [UInt64] = self.generations.withLock { generations in placements.map { generations.bump($0.windowId.raw) } }
         if case .shown(let shownJobs, _) = job {
             shownJobs.posted()
         }
-        post { app in app.place(placements, generations, job, trustsLastSeen: trustsLastSeen) }
+        post { app in app.place(placements, generations, job, trustsLastSeen: trustsLastSeen, spaces: spaces) }
     }
 
     // MARK: Isolated: AX calls
@@ -135,11 +135,13 @@ actor AxApp {
         // Second and third lines of defence are technically needed only to avoid potential flickering
         if !isLockScreen {
             var isBusy = false
+            // A window that a park moved to the parking desktop isn't listed: the window server tells that it's alive
+            let spaces = MacosSpaces.hasMovedWindows ? MacosSpaces.shared : nil
             for (id, window) in alive {
                 if isAbandoned() { return [] }
                 // Liveness via _AXUIElementGetWindow, not the unreliable kAXUIElementDestroyedNotification (405dec8b).
                 // A listed (CFEqual) element is alive: the app has just listed it
-                if isBusy || listed.contains(where: { $0.ax == window.ax }) { continue }
+                if isBusy || listed.contains(where: { $0.ax == window.ax }) || spaces?.isParked(id) == true { continue }
                 let (error, windowId) = window.ax.containingWindowIdWithError()
                 // A timeout is no evidence that the window is gone, and the next call would wait as long
                 if error == .cannotComplete {
@@ -220,29 +222,37 @@ actor AxApp {
         return .facts(NativeFacts(isFullscreen: isFullscreen, isMinimized: !isFullscreen && isMinimized))
     }
 
-    /// Runs a job of ``postPlacements(_:_:trustsLastSeen:)``, in the order that
+    /// Runs a job of ``postPlacements(_:_:trustsLastSeen:spaces:)``, in the order that
     /// ``LivePlatform/apply(_:focus:trustsLastSeen:)`` states. A shown job turns the animations back on only after it lets
     /// the parks go: the parks don't wait for that, and a move that the app makes late is still a jump
-    private func place(_ placements: [Placement], _ generations: [UInt64], _ job: PlacementJob, trustsLastSeen: Bool) {
+    private func place(_ placements: [Placement], _ generations: [UInt64], _ job: PlacementJob, trustsLastSeen: Bool, spaces: BatchSpaces) {
         let beforeFirstWrite: (() -> Void)? = if case .parks(let shownJobs) = job { shownJobs.wait } else { nil }
         let animations = AnimationsOff(element, beforeFirstWrite: beforeFirstWrite)
         var unparkedTiles: [UnparkedTile] = []
+        var broughtBack: [SpaceMove] = []
         for (placement, generation) in zip(placements, generations) {
             let windowId = placement.windowId.raw
             guard let registered = windows[windowId] else { continue }
             let isCurrent = { @Sendable [self] in
                 self.generations.withLock { $0.isLatest(windowId, generation) } && !isTerminatingNow()
             }
-            let window = AxPlacementWindow(ax: registered.ax, animations: animations, isCurrentNow: isCurrent)
+            let window = AxPlacementWindow(windowId: windowId, ax: registered.ax, animations: animations, isCurrentNow: isCurrent)
             // A tile whose park wrote its corner's x. That x, not a window server call: one here would delay the write
             // (p99 4 ms, up to 36 ms during a switch)
             let cornerX: CGFloat? = if case .frame = placement { registered.placement.cornerX } else { nil }
-            windows[windowId]?.placement.apply(placement, to: window, trustsLastSeen: trustsLastSeen)
+            windows[windowId]?.placement.apply(placement, to: window, trustsLastSeen: trustsLastSeen, spaces: spaces)
             if let cornerX, window.didWritePosition {
                 unparkedTiles.append(UnparkedTile(windowId: windowId, cornerX: cornerX, isCurrent: isCurrent))
             }
+            if let space = window.didMoveBackTo {
+                broughtBack.append(SpaceMove(windowId: windowId, space: space, isCurrent: isCurrent))
+            }
         }
         if case .shown(let shownJobs, let focus) = job {
+            // Before the native focus: macOS switches to the desktop of a window that its app activates on (an
+            // `AppleSpacesSwitchOnActivate` default), and the parks wait for the windows that replace theirs. The window
+            // server needs ~2 ms
+            waitUntilOnSpace(broughtBack, until: min(.now() + onScreenWaitLimit, shownJobs.deadline))
             focus?(self)
             waitUntilOnScreen(unparkedTiles, until: min(.now() + onScreenWaitLimit, shownJobs.deadline))
             shownJobs.ended()
@@ -260,7 +270,7 @@ actor AxApp {
     func rememberFloatingSize(_ windowId: UInt32) {
         guard let ax = windows[windowId]?.ax else { return }
         // It only reads: the animations stay on
-        let window = AxPlacementWindow(ax: ax, animations: AnimationsOff(element)) { @Sendable in !isTerminatingNow() }
+        let window = AxPlacementWindow(windowId: windowId, ax: ax, animations: AnimationsOff(element)) { @Sendable in !isTerminatingNow() }
         windows[windowId]?.placement.rememberFloatingSize(of: window)
     }
 
@@ -269,7 +279,7 @@ actor AxApp {
         guard let ax = windows[windowId]?.ax else { return }
         let animations = AnimationsOff(element)
         defer { animations.restore() }
-        let window = AxPlacementWindow(ax: ax, animations: animations) { @Sendable in !isTerminatingNow() }
+        let window = AxPlacementWindow(windowId: windowId, ax: ax, animations: animations) { @Sendable in !isTerminatingNow() }
         windows[windowId]?.placement.restoreFloatingSize(to: window)
     }
 
@@ -278,7 +288,7 @@ actor AxApp {
         guard let registered = windows[windowId] else { return }
         let animations = AnimationsOff(element)
         defer { animations.restore() }
-        let window = AxPlacementWindow(ax: registered.ax, animations: animations) { @Sendable in true }
+        let window = AxPlacementWindow(windowId: windowId, ax: registered.ax, animations: animations) { @Sendable in true }
         let frame = monitors.restoreFrame(windowRect: window.rect(), registered.placement.lastFloatingSize)
         window.setFrame(topLeft: frame.topLeft, size: frame.size)
     }
@@ -472,6 +482,12 @@ nonisolated func waitUntilOnScreen(
     }
 }
 
+/// Waits until the window server shows each window that the shown job moved back on its desktop, until `deadline`
+nonisolated private func waitUntilOnSpace(_ moves: [SpaceMove], until deadline: DispatchTime) {
+    guard !moves.isEmpty, let pending = MacosSpaces.shared?.waitUntilMoved(moves, until: deadline), !pending.isEmpty else { return }
+    signposter.emitEvent("space wait timed out", "windows: \(pending.description)")
+}
+
 /// From the shown job's last write. The parks' deadline cuts it short (see ``LivePlatform``'s `parkWaitLimit`)
 nonisolated private let onScreenWaitLimit: DispatchTimeInterval = .milliseconds(100)
 
@@ -486,14 +502,18 @@ nonisolated private func windowServerX(_ windowId: UInt32) -> CGFloat? {
 
 /// A window of the app for ``PlacementState``, on the app's thread
 nonisolated private final class AxPlacementWindow: PlacementWindow {
+    let windowId: UInt32
     let ax: AXUIElement
     let animations: AnimationsOff
     let isCurrentNow: @Sendable () -> Bool
     /// Whether the app took the last position write. `setFrame`'s result says only that the write was sent: a window
     /// that refuses it, an AX timeout and `--read-only` don't move
     private(set) var didWritePosition = false
+    /// The desktop that a move back (not a park) sent the window to
+    private(set) var didMoveBackTo: SpaceId? = nil
 
-    init(ax: AXUIElement, animations: AnimationsOff, isCurrentNow: @escaping @Sendable () -> Bool) {
+    init(windowId: UInt32, ax: AXUIElement, animations: AnimationsOff, isCurrentNow: @escaping @Sendable () -> Bool) {
+        self.windowId = windowId
         self.ax = ax
         self.animations = animations
         self.isCurrentNow = isCurrentNow
@@ -515,6 +535,16 @@ nonisolated private final class AxPlacementWindow: PlacementWindow {
         if isCurrent(), let size { ax.set(Ax.sizeAttr, size) }
         return true
     }
+
+    func moveToSpace(_ space: SpaceId, parks: Bool) -> Bool {
+        guard isCurrent(), let spaces = MacosSpaces.shared else { return false }
+        animations.waitForTheFirstWrite() // A park's first move waited for the shown jobs
+        // A window that shows on every Space (or that is gone) has no one Space: it can't move
+        guard isCurrent(), spaces.space(of: windowId) != nil else { return false }
+        spaces.move([windowId], to: space, parks: parks)
+        if !parks { didMoveBackTo = space }
+        return true
+    }
 }
 
 /// Turns the app's animations off before the first window write, and back on in ``restore()``.
@@ -528,15 +558,23 @@ nonisolated private final class AnimationsOff {
     private let beforeFirstWrite: (() -> Void)?
     /// nil until the first write
     private var wasEnabled: Bool? = nil
+    private var didWait = false
 
     init(_ app: AXUIElement, beforeFirstWrite: (() -> Void)? = nil) {
         self.app = app
         self.beforeFirstWrite = beforeFirstWrite
     }
 
+    /// Before a window's first write or Space move: a parks job waits there for the shown jobs. Once per job
+    func waitForTheFirstWrite() {
+        if didWait { return }
+        didWait = true
+        beforeFirstWrite?()
+    }
+
     func turnOff() {
         if wasEnabled != nil { return }
-        beforeFirstWrite?()
+        waitForTheFirstWrite()
         let wasEnabled = app.get(Ax.enhancedUserInterfaceAttr) == true
         if wasEnabled {
             app.set(Ax.enhancedUserInterfaceAttr, false)

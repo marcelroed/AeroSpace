@@ -23,6 +23,10 @@ final class FakePlatform: Platform {
     var parents: [WindowId: WindowId] = [:]
     /// The child windows that move along with their parent, as AppKit's do (a Chromium bubble doesn't: Chromium places it)
     var movesWithParent: Set<WindowId> = []
+    /// The active desktop and the parking desktop of the batches (``BatchSpaces``). nil: the batches move no window
+    /// between Spaces, as LivePlatform's without `experimental-park-on-macos-space`
+    var shownSpace: SpaceId? = nil
+    var parkingSpace: SpaceId? = nil
     /// Every call in order, and the AX reads and frame writes of the placements. The frame writes are only here: a
     /// per-window copy cost as much as the layout itself in the perf benchmarks
     private(set) var calls: [PlatformCall] = []
@@ -162,6 +166,11 @@ final class FakePlatform: Platform {
     // MARK: Effects
 
     func apply(_ batch: [Placement], focus: WindowId?, trustsLastSeen: Bool) {
+        let spaces = shownSpace == nil ? BatchSpaces.none : BatchSpaces(
+            shown: shownSpace,
+            parking: parkingSpace,
+            onParkingSpace: Set(windows.filter { $0.value.space != nil && $0.value.space == parkingSpace }.keys),
+        )
         for placement in batch {
             switch placement {
                 case .frame: break // Its write is the log entry
@@ -172,7 +181,8 @@ final class FakePlatform: Platform {
             }
             let id = placement.windowId
             guard let window = windows[id] else { continue }
-            window.placement.apply(placement, to: FakeAxWindow(id: id, window: window, platform: self), trustsLastSeen: trustsLastSeen)
+            let axWindow = FakeAxWindow(id: id, window: window, platform: self)
+            window.placement.apply(placement, to: axWindow, trustsLastSeen: trustsLastSeen, spaces: spaces)
         }
         if let focus { self.focus(focus) }
     }
@@ -287,6 +297,13 @@ private struct FakeAxWindow: @MainActor PlacementWindow {
         }
         return topLeft != nil
     }
+
+    func moveToSpace(_ space: SpaceId, parks: Bool) -> Bool {
+        guard let window, window.space != nil else { return false } // Gone, or on every Space
+        platform.log(.moveToSpace(id, space))
+        window.space = space
+        return true
+    }
 }
 
 extension FakePlatform {
@@ -302,6 +319,10 @@ extension FakePlatform {
     }
 }
 
+/// The desktops of the tests that move windows between Spaces (``FakePlatform/shownSpace``)
+let firstDesktop = SpaceId(raw: 1)
+let secondDesktop = SpaceId(raw: 2)
+
 /// The app of the test windows, unless a test makes others
 let testApp = AppInfo(pid: 0, bundleId: "bobko.AeroSpace.test-app", name: "bobko.AeroSpace.test-app", execPath: nil, bundlePath: nil)
 
@@ -316,6 +337,8 @@ final class FakeWindow {
     var level: MacOsWindowLevel? = .normalWindow
     var isFullscreen = false
     var isMinimized = false
+    /// The desktop that the window server shows the window on. nil: on every Space
+    var space: SpaceId? = firstDesktop
     let title: String
     /// AxApp's state of the window. It's registered with its size now
     var placement: PlacementState
@@ -372,7 +395,7 @@ enum PlatformCall: Equatable {
     case floating(WindowId, FloatingTarget), park(WindowId, ParkTarget), leave(WindowId), unparkPopup(WindowId)
     /// What the placements do: one AX read (the position and the size in one call), a frame write (size, position, size:
     /// up to 3 AX writes)
-    case axRead(WindowId), frame(WindowId, topLeft: CGPoint?, size: CGSize?)
+    case axRead(WindowId), frame(WindowId, topLeft: CGPoint?, size: CGSize?), moveToSpace(WindowId, SpaceId)
     case rememberFloatingSize(WindowId), restoreFloatingSize(WindowId)
     case focus(WindowId), close(WindowId), setNative(WindowId, NativeChange), unhideApp(pid_t), quit(pid_t)
     case warpMouse(CGPoint), launch(String, [String], environment: [String: String])
@@ -380,7 +403,7 @@ enum PlatformCall: Equatable {
     enum Kind: Equatable {
         case listWindows, focusedWindow, classify, nativeFacts, observedRect
         case rect, title, facts, kind, windowCount, debugInfo
-        case floating, park, leave, unparkPopup, axRead, frame, rememberFloatingSize, restoreFloatingSize
+        case floating, park, leave, unparkPopup, axRead, frame, moveToSpace, rememberFloatingSize, restoreFloatingSize
         case focus, close, setNative, unhideApp, quit, warpMouse, launch
     }
 
@@ -403,6 +426,7 @@ enum PlatformCall: Equatable {
             case .unparkPopup: .unparkPopup
             case .axRead: .axRead
             case .frame: .frame
+            case .moveToSpace: .moveToSpace
             case .rememberFloatingSize: .rememberFloatingSize
             case .restoreFloatingSize: .restoreFloatingSize
             case .focus: .focus
@@ -419,7 +443,7 @@ enum PlatformCall: Equatable {
     var windowId: WindowId? {
         switch self {
             case .observedRect(let id), .rect(let id), .title(let id), .facts(let id), .kind(let id), .debugInfo(let id),
-                 .floating(let id, _), .park(let id, _), .leave(let id), .unparkPopup(let id), .axRead(let id), .frame(let id, _, _),
+                 .floating(let id, _), .park(let id, _), .leave(let id), .unparkPopup(let id), .axRead(let id), .frame(let id, _, _), .moveToSpace(let id, _),
                  .rememberFloatingSize(let id), .restoreFloatingSize(let id), .focus(let id), .close(let id), .setNative(let id, _):
                 id
             case .listWindows, .focusedWindow, .classify, .nativeFacts, .windowCount, .unhideApp, .quit, .warpMouse, .launch: nil
