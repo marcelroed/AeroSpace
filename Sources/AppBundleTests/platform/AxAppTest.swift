@@ -169,7 +169,7 @@ struct AxAppTest {
         defer { gate.signal() }
         hung.post { _ in gate.wait() }
         let shownJobs = ShownJobs(deadline: .now() + .seconds(10))
-        hung.postPlacements([], .shown(shownJobs, focus: nil), trustsLastSeen: false, spaces: .none)
+        hung.postPlacements([], .shown(shownJobs, focus: nil, moves: nil), trustsLastSeen: false, spaces: .none)
         let target = ParkTarget(corner: .bottomRightCorner, monitor: testMonitor, monitors: NonEmptyArray(testMonitor), isFloating: false, isZoom: false, followsParent: false)
         parker.postPlacements([.park(1, target)], .parks(waitingFor: shownJobs), trustsLastSeen: false, spaces: .none) // The parker has no window 1
 
@@ -194,7 +194,7 @@ struct AxAppTest {
             log.append("the slow app wrote")
         }
         let shownJobs = ShownJobs(deadline: .now() + .seconds(10))
-        slow.postPlacements([], .shown(shownJobs, focus: nil), trustsLastSeen: false, spaces: .none)
+        slow.postPlacements([], .shown(shownJobs, focus: nil, moves: nil), trustsLastSeen: false, spaces: .none)
         parker.post { _ in
             shownJobs.wait()
             log.append("the parker writes")
@@ -208,7 +208,7 @@ struct AxAppTest {
         hung.post { _ in hungGate.wait() }
         let start: DispatchTime = .now()
         let shownJobsWithAHungApp = ShownJobs(deadline: start + .milliseconds(100))
-        hung.postPlacements([], .shown(shownJobsWithAHungApp, focus: nil), trustsLastSeen: false, spaces: .none)
+        hung.postPlacements([], .shown(shownJobsWithAHungApp, focus: nil, moves: nil), trustsLastSeen: false, spaces: .none)
         await parker.run { _ in shownJobsWithAHungApp.wait() }
         let waited = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
         #expect(waited >= 100_000_000 && waited < 5_000_000_000, "waited \(waited) ns")
@@ -229,7 +229,7 @@ struct AxAppTest {
         focused.postPlacements([], .shown(shownJobs, focus: { @Sendable _ in
             Thread.sleep(forTimeInterval: 0.05)
             log.append("the focus on \(Thread.current.name ?? "")")
-        }), trustsLastSeen: false, spaces: .none)
+        }, moves: nil), trustsLastSeen: false, spaces: .none)
         parker.post { _ in
             shownJobs.wait()
             log.append("the parks go")
@@ -237,6 +237,90 @@ struct AxAppTest {
 
         try await waitUntil { log.items.count == 3 }
         expectEqual(log.items, ["an earlier job", "the focus on Focused", "the parks go"])
+    }
+
+    /// A window that comes back to the active desktop shows in front, then behind the windows it replaces: the moves of a
+    /// switch go together, so that the old windows leave as the new ones come. The windows that come back go first
+    @Test
+    func theSpaceMovesOfABatchGoTogetherOnceEveryJobIsReady() {
+        let operations = Log<SpaceMoveBatch.Operation>()
+        let moves = SpaceMoveBatch(jobs: 2, deadline: .now() + .seconds(10)) { operations.append($0) }
+        let (shown, parking) = (SpaceId(raw: 1), SpaceId(raw: 2))
+
+        let waits1 = moves.move(10, to: parking, parks: true, isCurrent: { true })
+        #expect(waits1)
+        moves.ready()
+        expectEqual(operations.items, [])
+        let waits2 = moves.move(20, to: shown, parks: false, isCurrent: { true })
+        #expect(waits2)
+        let waits3 = moves.move(21, to: shown, parks: false, isCurrent: { false })
+        #expect(waits3) // A newer write of the window was posted
+        let waits4 = moves.move(22, to: shown, parks: false, isCurrent: { true })
+        #expect(waits4)
+        moves.ready()
+
+        expectEqual(operations.items, [
+            SpaceMoveBatch.Operation(windowIds: [20, 22], space: shown, parks: false),
+            SpaceMoveBatch.Operation(windowIds: [10], space: parking, parks: true),
+        ])
+        moves.waitUntilSent() // At once
+        let waits5 = moves.move(30, to: parking, parks: true, isCurrent: { true })
+        #expect(!waits5) // Late: it goes at once
+        expectEqual(operations.items.last, SpaceMoveBatch.Operation(windowIds: [30], space: parking, parks: true))
+    }
+
+    /// A space parks job doesn't wait for the moves: its writes end once they went (`afterSending`), so that a newer write
+    /// of the window still cancels its move until then
+    @Test
+    func theSpaceMovesEndTheWritesOfTheJobsThatDontWait() {
+        let log = Log<String>()
+        let moves = SpaceMoveBatch(jobs: 2, deadline: .now() + .seconds(10)) { log.append("sent \($0.windowIds)") }
+        let waits6 = moves.move(10, to: SpaceId(raw: 2), parks: true, isCurrent: { true }, afterSending: { log.append("ended 10") })
+        #expect(waits6)
+        moves.ready()
+        moves.ready()
+        expectEqual(log.items, ["sent [10]", "ended 10"])
+    }
+
+    /// A hung app's shown job holds the other apps' moves until the deadline only
+    @Test
+    func theDeadlineSendsTheSpaceMovesOfTheReadyJobs() async throws {
+        let operations = Log<SpaceMoveBatch.Operation>()
+        let start: DispatchTime = .now()
+        let moves = SpaceMoveBatch(jobs: 2, deadline: start + .milliseconds(100)) { operations.append($0) }
+        let waits7 = moves.move(10, to: SpaceId(raw: 2), parks: true, isCurrent: { true })
+        #expect(waits7)
+        moves.ready() // The other job never is
+
+        moves.waitUntilSent()
+        let waited = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
+        #expect(waited >= 100_000_000 && waited < 5_000_000_000, "waited \(waited) ns")
+        expectEqual(operations.items, [SpaceMoveBatch.Operation(windowIds: [10], space: SpaceId(raw: 2), parks: true)])
+
+        // Without a waiter, the deadline sends them too
+        let unwaited = SpaceMoveBatch(jobs: 1, deadline: .now() + .milliseconds(50)) { operations.append($0) }
+        let waits8 = unwaited.move(11, to: SpaceId(raw: 2), parks: true, isCurrent: { true })
+        #expect(waits8)
+        try await waitUntil { operations.items.count == 2 }
+    }
+
+    /// A space parks job comes before its app's shown job, and doesn't wait for the shown jobs: else an app with windows
+    /// on both workspaces of a switch would hold the batch's moves until the deadline
+    @Test
+    func aSpaceParksJobDoesntWait() async {
+        let hung = AxApp(pid: 0, threadName: "Hung")
+        let parker = AxApp(pid: 0, threadName: "Parker")
+        let gate = DispatchSemaphore(value: 0)
+        defer { gate.signal() }
+        hung.post { _ in gate.wait() }
+        let shownJobs = ShownJobs(deadline: .now() + .seconds(10))
+        let moves = SpaceMoveBatch(jobs: 2, deadline: .now() + .seconds(10)) { _ in }
+        hung.postPlacements([], .shown(shownJobs, focus: nil, moves: moves), trustsLastSeen: false, spaces: .none)
+        parker.postPlacements([], .spaceParks(moves), trustsLastSeen: false, spaces: .none)
+
+        let start: DispatchTime = .now()
+        await parker.run { _ in } // After the space parks job
+        #expect(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds < 5_000_000_000)
     }
 
     /// LivePlatform's routing of a batch's native focus. Without a shown job of its app, it must still run: focus follows

@@ -228,27 +228,41 @@ final class LivePlatform: Platform {
     /// lag (cmux: ~25 ms). Without a shown job of its app, the focus runs as ``focus(_:)``. If a hung app holds its shown
     /// job, see `NativeFocus.activateIfHung()`
     ///
-    /// With Space moves (``batchSpaces()``), the shown job moves its windows back from the parking desktop after their
-    /// writes, and waits until the window server shows them on the active desktop before the native focus. The parks job
-    /// moves its windows to the parking desktop, after the same wait for the shown jobs
+    /// With Space moves (``batchSpaces()``), the parks on the parking desktop come first, in a job of their own that
+    /// doesn't wait. Every Space move of the batch goes to the window server at once, see ``SpaceMoveBatch``: once each
+    /// shown job wrote its windows (still on the parking desktop) and each space parks job asked for its moves, at most
+    /// ``parkWaitLimit`` from the post. Then the shown jobs wait until the window server shows their windows on the active
+    /// desktop before the native focus
     func apply(_ batch: [Placement], focus: WindowId?, trustsLastSeen: Bool) {
+        let spaces = batch.isEmpty ? .none : batchSpaces()
         var shown: [pid_t: (ax: AxApp, placements: [Placement])] = [:]
+        var spaceParks: [pid_t: (ax: AxApp, placements: [Placement])] = [:]
         var parks: [pid_t: (ax: AxApp, placements: [Placement])] = [:]
         for placement in batch {
             guard let app = liveApp(of: placement.windowId), let ax = app.ax else { continue }
-            if case .park = placement {
-                parks[app.info.pid, default: (ax, [])].placements.append(placement)
-            } else {
-                shown[app.info.pid, default: (ax, [])].placements.append(placement)
+            switch placement {
+                // As PlacementState decides
+                case .park(_, let target) where target.onMacosSpace && spaces.parking != nil:
+                    spaceParks[app.info.pid, default: (ax, [])].placements.append(placement)
+                case .park:
+                    parks[app.info.pid, default: (ax, [])].placements.append(placement)
+                default:
+                    shown[app.info.pid, default: (ax, [])].placements.append(placement)
             }
         }
         let nativeFocus = focus.flatMap(decideNativeFocus)
         let focusRoute = nativeFocus.map { NativeFocusRoute(focusedApp: $0.app.info.pid, shownApps: shown.keys) }
-        let spaces = batch.isEmpty ? .none : batchSpaces()
         let shownJobs = ShownJobs(deadline: .now() + parkWaitLimit)
+        let hasSpaces = spaces.shown != nil || spaces.parking != nil
+        let moves = hasSpaces ? SpaceMoveBatch(jobs: shown.count + spaceParks.count, deadline: shownJobs.deadline) : nil
+        if let moves {
+            for (ax, placements) in spaceParks.values {
+                ax.postPlacements(placements, .spaceParks(moves), trustsLastSeen: trustsLastSeen, spaces: spaces)
+            }
+        }
         for (pid, (ax, placements)) in shown {
             let jobFocus = focusRoute == .shownJob(of: pid) ? nativeFocus?.run : nil
-            ax.postPlacements(placements, .shown(shownJobs, focus: jobFocus), trustsLastSeen: trustsLastSeen, spaces: spaces)
+            ax.postPlacements(placements, .shown(shownJobs, focus: jobFocus, moves: moves), trustsLastSeen: trustsLastSeen, spaces: spaces)
         }
         for (ax, placements) in parks.values {
             ax.postPlacements(placements, .parks(waitingFor: shownJobs), trustsLastSeen: trustsLastSeen, spaces: spaces)

@@ -105,7 +105,7 @@ actor AxApp {
     /// calls, once it's stale or termination starts. The batch's jobs wait for each other, see ``ShownJobs``
     nonisolated func postPlacements(_ placements: [Placement], _ job: PlacementJob, trustsLastSeen: Bool, spaces: BatchSpaces) {
         let generations: [UInt64] = self.generations.withLock { generations in placements.map { generations.bump($0.windowId.raw) } }
-        if case .shown(let shownJobs, _) = job {
+        if case .shown(let shownJobs, _, _) = job {
             shownJobs.posted()
         }
         post { app in app.place(placements, generations, job, trustsLastSeen: trustsLastSeen, spaces: spaces) }
@@ -227,16 +227,32 @@ actor AxApp {
     /// the parks go: the parks don't wait for that, and a move that the app makes late is still a jump
     private func place(_ placements: [Placement], _ generations: [UInt64], _ job: PlacementJob, trustsLastSeen: Bool, spaces: BatchSpaces) {
         let beforeFirstWrite: (() -> Void)? = if case .parks(let shownJobs) = job { shownJobs.wait } else { nil }
+        let moves: SpaceMoveBatch? = switch job {
+            case .shown(_, _, let moves): moves
+            case .spaceParks(let moves): moves
+            case .parks: nil // After the shown jobs: the batch's moves went
+        }
         let animations = AnimationsOff(element, beforeFirstWrite: beforeFirstWrite)
         var unparkedTiles: [UnparkedTile] = []
         var broughtBack: [SpaceMove] = []
+        /// The windows whose write ends once the batch's moves went: a space park's move goes after the job
+        var endsAfterTheMoves: Set<UInt32> = []
         for (placement, generation) in zip(placements, generations) {
             let windowId = placement.windowId.raw
             guard let registered = windows[windowId] else { continue }
             let isCurrent = { @Sendable [self] in
                 self.generations.withLock { $0.isLatest(windowId, generation) } && !isTerminatingNow()
             }
-            let window = AxPlacementWindow(windowId: windowId, ax: registered.ax, animations: animations, isCurrentNow: isCurrent)
+            // A shown job waits for its moves (it finishes its writes after them), a space parks job doesn't
+            let finish: (@Sendable () -> Void)? = if case .spaceParks = job {
+                { @Sendable [self] in self.generations.withLock { $0.finish(windowId, generation) } }
+            } else {
+                nil
+            }
+            let window = AxPlacementWindow(
+                windowId: windowId, ax: registered.ax, animations: animations, moves: moves, finishAfterTheMove: finish,
+                isCurrentNow: isCurrent,
+            )
             // A tile whose park wrote its corner's x. That x, not a window server call: one here would delay the write
             // (p99 4 ms, up to 36 ms during a switch)
             let cornerX: CGFloat? = if case .frame = placement { registered.placement.cornerX } else { nil }
@@ -247,12 +263,18 @@ actor AxApp {
             if let space = window.didMoveBackTo {
                 broughtBack.append(SpaceMove(windowId: windowId, space: space, isCurrent: isCurrent))
             }
+            if window.handedOverItsFinish {
+                endsAfterTheMoves.insert(windowId)
+            }
         }
-        if case .shown(let shownJobs, let focus) = job {
+        moves?.ready()
+        if case .shown(let shownJobs, let focus, _) = job {
             // Before the native focus: macOS switches to the desktop of a window that its app activates on (an
-            // `AppleSpacesSwitchOnActivate` default), and the parks wait for the windows that replace theirs. The window
-            // server needs ~2 ms
-            waitUntilOnSpace(broughtBack, until: min(.now() + onScreenWaitLimit, shownJobs.deadline))
+            // `AppleSpacesSwitchOnActivate` default). The window server needs ~2 ms, ~12 ms for a workspace switch
+            if !broughtBack.isEmpty {
+                moves?.waitUntilSent()
+                waitUntilOnSpace(broughtBack, until: .now() + onScreenWaitLimit)
+            }
             focus?(self)
             waitUntilOnScreen(unparkedTiles, until: min(.now() + onScreenWaitLimit, shownJobs.deadline))
             shownJobs.ended()
@@ -260,7 +282,7 @@ actor AxApp {
         animations.restore()
         // Only now: the wait drops a tile once its write isn't the latest
         self.generations.withLock { windowGenerations in
-            for (placement, generation) in zip(placements, generations) {
+            for (placement, generation) in zip(placements, generations) where !endsAfterTheMoves.contains(placement.windowId.raw) {
                 windowGenerations.finish(placement.windowId.raw, generation)
             }
         }
@@ -366,9 +388,15 @@ nonisolated struct WindowGenerations {
 
 /// An app's job of a batch (``LivePlatform/apply(_:focus:trustsLastSeen:)``)
 nonisolated enum PlacementJob: Sendable {
-    /// The shown workspaces' placements, and the native focus of the app's window if the job carries it
-    case shown(ShownJobs, focus: (@Sendable (isolated AxApp) -> Void)?)
-    /// The parks, which wait for the shown jobs
+    /// The shown workspaces' placements, and the native focus of the app's window if the job carries it. With Space moves,
+    /// the job sends its windows back to the active desktop with the batch's other moves, and waits for them before the
+    /// native focus
+    case shown(ShownJobs, focus: (@Sendable (isolated AxApp) -> Void)?, moves: SpaceMoveBatch?)
+    /// The parks on the parking desktop (``ParkTarget/onMacosSpace``), before the app's shown job. They make no AX write:
+    /// their moves go with the batch's other moves, once the shown jobs wrote. So they don't wait, unless a window parks
+    /// in a corner because it can't move (it shows on every Space): that write goes at once
+    case spaceParks(SpaceMoveBatch)
+    /// The other parks, which wait for the shown jobs
     case parks(waitingFor: ShownJobs)
 }
 
@@ -505,17 +533,32 @@ nonisolated private final class AxPlacementWindow: PlacementWindow {
     let windowId: UInt32
     let ax: AXUIElement
     let animations: AnimationsOff
+    /// The batch's moves, which this window's move joins. nil: it moves at once
+    let moves: SpaceMoveBatch?
+    /// Ends the window's write: the batch runs it after its moves (see ``handedOverItsFinish``). nil: the job ends it
+    let finishAfterTheMove: (@Sendable () -> Void)?
     let isCurrentNow: @Sendable () -> Bool
     /// Whether the app took the last position write. `setFrame`'s result says only that the write was sent: a window
     /// that refuses it, an AX timeout and `--read-only` don't move
     private(set) var didWritePosition = false
     /// The desktop that a move back (not a park) sent the window to
     private(set) var didMoveBackTo: SpaceId? = nil
+    /// The move waits for the batch's moves, which end the window's write (``finishAfterTheMove``): the job must not
+    private(set) var handedOverItsFinish = false
 
-    init(windowId: UInt32, ax: AXUIElement, animations: AnimationsOff, isCurrentNow: @escaping @Sendable () -> Bool) {
+    init(
+        windowId: UInt32,
+        ax: AXUIElement,
+        animations: AnimationsOff,
+        moves: SpaceMoveBatch? = nil,
+        finishAfterTheMove: (@Sendable () -> Void)? = nil,
+        isCurrentNow: @escaping @Sendable () -> Bool,
+    ) {
         self.windowId = windowId
         self.ax = ax
         self.animations = animations
+        self.moves = moves
+        self.finishAfterTheMove = finishAfterTheMove
         self.isCurrentNow = isCurrentNow
     }
 
@@ -538,10 +581,15 @@ nonisolated private final class AxPlacementWindow: PlacementWindow {
 
     func moveToSpace(_ space: SpaceId, parks: Bool) -> Bool {
         guard isCurrent(), let spaces = MacosSpaces.shared else { return false }
-        animations.waitForTheFirstWrite() // A park's first move waited for the shown jobs
+        animations.waitForTheFirstWrite() // A parks job's first move waits for the shown jobs
         // A window that shows on every Space (or that is gone) has no one Space: it can't move
         guard isCurrent(), spaces.space(of: windowId) != nil else { return false }
-        spaces.move([windowId], to: space, parks: parks)
+        if let moves {
+            let waits = moves.move(windowId, to: space, parks: parks, isCurrent: isCurrentNow, afterSending: finishAfterTheMove)
+            if waits && finishAfterTheMove != nil { handedOverItsFinish = true }
+        } else {
+            spaces.move([windowId], to: space, parks: parks)
+        }
         if !parks { didMoveBackTo = space }
         return true
     }

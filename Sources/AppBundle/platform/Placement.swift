@@ -3,7 +3,8 @@ import AppKit
 /// Where a window goes, see ``Platform/apply(_:focus:trustsLastSeen:)``. The platform runs the placements of each app in
 /// the batch's order (the shown workspaces' placements, then the parks), latest wins per window. AxApp and FakePlatform
 /// decide each window's AX calls and Space moves with the same code, ``PlacementState``. Only AxApp runs the apps in
-/// parallel, where the parks also wait for the other apps' shown placements (``ShownJobs``)
+/// parallel, where the parks also wait for the other apps' shown placements (``ShownJobs``), and the Space moves of the
+/// batch go together (``SpaceMoveBatch``)
 nonisolated enum Placement: Equatable, Sendable {
     /// The layout's frame of a window. It's written only if the window isn't there already, see
     /// ``PlacementState/apply(_:to:trustsLastSeen:)``

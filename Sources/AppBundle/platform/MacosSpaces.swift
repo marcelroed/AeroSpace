@@ -43,6 +43,132 @@ nonisolated struct SpaceMove {
     let isCurrent: () -> Bool
 }
 
+/// The Space moves of a batch (``LivePlatform/apply(_:focus:trustsLastSeen:)``), which reach the window server together.
+/// A window that comes to the active desktop shows in front of every window there, and ~3 ms later the window server puts
+/// it back where it was in the window order: behind the windows that the user focused since it parked, such as the
+/// windows of the workspace it replaces. So the windows of a workspace that came back one at a time, each after its app's
+/// writes, with the parks after the native focus, made the switch flash: the new windows, the old ones again for ~20 ms,
+/// then the new ones. Moves sent together show at once: the old windows leave as the new ones come.
+///
+/// Each job of the batch that may move a window asks for its moves (``move(_:to:parks:isCurrent:)``), then says it's
+/// ready. The moves go once every such job is ready, or at the deadline: a slow or hung app holds the other apps' moves
+/// only that long. A move asked for after that goes at once
+nonisolated final class SpaceMoveBatch: Sendable {
+    /// The windows of one window server operation
+    struct Operation: Equatable, Sendable {
+        let windowIds: [UInt32]
+        let space: SpaceId
+        let parks: Bool
+    }
+
+    private struct Request {
+        let windowId: UInt32
+        let space: SpaceId
+        let parks: Bool
+        let isCurrent: @Sendable () -> Bool
+        let afterSending: (@Sendable () -> Void)?
+    }
+
+    private struct State {
+        /// The jobs that haven't said ``ready()``
+        var unready: Int
+        var requests: [Request] = []
+        var isSent = false
+    }
+
+    private let state: Mutex<State>
+    /// Left once the moves are sent
+    private let sent = DispatchGroup()
+    private let deadline: DispatchTime
+    private let perform: @Sendable (Operation) -> Void
+
+    /// `jobs`: how many jobs say ``ready()``. `perform`: sends an operation to the window server
+    init(jobs: Int, deadline: DispatchTime, perform: @escaping @Sendable (Operation) -> Void = MacosSpaces.perform) {
+        state = Mutex(State(unready: jobs))
+        self.deadline = deadline
+        self.perform = perform
+        sent.enter()
+        if jobs == 0 {
+            send()
+        } else {
+            // Strong: a job that never runs (its app quit) leaves the requests to the deadline
+            DispatchQueue.global(qos: .userInteractive).asyncAfter(deadline: deadline) { [self] in
+                send(atTheDeadline: true)
+            }
+        }
+    }
+
+    /// Asks for the window's move, which goes with the batch's other moves, or at once if they went already. A move that
+    /// is no longer current then doesn't go. true: it waits for them, and `afterSending` runs once they went (e.g. a
+    /// job that doesn't wait for them ends its write there, which `isCurrent` reads)
+    func move(
+        _ windowId: UInt32,
+        to space: SpaceId,
+        parks: Bool,
+        isCurrent: @escaping @Sendable () -> Bool,
+        afterSending: (@Sendable () -> Void)? = nil,
+    ) -> Bool {
+        let request = Request(windowId: windowId, space: space, parks: parks, isCurrent: isCurrent, afterSending: afterSending)
+        let isLate = state.withLock { state in
+            if state.isSent { return true }
+            state.requests.append(request)
+            return false
+        }
+        if isLate {
+            perform(Operation(windowIds: [windowId], space: space, parks: parks))
+        }
+        return !isLate
+    }
+
+    /// The job asked for all of its moves. The last job's call sends the moves
+    func ready() {
+        let isLast = state.withLock { state in
+            state.unready -= 1
+            return state.unready == 0
+        }
+        if isLast { send() }
+    }
+
+    /// Waits until the moves are sent, at most until the deadline
+    func waitUntilSent() {
+        if sent.wait(timeout: deadline) == .timedOut {
+            send(atTheDeadline: true)
+        }
+    }
+
+    /// One operation per Space, in the order of the requests: the windows that come back first, then the parks. Sent back
+    /// to back, the window server shows them in the same frame
+    private func send(atTheDeadline: Bool = false) {
+        let sending: (requests: [Request], unready: Int)? = state.withLock { state in
+            if state.isSent { return nil }
+            state.isSent = true
+            defer { state.requests = [] }
+            return (state.requests, state.unready)
+        }
+        guard let (requests, unready) = sending else { return }
+        if atTheDeadline && unready > 0 {
+            signposter.emitEvent("space moves sent at the deadline", "unready jobs: \(unready)")
+        }
+        var operations: [Operation] = []
+        for parks in [false, true] {
+            var spaces: [SpaceId] = []
+            var windows: [SpaceId: [UInt32]] = [:]
+            for request in requests where request.parks == parks && request.isCurrent() {
+                if windows[request.space] == nil { spaces.append(request.space) }
+                windows[request.space, default: []].append(request.windowId)
+            }
+            operations += spaces.map { Operation(windowIds: windows[$0] ?? [], space: $0, parks: parks) }
+        }
+        for operation in operations {
+            perform(operation)
+        }
+        for request in requests {
+            request.afterSending?()
+        }
+        sent.leave()
+    }
+}
+
 /// The macOS Spaces through SkyLight, the private framework under CoreGraphics, for `experimental-park-on-macos-space`.
 /// It's looked up at runtime, as ``windowServerParents(_:)``: if a macOS update drops a symbol, ``shared`` is nil, and the
 /// windows park in a corner.
@@ -171,6 +297,11 @@ nonisolated struct SpaceMove {
         withExtendedLifetime(operation) {
             unsafe performOperation(Unmanaged.passUnretained(operation).toOpaque())
         }
+    }
+
+    /// ``SpaceMoveBatch``'s operation
+    static func perform(_ operation: SpaceMoveBatch.Operation) {
+        shared?.move(operation.windowIds, to: operation.space, parks: operation.parks)
     }
 
     /// Termination: moves the parked windows back to the active desktop (the first one while a fullscreen app's Space is
