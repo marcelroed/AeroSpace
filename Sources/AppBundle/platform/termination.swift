@@ -16,8 +16,8 @@ nonisolated let isTerminating: Atomic<Bool> = Atomic(false)
 nonisolated struct AppServerTerminationHandler: TerminationHandler {
     let platform: any Platform
 
-    /// On the dying thread, which can be any thread, or on main when quitting (the menu, SIGINT, SIGTERM). It never waits
-    /// for the main thread
+    /// On the dying thread, which can be any thread, or on main when quitting (the menu, a quit Apple Event, SIGINT in
+    /// debug builds). It never waits for the main thread
     func beforeTermination() {
         // A die already claimed it when it calls this. Quitting claims it here
         if claimTermination() == .otherThread {

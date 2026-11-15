@@ -19,6 +19,7 @@ public func initAppBundle() -> Ui {
     let args = parseServerArgs(Array(CommandLine.arguments.dropFirst()))
     parsedServerArgs.withLock { $0 = args }
     installTerminationHandler(AppServerTerminationHandler(platform: world.platform))
+    restoreWindowsOnQuitEvents()
     Task.startUnstructured {
         await waitForAccessibilityPermission_nonCancellable()
         if isDebug {
@@ -123,4 +124,17 @@ nonisolated private func parseServerArgs(_ args: [String]) -> ServerArgs {
         exit(EXIT_CODE_TWO, err: "\(path) doesn't exist")
     }
     return result
+}
+
+/// A quit Apple Event (`quit app "AeroSpace"`, a logout, a restart) terminates the app without the Quit button: the
+/// windows are restored as for the button. Otherwise they stay where AeroSpace hid them, and with
+/// `experimental-park-on-macos-space` that's another desktop
+private func restoreWindowsOnQuitEvents() {
+    _ = NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: nil) { _ in
+        switch claimTermination() {
+            case .first: terminationHandler?.beforeTermination()
+            case .sameThread: break // The Quit button restored them already
+            case .otherThread: parkForever() // A die restores them, then ends the process
+        }
+    }
 }
