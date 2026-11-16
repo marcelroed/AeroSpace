@@ -235,7 +235,7 @@ actor AxApp {
         let animations = AnimationsOff(element, beforeFirstWrite: beforeFirstWrite)
         var unparkedTiles: [UnparkedTile] = []
         var broughtBack: [SpaceMove] = []
-        /// The windows whose write ends once the batch's moves went: a space park's move goes after the job
+        // The windows whose write ends once the batch's moves went: a space park's move goes after the job
         var endsAfterTheMoves: Set<UInt32> = []
         for (placement, generation) in zip(placements, generations) {
             let windowId = placement.windowId.raw
