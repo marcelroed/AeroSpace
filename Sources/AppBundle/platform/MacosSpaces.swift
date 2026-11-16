@@ -178,7 +178,15 @@ nonisolated final class SpaceMoveBatch: Sendable {
 /// for any process: yabai 7.1.25 uses it, and it works on macOS 27.3. Its performer isn't exported (a static C++
 /// function), so it's found in SkyLight's symbol table. A move is asynchronous: the window server moves the window ~2 ms
 /// later (~20 ms for the process's first move). A window on another Space isn't composited, its app sees it occluded
-/// (and may stop rendering it), and AX keeps answering about it, but the app's AXWindows no longer lists it
+/// (and may stop rendering it), and AX keeps answering about it, but the app's AXWindows no longer lists it.
+///
+/// The Dock switches to the desktop of a window that the active app orders front there ("switching to space … for
+/// window … ordered on non-visible space" in its log): a click on the Dock icon of an app whose windows are all parked,
+/// or an app that shows its parked window, would slide macOS to the parking desktop. AeroSpace then follows: the parking
+/// desktop becomes the shown one. Two macOS settings stop the Dock: "When switching to an application, switch to a Space
+/// with open windows for the application" off (`AppleSpacesSwitchOnActivate`: activations, e.g. cmd-tab) and
+/// `defaults write com.apple.dock workspaces-auto-swoosh -bool false; killall Dock` (the rest, e.g. the Dock's clicks).
+/// Then the app activates in place, and AeroSpace brings its workspace
 @safe nonisolated final class MacosSpaces: @unchecked Sendable {
     private typealias CopyManagedDisplaySpaces = @convention(c) (Int32) -> Unmanaged<CFArray>?
     private typealias CopySpacesForWindows = @convention(c) (Int32, Int32, CFArray) -> Unmanaged<CFArray>?
