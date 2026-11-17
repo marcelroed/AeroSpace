@@ -161,9 +161,32 @@ actor AxApp {
         return order + alive.keys.filter { !listedIds.contains($0) }.sorted()
     }
 
-    func focusedWindowId() -> UInt32? {
-        guard let focused = element.get(Ax.focusedWindowElementAttr), let windowId = windowId(of: focused) else { return nil }
-        return registerWindow(windowId, focused, in: &windows) ? windowId : nil
+    /// The app's focused window. An app that activates while its windows are all on the parking desktop (cmd-tab, a click
+    /// on its Dock icon) focuses none of them: AX reports no focused window, and Finder reports its desktop. Its focused
+    /// window is then its front window there, as if they had parked in a corner: the window that it focused last. But
+    /// Finder's desktop is its focus after a click on it (`isClickActivation`). It may also focus one of them as it
+    /// activates (e.g. System Settings, the sheet in front of its window), until macOS takes the focus away from a window
+    /// on another desktop: that window is `.parked` too. A `.parked` focus is the window that a sheet belongs to, not the
+    /// sheet. nil after an AX timeout: it tells nothing
+    func focusedWindow(isClickActivation: Bool) -> FocusedWindowRead? {
+        let (error, focused) = element.getWithError(Ax.focusedWindowElementAttr)
+        if let focused, let windowId = windowId(of: focused) {
+            guard registerWindow(windowId, focused, in: &windows) else { return nil }
+            let isAway = MacosSpaces.shared?.isAway(windowId, amongParked: windows.keys) == true
+            return isAway ? .parked(topLevelWindow(windowId)) : .window(windowId)
+        }
+        if error == .cannotComplete || focused != nil && isClickActivation { return nil }
+        return MacosSpaces.shared?.frontParkedWindow(among: windows.keys).map { .parked(topLevelWindow($0)) }
+    }
+
+    /// The app's window that a window belongs to through its window server parents (a sheet's window), or the window
+    private func topLevelWindow(_ windowId: UInt32) -> UInt32 {
+        var windowId = windowId
+        for _ in 0 ..< 8 { // The bound guards against a cycle
+            guard let parent = windowServerParents([windowId])[windowId], windows[parent] != nil else { break }
+            windowId = parent
+        }
+        return windowId
     }
 
     /// The id of a window element that the app listed or focused. A registered window's element is CFEqual to it (pid and
@@ -384,6 +407,15 @@ nonisolated struct WindowGenerations {
             latest[windowId] = nil
         }
     }
+}
+
+/// The frontmost app's focused window, see ``AxApp/focusedWindow(isClickActivation:)``
+nonisolated enum FocusedWindowRead: Sendable {
+    /// The window that AX reports
+    case window(UInt32)
+    /// AX reports none: the app's front window on the parking desktop. It gets the native focus once it's back, see
+    /// ``LivePlatform/apply(_:focus:trustsLastSeen:)``
+    case parked(UInt32)
 }
 
 /// An app's job of a batch (``LivePlatform/apply(_:focus:trustsLastSeen:)``)

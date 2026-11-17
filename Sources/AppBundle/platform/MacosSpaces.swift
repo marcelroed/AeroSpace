@@ -321,6 +321,29 @@ nonisolated final class SpaceMoveBatch: Sendable {
         parkedWindows.withLock { $0.contains(windowId) } && space(of: windowId) != nil
     }
 
+    /// The window isn't on the active desktop, while one of its app's windows `ids` is parked (~0.3 ms; only the lock if
+    /// none is). false while a fullscreen app's Space is active
+    func isAway(_ windowId: UInt32, amongParked ids: some Sequence<UInt32>) -> Bool {
+        guard parkedWindows.withLock({ !$0.isDisjoint(with: ids) }), let space = space(of: windowId),
+              let shown = snapshot()?.shown
+        else { return false }
+        return space != shown
+    }
+
+    /// The front window among an app's windows `ids` that a park moved to another desktop (~0.2 ms): the window that the
+    /// app focused last, as the window server orders each desktop's windows front to back. nil if one of them is on the
+    /// active desktop (the app may focus it any moment, e.g. after the user closed its focused window), or if none parked
+    func frontParkedWindow(among ids: some Collection<UInt32>) -> UInt32? {
+        let parked = parkedWindows.withLock { $0.intersection(ids) }
+        guard !parked.isEmpty, let snapshot = snapshot(), let shown = snapshot.shown,
+              !windows(on: shown).contains(where: ids.contains)
+        else { return nil }
+        for desktop in snapshot.desktops where desktop != shown {
+            if let front = windows(on: desktop).first(where: parked.contains) { return front }
+        }
+        return nil
+    }
+
     /// Waits until the window server shows each moved window on its Space, or until `deadline`. A window that is gone, or
     /// whose move isn't current, isn't waited for. The windows that it timed out for
     @discardableResult

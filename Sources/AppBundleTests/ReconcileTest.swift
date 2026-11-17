@@ -804,6 +804,28 @@ struct ReconcileTest {
         expectEqual(describeTree("b"), "h_tiles(*3 6)")
     }
 
+    /// A popup that has the native focus gives the focus to the window it belongs to: e.g. System Settings focuses the
+    /// sheet in front of its window when it activates. A popup without such a window leaves the focus where it is
+    @Test
+    func aFocusedPopupGivesTheFocusToItsWindow() async {
+        setUpTree("h_tiles(1) macos_popup(2 4)", workspace: "a")
+        fake.windows[2]?.kind = .popup
+        fake.windows[4]?.kind = .popup
+        setUpTree("h_tiles(*3)", workspace: "b")
+        fake.parents = [2: 1] // 4 has no parent (e.g. 1Password's Quick Access)
+        fake.focused = 3
+        await heavyRefresh()
+
+        fake.focused = 4
+        await heavyRefresh()
+        expectEqual(focus.windowOrNil?.windowId, 3)
+
+        fake.focused = 2
+        await heavyRefresh()
+        expectEqual(focus.windowOrNil?.windowId, 1)
+        expectEqual(describeTree("a"), "h_tiles(*1)")
+    }
+
     /// A dialog that an app opens in the background goes to the workspace of the app's last focused window: on the
     /// focused workspace it would hide, or pull the focus back once the app is activated on its own workspace. A new
     /// window of a background app, and a dialog of the frontmost app, go to the focused workspace

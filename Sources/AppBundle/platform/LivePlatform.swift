@@ -11,6 +11,10 @@ final class LivePlatform: Platform {
     private let registrationBackoffs = RegistrationBackoffs()
     private let listingDeadlines = ListingDeadlines(minDeadline: .milliseconds(250), maxDeadline: .seconds(1))
     nonisolated private let terminationMirror = TerminationMirror()
+    private let activations = Activations()
+    /// The frontmost app's window that ``focusedWindow()`` read on the parking desktop (``FocusedWindowRead/parked(_:)``).
+    /// The batch that brings it back gives it the native focus. nil once AX reports a focused window again
+    private var parkedFocus: (pid: pid_t, windowId: WindowId)? = nil
 
     // MARK: Snapshot reads
 
@@ -121,15 +125,26 @@ final class LivePlatform: Platform {
     static let focusReadDeadline: Duration = .milliseconds(1500)
     var focusReadDeadline: Duration { Self.focusReadDeadline }
 
+    /// The frontmost app's window on the parking desktop if AX reports no focused window, see
+    /// ``AxApp/focusedWindow(isClickActivation:)``
     func focusedWindow() async throws(CancellationError) -> FocusedWindow? {
         guard let nsApp = NSWorkspace.shared.frontmostApplication,
               let app = try await register(nsApp),
-              let ax = app.ax,
-              let raw = try await ax.call({ app, _ in app.focusedWindowId() })
+              let ax = app.ax
         else { return nil }
-        let id = WindowId(raw: raw)
-        app.lastNativeFocusedWindowId = id
-        return FocusedWindow(app: app.info, windowId: id)
+        let isClickActivation = activations.isClickActivation(of: app.info.pid)
+        guard let read = try await ax.call({ app, _ in app.focusedWindow(isClickActivation: isClickActivation) }) else { return nil }
+        switch read {
+            case .window(let raw):
+                let id = WindowId(raw: raw)
+                app.lastNativeFocusedWindowId = id
+                parkedFocus = nil
+                return FocusedWindow(app: app.info, windowId: id)
+            case .parked(let raw):
+                let id = WindowId(raw: raw)
+                parkedFocus = (app.info.pid, id)
+                return FocusedWindow(app: app.info, windowId: id)
+        }
     }
 
     func classify(_ windows: [AppInfo: [WindowId]]) async throws(CancellationError) -> [WindowId: DetectedWindow] {
@@ -232,7 +247,8 @@ final class LivePlatform: Platform {
     /// doesn't wait. Every Space move of the batch goes to the window server at once, see ``SpaceMoveBatch``: once each
     /// shown job wrote its windows (still on the parking desktop) and each space parks job asked for its moves, at most
     /// ``parkWaitLimit`` from the post. Then the shown jobs wait until the window server shows their windows on the active
-    /// desktop before the native focus
+    /// desktop before the native focus. A batch without a native focus that brings back the window that ``focusedWindow()``
+    /// read on the parking desktop gives it one: its app is active, but focuses none of its windows
     func apply(_ batch: [Placement], focus: WindowId?, trustsLastSeen: Bool) {
         let spaces = batch.isEmpty ? .none : batchSpaces()
         var shown: [pid_t: (ax: AxApp, placements: [Placement])] = [:]
@@ -250,7 +266,11 @@ final class LivePlatform: Platform {
                     shown[app.info.pid, default: (ax, [])].placements.append(placement)
             }
         }
-        let nativeFocus = focus.flatMap(decideNativeFocus)
+        let nativeFocus = if let focus {
+            decideNativeFocus(focus)
+        } else {
+            parkedFocusToGive(spaces, shown).flatMap { decideNativeFocus($0, raises: true) }
+        }
         let focusRoute = nativeFocus.map { NativeFocusRoute(focusedApp: $0.app.info.pid, shownApps: shown.keys) }
         let shownJobs = ShownJobs(deadline: .now() + parkWaitLimit)
         let hasSpaces = spaces.shown != nil || spaces.parking != nil
@@ -272,6 +292,16 @@ final class LivePlatform: Platform {
             case .shownJob: nativeFocus.activateIfHung()
             case .alone: nativeFocus.runAlone()
         }
+    }
+
+    /// The window of ``parkedFocus``, once: if the batch brings it back from the parking desktop, and its app is still the
+    /// frontmost one
+    private func parkedFocusToGive(_ spaces: BatchSpaces, _ shown: [pid_t: (ax: AxApp, placements: [Placement])]) -> WindowId? {
+        guard let (pid, id) = parkedFocus, spaces.onParkingSpace.contains(id),
+              shown[pid]?.placements.contains(where: { $0.windowId == id }) == true
+        else { return nil }
+        parkedFocus = nil
+        return frontmostAppPid == pid ? id : nil
     }
 
     /// The desktops of a batch (~0.25 ms). `.none` if SkyLight lacks a symbol, or with `Displays have separate Spaces` and
@@ -298,8 +328,9 @@ final class LivePlatform: Platform {
         decideNativeFocus(id)?.runAlone()
     }
 
-    /// Decides the window's native focus now. nil in `--read-only` mode, or once its app is gone
-    private func decideNativeFocus(_ id: WindowId) -> NativeFocus? {
+    /// Decides the window's native focus now. nil in `--read-only` mode, or once its app is gone. `raises`: never the fast
+    /// path, whose activation alone changes nothing for an app that is active already (``parkedFocus``)
+    private func decideNativeFocus(_ id: WindowId, raises: Bool = false) -> NativeFocus? {
         if serverArgs.isReadOnly { return nil }
         // Bump first: a focus posted earlier for another window must not run, even if this window's app is gone
         let generation = nativeFocusGeneration.wrappingAdd(1, ordering: .sequentiallyConsistent).newValue
@@ -307,11 +338,14 @@ final class LivePlatform: Platform {
         // Performance optimization. If possible avoid doing AX requests
         // (important for apps which are slow at responding even such basic AX requests. E.g. Godot)
         // Beware of the macOS bug: https://github.com/nikitabobko/AeroSpace/issues/101
-        let activatesOnly = (!NSScreen.screensHaveSeparateSpaces || world.monitors.all.count == 1) &&
+        let activatesOnly = !raises && (!NSScreen.screensHaveSeparateSpaces || world.monitors.all.count == 1) &&
             (app.lastNativeFocusedWindowId == id || app.windowsCount == 1)
         let raw = id.raw
         return NativeFocus(app: app, activatesOnly: activatesOnly, generation: generation) { @Sendable [nsApp = app.nsApp] axApp in
             guard takeNativeFocus(generation) else { return }
+            // The user activated another app since the parked focus was read (e.g. a second cmd-tab): it would take the
+            // activation back
+            if raises && !nsApp.isActive { return }
             if activatesOnly { nsApp.activateForNativeFocus() } else { axApp.focus(raw, nsApp) }
         }
     }

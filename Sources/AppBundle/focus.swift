@@ -123,9 +123,16 @@ func setFocus(to newFocus: LiveFocus) -> Bool {
 
 /// Takes the focus from macOS: the window that has the native focus becomes the focused window. Only when the native
 /// focus changes: AeroSpace's focus may differ from it (e.g. on an empty workspace, or before macOS follows a command's
-/// focus), and an unchanged native focus doesn't take the focus back. A popup doesn't take the focus
+/// focus), and an unchanged native focus doesn't take the focus back. A popup gives it to the window it belongs to, if any
 func syncFocusFromMacOs(_ nativeFocused: Window?) {
-    if case .macosPopup = nativeFocused?.placement { return }
+    var nativeFocused = nativeFocused
+    // A popup's window server owner has the focus: e.g. a sheet (System Settings focuses the sheet that blocks its window)
+    // or a Chromium bubble. A popup without one (e.g. 1Password's Quick Access) leaves the focus where it is
+    if let popup = nativeFocused, case .macosPopup = popup.placement {
+        let popups = macosPopupWindowsContainer.children.compactMap { ($0 as? Window)?.windowId }
+        guard let owner = windowServerOwner(of: popup.windowId, world.platform.windowServerParents(popups)) else { return }
+        nativeFocused = owner
+    }
     // No screens (e.g., during display reconfiguration): setFocus can't show invisible workspaces meanwhile. Don't consume
     // the native focus change, the first session after the screens come back takes it
     if nativeFocused?.windowId != world.focusStore.lastKnownNativeFocusedWindowId && world.monitors.hasScreens {
