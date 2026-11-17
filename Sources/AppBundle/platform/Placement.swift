@@ -60,7 +60,7 @@ nonisolated struct ParkTarget: Equatable, Sendable {
     /// and it remembers where the window was, as is: ``Placement/unparkPopup(_:)``, or the `.floating` unpark after the
     /// parent's, puts it back there
     let followsParent: Bool
-    /// `experimental-park-on-macos-space`: the window moves as is to the batch's parking desktop
+    /// The window moves as is to the batch's parking desktop
     /// (``BatchSpaces/parking``), where macOS doesn't draw it. It parks in the corner if there's none, or if it can't move
     /// there (e.g. it shows on every Space)
     var onMacosSpace: Bool = false

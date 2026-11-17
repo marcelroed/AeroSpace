@@ -24,7 +24,7 @@ final class FakePlatform: Platform {
     /// The child windows that move along with their parent, as AppKit's do (a Chromium bubble doesn't: Chromium places it)
     var movesWithParent: Set<WindowId> = []
     /// The active desktop and the parking desktop of the batches (``BatchSpaces``). nil: the batches move no window
-    /// between Spaces, as LivePlatform's without `experimental-park-on-macos-space`
+    /// between Spaces, as LivePlatform's when the SkyLight symbols are missing
     var shownSpace: SpaceId? = nil
     var parkingSpace: SpaceId? = nil
     /// Every call in order, and the AX reads and frame writes of the placements. The frame writes are only here: a

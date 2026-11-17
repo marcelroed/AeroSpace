@@ -274,12 +274,10 @@ final class LivePlatform: Platform {
         }
     }
 
-    /// The desktops of a batch (~0.25 ms): with `experimental-park-on-macos-space`, or once a park moved a window to
-    /// another desktop, so that the windows come back after the config turned it off. `.none` otherwise: no window moves
+    /// The desktops of a batch (~0.25 ms). `.none` if SkyLight lacks a symbol, or with `Displays have separate Spaces` and
+    /// more than one display: no window moves, they park in the corner
     private func batchSpaces() -> BatchSpaces {
-        guard config.experimentalParkOnMacosSpace || MacosSpaces.hasMovedWindows, let spaces = MacosSpaces.shared,
-              let snapshot = spaces.snapshot()
-        else { return .none }
+        guard let spaces = MacosSpaces.shared, let snapshot = spaces.snapshot() else { return .none }
         let onParkingSpace = snapshot.parking.map { Set(spaces.windows(on: $0).map(WindowId.init(raw:))) } ?? []
         return BatchSpaces(shown: snapshot.shown, parking: snapshot.parking, onParkingSpace: onParkingSpace)
     }
@@ -365,9 +363,7 @@ final class LivePlatform: Platform {
     /// desktop after the windows came back
     nonisolated func restoreForTermination() {
         terminationMirror.restoreWindows()
-        if MacosSpaces.hasMovedWindows {
-            MacosSpaces.shared?.bringBackParkedWindows(timeout: .milliseconds(300))
-        }
+        MacosSpaces.shared?.bringBackParkedWindows(timeout: .milliseconds(300))
     }
 
     // MARK: The registry

@@ -5,8 +5,8 @@ import Common
 /// then a park per window of the invisible workspaces (to reduce flicker), then the parks of their popups (see
 /// ``popupPlacements(_:_:)``). While AeroSpace is disabled, every workspace's placements: every window unparks. A floating
 /// child window parks before its parent and unparks after it (see ``floatingChildDepths(_:_:)``). The shown placements go
-/// the most recently used window first (``mostRecentFirst()``). With `experimental-park-on-macos-space`, the tiles, the
-/// floating windows and their popups park on the parking desktop (``ParkTarget/onMacosSpace``)
+/// the most recently used window first (``mostRecentFirst()``). The tiles, the floating windows and their popups park on
+/// the parking desktop (``ParkTarget/onMacosSpace``)
 func placements() -> [Placement] {
     // No screens (e.g., the screens disappeared in the middle of the refresh session): wait for them. Don't hide windows in
     // the corners of a monitor that doesn't exist. AeroSpace can't be disabled while there are no screens (EnableCommand),
@@ -30,13 +30,12 @@ func placements() -> [Placement] {
         for monitor in monitors.all {
             shown += monitor.activeWorkspace.layoutPlacements()
         }
-        let parksOnSpace = config.experimentalParkOnMacosSpace
         for workspace in Workspace.all where !workspace.isVisible {
             let monitor = workspace.workspaceMonitor
             let corner = monitors.hideCorner(of: monitor)
             for window in workspace.allLeafWindowsRecursive {
                 let isZoom = window.app.knownBundleId == .zoom
-                let onMacosSpace = parksOnSpace && window.workspacePlacement?.placement.movesToParkingSpace == true
+                let onMacosSpace = window.workspacePlacement?.placement.movesToParkingSpace == true
                 let target = ParkTarget(
                     corner: corner, monitor: monitor, monitors: monitors.all, isFloating: window.isFloating, isZoom: isZoom,
                     followsParent: childDepths[window.windowId] != nil, onMacosSpace: onMacosSpace,
@@ -124,7 +123,7 @@ private func popupPlacements(_ popups: [Window], _ parents: [WindowId: WindowId]
             let monitor = workspace.workspaceMonitor
             let target = ParkTarget(
                 corner: monitors.hideCorner(of: monitor), monitor: monitor, monitors: monitors.all, isFloating: false, isZoom: false,
-                followsParent: true, onMacosSpace: config.experimentalParkOnMacosSpace && placement.movesToParkingSpace,
+                followsParent: true, onMacosSpace: placement.movesToParkingSpace,
             )
             parks.append(.park(popup.windowId, target))
         }

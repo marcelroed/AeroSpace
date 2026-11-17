@@ -136,7 +136,7 @@ actor AxApp {
         if !isLockScreen {
             var isBusy = false
             // A window that a park moved to the parking desktop isn't listed: the window server tells that it's alive
-            let spaces = MacosSpaces.hasMovedWindows ? MacosSpaces.shared : nil
+            let spaces = MacosSpaces.shared
             for (id, window) in alive {
                 if isAbandoned() { return [] }
                 // Liveness via _AXUIElementGetWindow, not the unreliable kAXUIElementDestroyedNotification (405dec8b).

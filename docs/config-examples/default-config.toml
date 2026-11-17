@@ -41,11 +41,6 @@ on-focused-monitor-changed = ['move-mouse monitor-lazy-center']
 # Also see: https://nikitabobko.github.io/AeroSpace/goodies#disable-hide-app
 automatically-unhide-macos-hidden-apps = false
 
-# Experimental: hide the windows of the invisible workspaces on the last macOS desktop (add a second one in Mission
-# Control) instead of in a corner of the monitor, where macOS keeps drawing them. Needs macOS 26.4 or later
-# See: https://nikitabobko.github.io/AeroSpace/guide#park-on-macos-space
-experimental-park-on-macos-space = false
-
 # List of workspaces that should stay alive even when they contain no windows,
 # even when they are invisible.
 # Fallback value (if you omit the key): persistent-workspaces = []

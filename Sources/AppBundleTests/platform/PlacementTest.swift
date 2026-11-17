@@ -365,7 +365,7 @@ struct PlacementTest {
         expectEqual(current.log.items.first, "setFrame")
     }
 
-    // MARK: experimental-park-on-macos-space
+    // MARK: The parking desktop
 
     /// A park on the parking desktop moves the window as it is: no AX call. A window that the window server shows there
     /// already doesn't move again. Its unpark reads the tile (AX tells the frame of a window on another desktop), and
@@ -472,15 +472,16 @@ struct PlacementTest {
         expectEqual(fake.calls(of: .moveToSpace), [])
     }
 
-    /// Once the config turns the parking off, a window on the parking desktop parks in the corner, then moves back
+    /// Once the parking desktop is gone (e.g. a fullscreen app's Space is active), a window that is still on it parks in
+    /// the corner, then moves back
     @Test
-    func aWindowOnTheParkingDesktopComesBackOnceTheConfigTurnsTheParkingOff() {
+    func aWindowOnTheParkingDesktopComesBackOnceThereIsNoParkingDesktop() {
         _ = setUpParkingOnSpace("h_tiles(1)", workspace: "a")
         testWindow(1).rect = rect(100, 100, 400, 300)
         fake.apply(placements())
         expectEqual(fake.windows[1]?.space, secondDesktop)
 
-        world.config.experimentalParkOnMacosSpace = false
+        fake.parkingSpace = nil
         fake.resetCalls()
         fake.apply(placements())
 
@@ -552,11 +553,10 @@ private final class CallLog {
     func append(_ item: String) { items.append(item) }
 }
 
-/// The tree on workspace `workspace`, with `experimental-park-on-macos-space` and a parking desktop. Workspace "b" is shown
+/// The tree on workspace `workspace`, with a parking desktop. Workspace "b" is shown
 @MainActor
 private func setUpParkingOnSpace(_ spec: String, workspace: String) -> Workspace {
     let result = setUpTree(spec, workspace: workspace)
-    world.config.experimentalParkOnMacosSpace = true
     (fake.shownSpace, fake.parkingSpace) = (firstDesktop, secondDesktop)
     #expect(Workspace.get(byName: "b").focusWorkspace())
     return result

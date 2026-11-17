@@ -419,40 +419,37 @@ Native macOS Spaces have a lot of problems
 * Apple doesn't provide public API to communicate with Spaces (create/delete/reorder/switch Space and move windows between Spaces)
 
 Since Spaces are so hard to deal with, AeroSpace reimplements Spaces and calls them "Workspaces".
-The idea is that if the workspace isn’t active then all of its windows are placed outside the visible area of the screen, in the bottom right or left corner.
-Once you switch back to the workspace, (e.g. by the means of xref:commands.adoc#workspace[workspace] command, or `cmd + tab`) windows are placed back to the visible area of the screen.
+The idea is that if the workspace isn’t active then all of its windows move to the last macOS desktop, which you never switch to.
+There, macOS doesn't draw them, and they keep their frames.
+Once you switch back to the workspace, (e.g. by the means of xref:commands.adoc#workspace[workspace] command, `cmd + tab`, or a click on the app in the Dock) its windows move back to the desktop you are on.
 
-When you quit the AeroSpace or when the AeroSpace detects that it's about to crash, AeroSpace will place all windows back to the visible area of the screen.
+When you quit the AeroSpace or when the AeroSpace detects that it's about to crash, AeroSpace will move all windows back to the desktop you are on.
+If it gets killed instead, it moves them back at its next start.
 
 AeroSpace shows the name of currently active workspace in its tray icon (top right corner), to give users a visual feedback on what workspace is currently active.
 
-The intended workflow of using AeroSpace workspaces is to only have one macOS Space (or as many monitors you have, if `Displays have separate Spaces` is enabled) and don’t interact with macOS Spaces anymore.
+The intended workflow of using AeroSpace workspaces is to have two macOS desktops, to use only the first one, and don’t interact with macOS Spaces anymore.
+
+[#park-on-macos-space]
+=== The desktop for the hidden windows
+
+* Add a second desktop in Mission Control: AeroSpace hides the windows on the last desktop, and you keep using the first one.
+* Turn off `System Settings -> Desktop & Dock -> When switching to an application, switch to a Space with open windows for the application`, and run `defaults write com.apple.dock workspaces-auto-swoosh -bool false; killall Dock`.
+  Otherwise macOS slides to the last desktop when an app whose windows are all hidden activates (e.g. on `cmd + tab`).
+  AeroSpace then follows: it treats that desktop as the shown one, and moves the other windows accordingly.
+* A click on Finder in the Dock still slides to the last desktop when all Finder windows are hidden. AeroSpace follows, as above.
+* It needs macOS 26.4 or later, and it doesn't work with `Displays have separate Spaces` and more than one monitor.
+  It uses a private macOS API: a macOS update may break it.
 
 [NOTE]
 ====
+Without a second desktop (or while a macOS fullscreen window's Space is active, or if macOS breaks the private API), AeroSpace hides the windows outside the visible area of the screen, in the bottom right or left corner, and so does it for a window that shows on every desktop, a macOS fullscreen window and the windows of a hidden app.
 For better or worse, macOS doesn’t allow to place windows outside the visible area entirely.
 You will still be able to see a 1 pixel vertical line of "hidden" windows in the bottom right or left corner of your screen.
 That means, that if AeroSpace crashes badly you will still be able to manually "unhide" the windows by dragging these few pixels to the center of the screen.
 
 If you want to minimize the visibility of hidden windows, it's recommended to place Dock in the bottom (and additionally turn automatic hiding on)
 ====
-
-[#park-on-macos-space]
-=== Hiding windows on a macOS Space (experimental)
-
-macOS keeps drawing the corner-parked windows: they cost the window server time on every frame, and their apps never learn that they are hidden.
-With `experimental-park-on-macos-space = true`, AeroSpace instead moves the windows of the invisible workspaces to the last macOS desktop, and back when their workspace shows.
-There, they aren't drawn at all, and they keep their frames, so that switching to their workspace only moves them back.
-
-* It needs a second desktop: add one in Mission Control. AeroSpace uses the last desktop for the hidden windows, and you keep using the first one.
-  Without a second desktop, or while a macOS fullscreen window's Space is active, the windows park in the corner as usual.
-* It needs macOS 26.4 or later, and it doesn't work with `Displays have separate Spaces` and more than one monitor.
-  It uses a private macOS API: a macOS update may break it, and the windows then park in the corner.
-* When an app whose windows are all hidden activates (e.g. you click it in the Dock), macOS may switch to the last desktop.
-  AeroSpace then treats that desktop as the shown one, and moves the other windows accordingly.
-  Turn off `System Settings -> Desktop & Dock -> When switching to an application, switch to a Space with open windows for the application` to avoid the switch.
-* When AeroSpace quits, it moves the hidden windows back to the active desktop.
-  If it gets killed instead, it moves them back at its next start.
 
 === Proper monitor arrangement
 

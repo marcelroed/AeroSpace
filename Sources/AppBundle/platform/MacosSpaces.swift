@@ -169,8 +169,8 @@ nonisolated final class SpaceMoveBatch: Sendable {
     }
 }
 
-/// The macOS Spaces through SkyLight, the private framework under CoreGraphics, for `experimental-park-on-macos-space`.
-/// It's looked up at runtime, as ``windowServerParents(_:)``: if a macOS update drops a symbol, ``shared`` is nil, and the
+/// The macOS Spaces through SkyLight, the private framework under CoreGraphics: the windows of the invisible workspaces
+/// park on the last desktop, where macOS doesn't draw them. It's looked up at runtime, as ``windowServerParents(_:)``: if a macOS update drops a symbol, ``shared`` is nil, and the
 /// windows park in a corner.
 ///
 /// Since macOS 14.5, the window server ignores an unprivileged process that moves another app's window to another Space
@@ -212,11 +212,6 @@ nonisolated final class SpaceMoveBatch: Sendable {
 
     /// nil if a symbol is missing (e.g. before macOS 26.4). The symbol table is read once, on first use
     static let shared: MacosSpaces? = MacosSpaces()
-
-    /// Set by the first move: from then on, the batches read the Spaces even if the config turned the parking off, so
-    /// that the parked windows come back, and termination brings them back. Static: reading it doesn't load ``shared``
-    static var hasMovedWindows: Bool { didMoveWindows.load(ordering: .relaxed) }
-    private static let didMoveWindows: Atomic<Bool> = Atomic(false)
 
     private init?() {
         let path = "/System/Library/PrivateFrameworks/SkyLight.framework/Versions/A/SkyLight"
@@ -289,7 +284,6 @@ nonisolated final class SpaceMoveBatch: Sendable {
     /// the windows, so termination moves them back; otherwise it shows them. Nothing moves in `--read-only` mode
     func move(_ windowIds: [UInt32], to space: SpaceId, parks: Bool) {
         if windowIds.isEmpty || serverArgs.isReadOnly { return }
-        Self.didMoveWindows.store(true, ordering: .relaxed)
         parkedWindows.withLock { parked in
             if parks { parked.formUnion(windowIds) } else { parked.subtract(windowIds) }
         }
@@ -352,7 +346,7 @@ nonisolated final class SpaceMoveBatch: Sendable {
 /// Space only, so the first refresh wouldn't find them. Only the windows of regular apps at the normal level move: the
 /// desktop's own windows (e.g. its wallpaper) stay
 func bringBackWindowsOfLastRun() async {
-    guard config.experimentalParkOnMacosSpace, let spaces = MacosSpaces.shared, let snapshot = spaces.snapshot(),
+    guard let spaces = MacosSpaces.shared, let snapshot = spaces.snapshot(),
           let shown = snapshot.shown, let parking = snapshot.parking
     else { return }
     let ids = Set(spaces.windows(on: parking))
